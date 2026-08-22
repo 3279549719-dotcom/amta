@@ -17,6 +17,12 @@
 - koharu headless 当前在 :4000 运行（--headless --cpu）。
 - **Benchmark A 已实现**（`src/benchmark.py` 两阶段：emit crops+manifest → ingest 标注算指标；synthetic 自测 + 链路实测通过）。
 - **预筛完成**：16 页原文 × 4 detector 全跑通 → **160 crops + `output/label_manifest.json`**（无缺失，16 页全覆盖，每页 2-19 框）。
+- **Benchmark A 完成**（VLM oracle 标注 160 框 + ingest）：
+  - **detection_precision = 0.963**（160 候选，6 个非文字假框）
+  - 四类分布：dialogue_in 61 / dialogue_out 53 / sfx 23 / bg_text 17
+  - 置信度：127 high + 33 medium，无 low
+  - 6 个 FP 均为真实非文字（`!?` 反应符号、纯画面）——detector 假框少，框外字真问题在 recall（detector 均漏区域），需后续抽查
+  - 产出 `output/benchmark_a.json`、`output/labels_a.json`（可复现）
 - git 凭据已修：host 级 `credential.github.com.helper="!gh auth git-credential"` 绕开 GCM 弹窗（否则每次 git 操作弹账户选择框）。
 
 ## 里程碑
@@ -24,9 +30,9 @@
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | 0 | 脚手架 / CLAUDE.md / skills / smoke | ✅ 完成并推送 |
-| 1 | Benchmark A/B/C（检测 recall / OCR CER / inpaint 评分） | 🔄 A 进行中 |
+| 1 | Benchmark A/B/C（检测 recall / OCR CER / inpaint 评分） | 🔄 B/C 待做 |
 | 1a | 预筛 16 页测试集（四 detector → 160 crops + manifest） | ✅ 完成 |
-| 1b | VLM oracle 标注 160 crops 归 4 类 → ingest 算 precision | 🔄 标注进行中 |
+| 1b | VLM oracle 标注 160 crops → ingest 算 precision | ✅ 完成（precision 0.963） |
 | 2 | Repair Loop / Vision QA 嵌入 pipeline | ⏳ |
 | 2b | Story Memory + prompt.py + vqa() + scene 翻译 | ⏳ |
 | 3 | GitHub Actions 自动触发验证循环 | ⏳ 待验证循环稳定后 |
@@ -67,6 +73,7 @@
 
 ## 下一步
 
-1. VLM oracle 标注 160 crops 归 4 类（框内对白/框外对白/SFX/背景文字 + is_text 真假判定），产出 labels JSON。
-2. `npm run ingest:a` 算 Benchmark A 指标（detection_precision + 四类分布），产出 output/benchmark_a.json。
-3. 结果回填本节「当前状态」并推送。
+1. Benchmark B（三 OCR 同框对比 + 词典校正豊姫→星姬）：用 A 的并集 crops，对每框跑三 OCR 引擎，VLM 判文本真值，算 CER/EM。
+2. Benchmark C（mask + lama-manga inpainting 区域评分）。
+3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——detector 假框少(precision 0.963)，重点转向 recall。
+4. 结果回填本节「当前状态」并推送。

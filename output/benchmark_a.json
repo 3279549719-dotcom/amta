@@ -1,0 +1,24 @@
+{
+  "n_candidates": 160,
+  "fp_non_text": 6,
+  "detection_precision": 0.963,
+  "rows": {
+    "dialogue_in": {
+      "detected": 61,
+      "share": 0.396
+    },
+    "dialogue_out": {
+      "detected": 53,
+      "share": 0.344
+    },
+    "sfx": {
+      "detected": 23,
+      "share": 0.149
+    },
+    "bg_text": {
+      "detected": 17,
+      "share": 0.11
+    }
+  },
+  "note": "precision 即核心；recall(框外漏检)需人工抽查 detector 均漏区域"
+}
