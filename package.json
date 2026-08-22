@@ -1,0 +1,19 @@
+{
+  "name": "amta",
+  "version": "0.1.0",
+  "description": "AMTA — Automation Manga Translate Agent：本地 koharu v0.59.1 headless（端口 4000）驱动的漫画翻译自动化编排层（Python）",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "powershell -ExecutionPolicy Bypass -File scripts/start_koharu.ps1",
+    "precheck": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
+    "smoke": "python scripts/smoke_test.py",
+    "check": "python -m compileall -q src scripts",
+    "bench": "python src/benchmark.py --all",
+    "bench:a": "python src/benchmark.py --bench a",
+    "bench:b": "python src/benchmark.py --bench b",
+    "bench:c": "python src/benchmark.py --bench c",
+    "commit": "git add -A && git commit"
+  },
+  "dependencies": {}
+}
