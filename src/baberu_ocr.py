@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "models" / "baberu-ocr"))
 from PIL import Image
 
-from onnx_infer import BaberuOnnxOCR  # noqa: E402
+from onnx_infer import BaberuOnnxOCR  # noqa: E402  # type: ignore[import-not-found]  # 运行时动态路径(models/ 不入库)
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = ROOT / "models" / "baberu-ocr"

@@ -1,21 +1,18 @@
 #!/bin/sh
-# Level 3 — pre-push 门禁：完整本地校验（编译 + 单测 + 可选 smoke）。
-# 安装：scripts/install_hooks.ps1（git config core.hooksPath .githooks）
+# Level 3 pre-push gate: full local checks (fastcheck + optional smoke if koharu reachable).
+# Install: scripts/install_hooks.ps1 (git config core.hooksPath .githooks)
 set -e
 cd "$(dirname "$0")/.."
 command -v python >/dev/null 2>&1 && PY=python || PY=py
 
-echo "[pre-push] compile..."
-$PY -m compileall -q src scripts
-
-echo "[pre-push] unit tests..."
-$PY -m unittest discover -s tests -v
+echo "[pre-push] fastcheck (compile + ruff + pyright + unit tests)..."
+$PY scripts/fastcheck.py
 
 echo "[pre-push] optional smoke (only if koharu reachable)..."
 if $PY -c "import requests,sys; sys.exit(0 if requests.get('http://127.0.0.1:4000/', timeout=2).ok else 1)" 2>/dev/null; then
     $PY scripts/smoke_test.py
 else
-    echo "[pre-push] koharu 不可达，跳过 smoke（push 继续；需要时先 npm start）"
+    echo "[pre-push] koharu unreachable, skip smoke (push continues; run npm start when needed)"
 fi
 
 echo "[pre-push] OK"

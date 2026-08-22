@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+# E701/E702（单行多条语句）是项目既有紧凑风格，忽略；其余规则保留。
+ignore = ["E701", "E702"]
+
+[tool.ruff.lint.per-file-ignores]
+# 外部模型目录的运行时动态导入（models/ 不入库，克隆环境不存在）
+"src/baberu_ocr.py" = ["E402"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+# 外部模型目录（models/）不入库，排除避免误报
+exclude = ["models/**", "output/**"]

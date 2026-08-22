@@ -42,7 +42,6 @@ def cer(gt: str, pred: str) -> float:
 def main() -> int:
     ocr = json.loads((OUT / "ocr_result.json").read_text(encoding="utf-8"))
     gt_data = json.loads((OUT / "recall_gt.json").read_text(encoding="utf-8"))
-    thr = 0.5  # 匹配阈值
 
     from collections import defaultdict
     # 每页: GT 条目 vs manga-ocr 输出, 贪心匹配(每个 GT 找 best 输出)

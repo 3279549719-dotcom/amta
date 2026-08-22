@@ -52,6 +52,7 @@ Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs
                                                     / Yes → project rule(CLAUDE.md)
                                                               ↓ 机械可测?
                                                             No → 规则 / Yes → test/lint/hook
+重大方向/架构选择（为什么这样选）→ 独立通道 → decision(docs/decisions/ADR-N)
 ```
 
 ### Step 7 — 只更新真正变化的工件
