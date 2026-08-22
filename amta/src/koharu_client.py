@@ -21,6 +21,9 @@ KOHARU_PORT = 4000
 DEFAULT_TIMEOUT = 60
 PIPELINE_TIMEOUT = 1200  # 秒；41 页实测单页 pipeline 600-1200s 为合理窗口
 
+# 流水线终态集合（教训 L3：漏掉 completed_with_errors 曾导致 wait_operation 卡死）
+TERMINAL_STATUSES = ("completed", "failed", "cancelled", "completed_with_errors")
+
 
 def ensure_no_proxy() -> None:
     """Clash/V2Ray 代理会破坏 localhost 直连，必须显式排除。"""
@@ -129,7 +132,7 @@ class KoharuClient:
             for op in resp.json().get("operations", []):
                 if op.get("id") == op_id:
                     status = op.get("status", "")
-                    if status in ("completed", "failed", "cancelled", "completed_with_errors"):
+                    if status in TERMINAL_STATUSES:
                         return op
             time.sleep(5)
         raise KoharuError(f"Pipeline timeout after {timeout}s (op={op_id})")
