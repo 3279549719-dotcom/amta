@@ -23,6 +23,12 @@
   - 置信度：127 high + 33 medium，无 low
   - 6 个 FP 均为真实非文字（`!?` 反应符号、纯画面）——detector 假框少，框外字真问题在 recall（detector 均漏区域），需后续抽查
   - 产出 `output/benchmark_a.json`、`output/labels_a.json`（可复现）
+- **Benchmark A recall 完成**（内容级，单翼 1-10 页 101 GT 区域）：
+  - **总体 recall = 0.98**（101 检出 99）
+  - 分维度：dialogue_in 1.0 / dialogue_out 1.0 / sfx 0.941 / bg_text 0.909
+  - 漏检 2 处：英文服装字 "Welcome Hall!"(bg_text) + 1 个 SFX（拟声字）
+  - **方法修正**：describe_image 整页坐标不可靠（裁剪验证空白）→ 改用**内容级匹配**（VLM 识别 detector 并集框内容 vs GT 内容清单，字符重合度≥0.6）
+  - 产出 `output/recall_gt.json`、`recall_detections.json`、`recall_ocr.json`、`recall_result.json`
 - git 凭据已修：host 级 `credential.github.com.helper="!gh auth git-credential"` 绕开 GCM 弹窗（否则每次 git 操作弹账户选择框）。
 
 ## 里程碑
@@ -32,7 +38,8 @@
 | 0 | 脚手架 / CLAUDE.md / skills / smoke | ✅ 完成并推送 |
 | 1 | Benchmark A/B/C（检测 recall / OCR CER / inpaint 评分） | 🔄 B/C 待做 |
 | 1a | 预筛 16 页测试集（四 detector → 160 crops + manifest） | ✅ 完成 |
-| 1b | VLM oracle 标注 160 crops → ingest 算 precision | ✅ 完成（precision 0.963） |
+| 1b | Benchmark A precision（VLM oracle 标注 160 框） | ✅ 完成（precision 0.963） |
+| 1c | Benchmark A recall（单翼 1-10 页，内容级匹配） | ✅ 完成（recall 0.98） |
 | 2 | Repair Loop / Vision QA 嵌入 pipeline | ⏳ |
 | 2b | Story Memory + prompt.py + vqa() + scene 翻译 | ⏳ |
 | 3 | GitHub Actions 自动触发验证循环 | ⏳ 待验证循环稳定后 |

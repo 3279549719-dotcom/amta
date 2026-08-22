@@ -21,6 +21,9 @@ output/*
 !output/benchmark_c.json
 !output/labels_a.json
 !output/label_manifest.json
+!output/recall_gt.json
+!output/recall_result.json
+!output/recall_ocr.json
 
 # ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
 testsets/pages/

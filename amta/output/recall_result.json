@@ -1,0 +1,801 @@
+{
+  "method": "content-level recall",
+  "summary": {
+    "dialogue_in": {
+      "gt": 39,
+      "recalled": 39,
+      "recall": 1.0
+    },
+    "dialogue_out": {
+      "gt": 34,
+      "recalled": 34,
+      "recall": 1.0
+    },
+    "sfx": {
+      "gt": 17,
+      "recalled": 16,
+      "recall": 0.941
+    },
+    "bg_text": {
+      "gt": 11,
+      "recalled": 10,
+      "recall": 0.909
+    },
+    "ALL": {
+      "gt": 101,
+      "recalled": 99,
+      "recall": 0.98
+    }
+  },
+  "pages": {
+    "page_1": {
+      "det_key": "page_0",
+      "regions": [
+        {
+          "content": "月の都",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "穢れを嫌った神々が住む都",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "穢れとは心である",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "他者を蹴落とし、自分だけが生き残ろうとする心が穢れを生む",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "穢れを嫌う月の民はめったに他人と関わろうとしない",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "他人と関わることはれを生み出す原因となると信じてるからだ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永遠に近い時間をひたすらに自分の研鑽・研究に費やす",
+          "type": "dialogue_out",
+          "match_score": 0.9,
+          "recalled": true,
+          "best_det": 0.9047619047619048
+        },
+        {
+          "content": "私、稀神サグメはそんな月の生活を気に入っていただが一つだけ不満があるとすれば",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_2": {
+      "det_key": "page_1",
+      "regions": [
+        {
+          "content": "八意様だ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "カチャ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "月の都は狭い必然的に研究室は相部屋となる",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "チャッ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "当然八意様も私に興味などない",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "会話は必要最低限なことのみそれが月の民の間の暗黙のルールとなっていた",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_3": {
+      "det_key": "page_2",
+      "regions": [
+        {
+          "content": "ある日を境に八意様は急に研究室に顔を出さなくなった",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ぽつーん",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "究室No.7",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "同情できなくもないが",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "玉たちのうわさではどこかのお姫様の教育係という面倒以外の何物でもない仕事を押し付けられたらしい",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "カチャ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "研究室を一人で使えることの方が嬉しかった",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "戻ってきた",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_4": {
+      "det_key": "page_3",
+      "regions": [
+        {
+          "content": "そういえばサグメってどんな研究してるの？",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "わわわ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "くるっ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "むすっ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ちゅー",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "他者に興味のある月の民など異常だ",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "だからこの人とは一度も話したことはなかったし、これからも話すことはないと思っていた",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ちょっと、大丈夫",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "私は薬の研究をしているのだけれどあなたの研究と合わせればお互いにメリットがあるかなと思ってね",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "お姫様のもとから戻ってきた八意様は明らかに以前とは変わっていた",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_5": {
+      "det_key": "page_4",
+      "regions": [
+        {
+          "content": "キャラ紹介",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "八意永琳",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "あらゆる薬を作る程度の能力。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "地上から月へ移り住んだ月の民旧世代。月の頭脳と呼ばれるほどの天才で孤立していたが輝夜と出会い変わった。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "稀神サグメ",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "口に出すと事態を逆転させる程度の能力。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "地上から月へ移り住んだ月の民旧世代。引き籠りの月の民らしく他人と関わろうとしない。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "綿月依姫",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "八百万の神を宿す程度の能力。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "月移住後に生まれた月の民新世代。修行好きの優等生な月の姫。永琳の弟子。豊姫の妹。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "綿月豊姫",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "海と山をつなぐ程度の能力。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "月移住後に生まれた月の民新世代。修行嫌いの天真爛漫な月の姫。永琳の弟子。地上に興味がある。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "蓬莱山輝夜",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永遠と須臾を操る程度の能力。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "月移住後に生まれた月の民新世代。非常に好奇心の強い月の姫。永琳の教え子。地上に興味がある。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "設定解説（自己解釈）",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "穢れ…生命に寿命を与える存在。もともと地上に存在しなかったが、生命が生存競争をはじめるようになり、地上には穢れがあふれるようになった。相手を殺す、殺そうとする意志がれを生む。また、穢れがない＝生も死もない状態なので、生命を生みだすことと自身が死ぬこともれに含まれる。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "旧世代…穢れで満ちた地上を嫌い月へ移住した月の民。他人と関わりたくないので、敵に攻め込まれても逃げたり、策をもって追い返す。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "新世代…月へ移住後に生まれた月の民。地上を知らないので地上に興味がある。例えるなら戦争を知らないゆとり世代の月の民ver。戦争を知る旧世代とは考え方が異なる。",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_6": {
+      "det_key": "page_5",
+      "regions": [
+        {
+          "content": "へー、サグメは過去を変える研究をしているのね",
+          "type": "dialogue_in",
+          "match_score": 0.95,
+          "recalled": true,
+          "best_det": 0.9473684210526315
+        },
+        {
+          "content": "う～ん",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "私は未来を変える研究をしているのだけど",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "すでに確定した過去と",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "不確定の未来とでは根本的に異なるわ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "Welcome Hall!",
+          "type": "bg_text",
+          "match_score": 0.0,
+          "recalled": false,
+          "best_det": 0.0
+        },
+        {
+          "content": "でもあなたの能力は興味深いわね",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ねえ、私と…",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永琳、いる？",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ガチャ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_7": {
+      "det_key": "page_6",
+      "regions": [
+        {
+          "content": "解放された",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "えっ、もうそんな時間？",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永",
+          "type": "bg_text",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "か、輝夜 どうしてここに!?",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永琳がいつまでも こないからでしょ！",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "それにしても八意様は 笑うようになった……と思う",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "以前は表情が明るい、なんて ことはなかった……たぶん",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "笑う、か… 私が最後に笑ったのはいつだろうか",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "私行くわね",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "コクッ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_8": {
+      "det_key": "page_7",
+      "regions": [
+        {
+          "content": "覚えているのはこの前の実験が成功したときだろうか…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "くぃっ くぃっ",
+          "type": "sfx",
+          "match_score": 0.67,
+          "recalled": true,
+          "best_det": 0.6666666666666666
+        },
+        {
+          "content": "あれは満足いく結果が出るまで相当な時間がかかった分喜びもひとしおだった…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "くぃ くぃ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "だけど今見た八意様の笑顔はそれとは別の…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "あなたサグメでしょ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永琳がよく話してるわ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "八意様が世話をしている…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "たしか名前は…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    },
+    "page_9": {
+      "det_key": "page_8",
+      "regions": [
+        {
+          "content": "私サグメのこと気に入ったわサグメも連れていきましょうよ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "勝手にはなれたらだめでしょ！",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "輝夜",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "サグメは忙しいって",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "なら羽根を頂戴な",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "今日の記念にするの",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "も～わがまま言わないの",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ヒョイ",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ぼく",
+          "type": "sfx",
+          "match_score": 0.0,
+          "recalled": false,
+          "best_det": 0.0
+        }
+      ]
+    },
+    "page_10": {
+      "det_key": "page_9",
+      "regions": [
+        {
+          "content": "本当!?",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "輝夜が良い子にしていたらね",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "永琳離して～",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "今度もらってあげるわよ",
+          "type": "dialogue_in",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "じたばた",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "パタン",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "まだ子供のせいか月の民の常識が通用しない…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "あの子供が八意様がお世話している輝夜様か…",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "ふう",
+          "type": "sfx",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        },
+        {
+          "content": "だがそのリスクを負ってでも子供を望む月の民がいることも確かだ",
+          "type": "dialogue_out",
+          "match_score": 0.96,
+          "recalled": true,
+          "best_det": 0.96
+        },
+        {
+          "content": "月の民は子供が極端に少ない生命を産みだす出産にはれが付きまとうからだ",
+          "type": "dialogue_out",
+          "match_score": 1.0,
+          "recalled": true,
+          "best_det": 1.0
+        }
+      ]
+    }
+  },
+  "detected_frames": {
+    "page_0": 12,
+    "page_1": 8,
+    "page_2": 10,
+    "page_3": 11,
+    "page_4": 15,
+    "page_5": 12,
+    "page_6": 13,
+    "page_7": 12,
+    "page_8": 15,
+    "page_9": 15
+  }
+}
