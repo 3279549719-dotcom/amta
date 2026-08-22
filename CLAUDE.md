@@ -23,6 +23,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 | 触发 | 读 |
 |---|---|
 | 跑 Benchmark A/B/C | `.claude/skills/benchmark/SKILL.md` |
+| VLM 标注 crop（oracle 判真假/分类/评分） | `.claude/skills/oracle-label/SKILL.md` |
 | 驱动 koharu（接口/mask/修复循环） | `.claude/skills/koharu-drive/SKILL.md` |
 | 回归/发布流程 | `.claude/skills/verify/SKILL.md` |
 | 架构决策背景 | `docs/01-调研报告与集成编排方案.md` |
