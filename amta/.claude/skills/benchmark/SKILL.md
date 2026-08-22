@@ -45,8 +45,6 @@ description: Benchmark A/B/C——用数据钉死 koharu v0.59.1 的能力边界
 - `output/benchmark_a.json` / `b` / `c`（recall/precision/CER/EM/评分）
 - 每项 FAIL 需定位到具体模块
 
-## 命令
-
 ## 命令（已实现 src/benchmark.py）
 
 两阶段工具（oracle=describe_image 在会话内，非 Python 调用）：
