@@ -9,7 +9,6 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 - **Vision QA**：`vqa()` 抽象，会话内 describe_image 实现。
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
 - **工具面**：`src/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/pipeline.py`（引擎 DAG 常量）。
-- **OCR 引擎结论（Benchmark B 扩展，数据背书）**：框内对白 PaddleOCR-VL CER **0.11** 优于 manga-ocr **0.16**——旧结论「CPU-only 仅 manga-ocr 可用」已推翻（paddle-ocr-vl-1.5 曾 completed_with_errors/text=null，PaddleOCR-VL 后续跑通）。
 
 ## 坑（不踩会死）
 
@@ -26,6 +25,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 | 跑 Benchmark A/B/C | `.claude/skills/benchmark/SKILL.md` |
 | VLM 标注 crop（oracle 判真假/分类/评分） | `.claude/skills/oracle-label/SKILL.md` |
 | 后台长任务自主监控（轮询/失败检测/汇报） | `.claude/skills/background-monitoring/SKILL.md` |
+| goal 循环收尾落盘（3 文件分工 + 数据真实性校验） | `.claude/skills/cycle-close/SKILL.md` |
 | 驱动 koharu（接口/mask/修复循环） | `.claude/skills/koharu-drive/SKILL.md` |
 | 回归/发布流程 | `.claude/skills/verify/SKILL.md` |
 | 架构决策背景 | `docs/01-调研报告与集成编排方案.md` |

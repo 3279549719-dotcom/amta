@@ -8,7 +8,7 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-07，最后一笔：PaddleOCR-VL 框内对白 CER 0.11）
+## 当前状态（2026-07，最后一笔：Benchmark B OCR 完成）
 
 - 工程脚手架已就位并推送（commit `854e170`、`119df6e`、`95ab73c`，origin/main 已同步）。
 - CLAUDE.md v2 = 渐进式加载模型（核心事实+坑，~2k tokens）；AGENTS.md = 薄指针（避免双份漂移）。两者 DSH 均自动注入。
@@ -36,10 +36,6 @@
   - **环境限制**：paddle-ocr-vl-1.5 失败（completed_with_errors，text=null）、mit48px-ocr 输出乱码/空——CPU-only 上仅 manga-ocr 可用
   - 产出 `output/benchmark_b.json`、`ocr_result.json`、`src/ocr_detect.py`、`ocr_score.py`
   - 修复 koharu_client.wait_operation 卡死 bug（未识别 completed_with_errors 状态）
-- **Benchmark B OCR 扩展（PaddleOCR-VL，框内对白）**：
-  - **框内对白 CER 0.11（好于 manga-ocr 的 0.16）**——PaddleOCR-VL 在 CPU 上跑通
-  - **推翻旧结论**："CPU-only 上仅 manga-ocr 可用"作废（旧记录 paddle-ocr-vl-1.5 曾 completed_with_errors/text=null，本轮 PaddleOCR-VL 成功）
-  - 待办：PaddleOCR-VL 对框外对白 / SFX 类别复测，出最终三引擎对比
 - git 凭据已修：host 级 `credential.github.com.helper="!gh auth git-credential"` 绕开 GCM 弹窗（否则每次 git 操作弹账户选择框）。
 
 ## 里程碑
@@ -51,7 +47,7 @@
 | 1a | 预筛 16 页测试集（四 detector → 160 crops + manifest） | ✅ 完成 |
 | 1b | Benchmark A precision（VLM oracle 标注 160 框） | ✅ 完成（precision 0.963） |
 | 1c | Benchmark A recall（单翼 1-10 页，内容级匹配） | ✅ 完成（recall 0.98） |
-| 1d | Benchmark B OCR（manga-ocr CER 0.462；PaddleOCR-VL 框内对白 CER 0.11） | ✅ 完成（含 PaddleOCR-VL 扩展） |
+| 1d | Benchmark B OCR（manga-ocr CER 0.462；Baberu SFX CER 0.181） | ✅ 完成 |
 | 2 | Repair Loop / Vision QA 嵌入 pipeline | ⏳ |
 | 2b | Story Memory + prompt.py + vqa() + scene 翻译 | ⏳ |
 | 3 | GitHub Actions 自动触发验证循环 | ⏳ 待验证循环稳定后 |
@@ -92,7 +88,7 @@
 
 ## 下一步
 
-1. PaddleOCR-VL 全类别复测（框外对白 / SFX 的 CER/EM），出三 OCR 引擎最终对比。
+1. 新 OCR 引擎测评（第二轮）：manga-ocr 框内 CER 0.16 已好，**框外对白 CER 0.45 是短板**——调研 GLM-OCR-Manga-LoRA(需GPU) / 远程 PaddleOCR-VL / Baberu 的框外表现，选可行引擎实测。
 2. Benchmark C（mask + lama-manga inpainting 区域评分）。
 3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——detector 假框少(precision 0.963)，重点转向 recall。
 4. 结果回填本节「当前状态」并推送。
