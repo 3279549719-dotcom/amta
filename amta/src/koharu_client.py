@@ -5,7 +5,6 @@ Koharu headless: http://127.0.0.1:4000/api/v1
 """
 from __future__ import annotations
 
-import json
 import mimetypes
 import os
 import time

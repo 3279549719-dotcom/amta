@@ -1,11 +1,11 @@
 #!/bin/sh
-# Level 2 — pre-commit 门禁：快速确定性校验（秒级，不连 koharu）。
-# 安装：scripts/install_hooks.ps1（git config core.hooksPath .githooks）
+# Level 2 pre-commit gate: fast deterministic checks (fastcheck = compile + ruff + pyright + unit tests).
+# Install: scripts/install_hooks.ps1 (git config core.hooksPath .githooks)
 set -e
 cd "$(dirname "$0")/.."
 command -v python >/dev/null 2>&1 && PY=python || PY=py
 
-echo "[pre-commit] fastcheck (compile + unit tests + output schema)..."
+echo "[pre-commit] fastcheck (compile + ruff + pyright + unit tests)..."
 $PY scripts/fastcheck.py
 
 echo "[pre-commit] OK"

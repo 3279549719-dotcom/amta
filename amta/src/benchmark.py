@@ -20,17 +20,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 import uuid
 from pathlib import Path
 from typing import Any
 
-import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from koharu_client import KoharuClient, KoharuError  # noqa: E402
-from pipeline import DETECTOR_STEPS, OCR_STEPS, INPAINT_STEPS  # noqa: E402
+from pipeline import DETECTOR_STEPS  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "output"
@@ -62,7 +60,7 @@ def run_detector(client: KoharuClient, page: Path, engine: str) -> list[dict]:
     """跑单个 detector，返回该 engine 检出的文本块（collect_blocks）。"""
     proj = f"amta-bench-{uuid.uuid4().hex[:8]}"
     client.close_current_project()
-    pid = client.create_project(proj)
+    _pid = client.create_project(proj)
     try:
         page_id = client.import_page(page)
         op = client.run_pipeline(page_ids=[page_id], steps=DETECTOR_STEPS[engine])

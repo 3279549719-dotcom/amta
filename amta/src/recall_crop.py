@@ -5,7 +5,16 @@ import sys
 from pathlib import Path
 from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from recall_score import iou
+
+
+def iou(a: list, b: list) -> float:
+    ax0, ay0, ax1, ay1 = a
+    bx0, by0, bx1, by1 = b
+    ix = max(0, min(ax1, bx1) - max(ax0, bx0))
+    iy = max(0, min(ay1, by1) - max(ay0, by0))
+    inter = ix * iy
+    ua = (ax1 - ax0) * (ay1 - ay0) + (bx1 - bx0) * (by1 - by0) - inter
+    return inter / ua if ua > 0 else 0.0
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "output"
