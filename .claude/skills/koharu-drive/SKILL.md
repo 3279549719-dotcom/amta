@@ -11,7 +11,7 @@ description: 驱动本地 koharu v0.59.1 headless（REST :4000）——项目/�
 - `npm run precheck` → 4000 端口可达性（exit 0/1）
 - `npm run smoke` → 冒烟测试（当前回归门槛）
 
-## 稳定接口（src/koharu_client.py — KoharuClient，16 方法）
+## 稳定接口（src/amta/koharu_client.py — KoharuClient，16 方法）
 
 ### 生命周期
 - `wait_server(timeout=120)` — 等服务就绪
@@ -37,7 +37,7 @@ description: 驱动本地 koharu v0.59.1 headless（REST :4000）——项目/�
 - `collect_blocks(nodes)` — 文字块 + bubble_type 推断
 - `sort_by_reading_order(blocks)` — y 升、同行 x 降（日漫阅读序）
 
-## 引擎 DAG（src/pipeline.py）
+## 引擎 DAG（src/amta/pipeline.py）
 
 ```
 detectors → TextBoxes      pp-doclayout-v3 / comic-text-detector / anime-text / comic-text-bubble-detector

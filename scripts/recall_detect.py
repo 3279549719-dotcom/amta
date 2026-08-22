@@ -1,9 +1,9 @@
 """Benchmark A recall 探测：对源图跑 4 detector，输出每页每个 engine 的原始框(未去重)。
 
 recall 需要知道「每个 engine 检出了哪些框」去和 GT(整页枚举) 做 IoU 对齐。
-输出 output/recall_detections.json:
+输出 output/data/recall_detections.json:
   { "<page_key>": { "<engine>": [{node_id, bbox:[x0,y0,x1,y1], bubble_type}], ... }, ... }
-用法: python src/recall_detect.py <src_dir>
+用法: python scripts/recall_detect.py <src_dir>
 """
 from __future__ import annotations
 
@@ -12,19 +12,13 @@ import sys
 import uuid
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from koharu_client import KoharuClient, KoharuError  # noqa: E402
-from pipeline import DETECTOR_STEPS  # noqa: E402
+from amta.koharu_client import KoharuClient, KoharuError  # noqa: E402
+from amta.pipeline import DETECTOR_STEPS  # noqa: E402
+from amta.geometry import bbox_from_block as _bbox  # noqa: E402
 
-OUT = Path(__file__).resolve().parent.parent / "output"
-
-
-def _bbox(block: dict) -> list[float]:
-    t = block.get("transform", {})
-    x = float(t.get("x", 0)); y = float(t.get("y", 0))
-    w = float(t.get("w", t.get("width", 0))); h = float(t.get("h", t.get("height", 0)))
-    return [round(x, 1), round(y, 1), round(x + w, 1), round(y + h, 1)]
+OUT = Path(__file__).resolve().parent.parent / "output" / "data"
 
 
 def run_one(client: KoharuClient, page: Path, engine: str) -> list[dict]:

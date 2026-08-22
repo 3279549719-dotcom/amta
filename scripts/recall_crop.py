@@ -4,23 +4,17 @@ import json
 import sys
 from pathlib import Path
 from PIL import Image
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-def iou(a: list, b: list) -> float:
-    ax0, ay0, ax1, ay1 = a
-    bx0, by0, bx1, by1 = b
-    ix = max(0, min(ax1, bx1) - max(ax0, bx0))
-    iy = max(0, min(ay1, by1) - max(ay0, by0))
-    inter = ix * iy
-    ua = (ax1 - ax0) * (ay1 - ay0) + (bx1 - bx0) * (by1 - by0) - inter
-    return inter / ua if ua > 0 else 0.0
+from amta.geometry import iou  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "output"
+DATA = OUT / "data"
 SRC_BASE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 
-d = json.loads((OUT / "recall_detections.json").read_text(encoding="utf-8"))
+d = json.loads((DATA / "recall_detections.json").read_text(encoding="utf-8"))
 out = OUT / "recall_crops"
 out.mkdir(exist_ok=True)
 total = 0
@@ -42,5 +36,5 @@ for pkey, pinfo in d.items():
         crop.save(out / fname)
         manifest[pkey]["crops"].append({"crop": str(out / fname), "bbox": bb})
         total += 1
-(OUT / "recall_crop_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+(DATA / "recall_crop_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"saved {total} union crops -> {out}")

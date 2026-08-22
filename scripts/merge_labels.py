@@ -2,7 +2,7 @@
 
 - 容忍 id 带 .png 后缀（如 page_2_cand00.png）或无后缀
 - 严格按 manifest 的 id 对齐，缺失的保留 null
-- 用法: python src/merge_labels.py output/labels_frag/*.json
+- 用法: python scripts/merge_labels.py output/labels_frag/*.json
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "output"
+OUT = ROOT / "output" / "data"
 MANIFEST = OUT / "label_manifest.json"
 DEST = OUT / "labels_a.json"
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-import koharu_client  # noqa: E402
+from amta import koharu_client  # noqa: E402
 
 
 class TerminalStatusTest(unittest.TestCase):

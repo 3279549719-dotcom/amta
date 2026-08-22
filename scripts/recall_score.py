@@ -4,34 +4,22 @@ recall = GT 中「同页被 detector 识别文字覆盖」的条目 / GT 全部�
 匹配：归一化后 GT 文字是识别文字的子串，或字符重合度高(>=0.6)。
 
 输入:
-  output/recall_gt.json            (GT: page_1.. 的内容+类型)
-  output/recall_ocr.json           (detector 识别: {page_N: [{crop, text, empty}]})
+  output/data/recall_gt.json            (GT: page_1.. 的内容+类型)
+  output/data/recall_ocr.json           (detector 识别: {page_N: [{crop, text, empty}]})
 输出:
-  output/recall_result.json
+  output/data/recall_result.json
 """
 from __future__ import annotations
 import json
-import re
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from amta.metrics import match_score  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "output"
-
-
-def norm(s: str) -> str:
-    s = re.sub(r"[^\u3040-\u30ff\u4e00-\u9fffA-Za-z]", "", s or "")
-    return s
-
-
-def match_score(gt: str, det: str) -> float:
-    g, d = norm(gt), norm(det)
-    if not g or not d:
-        return 0.0
-    if g in d or d in g:
-        return 1.0
-    # 字符重合度
-    inter = len(set(g) & set(d))
-    return inter / max(len(set(g)), 1)
+OUT = ROOT / "output" / "data"
 
 
 def main() -> int:

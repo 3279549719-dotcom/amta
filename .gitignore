@@ -16,20 +16,20 @@ __pycache__/
 # ---- 运行产物 ----
 output/*
 !output/.gitkeep
-!output/benchmark_a.json
-!output/benchmark_b.json
-!output/benchmark_c.json
+!output/data/benchmark_a.json
+!output/data/benchmark_b.json
+!output/data/benchmark_c.json
 
 # ---- 模型权重（大文件/第三方 license，不入库）----
 models/
-!output/labels_a.json
-!output/label_manifest.json
-!output/recall_gt.json
-!output/recall_result.json
-!output/recall_ocr.json
-!output/ocr_result.json
-!output/benchmark_b_sfx.json
-!output/benchmark_b_paddle_manga.json
+!output/data/labels_a.json
+!output/data/label_manifest.json
+!output/data/recall_gt.json
+!output/data/recall_result.json
+!output/data/recall_ocr.json
+!output/data/ocr_result.json
+!output/data/benchmark_b_sfx.json
+!output/data/benchmark_b_paddle_manga.json
 
 # ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
 testsets/pages/

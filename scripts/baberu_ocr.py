@@ -1,7 +1,7 @@
 """Baberu OCR 封装：对裁剪图批量推理，输出每图文字。
 
 基于官方 onnx_infer.py（纯 onnxruntime+numpy+PIL，无 torch）。
-用法: python src/baberu_ocr.py <image_dir> <out.json>
+用法: python scripts/baberu_ocr.py <image_dir> <out.json>
 """
 from __future__ import annotations
 import json
@@ -19,7 +19,7 @@ MODEL = ROOT / "models" / "baberu-ocr"
 
 def main(argv: list[str]) -> int:
     img_dir = Path(argv[0])
-    out_json = Path(argv[1]) if len(argv) > 1 else ROOT / "output" / "baberu_result.json"
+    out_json = Path(argv[1]) if len(argv) > 1 else ROOT / "output" / "data" / "baberu_result.json"
     vision = argv[2] if len(argv) > 2 else "vision_int4.onnx"  # int4 更小，CPU 友好
     ocr = BaberuOnnxOCR(MODEL / "onnx", MODEL / "tokenizer", vision=vision)
     results = {}

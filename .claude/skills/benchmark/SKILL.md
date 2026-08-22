@@ -39,8 +39,8 @@ description: Benchmark A/B/C——用数据钉死 koharu v0.59.1 的能力边界
 
 describe_image 看**整页大图**返回的坐标是**错的**（裁剪验证为空白/位置漂移）。**不能用它做像素级 IoU 对齐**。
 → recall 改用**内容级匹配**：GT 整页枚举文字内容清单，detector 并集框裁图+VLM 识别内容，同页字符重合度≥0.6 判定"检出"。
-- 文件：`output/recall_gt.json`（GT）、`recall_detections.json`（4 detector 框）、`recall_ocr.json`（并集框识别内容）、`recall_result.json`（结果）
-- 脚本：`src/recall_detect.py` / `recall_crop.py` / `recall_score.py`
+- 文件：`output/data/recall_gt.json`（GT）、`output/data/recall_detections.json`（4 detector 框）、`output/data/recall_ocr.json`（并集框识别内容）、`output/data/recall_result.json`（结果）
+- 脚本：`scripts/recall_detect.py` / `recall_crop.py` / `recall_score.py`（共享库 `src/amta/metrics.py`、`src/amta/geometry.py`）
 
 ## Benchmark B — OCR（三模型同框对比 + 词典校正）
 
@@ -61,15 +61,15 @@ describe_image 看**整页大图**返回的坐标是**错的**（裁剪验证为
 
 ## 报告输出
 
-- `output/benchmark_a.json` / `b` / `c`（recall/precision/CER/EM/评分）
+- `output/data/benchmark_a.json` / `b` / `c`（recall/precision/CER/EM/评分）；HTML 报表在 `output/reports/`
 - 每项 FAIL 需定位到具体模块
 
-## 命令（已实现 src/benchmark.py）
+## 命令（已实现 scripts/benchmark.py）
 
 两阶段工具（oracle=describe_image 在会话内，非 Python 调用）：
-- `npm run prescreen -- <源图目录>` → 四 detector 并集出 crop + `output/label_manifest.json`
+- `npm run prescreen -- <源图目录>` → 四 detector 并集出 crop + `output/data/label_manifest.json`
 - 我对每 crop 调 describe_image 标注 → 写 labels JSON
-- `npm run ingest:a -- <labels.json>` → 算指标 → `output/benchmark_a.json`
+- `npm run ingest:a -- <labels.json>` → 算指标 → `output/data/benchmark_a.json`
 - `npm run bench:a -- <源图目录>` = prescreen（`b`/`c` 同理，先 A 的并集 crops）
 - `--all` 链式占位
 
@@ -77,7 +77,7 @@ describe_image 看**整页大图**返回的坐标是**错的**（裁剪验证为
 
 ### recall 脚本（内容级）
 
-- `python src/recall_detect.py <源图目录> <页数>` → 4 detector 探测 → `output/recall_detections.json`
-- `python src/recall_crop.py <源图目录>` → 并集框裁图 → `output/recall_crops/` + `recall_crop_manifest.json`
-- 对并集框裁图调 describe_image 识别内容 → 合并成 `output/recall_ocr.json`
-- `python src/recall_score.py` → 内容级匹配算 recall → `output/recall_result.json`
+- `python scripts/recall_detect.py <源图目录> <页数>` → 4 detector 探测 → `output/data/recall_detections.json`
+- `python scripts/recall_crop.py <源图目录>` → 并集框裁图 → `output/recall_crops/` + `output/data/recall_crop_manifest.json`
+- 对并集框裁图调 describe_image 识别内容 → 合并成 `output/data/recall_ocr.json`
+- `python scripts/recall_score.py` → 内容级匹配算 recall → `output/data/recall_result.json`

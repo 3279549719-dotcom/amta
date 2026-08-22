@@ -10,10 +10,10 @@
   - 零人工全量标注：人工仅抽查 detector 分歧 / VLM 低置信子集。
 
 用法：
-  python src/benchmark.py --prescreen <pages...>               # 初筛：产出 4 类覆盖待标注 crop
-  python src/benchmark.py --bench a --pages <img...>           # 跑四 detector → emit crops+manifest
-  python src/benchmark.py --ingest --bench a --labels <json>   # 计算指标 → output/benchmark_a.json
-  python src/benchmark.py --all                                # 链式占位
+  python scripts/benchmark.py --prescreen <pages...>               # 初筛：产出 4 类覆盖待标注 crop
+  python scripts/benchmark.py --bench a --pages <img...>           # 跑四 detector → emit crops+manifest
+  python scripts/benchmark.py --ingest --bench a --labels <json>   # 计算指标 → output/data/benchmark_a.json
+  python scripts/benchmark.py --all                                # 链式占位
 """
 from __future__ import annotations
 
@@ -25,15 +25,17 @@ from pathlib import Path
 from typing import Any
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from koharu_client import KoharuClient, KoharuError  # noqa: E402
-from pipeline import DETECTOR_STEPS  # noqa: E402
+from amta.koharu_client import KoharuClient, KoharuError  # noqa: E402
+from amta.pipeline import DETECTOR_STEPS  # noqa: E402
+from amta.geometry import union_boxes  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "output"
+DATA = OUTPUT / "data"
 CROP_DIR = OUTPUT / "crops"
-MANIFEST = OUTPUT / "label_manifest.json"
+MANIFEST = DATA / "label_manifest.json"
 
 # 四类文本：框内对白 / 框外对白 / SFX / 背景文字（Benchmark A 分类维度）
 CLASSES = ["dialogue_in", "dialogue_out", "sfx", "bg_text"]
@@ -42,7 +44,7 @@ OCR_CLASSES = ["人名", "专名", "拟声词", "竖排", "艺术字"]
 
 
 def ensure_output() -> None:
-    for d in (OUTPUT, CROP_DIR):
+    for d in (OUTPUT, DATA, CROP_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -90,36 +92,6 @@ def gather_detections(pages: list[Path], engines: list[str]) -> dict[str, dict[s
                 print(f"[A] WARN {key} {eng} failed: {e}", flush=True)
                 out[key][eng] = []
     return out
-
-
-def _bbox(block: dict) -> tuple[float, float, float, float]:
-    t = block.get("transform", {})
-    x = float(t.get("x", 0)); y = float(t.get("y", 0))
-    w = float(t.get("w", t.get("width", 0)))
-    h = float(t.get("h", t.get("height", 0)))
-    return (x, y, x + w, y + h)
-
-
-def union_boxes(detections: dict[str, list[dict]]) -> list[dict]:
-    """四 detector 并集（候选真值）——仅用唯一 bbox，去掉重复（IoU 聚合）。"""
-    seen: list[tuple] = []
-    for eng, blocks in detections.items():
-        for b in blocks:
-            bb = tuple(round(v, 1) for v in _bbox(b))
-            if any(_iou(bb, s) > 0.5 for s in seen):
-                continue
-            seen.append(bb)
-    return [{"bbox": s} for s in seen]
-
-
-def _iou(a: tuple, b: tuple) -> float:
-    ax0, ay0, ax1, ay1 = a
-    bx0, by0, bx1, by1 = b
-    ix = max(0, min(ax1, bx1) - max(ax0, bx0))
-    iy = max(0, min(ay1, by1) - max(ay0, by0))
-    inter = ix * iy
-    ua = (ax1 - ax0) * (ay1 - ay0) + (bx1 - bx0) * (by1 - by0) - inter
-    return inter / ua if ua else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         labels = json.loads(Path(args.ingest).read_text(encoding="utf-8"))
         result = ingest_bench(manifest, labels, args.bench)
-        report = OUTPUT / f"benchmark_{args.bench}.json"
+        report = DATA / f"benchmark_{args.bench}.json"
         report.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[ingest] -> {report}")
         print(json.dumps(result["rows"], ensure_ascii=False, indent=2))
