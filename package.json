@@ -14,7 +14,9 @@
     "bench:b": "python src/benchmark.py --bench b --pages",
     "bench:c": "python src/benchmark.py --bench c --pages",
     "ingest:a": "python src/benchmark.py --bench a --ingest",
-    "prescreen": "python src/benchmark.py --bench a --prescreen --pages"
+    "prescreen": "python src/benchmark.py --bench a --prescreen --pages",
+    "recall:detect": "python src/recall_detect.py",
+    "recall:score": "python src/recall_score.py"
   },
   "dependencies": {}
 }

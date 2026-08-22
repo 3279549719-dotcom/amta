@@ -28,11 +28,30 @@ description: Benchmark A/B/C——用数据钉死 koharu v0.59.1 的能力边界
 - 指标：框内对白/框外对白/SFX/背景文字 四类 Recall + Precision
 - 背景：`pp-doclayout-v3` 是文档模型，框外字漏检嫌疑元凶；`ctd_seg` 只细化已有框
 
+### Benchmark A 实测结论（单翼 1-10 页）
+
+- **precision = 0.963**（160 候选，6 个非文字假框；假框多为 `!?` 反应符号/纯画面）
+- **recall = 0.98**（101 GT 检出 99；框内/框外对白 1.0，SFX 0.941，bg_text 0.909）
+- **漏检集中在**：英文背景字（"Welcome Hall!"）+ 个别 SFX 拟声字 → 正是框外字痛点
+- **koharu 无 SFX 专用引擎**（4 个 detector 均非 SFX 专用），漏检仅 1/17 → 结论**不加** SFX 专用检测
+
+### ⚠️ 关键坑：describe_image 整页坐标不可靠
+
+describe_image 看**整页大图**返回的坐标是**错的**（裁剪验证为空白/位置漂移）。**不能用它做像素级 IoU 对齐**。
+→ recall 改用**内容级匹配**：GT 整页枚举文字内容清单，detector 并集框裁图+VLM 识别内容，同页字符重合度≥0.6 判定"检出"。
+- 文件：`output/recall_gt.json`（GT）、`recall_detections.json`（4 detector 框）、`recall_ocr.json`（并集框识别内容）、`recall_result.json`（结果）
+- 脚本：`src/recall_detect.py` / `recall_crop.py` / `recall_score.py`
+
 ## Benchmark B — OCR（三模型同框对比 + 词典校正）
 
 - steps: `manga-ocr` / `paddle-ocr-vl-1.5` / `mit48px-ocr`（needs TextBoxes）
 - 指标：按人名/专名/拟声词/竖排/艺术字分类 CER + Exact Match + confidence
 - 词典校正验证：豊姫→星姬 案例（编辑距离 + 候选 → VLM 复核 → DeepSeek 判定）
+
+### 方法论要点
+
+- **测纯识别能力**：OCR 只能识别「被框出的字」。要测 OCR 本身准不准，必须避开 detector 漏框干扰，否则算不清是 OCR 差还是 detector 差。
+- **路2（本项目采用）**：跑 detector+OCR 流水线，OCR 识别 detector 框出的文字，与 GT 内容匹配算 CER/EM。因 detector recall 高（0.98），漏框干扰小，实用。
 
 ## Benchmark C — Inpainting（mask + lama-manga）
 
@@ -55,3 +74,10 @@ description: Benchmark A/B/C——用数据钉死 koharu v0.59.1 的能力边界
 - `--all` 链式占位
 
 指标：`detection_precision`（并集检出假框率）+ 四类分布（dialogue_in/out/sfx/bg_text）；框外漏检（真 recall）需人工抽查 detector 均漏区域。
+
+### recall 脚本（内容级）
+
+- `python src/recall_detect.py <源图目录> <页数>` → 4 detector 探测 → `output/recall_detections.json`
+- `python src/recall_crop.py <源图目录>` → 并集框裁图 → `output/recall_crops/` + `recall_crop_manifest.json`
+- 对并集框裁图调 describe_image 识别内容 → 合并成 `output/recall_ocr.json`
+- `python src/recall_score.py` → 内容级匹配算 recall → `output/recall_result.json`
