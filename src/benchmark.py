@@ -221,11 +221,19 @@ def prescreen(pages: list[Path]) -> None:
 # ---------------------------------------------------------------------------
 
 def _parse_pages(raw: list[str]) -> list[Path]:
+    """解析源图。只接受「原文页」：优先 page.jpg；目录下排除已翻译/已擦除产物
+    (rendered.png / inpainted.png / final 等)，避免用中文译文当 benchmark 源图。"""
+    def is_source(p: Path) -> bool:
+        base = p.name.lower()
+        if "rendered" in base or "inpainted" in base or "final" in base:
+            return False
+        return base in ("page.jpg", "page.jpeg")
     pages = []
     for p in raw:
         if Path(p).is_dir():
-            pages.extend(sorted(Path(p).glob("*.jpg")))
-            pages.extend(sorted(Path(p).glob("*.png")))
+            pages.extend(sorted(f for f in Path(p).rglob("*.jpg") if is_source(f)))
+            pages.extend(sorted(f for f in Path(p).rglob("*.jpeg") if is_source(f)))
+            pages.extend(sorted(f for f in Path(p).rglob("*.png") if is_source(f)))
         elif Path(p).is_file():
             pages.append(Path(p))
     if not pages:
