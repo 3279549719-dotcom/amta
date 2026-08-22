@@ -24,6 +24,7 @@ output/*
 !output/recall_gt.json
 !output/recall_result.json
 !output/recall_ocr.json
+!output/ocr_result.json
 
 # ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
 testsets/pages/

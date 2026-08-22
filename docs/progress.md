@@ -29,6 +29,13 @@
   - 漏检 2 处：英文服装字 "Welcome Hall!"(bg_text) + 1 个 SFX（拟声字）
   - **方法修正**：describe_image 整页坐标不可靠（裁剪验证空白）→ 改用**内容级匹配**（VLM 识别 detector 并集框内容 vs GT 内容清单，字符重合度≥0.6）
   - 产出 `output/recall_gt.json`、`recall_detections.json`、`recall_ocr.json`、`recall_result.json`
+- **Benchmark B OCR 完成**（manga-ocr，单翼 1-10 页，路2 detector+OCR）：
+  - 总体 CER 0.462 / EM 0.426（101 区域）
+  - **框内对白最优**：CER 0.16 / EM 0.795；框外对白中：CER 0.45 / EM 0.27
+  - **SFX 拟声词全盲**：CER 1.0 / EM 0——manga-ocr 对 SFX 输出为空（竖排/艺术字/特效字认不出）
+  - **环境限制**：paddle-ocr-vl-1.5 失败（completed_with_errors，text=null）、mit48px-ocr 输出乱码/空——CPU-only 上仅 manga-ocr 可用
+  - 产出 `output/benchmark_b.json`、`ocr_result.json`、`src/ocr_detect.py`、`ocr_score.py`
+  - 修复 koharu_client.wait_operation 卡死 bug（未识别 completed_with_errors 状态）
 - git 凭据已修：host 级 `credential.github.com.helper="!gh auth git-credential"` 绕开 GCM 弹窗（否则每次 git 操作弹账户选择框）。
 
 ## 里程碑
