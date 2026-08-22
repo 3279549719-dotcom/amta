@@ -1,0 +1,27 @@
+# ---- Node（npm 仅作脚本入口容器）----
+node_modules/
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv*
+*.egg-info/
+.pytest_cache/
+
+# ---- 环境与密钥 ----
+.env
+.env.local
+*.local
+
+# ---- 运行产物 ----
+output/*
+!output/.gitkeep
+
+# ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
+testsets/pages/
+
+# ---- 会话记忆 / 工具 ----
+.remember/
+
+# ---- VCS ----
+.git/
