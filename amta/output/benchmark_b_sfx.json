@@ -1,0 +1,290 @@
+{
+  "engine": "sfx-3way",
+  "n_sfx": 17,
+  "rows": [
+    {
+      "page": "page_2",
+      "gt": "カチャ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "カチャ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_2",
+      "gt": "チャッ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "チャッ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_3",
+      "gt": "ぽつーん",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "ぽっこん",
+        "cer": 0.5
+      }
+    },
+    {
+      "page": "page_3",
+      "gt": "カチャ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "カチャ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_4",
+      "gt": "わわわ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "わわわ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_4",
+      "gt": "くるっ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "くるっ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_4",
+      "gt": "むすっ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "むすっ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_4",
+      "gt": "ちゅー",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "ちゅ、",
+        "cer": 0.333
+      }
+    },
+    {
+      "page": "page_6",
+      "gt": "ガチャ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "ゲチャ",
+        "cer": 0.333
+      }
+    },
+    {
+      "page": "page_7",
+      "gt": "コクッ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "コクッ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_8",
+      "gt": "くぃっ くぃっ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "くぃっくいっ",
+        "cer": 0.167
+      }
+    },
+    {
+      "page": "page_8",
+      "gt": "くぃ くぃ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "くぃくぃ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_9",
+      "gt": "ヒョイ",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "ヒョイ",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_9",
+      "gt": "ぼく",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "",
+        "cer": 1.0
+      }
+    },
+    {
+      "page": "page_10",
+      "gt": "じたばた",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "じたーばた",
+        "cer": 0.25
+      }
+    },
+    {
+      "page": "page_10",
+      "gt": "パタン",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "パタン",
+        "cer": 0.0
+      }
+    },
+    {
+      "page": "page_10",
+      "gt": "ふう",
+      "manga": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "mit48px": {
+        "pred": "",
+        "cer": 1.0
+      },
+      "baberu": {
+        "pred": "ふぅ",
+        "cer": 0.5
+      }
+    }
+  ],
+  "manga_summary": {
+    "cer": 1.0,
+    "em": 0.0
+  },
+  "mit48px_summary": {
+    "cer": 1.0,
+    "em": 0.0
+  },
+  "baberu_summary": {
+    "cer": 0.181,
+    "em": 0.588
+  }
+}
