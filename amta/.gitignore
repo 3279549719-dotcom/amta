@@ -29,6 +29,7 @@ models/
 !output/recall_ocr.json
 !output/ocr_result.json
 !output/benchmark_b_sfx.json
+!output/benchmark_b_paddle_manga.json
 
 # ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
 testsets/pages/

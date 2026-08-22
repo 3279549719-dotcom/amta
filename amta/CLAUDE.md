@@ -7,6 +7,8 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 - **钉 koharu v0.59.1**（server 世代，REST /api/v1 + MCP /mcp + 像素 mask 机制）；上游 0.77.5 起已删 headless/HTTP/MCP，升级即失去全部自动化面。
 - **翻译通道**：koharu 内 `llm` 引擎，Story Memory 经 `systemPrompt` 注入（做法 1）；当前 llm 引擎 not-ready（需 Settings 配 provider，`llm_status()` 校验）；Benchmark A/B/C 不需要翻译。
 - **Vision QA**：`vqa()` 抽象，会话内 describe_image 实现。
+- **本地漫画 OCR**：`PaddleOCR-VL-For-Manga` GGUF（`models/paddle-manga/`）+ 独立 llama-server（`models/llama-cpp/llama-server.exe`，端口 8118，`--mmproj`）。koharu 内置 llama.cpp b8935 太旧，其 paddle/mit48px OCR 引擎全部不可用（MTMD 初始化失败），只 manga-ocr 可用；漫画 OCR 走独立 llama-server（OpenAI 兼容接口，prompt `OCR:`）。
+- **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
 - **工具面**：`src/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/pipeline.py`（引擎 DAG 常量）。
 
@@ -14,7 +16,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 
 > 坑/经验的**唯一归属 = `docs/lessons.md`**（Problem/Root cause/Durable lesson/Prevention/Regression），本文件只留一行指针，不重复。
 
-NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘
+NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘 · llama.cpp 版本必须 ≥b10582（旧版 MTMD 投影初始化失败） · 通用 VLM 竖排日语系统性差（需漫画微调模型）
 
 ## 渐进式加载
 

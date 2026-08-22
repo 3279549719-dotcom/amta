@@ -16,3 +16,4 @@
 - [005 — Benchmark 方法论 = VLM-as-oracle + 零人工全量标注 + 内容级匹配](./005-benchmark-vlm-oracle.md)
 - [006 — OCR 双引擎分流 = manga-ocr 认对白 + Baberu 认 SFX](./006-ocr-dual-engine.md)
 - [007 — 验证循环分层 + 中止才落盘](./007-verification-loop-layered.md)
+- [008 — 框外对白 OCR = 本地 PaddleOCR-VL-For-Manga（独立 llama-server），弃 koharu paddle 引擎](./008-local-manga-ocr.md)

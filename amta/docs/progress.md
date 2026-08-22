@@ -8,10 +8,16 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-07，最后一笔：Harness 增强完成待验证）
+## 当前状态（2026-07，最后一笔：第二轮 OCR 测评完成）
 
-- **Harness 增强（本会话实现）**：新增 /finish 学习循环（cycle-close skill 升级为完整收尾协议 + Finish Report）、/audit 审计（skill + `scripts/audit.py`）、`docs/lessons.md`（经验库，模板 + 5 条种子）、`docs/decisions/`（ADR-001~004）、三级机械护栏（`npm run fastcheck` 编码期 + `.githooks/pre-commit` + `.githooks/pre-push` + `npm run hooks:install`）、确定性单测（`tests/`：pipeline DAG / 输出 JSON schema / client 常量与纯函数）。
-- **待验证（诚实标注）**：本会话环境无法执行命令，`npm run fastcheck` / `finish` / `audit` / hooks 尚未实测；下一步先在正常环境跑一遍再推送。
+- **第二轮 OCR 测评完成（本会话）**：框外对白 OCR 换引擎——**PaddleOCR-VL-For-Manga**（本地 GGUF + 独立 llama-server b10582，端口 8118）全量 126 crops 实测：
+  - **dialogue_out（框外对白）：CER 0.453 → 0.037 / EM 0.265 → 0.667**（主目标达成，远超预期）
+  - dialogue_in：CER 0.16 → 0.103；sfx：1.0 → 0.15；bg_text：0.727 → 0.038；ALL：0.462 → 0.316
+  - 证据：`output/benchmark_b_paddle_manga.json`（126 rows 全量）+ `benchmark_b_paddle_manga.html`（报表）
+- **koharu paddle 引擎坏因定案**：内置 llama.cpp b8935 太旧，mmproj/MTMD 投影初始化失败（`completed_with_errors`，ocr 全空）；同 GGUF 用 b10582 秒加载、OCR 正常 → koharu 的 paddle/mit48px OCR 引擎**不可用，弃用**（ADR-008）。
+- **通用 VLM 竖排日语系统性差**（arXiv 2511.15059 + qwen-vl-ocr 实测词序错乱）→ 远程 API 基座 OCR 路线放弃（无需注入 SiliconFlow key）；GLM-OCR-Manga-LoRA 出局（无 API、需 GPU≥4GB）。
+- **context7 接入**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，已实测通过（dogfood 查了 SiliconFlow docs）。
+- 快速检查 `npm run fastcheck`（ruff+pyright+16 tests）通过。
 
 - 工程脚手架已就位并推送（commit `854e170`、`119df6e`、`95ab73c`，origin/main 已同步）。
 - CLAUDE.md v2 = 渐进式加载模型（核心事实+坑，~2k tokens）；AGENTS.md = 薄指针（避免双份漂移）。两者 DSH 均自动注入。
@@ -88,8 +94,7 @@
 
 ## 下一步
 
-0. **验证新 Harness**：在可执行环境跑 `npm run fastcheck`、`npm run audit`、`npm run finish`，并 `npm run hooks:install` 装 hooks；修掉任何失败后推送。
-1. 新 OCR 引擎测评（第二轮）：manga-ocr 框内 CER 0.16 已好，**框外对白 CER 0.45 是短板**——调研 GLM-OCR-Manga-LoRA(需GPU) / 远程 PaddleOCR-VL / Baberu 的框外表现，选可行引擎实测。
+1. **将 PaddleOCR-VL-For-Manga 接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需 start/stop 脚本 + `src/` OCR 封装（当前是 output/ 下的测评脚本，未正式化）。
 2. Benchmark C（mask + lama-manga inpainting 区域评分）。
 3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——detector 假框少(precision 0.963)，重点转向 recall。
 4. 结果回填本节「当前状态」并推送。

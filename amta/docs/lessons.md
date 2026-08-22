@@ -72,6 +72,22 @@
 - **Prevention**：koharu-drive skill 修复循环第 5 步强制。
 - **Regression**：暂无自动化（运行时序）；规则见本条。[已自动化：否]
 
+## L9 — koharu 内置 llama.cpp 太旧：paddle/mit48px OCR 引擎全不可用
+
+- **Problem**：koharu 的 paddle-ocr-vl-1.5 引擎每次跑都 `completed_with_errors`（detector 有 confidence 但 ocr 全空），日志：`unable to initialize multimodal projector: MTMD context initialization returned null`。
+- **Root cause**：koharu v0.59.1 内置 llama.cpp b8935（2026-05-18），初始化 PaddleOCR-VL 的视觉投影（mmproj）失败；同模型文件用现代 llama.cpp **b10582 秒加载、OCR 正常**。是运行时版本太旧，不是模型/调用问题。
+- **Durable lesson**：koharu 的 paddle/mit48px OCR 引擎在 v0.59.1 上不可用（只 manga-ocr 可用）；需要 VLM OCR 时绕开 koharu 引擎，用独立 llama-server（`models/llama-cpp/llama-server.exe`，版本 ≥b10582）+ GGUF 模型，OpenAI 兼容接口、prompt `OCR:`。
+- **Prevention**：漫画 OCR 统一走独立 llama-server:8118；koharu 引擎目录的 OCR 项当"坏的"处理，不尝试修复。
+- **Regression**：暂无自动化（外部二进制版本约束）；规则见本条。[已自动化：否]
+
+## L10 — 通用 VLM 竖排日语系统性差：必须用漫画微调模型
+
+- **Problem**：qwen-vl-ocr 实测竖排漫画 crop 词序错乱（GT `穢れを嫌った神々が住む都` → 输出 `住む都を嫌った神々が穢れ`）。
+- **Root cause**：arXiv 2511.15059 证实所有通用 MLLM 竖排日语显著差于横排（通病）；PaddleOCR-VL 基座也是（openvino-book：EM 9%/CER 55.41% vs 微调后 64.4%/10.88%）。
+- **Durable lesson**：竖排日语漫画 OCR 的远程 API 基座模型（qwen-vl-ocr / PaddleOCR-VL 基座 / DeepSeek-OCR）都不可靠；必须用漫画微调模型（PaddleOCR-VL-For-Manga / GLM-OCR-Manga-LoRA 等）。
+- **Prevention**：OCR 选型先查"是否漫画/竖排微调"，再看 CER；远程 API 只当对照组。
+- **Regression**：`output/_paddle_manga_probe.json`（对比证据）；`output/benchmark_b_paddle_manga.json`（全量）[已自动化：否]
+
 ---
 
 ## 模板（新增时复制）
