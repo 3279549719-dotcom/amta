@@ -47,4 +47,13 @@ description: Benchmark A/B/C——用数据钉死 koharu v0.59.1 的能力边界
 
 ## 命令
 
-`npm run bench:a|b|c`（= `python src/benchmark.py --bench a`）；`benchmark.py` 尚未实现——本 skill 即其需求规格。
+## 命令（已实现 src/benchmark.py）
+
+两阶段工具（oracle=describe_image 在会话内，非 Python 调用）：
+- `npm run prescreen -- <源图目录>` → 四 detector 并集出 crop + `output/label_manifest.json`
+- 我对每 crop 调 describe_image 标注 → 写 labels JSON
+- `npm run ingest:a -- <labels.json>` → 算指标 → `output/benchmark_a.json`
+- `npm run bench:a -- <源图目录>` = prescreen（`b`/`c` 同理，先 A 的并集 crops）
+- `--all` 链式占位
+
+指标：`detection_precision`（并集检出假框率）+ 四类分布（dialogue_in/out/sfx/bg_text）；框外漏检（真 recall）需人工抽查 detector 均漏区域。
