@@ -9,7 +9,7 @@
 ## 理由
 
 - v0.59.1 是 server 世代，提供完整自动化面：REST + MCP + 像素级 mask 读写 + headless 启动。
-- 上游 **0.77.5 起已删除 headless/HTTP/MCP**，升级即失去全部自动化面——本项目的会话驱动执行器（`src/koharu_client.py`、`src/pipeline.py`）会全部失效。
+- 上游 **0.77.5 起已删除 headless/HTTP/MCP**，升级即失去全部自动化面——本项目的会话驱动执行器（`src/amta/koharu_client.py`、`src/amta/pipeline.py`）会全部失效。
 
 ## 后果 / 约束
 

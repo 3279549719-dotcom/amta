@@ -20,26 +20,26 @@ def _load(rel: str):
 
 class OutputSchemaTest(unittest.TestCase):
     def test_benchmark_a_schema(self):
-        d = _load("output/benchmark_a.json")
+        d = _load("output/data/benchmark_a.json")
         if d is None:
-            self.skipTest("output/benchmark_a.json 不存在")
+            self.skipTest("output/data/benchmark_a.json 不存在")
         for k in ("n_candidates", "fp_non_text", "detection_precision", "rows"):
             self.assertIn(k, d)
         for cls in ("dialogue_in", "dialogue_out", "sfx", "bg_text"):
             self.assertIn(cls, d["rows"])
 
     def test_benchmark_b_sfx_schema(self):
-        d = _load("output/benchmark_b_sfx.json")
+        d = _load("output/data/benchmark_b_sfx.json")
         if d is None:
-            self.skipTest("output/benchmark_b_sfx.json 不存在")
+            self.skipTest("output/data/benchmark_b_sfx.json 不存在")
         self.assertIn("engine", d)
         self.assertIn("n_sfx", d)
         self.assertIsInstance(d["rows"], list)
 
     def test_label_manifest_schema(self):
-        d = _load("output/label_manifest.json")
+        d = _load("output/data/label_manifest.json")
         if d is None:
-            self.skipTest("output/label_manifest.json 不存在")
+            self.skipTest("output/data/label_manifest.json 不存在")
         self.assertEqual(d.get("version"), 1)
         self.assertEqual(d.get("bench"), "a")
         self.assertIsInstance(d.get("items"), list)
@@ -48,9 +48,9 @@ class OutputSchemaTest(unittest.TestCase):
                 self.assertIn(k, it, f"manifest item 缺字段 {k}")
 
     def test_recall_result_parses(self):
-        d = _load("output/recall_result.json")
+        d = _load("output/data/recall_result.json")
         if d is None:
-            self.skipTest("output/recall_result.json 不存在")
+            self.skipTest("output/data/recall_result.json 不存在")
         self.assertIsNotNone(d)  # 已能 json.load，即结构可解析
 
 

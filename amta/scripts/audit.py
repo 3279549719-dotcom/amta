@@ -19,15 +19,16 @@ ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MAX_LINES = 120
 LESSON_TEMPLATE_KEYS = ("Problem", "Root cause", "Durable lesson", "Prevention", "Regression")
 COMMITTED_OUTPUT = [
-    "output/benchmark_a.json",
-    "output/benchmark_b.json",
-    "output/benchmark_b_sfx.json",
-    "output/label_manifest.json",
-    "output/labels_a.json",
-    "output/recall_gt.json",
-    "output/recall_result.json",
-    "output/recall_ocr.json",
-    "output/ocr_result.json",
+    "output/data/benchmark_a.json",
+    "output/data/benchmark_b.json",
+    "output/data/benchmark_b_sfx.json",
+    "output/data/benchmark_b_paddle_manga.json",
+    "output/data/label_manifest.json",
+    "output/data/labels_a.json",
+    "output/data/recall_gt.json",
+    "output/data/recall_result.json",
+    "output/data/recall_ocr.json",
+    "output/data/ocr_result.json",
 ]
 
 

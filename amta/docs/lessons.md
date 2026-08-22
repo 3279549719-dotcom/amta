@@ -14,7 +14,7 @@
 - **Root cause**：VLM 对整页大图的空间定位不稳定，坐标不是其可靠输出。
 - **Durable lesson**：任何需要像素级对齐的判定，VLM 只适合"识别内容/判类别"，不适合"报坐标"。
 - **Prevention**：recall 改用**内容级匹配**（GT 内容清单 vs detector 并集框识别内容，字符重合度≥0.6 判定检出）；需要位置时用确定性 detector 的 bbox，不用 VLM 坐标。
-- **Regression**：内容级匹配逻辑已在 `src/recall_score.py`；补一个纯函数单测（tests/test_recall_score.py）锁定重合度判定阈值。
+- **Regression**：内容级匹配逻辑已在 `scripts/recall_score.py`（复用 `src/amta/metrics.py`）；纯函数单测在 `tests/test_shared_lib.py` 锁定。
 
 ## L2 — 假数据落盘（最致命）
 
@@ -86,7 +86,7 @@
 - **Root cause**：arXiv 2511.15059 证实所有通用 MLLM 竖排日语显著差于横排（通病）；PaddleOCR-VL 基座也是（openvino-book：EM 9%/CER 55.41% vs 微调后 64.4%/10.88%）。
 - **Durable lesson**：竖排日语漫画 OCR 的远程 API 基座模型（qwen-vl-ocr / PaddleOCR-VL 基座 / DeepSeek-OCR）都不可靠；必须用漫画微调模型（PaddleOCR-VL-For-Manga / GLM-OCR-Manga-LoRA 等）。
 - **Prevention**：OCR 选型先查"是否漫画/竖排微调"，再看 CER；远程 API 只当对照组。
-- **Regression**：`output/_paddle_manga_probe.json`（对比证据）；`output/benchmark_b_paddle_manga.json`（全量）[已自动化：否]
+- **Regression**：`output/data/benchmark_b_paddle_manga.json`（全量 CER/EM）；对比证据见 `docs/decisions/008-local-manga-ocr.md`。[已自动化：否]
 
 ---
 

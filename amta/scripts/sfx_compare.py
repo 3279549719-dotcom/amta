@@ -1,57 +1,28 @@
 """SFX 三路 OCR 对比：manga-ocr / mit48px / baberu vs GT SFX 内容，算 CER/EM。
 
 输入:
-  output/ocr_result.json    (koharu manga-ocr + mit48px 整页 detector 框输出)
+  output/data/ocr_result.json    (koharu manga-ocr + mit48px 整页 detector 框输出)
   output/baberu_smoke.json  (baberu 对 recall_crops 的输出)
-  output/recall_gt.json     (GT SFX 内容)
+  output/data/recall_gt.json     (GT SFX 内容)
 输出:
   output/benchmark_b_sfx.json
 """
 from __future__ import annotations
 import json
-import re
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from amta.metrics import best_match  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "output"
-
-
-def norm(s: str) -> str:
-    return re.sub(r"[^\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9]", "", s or "")
-
-
-def levenshtein(a, b):
-    a, b = norm(a), norm(b)
-    if not a: return len(b)
-    if not b: return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        cur = [i]
-        for j, cb in enumerate(b, 1):
-            cur.append(min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (ca != cb)))
-        prev = cur
-    return prev[-1]
-
-
-def cer(gt, pred):
-    a, b = norm(gt), norm(pred)
-    if not a and not b: return 0.0
-    if not a: return 1.0
-    return levenshtein(a, b) / max(len(a), 1)
-
-
-def best_match(gt_text, pred_list):
-    best = 1.0; best_p = ""
-    for p in pred_list:
-        sc = cer(gt_text, p)
-        if sc < best:
-            best, best_p = sc, p
-    return best, best_p
+OUT = ROOT / "output" / "data"
 
 
 def main() -> int:
     ocr = json.loads((OUT / "ocr_result.json").read_text(encoding="utf-8"))
-    bab = json.loads((OUT / "baberu_smoke.json").read_text(encoding="utf-8"))
+    bab = json.loads((OUT / "baberu_result.json").read_text(encoding="utf-8"))
     gt_data = json.loads((OUT / "recall_gt.json").read_text(encoding="utf-8"))
 
     rows = []

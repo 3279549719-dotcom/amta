@@ -18,18 +18,18 @@ description: VLM 当标注 oracle——用 describe_image 逐 crop 判真假/分
 
 ## Benchmark A — 检测框 4 类判定
 
-输入：`output/crops/*.png` + `output/label_manifest.json`
+输入：`output/crops/*.png` + `output/data/label_manifest.json`
 对每个 crop 调 describe_image，prompt 要求返回结构化判定：
 - `is_text`: bool（该框内是否真是漫画文字）
 - `cls`: `dialogue_in`（框内对白）/ `dialogue_out`（框外对白）/ `sfx`（拟声词）/ `bg_text`（背景文字，如招牌/题字）
 - `confidence`: low / medium / high（VLM 自身把握度，low 留待人工抽查）
 
-输出：`output/labels_a.json`，形如：
+输出：`output/data/labels_a.json`，形如：
 ```json
 [{"id": "page_0_cand00", "is_text": true, "cls": "dialogue_in", "confidence": "high"}]
 ```
 
-然后 `npm run ingest:a -- output/labels_a.json` → `output/benchmark_a.json`
+然后 `npm run ingest:a -- output/data/labels_a.json` → `output/data/benchmark_a.json`
 指标：`detection_precision`（并集假框率）+ 四类分布 share。
 
 ## Benchmark B — OCR 框分类

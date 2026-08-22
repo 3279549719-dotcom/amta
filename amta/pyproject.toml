@@ -8,7 +8,7 @@ ignore = ["E701", "E702"]
 
 [tool.ruff.lint.per-file-ignores]
 # 外部模型目录的运行时动态导入（models/ 不入库，克隆环境不存在）
-"src/baberu_ocr.py" = ["E402"]
+"scripts/baberu_ocr.py" = ["E402"]
 
 [tool.pyright]
 pythonVersion = "3.11"

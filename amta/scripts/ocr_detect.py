@@ -1,9 +1,9 @@
 """Benchmark B (路2) OCR 探测：对每页跑 detector+OCR 流水线，收集 3 引擎的识别文字。
 
 路2 口径：detector 框出文字 → OCR 识别。与 GT 内容匹配算 CER/EM。
-输出 output/ocr_result.json:
+输出 output/data/ocr_result.json:
   { page_N: { "<ocr_engine>": [{bbox, ocr, confidence}], ... }, ... }
-用法: python src/ocr_detect.py <src_dir> <page_count>
+用法: python scripts/ocr_detect.py <src_dir> <page_count>
 """
 from __future__ import annotations
 
@@ -12,20 +12,14 @@ import sys
 import uuid
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from koharu_client import KoharuClient, KoharuError  # noqa: E402
-from pipeline import OCR_ENGINES  # noqa: E402
+from amta.koharu_client import KoharuClient, KoharuError  # noqa: E402
+from amta.pipeline import OCR_ENGINES  # noqa: E402
+from amta.geometry import bbox_from_block as _bbox  # noqa: E402
 
-OUT = Path(__file__).resolve().parent.parent / "output"
+OUT = Path(__file__).resolve().parent.parent / "output" / "data"
 DETECTOR = "comic-text-detector"  # produce TextBoxes，作为 OCR 前置
-
-
-def _bbox(block: dict) -> list[float]:
-    t = block.get("transform", {})
-    x = float(t.get("x", 0)); y = float(t.get("y", 0))
-    w = float(t.get("w", t.get("width", 0))); h = float(t.get("h", t.get("height", 0)))
-    return [round(x, 1), round(y, 1), round(x + w, 1), round(y + h, 1)]
 
 
 def run_ocr(client: KoharuClient, page: Path, ocr_engine: str) -> list[dict]:

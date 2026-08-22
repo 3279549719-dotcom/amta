@@ -22,17 +22,30 @@ DSH 会话（我）= 单 LLM Agent（导演）
 
 ```
 amta/
-├── src/
+├── src/amta/               # 纯库包（可被 import，脚本的上游）
 │   ├── koharu_client.py    # Koharu REST API 封装（建项目/传图/流水线/轮询/场景/mask/导出）
 │   ├── pipeline.py         # 流水线步骤常量 + 引擎 DAG 知识
-│   ├── benchmark.py        # Benchmark A/B/C 脚本
-│   └── story_memory.py     # Story Memory 读写（Phase 2）
-├── context/                # <作品>.story.json / cast 种子
-├── testsets/               # benchmark 测试集（页面 + 结果）
-├── output/                 # benchmark 报告
-└── scripts/
-    ├── start_koharu.ps1    # 启动 koharu headless
-    └── smoke_test.py       # API 冒烟测试
+│   ├── metrics.py          # 共享指标库：norm/levenshtein/cer/best_match/match_score
+│   └── geometry.py         # 共享几何库：bbox/iou/union_boxes
+├── scripts/                # 可执行入口（薄 CLI，import src/amta）
+│   ├── benchmark.py        # Benchmark A/B/C（两阶段：emit crops → ingest 标注）
+│   ├── ocr_detect.py / ocr_score.py      # Benchmark B（OCR 探测 + CER/EM 评分）
+│   ├── recall_detect.py / recall_crop.py / recall_score.py  # recall 内容级匹配
+│   ├── sfx_compare.py / merge_labels.py / baberu_ocr.py
+│   ├── context7.py         # 文档查询（npm run ctx7:*）
+│   ├── fastcheck.py / audit.py / smoke_test.py
+│   └── start_koharu.ps1 / precheck.ps1 / install_hooks.ps1
+├── tests/                  # 确定性单测（fastcheck 第 4 步）
+├── docs/                   # progress / lessons / decisions（ADR-001..008）
+├── context/                # <作品>.story.json / cast 种子（Phase 2）
+├── testsets/               # benchmark 测试集（页面不入库）
+├── output/                 # 运行产物（gitignored，除 data/ 白名单 JSON）
+│   ├── data/               # 入库的 benchmark/label/recall JSON
+│   ├── reports/            # HTML 报表（含原图+检测框+OCR 全文）
+│   ├── crops/ recall_crops/ ocr_frag/ labels_frag/
+│   └── logs/ tmp/
+├── models/                 # 本地模型权重（gitignored：paddle-manga GGUF / llama-cpp / baberu-ocr）
+└── .claude/skills/         # 按需加载技能（benchmark/oracle-label/koharu-drive/...）
 ```
 
 ## 引擎 DAG（v0.59.1 实证）
