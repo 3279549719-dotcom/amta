@@ -1,0 +1,962 @@
+[
+  {
+    "id": "page_0_cand00",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand02",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand03",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand05",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand06",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand07",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand08",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_0_cand09",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_0_cand10",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand11",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_0_cand12",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_1_cand00",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_1_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_1_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_1_cand03",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_1_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_1_cand05",
+    "is_text": false,
+    "cls": null,
+    "confidence": "high"
+  },
+  {
+    "id": "page_1_cand06",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand00",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_2_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_2_cand03",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand05",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand06",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand07",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand08",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_2_cand09",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_2_cand10",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_2_cand11",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand00",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_3_cand02",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_3_cand03",
+    "is_text": false,
+    "cls": null,
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand05",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand06",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand07",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand08",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand09",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_3_cand10",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_4_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand03",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand04",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand05",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand06",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand07",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand08",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand09",
+    "is_text": false,
+    "cls": null,
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand10",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_4_cand11",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_5_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_5_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_5_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_5_cand03",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_5_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_5_cand05",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_5_cand06",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_5_cand07",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand00",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand02",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_6_cand03",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand04",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand05",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand06",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand07",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_6_cand08",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand09",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand10",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_6_cand11",
+    "is_text": false,
+    "cls": null,
+    "confidence": "medium"
+  },
+  {
+    "id": "page_6_cand12",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand13",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_6_cand14",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand00",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand02",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand03",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand05",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_7_cand06",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand07",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_7_cand08",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand09",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand10",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand11",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand12",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand13",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand14",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_7_cand15",
+    "is_text": false,
+    "cls": null,
+    "confidence": "high"
+  },
+  {
+    "id": "page_8_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_8_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_8_cand02",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_8_cand03",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand03",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand04",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand05",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_9_cand06",
+    "is_text": false,
+    "cls": null,
+    "confidence": "high"
+  },
+  {
+    "id": "page_10_cand00",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_10_cand01",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_10_cand02",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_10_cand03",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_10_cand04",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand00",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_11_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand03",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_11_cand04",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_11_cand05",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_11_cand06",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand07",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand08",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_11_cand09",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand10",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand11",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_11_cand12",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_11_cand13",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_12_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_12_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_12_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_12_cand03",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_12_cand04",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_12_cand05",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_12_cand06",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_12_cand07",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_13_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_13_cand01",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_14_cand00",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_14_cand01",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand02",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand03",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand04",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand05",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand06",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand07",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand08",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand09",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand10",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand11",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand12",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand13",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand14",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand15",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand16",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand17",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_14_cand18",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_15_cand00",
+    "is_text": true,
+    "cls": "sfx",
+    "confidence": "high"
+  },
+  {
+    "id": "page_15_cand01",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  },
+  {
+    "id": "page_15_cand02",
+    "is_text": true,
+    "cls": "bg_text",
+    "confidence": "high"
+  },
+  {
+    "id": "page_15_cand03",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_15_cand04",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "medium"
+  },
+  {
+    "id": "page_15_cand05",
+    "is_text": true,
+    "cls": "dialogue_out",
+    "confidence": "high"
+  },
+  {
+    "id": "page_15_cand06",
+    "is_text": true,
+    "cls": "dialogue_in",
+    "confidence": "high"
+  }
+]
