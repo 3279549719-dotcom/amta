@@ -129,7 +129,7 @@ class KoharuClient:
             for op in resp.json().get("operations", []):
                 if op.get("id") == op_id:
                     status = op.get("status", "")
-                    if status in ("completed", "failed", "cancelled"):
+                    if status in ("completed", "failed", "cancelled", "completed_with_errors"):
                         return op
             time.sleep(5)
         raise KoharuError(f"Pipeline timeout after {timeout}s (op={op_id})")
