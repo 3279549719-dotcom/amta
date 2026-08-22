@@ -23,7 +23,9 @@
     "ingest:a": "python src/benchmark.py --bench a --ingest",
     "prescreen": "python src/benchmark.py --bench a --prescreen --pages",
     "recall:detect": "python src/recall_detect.py",
-    "recall:score": "python src/recall_score.py"
+    "recall:score": "python src/recall_score.py",
+    "ctx7:search": "python scripts/context7.py search",
+    "ctx7:ctx": "python scripts/context7.py ctx"
   },
   "dependencies": {}
 }
