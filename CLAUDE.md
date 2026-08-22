@@ -10,13 +10,11 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
 - **工具面**：`src/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/pipeline.py`（引擎 DAG 常量）。
 
-## 坑（不踩会死）
+## 关键坑速查（完整经验见 docs/lessons.md）
 
-- **NO_PROXY**：Clash 破坏 localhost，必须 `NO_PROXY=127.0.0.1,localhost`（koharu_client 自动处理，start_koharu.ps1 已设）。
-- **ps1 编码**：含中文路径的 .ps1 必须 UTF-8 **带 BOM**，否则 PS5.1 按 GBK 解析报错。
-- **DAG 依赖**：`comic-text-detector-seg` 只细化「已有文字框」——前置 detector 漏检则 OCR/mask/inpaint 全漏；`pp-doclayout-v3` 是文档模型，框外字漏检嫌疑元凶（Benchmark A 四 detector 同页对比）。
-- **重渲染**：patch 译文后必须重跑 koharu-renderer，否则导出缓存旧图。
-- **workers>1 崩**：CPU/集显下并发流水线 Vulkan 断连。
+> 坑/经验的**唯一归属 = `docs/lessons.md`**（Problem/Root cause/Durable lesson/Prevention/Regression），本文件只留一行指针，不重复。
+
+NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘
 
 ## 渐进式加载
 
@@ -25,12 +23,23 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 | 跑 Benchmark A/B/C | `.claude/skills/benchmark/SKILL.md` |
 | VLM 标注 crop（oracle 判真假/分类/评分） | `.claude/skills/oracle-label/SKILL.md` |
 | 后台长任务自主监控（轮询/失败检测/汇报） | `.claude/skills/background-monitoring/SKILL.md` |
-| goal 循环收尾落盘（3 文件分工 + 数据真实性校验） | `.claude/skills/cycle-close/SKILL.md` |
 | 驱动 koharu（接口/mask/修复循环） | `.claude/skills/koharu-drive/SKILL.md` |
 | 回归/发布流程 | `.claude/skills/verify/SKILL.md` |
+| 任务收尾 / 学习落盘（/finish） | `.claude/skills/cycle-close/SKILL.md` |
+| Harness 熵审计（/audit） | `.claude/skills/audit/SKILL.md` |
+| docs 导航（分工/目录） | `docs/README.md` |
+| 可复用经验库（坑的唯一归属） | `docs/lessons.md` |
+| 架构决策（为什么这样选） | `docs/decisions/README.md` |
 | 架构决策背景 | `docs/01-调研报告与集成编排方案.md` |
 | 可复用轮子资产 | `docs/02-本地轮子详报.md` |
 | 上游能力/迁移权衡 | `docs/03-koharu上游详报.md` |
 | 引擎 DAG / 目录结构 | `README.md` |
 
 Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读全文。
+
+## 工作协议（Finish / Audit / 知识晋升）
+
+- **任务收尾必须走 /finish**（cycle-close skill）：复读任务 → 审查 diff → 确定性验证（`npm run fastcheck`/`finish`，动引擎则加 `smoke`）→ 修复 → 反思 → 知识晋升 → 只更新真正变化的工件 → 输出 Finish Report → git 落盘。
+- **知识晋升管线**：`观察 → lesson(docs/lessons.md) → 稳定规则(CLAUDE.md) → 不变量 → 测试/hook`。反复犯错应逐步变成机器约束，而不是让 CLAUDE.md 无限膨胀（目标 <120 行）。
+- **机械护栏三级**：编码期 `npm run fastcheck`（秒级）→ pre-commit（.githooks）→ pre-push（含可选 smoke）。安装：`npm run hooks:install`。
+- **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。

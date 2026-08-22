@@ -8,7 +8,10 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-07，最后一笔：Benchmark B OCR 完成）
+## 当前状态（2026-07，最后一笔：Harness 增强完成待验证）
+
+- **Harness 增强（本会话实现）**：新增 /finish 学习循环（cycle-close skill 升级为完整收尾协议 + Finish Report）、/audit 审计（skill + `scripts/audit.py`）、`docs/lessons.md`（经验库，模板 + 5 条种子）、`docs/decisions/`（ADR-001~004）、三级机械护栏（`npm run fastcheck` 编码期 + `.githooks/pre-commit` + `.githooks/pre-push` + `npm run hooks:install`）、确定性单测（`tests/`：pipeline DAG / 输出 JSON schema / client 常量与纯函数）。
+- **待验证（诚实标注）**：本会话环境无法执行命令，`npm run fastcheck` / `finish` / `audit` / hooks 尚未实测；下一步先在正常环境跑一遍再推送。
 
 - 工程脚手架已就位并推送（commit `854e170`、`119df6e`、`95ab73c`，origin/main 已同步）。
 - CLAUDE.md v2 = 渐进式加载模型（核心事实+坑，~2k tokens）；AGENTS.md = 薄指针（避免双份漂移）。两者 DSH 均自动注入。
@@ -72,13 +75,10 @@
 - **调度权在我**：改了 detector/OCR/prompt 后我自记 todo 跑 benchmark，用户不碰终端。
 - 稳定后才上 GitHub Actions（每次 push/PR 自动跑同一验证 skill）。
 
-## 关键坑速查（详见 CLAUDE.md）
+## 关键坑速查（完整经验见 docs/lessons.md）
 
-- NO_PROXY=127.0.0.1,localhost（Clash 破坏 localhost）。
-- .ps1 含中文必须 UTF-8 带 BOM。
-- ctd_seg 只细化已有框；pp-doclayout-v3 是文档模型，框外字漏检嫌疑元凶（Benchmark A 同页四 detector 对比）。
-- patch 后必须重跑 koharu-renderer。
-- workers>1 崩（CPU/集显 Vulkan 断连）。
+- 坑/经验的唯一归属 = `docs/lessons.md`；CLAUDE.md 只留一行指针。
+- NO_PROXY=127.0.0.1,localhost（Clash 破坏 localhost）· .ps1 含中文必须 UTF-8 带 BOM · ctd_seg 只细化已有框 · patch 后必须重跑 koharu-renderer · workers>1 崩。
 
 ## 测试集现状
 
@@ -88,6 +88,7 @@
 
 ## 下一步
 
+0. **验证新 Harness**：在可执行环境跑 `npm run fastcheck`、`npm run audit`、`npm run finish`，并 `npm run hooks:install` 装 hooks；修掉任何失败后推送。
 1. 新 OCR 引擎测评（第二轮）：manga-ocr 框内 CER 0.16 已好，**框外对白 CER 0.45 是短板**——调研 GLM-OCR-Manga-LoRA(需GPU) / 远程 PaddleOCR-VL / Baberu 的框外表现，选可行引擎实测。
 2. Benchmark C（mask + lama-manga inpainting 区域评分）。
 3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——detector 假框少(precision 0.963)，重点转向 recall。
