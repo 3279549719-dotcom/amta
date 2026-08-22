@@ -19,12 +19,16 @@ output/*
 !output/benchmark_a.json
 !output/benchmark_b.json
 !output/benchmark_c.json
+
+# ---- 模型权重（大文件/第三方 license，不入库）----
+models/
 !output/labels_a.json
 !output/label_manifest.json
 !output/recall_gt.json
 !output/recall_result.json
 !output/recall_ocr.json
 !output/ocr_result.json
+!output/benchmark_b_sfx.json
 
 # ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
 testsets/pages/
