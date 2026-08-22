@@ -38,3 +38,26 @@ description: Use when launching long-running background work (pipelines, batch j
 
 **用**：pipeline 跑批、benchmark 全量、并行 subagent 标注、长 compute。
 **不用**：单次快速命令、需要你盯的交互式步骤（那些别后台化）。
+
+## 任务形态判定（完整形态 vs 交互式）
+
+启动长任务前先分类——决定走「goal + 监控 subagent + /finish」完整形态，还是「goal + /finish」轻形态：
+
+| 任务形态 | 特征 | 走哪种 |
+|---|---|---|
+| **长时运行、可委派** | 有明确等待/轮询点（下载、批量推理、外部服务、跑批） | **完整形态**：goal + background-monitoring subagent 后台盯 |
+| **交互式编辑** | 需要我亲手改、每步即时验证（重构、修 bug、写代码） | goal + /finish；监控 subagent 无观察对象，不起 |
+
+判定要点：
+- **完整形态的监控对象是"等待"**——任务启动后我不能同时盯着的那段时间，subagent 替我轮询/失败检测/汇报；如果全程我在场且必须在场，监控代理是空转。
+- **缺了不算错，但要明说**：轻形态收尾时必须说明"本轮未走完整形态 + 原因"，不默认掩盖。
+- 误判实例（诚实记录）：第二轮 OCR 测评有 30 分钟 llama-server 推理等待窗口，本应完整形态但走了轻形态——那是"该补而没补"；重构轮则正确地走了轻形态。
+
+## /simplify 式并行审查（重构类任务的半完整形态）
+
+重构/收尾时，审查环节可照抄 Claude Code /simplify：**3 个并行 subagent 审查 diff，编辑留给我**。
+- **Code Reuse Agent**：找重复逻辑/可抽共享函数/该用现有工具而新写的代码。
+- **Code Quality Agent**：命名一致性/控制流/过度设计（gold-plating）/与 CLAUDE.md 规范对齐。
+- **Efficiency Agent**：多余分配/重复计算/可批量循环/不必要的 IO。
+- 流程：`git diff` 定范围 → 3 agent 并行 → 聚合去重 → 我应用修复（false positive 跳过）→ fastcheck 验证。
+- 这满足"审查委派 + 编辑保留"，比完整监控形态更适合交互式任务。
