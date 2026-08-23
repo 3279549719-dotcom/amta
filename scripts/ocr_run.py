@@ -19,8 +19,17 @@ DATA = ROOT / "output" / "data"
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 
 
-def crop_regions(gt, page_paths, crop_dir):
-    """从原图按 GT bbox 裁框。page_paths: {page_num(int): img_path}。返回 (crop_paths, meta)。"""
+def crop_regions(gt, page_paths, crop_dir, det_boxes=None):
+    """从原图按 detector 可靠坐标裁框，用 GT 内容做比对基准。
+
+    背景（ADR-011）：GT bbox 是 VLM 整页枚举的缩略坐标（x 约 40% 宽），直接裁图全空白
+    （「VLM 整页坐标不可靠」坑）。评测锚点改为：裁框用 detector 全尺寸可靠坐标，
+    比对用 GT 内容。recall_report 证明 101 条 GT 内容有 99 条被 detector 框覆盖。
+
+    det_boxes: {page_num: [{bbox:[x0,y0,x1,y1], text:str}]} —— 来自 ocr_result.json 的
+    manga-ocr（For-Manga 现役输出），坐标为全尺寸可靠。缺省时回退到 GT bbox（仅测试用）。
+    返回 (crop_paths, meta)；meta 每条含 {page, crop, bbox, content, type}。
+    """
     if isinstance(gt, (str, Path)):
         gt = json.loads(Path(gt).read_text(encoding="utf-8"))
     crop_dir = Path(crop_dir); crop_dir.mkdir(parents=True, exist_ok=True)
@@ -31,17 +40,45 @@ def crop_regions(gt, page_paths, crop_dir):
         if src is None or not Path(src).exists():
             continue
         im = Image.open(src)
+        # 内容 → detector 框映射（同一页内按字符重合度对齐 GT 内容与 detector 文本）
+        dets = det_boxes.get(page_num, []) if det_boxes else []
+        used = [False] * len(dets)
         for i, region in enumerate(regions):
-            x0, y0, x1, y1 = (int(v) for v in region["bbox"])
+            content = region["content"]
+            # 选出与该 GT 内容字符重合度最高的未用 detector 框
+            best_j, best_score = -1, 0.6
+            for j, d in enumerate(dets):
+                if used[j] or not d.get("text"):
+                    continue
+                sc = _content_overlap(content, d["text"])
+                if sc >= best_score:
+                    best_score, best_j = sc, j
+            if best_j >= 0:
+                bbox = dets[best_j]["bbox"]
+                used[best_j] = True
+            else:
+                bbox = region["bbox"]  # 无匹配框：回退 GT bbox（该条计入未检出）
+            x0, y0, x1, y1 = (int(v) for v in bbox)
             box = (max(0, x0 - 4), max(0, y0 - 4), min(im.width, x1 + 4), min(im.height, y1 + 4))
             fname = f"{gkey}_gt{i:02d}.png"
             crop = im.crop(box)
             p = crop_dir / fname
             crop.save(p)
             crops.append(str(p))
-            meta.append({"page": page_num, "crop": str(p), "bbox": region["bbox"],
-                         "content": region["content"], "type": region["type"]})
+            meta.append({"page": page_num, "crop": str(p), "bbox": bbox,
+                         "content": content, "type": region["type"]})
     return crops, meta
+
+
+def _content_overlap(a: str, b: str) -> float:
+    """字符重合度（归一化后），用于内容级对齐 GT 与 detector 文本。"""
+    from difflib import SequenceMatcher
+    na, nb = a or "", b or ""
+    if not na and not nb:
+        return 1.0
+    if not na or not nb:
+        return 0.0
+    return SequenceMatcher(None, na, nb).ratio()
 
 
 def local_ocr_batch(crop_paths, base_url="http://127.0.0.1:8118/v1", model="paddle", concurrency=1):
@@ -108,6 +145,8 @@ def main():
     ap.add_argument("--out", default=None, help="preds JSON 输出路径")
     ap.add_argument("--src-dir", default=r"D:\我的汉化\汉化作品\东方\单翼停留之地")
     ap.add_argument("--gt", default=str(DATA / "recall_gt.json"))
+    ap.add_argument("--det", default=str(DATA / "ocr_result.json"),
+                    help="detector 输出（含全尺寸 bbox），评测坐标源；缺省 ocr_result.json")
     ap.add_argument("--crop-dir", default=str(DATA / "ocr_crops"))
     ap.add_argument("--model", default=None)
     a = ap.parse_args()
@@ -119,7 +158,15 @@ def main():
 
     page_paths = {int(k.split("_")[1]): str(Path(a.src_dir) / f"{int(k.split('_')[1])}.jpg")
                   for k in gt["pages"]}
-    crops, meta = crop_regions(gt, page_paths, a.crop_dir)
+    # 从 ocr_result.json 取 detector 全尺寸 bbox + 文本，作为评测坐标源（绕过 GT bbox 缩略坐标）
+    det_boxes = {}
+    if Path(a.det).exists():
+        det = json.loads(Path(a.det).read_text(encoding="utf-8"))
+        for pkey, pinfo in det.items():
+            pnum = int(pkey.split("_")[1])
+            eng = (pinfo.get("engines") or {}).get("manga-ocr", [])
+            det_boxes[pnum] = [{"bbox": b.get("bbox"), "text": b.get("ocr") or ""} for b in eng]
+    crops, meta = crop_regions(gt, page_paths, a.crop_dir, det_boxes=det_boxes)
     print(f"[ocr_run] {len(crops)} crops -> {a.crop_dir}", file=sys.stderr)
 
     if a.engine == "local":

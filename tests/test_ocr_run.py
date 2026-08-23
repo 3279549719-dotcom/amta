@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 
 def _build_recall_gt(tmp_path):
-    # 最小化 recall_gt，仅 1 页 2 框，避免依赖真实图片
+    # 最小化 recall_gt，仅 1 页 2 框；bbox 为"缩略坐标"（不应作为评测坐标源，见 ADR-011）
     gt = {
         "pages": {
             "page_1": [
@@ -22,10 +22,12 @@ def _build_recall_gt(tmp_path):
     }
     p = tmp_path / "recall_gt.json"
     p.write_text(json.dumps(gt, ensure_ascii=False), encoding="utf-8")
-    return p
+    return gt
 
 
-def test_crop_regions_uses_recall_gt_bbox(tmp_path):
+def test_crop_uses_det_boxes_not_gt_bbox(tmp_path):
+    """评测坐标源是 detector 可靠 bbox（det_boxes），而非 GT 缩略 bbox（ADR-011）。
+    同一 GT 内容应对齐到字符重合度最高的 detector 框。"""
     from ocr_run import crop_regions
     import PIL.Image as Image
 
@@ -33,11 +35,37 @@ def test_crop_regions_uses_recall_gt_bbox(tmp_path):
     img_path = tmp_path / "p1.jpg"
     img.save(img_path)
     gt = _build_recall_gt(tmp_path)
-    # 每页需要 path；此处单页注入
-    crops, meta = crop_regions(gt, {1: str(img_path)}, tmp_path / "crops")
+    det_boxes = {
+        1: [
+            {"bbox": [180, 180, 260, 220], "text": "月の都"},   # 对齐 GT 内容"月の都"
+            {"bbox": [20, 20, 120, 90], "text": "空を"},        # 对齐 GT 内容"空を"
+        ]
+    }
+    crops, meta = crop_regions(gt, {1: str(img_path)}, tmp_path / "crops", det_boxes=det_boxes)
     assert len(crops) == 2
-    assert meta[0]["crop"].endswith(".png")
+    assert len(meta) == 2
+    # meta 的 bbox 应来自 det_boxes（全尺寸 180..260），而非 GT 缩略 bbox（10..60）
+    assert meta[0]["bbox"] == [180, 180, 260, 220]
+    assert meta[0]["content"] == "月の都"
     assert meta[0]["page"] == 1
+    assert meta[1]["bbox"] == [20, 20, 120, 90]
+
+
+def test_crop_falls_back_to_gt_bbox_when_no_det_match(tmp_path):
+    """detector 未覆盖的 GT 内容（如 recall 漏的 2 条）：回退 GT bbox，计入未检出。"""
+    from ocr_run import crop_regions
+    import PIL.Image as Image
+
+    img = Image.new("RGB", (300, 300), "white")
+    img_path = tmp_path / "p1.jpg"
+    img.save(img_path)
+    gt = _build_recall_gt(tmp_path)
+    det_boxes = {1: [{"bbox": [180, 180, 260, 220], "text": "月の都"}]}  # 只有一条匹配
+    crops, meta = crop_regions(gt, {1: str(img_path)}, tmp_path / "crops", det_boxes=det_boxes)
+    # 第二条"空を"无匹配 → 回退 GT bbox
+    second = [m for m in meta if m["content"] == "空を"][0]
+    assert second["bbox"] == [100, 100, 200, 150]  # 即 GT bbox
+    assert len(crops) == 2
 
 
 def test_local_engine_builds_request(monkeypatch):
