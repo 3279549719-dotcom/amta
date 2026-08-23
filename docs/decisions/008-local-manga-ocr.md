@@ -18,4 +18,4 @@
 - 漫画 OCR 走独立 llama-server:8118（`models/llama-cpp/llama-server.exe` ≥b10582 + `models/paddle-manga/`），不入 koharu 引擎 DAG。
 - llama.cpp 版本硬约束：≥b10582（旧版 MTMD 投影初始化失败）。
 - GLM-OCR-Manga-LoRA 如需启用，须 GPU≥4GB 本地推理（无托管 API），本机不可行，记出局。
-- 测评产物：`output/data/benchmark_b_paddle_manga.json`（全量 CER/EM）；报表 `output/reports/benchmark_b_paddle_manga_report.html`。
+- 测评产物：`output/data/benchmark_b_paddle_manga.json`（全量 CER/EM）；报表 `output/reports/benchmark_b_paddle_manga_report.html`。⚠️ json 内 cer/em 为旧 norm 口径（只去空白），引用前须按 metrics.py 现行口径重算（L14 / ADR-010）。

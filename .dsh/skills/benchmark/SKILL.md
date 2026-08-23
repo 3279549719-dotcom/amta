@@ -19,7 +19,7 @@ description: Benchmark A/B/C——用数据钉死 koharu v0.59.1 的能力边界
 ## 方法论（零人工全量标注）
 
 - 候选真值 = **4 detector 的并集**（都漏的不计入分母，属工具能力边界）
-- 真假判定 + OCR 真值 = **describe_image 逐 crop**（VLM 当标注 oracle）
+- 真假判定 + 类别判定 = describe_image 逐 crop（VLM 当标注 oracle）；**内容 GT（OCR 真值文本）必须用整页枚举清单（recall_gt.json 方式）**——per-crop 独立标注不可直接当正式 GT（实测 25/126 行丢字符/缺字/把装饰数字当文本，见 L13）
 - 人工仅抽查「detector 分歧 / VLM 低置信」子集
 
 ## Benchmark A — 检测（四 detector 同页对比）
@@ -52,6 +52,13 @@ describe_image 看**整页大图**返回的坐标是**错的**（裁剪验证为
 
 - **测纯识别能力**：OCR 只能识别「被框出的字」。要测 OCR 本身准不准，必须避开 detector 漏框干扰，否则算不清是 OCR 差还是 detector 差。
 - **路2（本项目采用）**：跑 detector+OCR 流水线，OCR 识别 detector 框出的文字，与 GT 内容匹配算 CER/EM。因 detector recall 高（0.98），漏框干扰小，实用。
+- **unmatched 行先归因再下结论**：分类为 GT 噪声/错误、GT 空（误检框）、仅标点差异的口径误判——不能直接当 OCR 失败（实测 27 行 = 19 GT 噪声 + 3 GT 空 + 5 口径误判，page_8_u06/u14 是 GT 丢 ～ 的匹配误判，OCR 才对）
+
+### Benchmark B 实测结论（paddle-manga，QA 修正后口径）
+
+- 现行 norm（去全部标点）重算：ALL CER 0.316→0.121 / EM 0.516→0.770（32 行 0→1，无 1→0）
+- 排除 unmatched（27 行归因后）99 行：**CER 0.035 / EM 0.869**（For-Manga 真实水平）
+- 三处修正：union 去重漏竖排碎片框（48 行重复，L12）· GT 25 行不可靠待对齐 recall_gt.json（L13）· 报告误标 GT bbox（L15）
 
 ## Benchmark C — Inpainting（mask + lama-manga）
 
@@ -63,6 +70,7 @@ describe_image 看**整页大图**返回的坐标是**错的**（裁剪验证为
 
 - `output/data/benchmark_a.json` / `b` / `c`（recall/precision/CER/EM/评分）；HTML 报表在 `output/reports/`
 - 每项 FAIL 需定位到具体模块
+- 叠加框必须标注来源：**detector 检出 union 框**（含误检，126）≠ **GT bbox**（recall_gt，101 条）；标题/图例写真实数据源，不得误标 "GT bbox"（L15）
 
 ## 命令（已实现 scripts/benchmark.py）
 

@@ -18,3 +18,4 @@
 - [007 — 验证循环分层 + 中止才落盘](./007-verification-loop-layered.md)
 - [008 — 框外对白 OCR = 本地 PaddleOCR-VL-For-Manga（独立 llama-server），弃 koharu paddle 引擎](./008-local-manga-ocr.md)
 - [009 — Harness 机制 DSH 原生化（.dsh/skills 唯一技能根 + 判断链五路分流 + hook 仅 git）](./009-harness-dsh-native.md)
+- [010 — 评测指标口径（norm 去标点 + 派生指标重算 + 双轨展望）](./010-metric-caliber.md)
