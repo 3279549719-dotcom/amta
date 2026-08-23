@@ -17,3 +17,4 @@
 - [006 — OCR 双引擎分流 = manga-ocr 认对白 + Baberu 认 SFX](./006-ocr-dual-engine.md)
 - [007 — 验证循环分层 + 中止才落盘](./007-verification-loop-layered.md)
 - [008 — 框外对白 OCR = 本地 PaddleOCR-VL-For-Manga（独立 llama-server），弃 koharu paddle 引擎](./008-local-manga-ocr.md)
+- [009 — Harness 机制 DSH 原生化（.dsh/skills 唯一技能根 + 判断链五路分流 + hook 仅 git）](./009-harness-dsh-native.md)
