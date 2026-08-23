@@ -148,7 +148,14 @@ def dashscope_ocr_batch(crop_paths, model="qwen-vl-ocr-latest", concurrency=4):
         }
         r = requests.post(DASHSCOPE_URL, headers={"Authorization": f"Bearer {key}"}, json=payload, timeout=60)
         r.raise_for_status()
-        text = r.json()["choices"][0]["message"]["content"]
+        data = r.json()
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError):
+            text = ""
+        if not text:
+            print(f"[ocr_run] WARN dashscope 空响应: {Path(p).name} "
+                  f"{json.dumps(data, ensure_ascii=False)[:120]}", file=sys.stderr)
         out.append({"crop": p, "ocr": text})
     return out
 
@@ -164,6 +171,8 @@ def main():
                     help="detector 输出（含全尺寸 bbox），评测坐标源；缺省 ocr_result.json")
     ap.add_argument("--crop-dir", default=str(DATA / "ocr_crops"))
     ap.add_argument("--model", default=None)
+    ap.add_argument("--write-meta", default=None,
+                    help="把 crop→GT 对齐 meta（含 content/type/bbox）落盘到该路径，供评测复用")
     a = ap.parse_args()
 
     gt = json.loads(Path(a.gt).read_text(encoding="utf-8"))
@@ -173,16 +182,22 @@ def main():
 
     page_paths = {int(k.split("_")[1]): str(Path(a.src_dir) / f"{int(k.split('_')[1])}.jpg")
                   for k in gt["pages"]}
-    # 从 ocr_result.json 取 detector 全尺寸 bbox + 文本，作为评测坐标源（绕过 GT bbox 缩略坐标）
+    # 从 ocr_result.json 取 detector 全尺寸 bbox + 文本，作为评测坐标源（绕过 GT bbox 缩略坐标）。
+    # 注意页码偏移：ocr_result 的 page_N 是 0 基（page_0=1.jpg），recall_gt 的 page_N 是 1 基（page_1=1.jpg），
+    # 故 det 的 page_N 要存成 GT 页号 N+1。
     det_boxes = {}
     if Path(a.det).exists():
         det = json.loads(Path(a.det).read_text(encoding="utf-8"))
         for pkey, pinfo in det.items():
-            pnum = int(pkey.split("_")[1])
+            pnum0 = int(pkey.split("_")[1])
             eng = (pinfo.get("engines") or {}).get("manga-ocr", [])
-            det_boxes[pnum] = [{"bbox": b.get("bbox"), "text": b.get("ocr") or ""} for b in eng]
+            det_boxes[pnum0 + 1] = [{"bbox": b.get("bbox"), "text": b.get("ocr") or ""} for b in eng]
     crops, meta = crop_regions(gt, page_paths, a.crop_dir, det_boxes=det_boxes)
     print(f"[ocr_run] {len(crops)} crops -> {a.crop_dir}", file=sys.stderr)
+    if a.write_meta:
+        Path(a.write_meta).parent.mkdir(parents=True, exist_ok=True)
+        Path(a.write_meta).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[ocr_run] meta -> {a.write_meta}", file=sys.stderr)
 
     if a.engine == "local":
         preds = local_ocr_batch(crops, model=a.model or "paddle")
