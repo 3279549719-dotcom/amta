@@ -22,13 +22,15 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 
 | 触发 | 读 |
 |---|---|
-| 跑 Benchmark A/B/C | `.claude/skills/benchmark/SKILL.md` |
-| VLM 标注 crop（oracle 判真假/分类/评分） | `.claude/skills/oracle-label/SKILL.md` |
-| 后台长任务自主监控（轮询/失败检测/汇报） | `.claude/skills/background-monitoring/SKILL.md` |
-| 驱动 koharu（接口/mask/修复循环） | `.claude/skills/koharu-drive/SKILL.md` |
-| 回归/发布流程 | `.claude/skills/verify/SKILL.md` |
-| 任务收尾 / 学习落盘（/finish） | `.claude/skills/cycle-close/SKILL.md` |
-| Harness 熵审计（/audit） | `.claude/skills/audit/SKILL.md` |
+| 跑 Benchmark A/B/C | `.dsh/skills/benchmark/SKILL.md` |
+| VLM 标注 crop（oracle 判真假/分类/评分） | `.dsh/skills/oracle-label/SKILL.md` |
+| 后台长任务自主监控（轮询/失败检测/汇报） | `.dsh/skills/background-monitoring/SKILL.md` |
+| 驱动 koharu（接口/mask/修复循环） | `.dsh/skills/koharu-drive/SKILL.md` |
+| 回归/发布流程 | `.dsh/skills/verify/SKILL.md` |
+| 任务收尾 / 学习落盘（/finish） | `.dsh/skills/cycle-close/SKILL.md` |
+| Harness 熵审计（/audit） | `.dsh/skills/audit/SKILL.md` |
+| 收尾知识归类委派（finisher subagent） | `.dsh/skills/finisher/SKILL.md` |
+| 外部调研委派（researcher subagent） | `.dsh/skills/researcher/SKILL.md` |
 | docs 导航（分工/目录） | `docs/README.md` |
 | 可复用经验库（坑的唯一归属） | `docs/lessons.md` |
 | 架构决策（为什么这样选） | `docs/decisions/README.md` |
@@ -42,6 +44,6 @@ Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读
 ## 工作协议（Finish / Audit / 知识晋升）
 
 - **任务收尾必须走 /finish**（cycle-close skill）：复读任务 → 审查 diff → 确定性验证（`npm run fastcheck`/`finish`，动引擎则加 `smoke`）→ 修复 → 反思 → 知识晋升 → 只更新真正变化的工件 → 输出 Finish Report → git 落盘。
-- **知识晋升管线**：`观察 → lesson(docs/lessons.md) → 稳定规则(CLAUDE.md) → 不变量 → 测试/hook`。反复犯错应逐步变成机器约束，而不是让 CLAUDE.md 无限膨胀（目标 <120 行）。
+- **知识晋升管线**：`观察 → 可复用?No 丢弃 / Yes → 会复发?No lesson(docs/lessons.md) / Yes → 五路分流：全局规则(CLAUDE.md) · 流程(.dsh/skills/) · 架构(docs/decisions/ADR-N) · 瞬时(docs/progress.md) · 机械(test/lint/hook)`。反复犯错应逐步变成机器约束（test/lint/hook 是唯一真强制层，rules/lesson 都是 prompt 级），CLAUDE.md 保持精简（目标 <120 行）。
 - **机械护栏三级**：编码期 `npm run fastcheck`（秒级）→ pre-commit（.githooks）→ pre-push（含可选 smoke）。安装：`npm run hooks:install`。
 - **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。

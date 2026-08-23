@@ -17,4 +17,4 @@ Benchmark A/B/C 的真值（GT）与判定全部走 **VLM 当 oracle**，**零�
 - 候选真值 = 4 detector 并集（都漏的不计入分母，属工具能力边界）。
 - 需要精确位置时用确定性 detector 的 bbox，不用 VLM 坐标。
 - 人工仅抽查"detector 分歧 / VLM 低置信"子集。
-- 方法细节见 `.claude/skills/benchmark/SKILL.md` 与 `docs/lessons.md` L1。
+- 方法细节见 `.dsh/skills/benchmark/SKILL.md` 与 `docs/lessons.md` L1。

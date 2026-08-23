@@ -8,8 +8,9 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-07，最后一笔：第二轮 OCR 测评完成）
+## 当前状态（2026-08-23，最后一笔：Harness 迁移完成）
 
+- **Harness 迁移完成（2026-08-23）**：9 技能从 `.claude/skills/` 迁到 `.dsh/skills/`（DSH 原生技能根，`npx dsh-movein` 迁移 + `git mv` 定唯一事实源）；新增 **finisher**（收尾知识归类委派 subagent）与 **researcher**（外部调研委派 subagent）技能；判断链改**五路分流**（lesson → CLAUDE.md / skill / ADR / progress / test·hook，test/lint/hook 为唯一真强制层）；修复 **#1401 frontmatter bug**（cycle-close / background-monitoring description 未引号 `": "` 被 DSH 静默丢弃）；hook 层维持 git hooks（CC 生命周期 hook 桥 = 进程级 configPath + PreToolUse deny-only，会跨项目泄漏，不装）。
 - **第二轮 OCR 测评完成（本会话）**：框外对白 OCR 换引擎——**PaddleOCR-VL-For-Manga**（本地 GGUF + 独立 llama-server b10582，端口 8118）全量 126 crops 实测：
   - **dialogue_out（框外对白）：CER 0.453 → 0.037 / EM 0.265 → 0.667**（主目标达成，远超预期）
   - dialogue_in：CER 0.16 → 0.103；sfx：1.0 → 0.15；bg_text：0.727 → 0.038；ALL：0.462 → 0.316
@@ -21,7 +22,7 @@
 
 - 工程脚手架已就位并推送（commit `854e170`、`119df6e`、`95ab73c`，origin/main 已同步）。
 - CLAUDE.md v2 = 渐进式加载模型（核心事实+坑，~2k tokens）；AGENTS.md = 薄指针（避免双份漂移）。两者 DSH 均自动注入。
-- 3 个 skill 已建：`benchmark` / `koharu-drive` / `verify`（.claude/skills/，按需加载）。
+- 3 个 skill 已建：`benchmark` / `koharu-drive` / `verify`（.dsh/skills/，DSH 原生技能根，进 skill catalog 按需加载）。
 - `src/koharu_client.py`（16 方法）+ `src/pipeline.py`（引擎 DAG 常量）+ smoke_test **PASS**。
 - koharu headless 当前在 :4000 运行（--headless --cpu）。
 - **Benchmark A 已实现**（`scripts/benchmark.py` 两阶段：emit crops+manifest → ingest 标注算指标；synthetic 自测 + 链路实测通过）。

@@ -6,4 +6,4 @@ AMTA：会话驱动漫画翻译自动化——DSH 会话=导演，amta Python=�
 
 **最致命坑**：钉 0.59.1；`comic-text-detector-seg` 只细化已有文字框，前置 detector 漏检则 OCR/mask/inpaint 全漏（`pp-doclayout-v3` 是文档模型，框外字漏检嫌疑元凶）。
 
-细节（接口/流程/坑全表）→ 读 `CLAUDE.md`；按需技能见 `.claude/skills/`。
+细节（接口/流程/坑全表）→ 读 `CLAUDE.md`；按需技能见 `.dsh/skills/`（DSH 原生技能根，进 skill catalog 按需加载）。
