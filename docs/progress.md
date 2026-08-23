@@ -10,7 +10,7 @@
 
 ## 当前状态（2026-08-23，最后一笔：Harness 迁移完成）
 
-- **Harness 迁移完成（2026-08-23）**：9 技能从 `.claude/skills/` 迁到 `.dsh/skills/`（DSH 原生技能根，`npx dsh-movein` 迁移 + `git mv` 定唯一事实源）；新增 **finisher**（收尾知识归类委派 subagent）与 **researcher**（外部调研委派 subagent）技能；判断链改**五路分流**（lesson → CLAUDE.md / skill / ADR / progress / test·hook，test/lint/hook 为唯一真强制层）；修复 **#1401 frontmatter bug**（cycle-close / background-monitoring description 未引号 `": "` 被 DSH 静默丢弃）；hook 层维持 git hooks（CC 生命周期 hook 桥 = 进程级 configPath + PreToolUse deny-only，会跨项目泄漏，不装）。
+- **Harness 迁移完成（2026-08-23）**：9 技能从 `.claude/skills/` 迁到 `.dsh/skills/`（DSH 原生技能根，`npx dsh-movein` 迁移 + `git mv` 定唯一事实源）；新增 **finisher**（收尾知识归类委派 subagent）与 **researcher**（外部调研委派 subagent）技能；判断链改**五路分流**（lesson → CLAUDE.md / skill / ADR / progress / test·hook，test/lint/hook 为唯一真强制层）；修复 **#1401 frontmatter bug**（cycle-close / background-monitoring description 未引号 `": "` 被 DSH 静默丢弃）；hook 层维持 git hooks（CC 生命周期 hook 桥 = 进程级 configPath + PreToolUse deny-only，会跨项目泄漏，不装）。机制决策见 **ADR-009**。
 - **第二轮 OCR 测评完成（本会话）**：框外对白 OCR 换引擎——**PaddleOCR-VL-For-Manga**（本地 GGUF + 独立 llama-server b10582，端口 8118）全量 126 crops 实测：
   - **dialogue_out（框外对白）：CER 0.453 → 0.037 / EM 0.265 → 0.667**（主目标达成，远超预期）
   - dialogue_in：CER 0.16 → 0.103；sfx：1.0 → 0.15；bg_text：0.727 → 0.038；ALL：0.462 → 0.316
