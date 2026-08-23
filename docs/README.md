@@ -15,7 +15,7 @@ amta/
 ├── CLAUDE.md                 # 规范本体：核心事实 + 关键规则 + 渐进式加载（精简，坑→lessons）
 ├── README.md                 # 架构 / 引擎 DAG / 目录
 ├── package.json              # 脚本入口（映射真实脚本，不包 git/gh）
-├── .claude/skills/           # 按需加载技能（benchmark/koharu-drive/verify/cycle-close/audit/...）
+├── .dsh/skills/               # 按需加载技能（DSH 原生技能根：benchmark/koharu-drive/verify/cycle-close/audit/finisher/researcher/...）
 ├── .githooks/                # pre-commit / pre-push（Level 2/3 护栏）
 ├── src/                      # Python 执行器
 ├── scripts/                  # 运维 / 验证 / 审计（fastcheck/audit/smoke/start/precheck/install_hooks）
@@ -40,6 +40,7 @@ amta/
 | `lessons.md` | 踩过什么坑、学到什么？ | 出现可复用经验时 |
 | `decisions/` | 为什么这样选？ | 架构/方向变更时 |
 | `CLAUDE.md` | Agent 必须知道并遵守什么？ | 出现稳定规则时（保持精简） |
+| `.dsh/skills/` | 怎么做某事（流程/程序/委派）？ | 出现可复用流程时（按需加载） |
 
 ## 可选重组（需要 shell，本环境未执行）
 

@@ -1,11 +1,11 @@
 ---
 name: cycle-close
-description: Use when a task/loop reaches its boundary — goal achieved (update_goal complete), task done, or explicitly aborted (blocked/cancelled) — to run the full /finish protocol: re-read task, inspect diff, run deterministic validation, repair, reflect, promote knowledge, persist, and produce a structured Finish Report. Triggers: "/finish", "收尾", "落盘", "循环结束", "任务完成", goal complete/blocked moment.
+description: 'Use when a task/loop reaches its boundary — goal achieved (update_goal complete), task done, or explicitly aborted (blocked/cancelled) — to run the full /finish protocol: re-read task, inspect diff, run deterministic validation, repair, reflect, promote knowledge, persist, and produce a structured Finish Report. Triggers: "/finish", "收尾", "落盘", "循环结束", "任务完成", goal complete/blocked moment.'
 ---
 
 # Finish / Cycle Close（任务收尾 + 学习落盘）
 
-> 这不是"任务完成了"的口头声明，而是一条**可复现的收尾协议**。核心哲学：把重复犯错编译成更强的系统约束（lesson → rule → test/hook），而不是让记忆文件无限膨胀。
+> 这不是"任务完成了"的口头声明，而是一条**可复现的收尾协议**。核心哲学：把重复犯错编译成更强的系统约束（lesson → 五路分流：CLAUDE.md 规则 / skill 流程 / ADR / test·lint·hook），而不是让记忆文件无限膨胀。
 
 ## 触发条件（满足其一）
 
@@ -36,23 +36,23 @@ description: Use when a task/loop reaches its boundary — goal achieved (update
 ### Step 4 — 修复
 失败 → 诊断 → 修复 → 重跑验证。**能修就修，不停在报错。**
 
-### Step 5 — 反思（最重要）
-问："本轮是否暴露可复用教训？"
-- A. 无可复用 → 丢弃
-- B. 一次性实现细节 → 不写
-- C. 可复用 lesson → 进 `docs/lessons.md`
-- D. 稳定项目规则 → 进 `CLAUDE.md`（保持精简）
-- E. 可机械校验的不变量 → 转成 **测试 / lint / hook**
+### Step 5 — 反思（委派 finisher subagent，AI 判断隔离到子代理）
+1. 组装**会话摘要**（3-8 行：做了什么 / 决策 / 学到什么 / 验证结果）。
+2. **委派 finisher subagent**（读 `.dsh/skills/finisher/SKILL.md`，按其中的【finisher prompt 模板】把摘要交给子代理）：子代理在隔离上下文里完成五路分类 + 产出 proposals（lesson / CLAUDE.md / skill / ADR / test-hook / progress / 丢弃），不直接改文件。
+3. 主 agent **审查 proposals → 应用**（去重、保持精简、只改真正变化的工件）。
+4. 降级路径：子代理失败/超时 → 主 agent 亲自按 Step 6 分类树快速归类，不阻塞收尾。
 
 **不要每条观察都写进记忆**（防记忆污染）。晋升管线见下方。
 
-### Step 6 — 知识晋升
+### Step 6 — 知识晋升（五路分流）
 ```
 Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs/lessons.md)
-                                                    / Yes → project rule(CLAUDE.md)
-                                                              ↓ 机械可测?
-                                                            No → 规则 / Yes → test/lint/hook
-重大方向/架构选择（为什么这样选）→ 独立通道 → decision(docs/decisions/ADR-N)
+                                                    / Yes → 五路分流 ↓
+  全局规则/事实 → CLAUDE.md（精简一行，保持 <120 行）
+  流程/程序   → .dsh/skills/<name>/SKILL.md（新增或修订技能）
+  架构/方向   → docs/decisions/ADR-N（为什么这样选）
+  瞬时状态   → docs/progress.md（已完成/下一步/阻塞）
+  机械可校验 → tests / lint / git-hook（唯一真强制层；规则/lesson 都是 prompt 级）
 ```
 
 ### Step 7 — 只更新真正变化的工件
@@ -92,6 +92,7 @@ Knowledge updated:
 - progress:  是/否
 - lessons:   L#（标题）
 - rules:     是/否（CLAUDE.md）
+- skills:    是/否（新增/修改 .dsh/skills/）
 - decisions: ADR-#（标题）
 New constraints created:
 - tests/xxx.py 校验 ...

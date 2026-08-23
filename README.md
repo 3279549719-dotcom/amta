@@ -45,7 +45,7 @@ amta/
 │   ├── crops/ recall_crops/ ocr_frag/ labels_frag/
 │   └── logs/ tmp/
 ├── models/                 # 本地模型权重（gitignored：paddle-manga GGUF / llama-cpp / baberu-ocr）
-└── .claude/skills/         # 按需加载技能（benchmark/oracle-label/koharu-drive/...）
+└── .dsh/skills/             # 按需加载技能（DSH 原生技能根：benchmark/cycle-close/finisher/researcher/...）
 ```
 
 ## 引擎 DAG（v0.59.1 实证）

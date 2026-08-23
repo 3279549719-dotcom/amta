@@ -1,6 +1,6 @@
 ---
 name: background-monitoring
-description: Use when launching long-running background work (pipelines, batch jobs, subagent fan-out, heavy compute) that must run autonomously with progress monitoring, failure detection, and completion reporting — instead of being manually watched each step. Triggers: "run in background", "自己监控", "别盯着", long jobs, parallel subagents, /loop style self-monitoring.
+description: 'Use when launching long-running background work (pipelines, batch jobs, subagent fan-out, heavy compute) that must run autonomously with progress monitoring, failure detection, and completion reporting — instead of being manually watched each step. Triggers: "run in background", "自己监控", "别盯着", long jobs, parallel subagents, /loop style self-monitoring.'
 ---
 
 # Background Monitoring（后台任务监控 loop）

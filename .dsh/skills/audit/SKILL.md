@@ -22,6 +22,7 @@ npm run audit
 - 规则是否重复？（同一坑既在 lessons.md 又在 CLAUDE.md → 只留一处）
 - lessons 是否过时？被自动化覆盖的标 `[已自动化]`
 - 文档是否自相矛盾？
+- `.dsh/skills/` 是否过时/重复？（技能内容被并入其他技能、已自动化、或与 cycle-close/finisher 的委派逻辑重复 → 精简/删除；新技能是否进了 CLAUDE.md 渐进式加载表）
 
 ### Architecture
 - 架构是否漂移？（对照 README / ADR）
