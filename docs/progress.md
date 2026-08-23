@@ -8,7 +8,14 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-23，最后一笔：Harness 迁移完成）
+## 当前状态（2026-08-24，最后一笔：OCR 引擎对比定案）
+
+- **OCR 引擎三选一对比完成（2026-08-24，86 个 detector 对齐 GT 框）**：锚点=detector 并集 crop 图（全尺寸可靠坐标）+ GT 语义内容（字符重合度≥0.6 对齐，86/101；15 个未检出=page_5 设定页检测不足，单独计数不混入 OCR 指标，ADR-011）：
+  - **For-Manga（现役·漫画微调）ALL CER 0.062 / EM 0.779**：dialogue_in 0.001/0.974、sfx 0.161/0.643、bg_text 0.0/1.0 → **保持现役，无需换 1.6**
+  - **PaddleOCR-VL-1.6（官方原版）ALL CER 0.113 / EM 0.721**：对白类与 For-Manga 持平，但 **sfx 0.458 明显落后**
+  - **qwen-vl-ocr（云端通用）ALL CER 0.266 / EM 0.465**：垫底，且与 GT 同源（Qwen）有虚高风险，仅外部参考
+  - 报告：`output/reports/ocr_engine_compare.html`；决策：ADR-011
+- **评测坐标源修正（L16）**：OCR 评测必须用 detector 对齐框，勿用 GT 缩略 bbox（VLM 缩略坐标裁图全空白）或单引擎框（manga-ocr 每页仅 5-9 框，55/101）；页码注意 0/1 基偏移。
 
 - **Harness 迁移完成（2026-08-23）**：9 技能从 `.claude/skills/` 迁到 `.dsh/skills/`（DSH 原生技能根，`npx dsh-movein` 迁移 + `git mv` 定唯一事实源）；新增 **finisher**（收尾知识归类委派 subagent）与 **researcher**（外部调研委派 subagent）技能；判断链改**五路分流**（lesson → CLAUDE.md / skill / ADR / progress / test·hook，test/lint/hook 为唯一真强制层）；修复 **#1401 frontmatter bug**（cycle-close / background-monitoring description 未引号 `": "` 被 DSH 静默丢弃）；hook 层维持 git hooks（CC 生命周期 hook 桥 = 进程级 configPath + PreToolUse deny-only，会跨项目泄漏，不装）。机制决策见 **ADR-009**。
 - **第二轮 OCR 测评完成（本会话）**：框外对白 OCR 换引擎——**PaddleOCR-VL-For-Manga**（本地 GGUF + 独立 llama-server b10582，端口 8118）全量 126 crops 实测：
@@ -95,8 +102,8 @@
 
 ## 下一步
 
-0. **重生成 benchmark_b_paddle_manga.json**：GT 对齐 recall_gt.json（整页枚举，L13）+ union 去重修复（L12）+ 现行 metrics norm 重算 cer/em（L14）；随后在 test_output.py 加一致性 guard 测试 + test_shared_lib 加碎片框合并用例。
-1. **将 PaddleOCR-VL-For-Manga 接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需 start/stop 脚本 + `src/` OCR 封装（当前是 output/ 下的测评脚本，未正式化）。
+0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011：detector 对齐框 + GT 语义内容，指标不再依赖旧 126 框 json；旧 json 标记旧口径，勿直接引用）
+1. **将 For-Manga（或待定引擎）正式接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需正式 start/stop 脚本（`start_llama_ocr.ps1` 已建）+ `src/` OCR 封装（当前是 scripts/ 下的评测脚本）；引擎结论：**保持 For-Manga**（86 框最优）。
 2. Benchmark C（mask + lama-manga inpainting 区域评分）。
-3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——detector 假框少(precision 0.963)，重点转向 recall。
+3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——本次确认 detector 未检出 15 个 GT 框（page_5 设定页为主），是检测覆盖缺口，非 OCR 问题。
 4. 结果回填本节「当前状态」并推送。
