@@ -23,6 +23,13 @@ class NormTest(unittest.TestCase):
         self.assertEqual(metrics.norm(""), "")
         self.assertEqual(metrics.norm(None), "")
 
+    def test_wave_dash_and_long_vowel_mark(self):
+        # 现行口径：ー(U+30FC) 保留（片假名区间内）；〜(U+301C)/～(U+FF5E) 被剔除。
+        # researcher 调研：〜 vs ー 有真实语气差异，主流评测不删符号；
+        # 双轨（nCER/lCER，ADR-010）落地前此处即当前口径，改动须经 ADR-010。
+        self.assertEqual(metrics.norm("もーわがまま"), "もーわがまま")
+        self.assertEqual(metrics.norm("も〜わがまま"), "もわがまま")
+
 
 class CerTest(unittest.TestCase):
     def test_identical_is_zero(self):

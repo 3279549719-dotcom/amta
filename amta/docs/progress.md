@@ -12,7 +12,7 @@
 
 - **Harness 迁移完成（2026-08-23）**：9 技能从 `.claude/skills/` 迁到 `.dsh/skills/`（DSH 原生技能根，`npx dsh-movein` 迁移 + `git mv` 定唯一事实源）；新增 **finisher**（收尾知识归类委派 subagent）与 **researcher**（外部调研委派 subagent）技能；判断链改**五路分流**（lesson → CLAUDE.md / skill / ADR / progress / test·hook，test/lint/hook 为唯一真强制层）；修复 **#1401 frontmatter bug**（cycle-close / background-monitoring description 未引号 `": "` 被 DSH 静默丢弃）；hook 层维持 git hooks（CC 生命周期 hook 桥 = 进程级 configPath + PreToolUse deny-only，会跨项目泄漏，不装）。机制决策见 **ADR-009**。
 - **第二轮 OCR 测评完成（本会话）**：框外对白 OCR 换引擎——**PaddleOCR-VL-For-Manga**（本地 GGUF + 独立 llama-server b10582，端口 8118）全量 126 crops 实测：
-  - **dialogue_out（框外对白）：CER 0.453 → 0.037 / EM 0.265 → 0.667**（主目标达成，远超预期）
+  - **QA 修正后（现行 norm 去标点口径 + unmatched 归因）：ALL CER 0.316→0.121 / EM 0.516→0.770；99 行（排除 27 unmatched）CER 0.035 / EM 0.869**（For-Manga 真实水平；dialogue_out EM 0.857）；48 行重复计数（union 去重漏碎片框，L12）与 25 行不可靠 GT（per-crop 标注，L13）已定案，json 待重生成（L14）
   - dialogue_in：CER 0.16 → 0.103；sfx：1.0 → 0.15；bg_text：0.727 → 0.038；ALL：0.462 → 0.316
   - 证据：`output/data/benchmark_b_paddle_manga.json`（126 rows 全量）+ `output/reports/benchmark_b_paddle_manga_report.html`（报表）
 - **koharu paddle 引擎坏因定案**：内置 llama.cpp b8935 太旧，mmproj/MTMD 投影初始化失败（`completed_with_errors`，ocr 全空）；同 GGUF 用 b10582 秒加载、OCR 正常 → koharu 的 paddle/mit48px OCR 引擎**不可用，弃用**（ADR-008）。
@@ -95,6 +95,7 @@
 
 ## 下一步
 
+0. **重生成 benchmark_b_paddle_manga.json**：GT 对齐 recall_gt.json（整页枚举，L13）+ union 去重修复（L12）+ 现行 metrics norm 重算 cer/em（L14）；随后在 test_output.py 加一致性 guard 测试 + test_shared_lib 加碎片框合并用例。
 1. **将 PaddleOCR-VL-For-Manga 接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需 start/stop 脚本 + `src/` OCR 封装（当前是 output/ 下的测评脚本，未正式化）。
 2. Benchmark C（mask + lama-manga inpainting 区域评分）。
 3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——detector 假框少(precision 0.963)，重点转向 recall。
