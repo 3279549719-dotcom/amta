@@ -10,6 +10,11 @@ import os
 import sys
 from pathlib import Path
 
+# Windows 控制台默认 GBK，打印日文会 UnicodeEncodeError；统一走 UTF-8 输出
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import requests
 from PIL import Image
 
@@ -91,15 +96,25 @@ def local_ocr_batch(crop_paths, base_url="http://127.0.0.1:8118/v1", model="padd
 
 
 def send_one(base_url, model, img_path):
-    """llama-server 单张请求契约：{base_url}/completions，解析 choices[0].text。
+    """llama-server 单张多模态 OCR 请求：{base_url}/chat/completions + image_url。
 
-    注：真实多模态传图通道（本地图如何进 llama-server）由 Task 3 用既有
-    ocr_detect.py/baberu_ocr.py 实现填充；此处仅锁定端点与响应解析。
+    llama.cpp b10582 多模态走 OpenAI 兼容 chat/completions，图作为 image_url(data URI)，
+    与 DashScope qwen-vl-ocr 请求格式对称。PaddleOCR-VL 用 'OCR' 文本触发识别。
+    解析 choices[0].message.content。单会话单图：每 crop 一次请求。
     """
-    payload = {"model": model, "prompt": "OCR:", "image": img_path}
-    r = requests.post(f"{base_url}/completions", json=payload, timeout=60)
+    import base64 as _b64
+    with open(img_path, "rb") as f:
+        b64 = _b64.b64encode(f.read()).decode()
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            {"type": "text", "text": "OCR"},
+        ]}],
+    }
+    r = requests.post(f"{base_url}/chat/completions", json=payload, timeout=120)
     r.raise_for_status()
-    return r.json()["choices"][0]["text"]
+    return r.json()["choices"][0]["message"]["content"]
 
 
 def _get_dashscope_key():
