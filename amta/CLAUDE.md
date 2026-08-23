@@ -16,7 +16,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 
 > 坑/经验的**唯一归属 = `docs/lessons.md`**（Problem/Root cause/Durable lesson/Prevention/Regression），本文件只留一行指针，不重复。
 
-NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘 · llama.cpp 版本必须 ≥b10582（旧版 MTMD 投影初始化失败） · 通用 VLM 竖排日语系统性差（需漫画微调模型） · 并集框去重漏竖排碎片框（IoU>0.5 不够） · 评测派生指标口径漂移（cer/em 随代码重算） · VLM per-crop GT 不可靠（正式 GT 用整页枚举） · 报告叠加框来源误标
+NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘 · llama.cpp 版本必须 ≥b10582（旧版 MTMD 投影初始化失败） · 通用 VLM 竖排日语系统性差（需漫画微调模型） · 并集框去重漏竖排碎片框（IoU>0.5 不够） · 评测派生指标口径漂移（cer/em 随代码重算） · VLM per-crop GT 不可靠（正式 GT 用整页枚举） · 报告叠加框来源误标 · OCR 评测坐标须用 detector 对齐框（GT bbox 缩略不可靠、勿用单引擎框，页码注意 0/1 基偏移）
 
 ## 渐进式加载
 
