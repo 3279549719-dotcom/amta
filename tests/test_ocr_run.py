@@ -68,17 +68,21 @@ def test_crop_falls_back_to_gt_bbox_when_no_det_match(tmp_path):
     assert len(crops) == 2
 
 
-def test_local_engine_builds_request(monkeypatch):
-    """local 引擎：OpenAI 兼容 completions 端点，无 API key。"""
+def test_local_engine_builds_request(monkeypatch, tmp_path):
+    """local 引擎：OpenAI 兼容 chat/completions 端点 + image_url(data URI)，无 API key。"""
     import ocr_run
 
+    crop = tmp_path / "a.png"
+    crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
     fake = mock.Mock()
     fake.return_value.status_code = 200
-    fake.return_value.json.return_value = {"choices": [{"text": "月の都"}]}
+    fake.return_value.json.return_value = {"choices": [{"message": {"content": "月の都"}}]}
     monkeypatch.setattr(ocr_run.requests, "post", fake)
-    out = ocr_run.local_ocr_batch(["a.png"], base_url="http://127.0.0.1:8118/v1", model="ocr")
+    out = ocr_run.local_ocr_batch([str(crop)], base_url="http://127.0.0.1:8118/v1", model="ocr")
     assert out[0]["ocr"] == "月の都"
-    assert fake.call_args.args[0] == "http://127.0.0.1:8118/v1/completions"
+    assert fake.call_args.args[0] == "http://127.0.0.1:8118/v1/chat/completions"
+    payload = fake.call_args.kwargs["json"]
+    assert payload["messages"][0]["content"][1] == {"type": "text", "text": "OCR"}
 
 
 def test_dashscope_engine_uses_env_key(monkeypatch, tmp_path):
