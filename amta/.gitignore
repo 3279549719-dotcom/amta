@@ -39,3 +39,6 @@ testsets/pages/
 
 # ---- VCS ----
 .git/
+
+# ---- ธ๔ภ๋นคื๗ว๘ (git worktree) ----
+.worktrees/
