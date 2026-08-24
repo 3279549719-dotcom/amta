@@ -14,7 +14,8 @@ DSH 会话（我）= 单 LLM Agent（导演）
 ```
 
 - 引擎基线：**本地 koharu v0.59.1 headless**（`--port 4000 --headless --cpu`）
-- 翻译通道：**koharu 内翻译**（`llm` 引擎，Story Memory 经 `systemPrompt` 注入）
+- 翻译通道：**工位脚本直调 DeepSeek API**（`.env` CHAT_*，ADR-014；弃 koharu 内 `llm` 引擎）
+- 产物结构：**per-work workspace**（`workspace/<work_id>/{raw, artifacts, state}`，ADR-013）+ 工位流水线（00_run_all 编排）
 - 第一里程碑：**Benchmark A/B/C**（10-20 页，VLM 当标注 oracle）
 - 算力约束：CPU-only（i5-1135G7 / Iris Xe），workers=1，inpainter 用 lama-manga
 
