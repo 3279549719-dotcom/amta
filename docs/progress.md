@@ -8,8 +8,15 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-24，最后一笔：OCR 引擎对比定案）
+## 当前状态（2026-08-24，最后一笔：产物结构 rebaseline ADR-013）
 
+- **产物结构 rebaseline（2026-08-24，ADR-013）**：按 reference（touhou_doujin_first_principles_dikw.html）第一性原理/DIKW，把产物从"逐页 benchmark 报表"重定为**每本同人志一个工作区**（Touhou 同人志缩域）：
+  - `workspace/<work_id>/{raw, artifacts, state}`；state/ 三文件：`touhou_knowledge.json`（共享 canon prior）+ `work_state.json`（当前本子逐页生长）+ `open_questions.json`（未决问题）
+  - 三层上下文分离：canon prior ≠ 本子真相（同人志可改关系/语气，当前页证据 ＞ work_state ＞ canon ＞ 猜测）；work_state 逐页生长，首版不做 DB/Vector/Event Graph/Memory Service
+  - Evidence tracking：条目带 `status ∈ {confirmed,inferred,candidate}` + source 页码；新证据可修正旧状态；单页可运行
+  - 代码：`src/amta/workstate.py`（workspace 布局 + 空 schema + init/update/validate）+ `tests/test_workstate.py`（8 测试）；fastcheck ALL PASS（53）
+  - **OCR 评测底座不变**：For-Manga 定案（ADR-011）、指标口径（ADR-010）仍是事实，output/ 旧评测数据保留供迁移
+  - 未锁定：翻译层归属（DeepSeek 会话翻译 vs koharu 内 llm）是下游决策
 - **OCR 引擎三选一对比完成（2026-08-24，86 个 detector 对齐 GT 框）**：锚点=detector 并集 crop 图（全尺寸可靠坐标）+ GT 语义内容（字符重合度≥0.6 对齐，86/101；15 个未检出=page_5 设定页检测不足，单独计数不混入 OCR 指标，ADR-011）：
   - **For-Manga（现役·漫画微调）ALL CER 0.062 / EM 0.779**：dialogue_in 0.001/0.974、sfx 0.161/0.643、bg_text 0.0/1.0 → **保持现役，无需换 1.6**
   - **PaddleOCR-VL-1.6（官方原版）ALL CER 0.113 / EM 0.721**：对白类与 For-Manga 持平，但 **sfx 0.458 明显落后**
@@ -102,8 +109,9 @@
 
 ## 下一步
 
-0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011：detector 对齐框 + GT 语义内容，指标不再依赖旧 126 框 json；旧 json 标记旧口径，勿直接引用）
-1. **将 For-Manga（或待定引擎）正式接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需正式 start/stop 脚本（`start_llama_ocr.ps1` 已建）+ `src/` OCR 封装（当前是 scripts/ 下的评测脚本）；引擎结论：**保持 For-Manga**（86 框最优）。
-2. Benchmark C（mask + lama-manga inpainting 区域评分）。
-3. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——本次确认 detector 未检出 15 个 GT 框（page_5 设定页为主），是检测覆盖缺口，非 OCR 问题。
-4. 结果回填本节「当前状态」并推送。
+0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011）
+1. **产物结构落地推进（ADR-013）**：workstate.py 骨架已建（workspace 布局 + 三 state 文件 + evidence tracking）；下一步把现有评测产物（detection/ocr/translation）逐步接入 per-work 结构，并定翻译层归属（DeepSeek 会话翻译 vs koharu 内 llm）后打通第一本子的单页翻译闭环 → translation.json + work_state.json
+2. **将 For-Manga 正式接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需正式 start/stop 脚本（`start_llama_ocr.ps1` 已建）+ `src/` OCR 封装（当前是 scripts/ 下的评测脚本）；引擎结论：**保持 For-Manga**（86 框最优）。
+3. Benchmark C（mask + lama-manga inpainting 区域评分）。
+4. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——本次确认 detector 未检出 15 个 GT 框（page_5 设定页为主），是检测覆盖缺口，非 OCR 问题。
+5. 结果回填本节「当前状态」并推送。

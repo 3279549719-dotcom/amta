@@ -10,7 +10,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 - **本地漫画 OCR**：`PaddleOCR-VL-For-Manga` GGUF（`models/paddle-manga/`）+ 独立 llama-server（`models/llama-cpp/llama-server.exe`，端口 8118，`--mmproj`）。koharu 内置 llama.cpp b8935 太旧，其 paddle/mit48px OCR 引擎全部不可用（MTMD 初始化失败），只 manga-ocr 可用；漫画 OCR 走独立 llama-server（OpenAI 兼容接口，prompt `OCR:`）。
 - **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
-- **工具面**：`src/amta/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/ocr_engines.py`（本地/DashScope OCR 引擎）+ `src/amta/evalkit.py`（CER/EM 聚合）+ `src/amta/metrics.py`/`geometry.py`/`images.py`（共享库）。
+- **工具面**：`src/amta/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/ocr_engines.py`（本地/DashScope OCR 引擎）+ `src/amta/evalkit.py`（CER/EM 聚合）+ `src/amta/workstate.py`（per-work workspace + work_state，ADR-013）+ `src/amta/metrics.py`/`geometry.py`/`images.py`（共享库）。
 
 ## 关键坑速查（完整经验见 docs/lessons.md）
 
