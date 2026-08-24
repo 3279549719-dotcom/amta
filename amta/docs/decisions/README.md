@@ -20,3 +20,5 @@
 - [009 — Harness 机制 DSH 原生化（.dsh/skills 唯一技能根 + 判断链五路分流 + hook 仅 git）](./009-harness-dsh-native.md)
 - [010 — 评测指标口径（norm 去标点 + 派生指标重算 + 双轨展望）](./010-metric-caliber.md)
 - [011 — OCR 评测锚点 = detector 对齐框 + GT 语义内容（86/101），废弃 GT 缩略 bbox](./011-ocr-eval-caliber.md)
+- [012 — 代码结构重构：逻辑收敛进 src/amta 共享库，scripts 只留薄 CLI](./012-clean-architecture-refactor.md)
+- [013 — 产物结构 rebaseline：per-work workspace + work_state（Touhou 同人志缩域）](./013-per-work-workspace-rebaseline.md)

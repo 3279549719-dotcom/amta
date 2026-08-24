@@ -42,3 +42,8 @@ testsets/pages/
 
 # ---- ���빤���� (git worktree) ----
 .worktrees/
+
+# ---- per-work 工作区（ADR-013）：raw/artifacts 大产物不入库，state JSON 入库 ----
+workspace/*/raw/
+workspace/*/artifacts/
+

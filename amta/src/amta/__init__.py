@@ -10,6 +10,7 @@
 - gt_alignment.* — GT→detector 框对齐裁剪
 - images.* — 图片裁剪工具
 - evalkit.* — CER/EM 评测聚合
+- workstate.* — per-work workspace + work_state（ADR-013 产物结构）
 - paths.* — 项目路径与 JSON/UTF-8 IO 工具
 """
 from amta import (  # noqa: F401
@@ -23,6 +24,7 @@ from amta import (  # noqa: F401
     paths,
     pipeline,
     runner,
+    workstate,
 )
 
 __all__ = [
@@ -36,4 +38,5 @@ __all__ = [
     "paths",
     "pipeline",
     "runner",
+    "workstate",
 ]

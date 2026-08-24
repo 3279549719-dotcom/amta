@@ -32,6 +32,7 @@ amta/
 │   ├── gt_alignment.py     # GT→detector 框对齐裁剪（ADR-011：裁 detector 框、比 GT 内容）
 │   ├── images.py           # 图片工具：crop_with_pad
 │   ├── evalkit.py          # 评测聚合：TEXT_CLASSES / eval_rows / summarize_rows
+│   ├── workstate.py        # per-work workspace + work_state（ADR-013 产物结构）
 │   └── paths.py            # ROOT/OUTPUT/DATA 常量 + read_json/write_json/ensure_utf8_stdio
 ├── scripts/                # 可执行入口（薄 CLI，只做参数解析与落盘，逻辑在 src/amta）
 │   ├── benchmark.py        # Benchmark A/B/C（两阶段：emit crops → ingest 标注）
@@ -42,8 +43,9 @@ amta/
 │   ├── fastcheck.py / audit.py / smoke_test.py
 │   └── start_koharu.ps1 / precheck.ps1 / install_hooks.ps1
 ├── tests/                  # 确定性单测（fastcheck 第 4 步）
-├── docs/                   # progress / lessons / decisions（ADR-001..012）
+├── docs/                   # progress / lessons / decisions（ADR-001..013）
 ├── context/                # <作品>.story.json / cast 种子（Phase 2）
+├── workspace/              # per-work 同人志工作区（ADR-013：raw/ artifacts/ state/）
 ├── testsets/               # benchmark 测试集（页面不入库）
 ├── output/                 # 运行产物（gitignored，除 data/ 白名单 JSON）
 │   ├── data/               # 入库的 benchmark/label/recall JSON
