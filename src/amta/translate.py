@@ -9,13 +9,41 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import re
+from pathlib import Path
+from typing import Any
 
 import requests
 
 from amta.paths import ROOT
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
+
+_JAPANESE = re.compile(r"[\u3040-\u30ff]")  # 假名即日文残留的判别特征；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
+_NORM_STRIP = re.compile(r"[^\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9]")
+
+
+def _norm(text: str) -> str:
+    """与 metrics.norm 同口径：去空白+去标点，保留假名/汉字/字母数字。"""
+    return _NORM_STRIP.sub("", text or "")
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """编辑距离（供术语相关度匹配）。"""
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        cur = [i + 1]
+        for j, cb in enumerate(b):
+            cur.append(min(prev[j + 1] + 1, cur[j] + 1, prev[j] + (ca != cb)))
+        prev = cur
+    return prev[-1]
 
 
 def get_chat_config() -> dict[str, str]:
@@ -60,3 +88,177 @@ def text_chat(
         return r.json()["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
         return ""
+
+
+def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
+    """机制①：只返回与当前文本相关的术语（Levenshtein + 归一化 + 部分匹配）。
+
+    借鉴自 manga-image-translator 的 extract_relevant_terms 设计——防大词表稀释 system 权重。
+    """
+    if not glossary:
+        return {}
+    norm_text = _norm(text)
+    relevant: dict[str, Any] = {}
+    for term, meta in glossary.items():
+        norm_term = _norm(term)
+        if not norm_term:
+            continue
+        if norm_term in norm_text or norm_text in norm_term:
+            relevant[term] = meta
+        elif _levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
+            relevant[term] = meta
+    return relevant
+
+
+class TranslationCache:
+    """机制③：源文 hash 作键的翻译缓存（源文变才重翻）。
+
+    借鉴自 comic-translate 的块级源文匹配复用设计。
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path
+        self._data: dict[str, str] = {}
+        if path is not None and path.exists():
+            self._data = json.loads(path.read_text(encoding="utf-8"))
+
+    def _key(self, page: str, src: str) -> str:
+        return hashlib.sha1(f"{page}:{src}".encode("utf-8")).hexdigest()
+
+    def put(self, page: str, src: str, translated: str) -> None:
+        self._data[self._key(page, src)] = translated
+        if self.path is not None:
+            self.path.write_text(json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def get(self, page: str, src: str) -> str | None:
+        return self._data.get(self._key(page, src))
+
+
+def build_translation_prompt(canon: list[dict], work_state: dict, *,
+                             prev_pages: list[dict] | None = None,
+                             open_questions: list[dict] | None = None) -> dict:
+    """Context 分层组装：System/Current/History/Knowledge/Uncertainty。
+
+    借鉴自 manga-image-translator 的 prev_context 独立 system message 设计（ADR-014 History 层）。
+    """
+    system_lines = ["你是专业日文→中文漫画翻译专家，输出严格 JSON，不要输出任何额外文字。"]
+    cur_text = " ".join(r["text"] for r in canon)
+    chars = work_state.get("characters", {})
+    terms = work_state.get("terms", {})
+    rel_chars = extract_relevant_terms(cur_text, chars)
+    rel_terms = extract_relevant_terms(cur_text, terms)
+    if rel_chars or rel_terms:
+        system_lines.append("本子已确认术语/角色（翻译时保持一致性）：")
+        for k, v in rel_chars.items():
+            system_lines.append(f"- 角色 {k}（来源 {v.get('source', '?')}）")
+        for k, v in rel_terms.items():
+            system_lines.append(f"- 术语 {k} = {v.get('translation', '?')}")
+
+    user_blocks = []
+    if prev_pages:
+        hist = "\n".join(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
+        user_blocks.append(f"前几页译文（保持风格/术语一致）：\n{hist}")
+    if open_questions:
+        qs = "\n".join(f"- {q['question']}（{q.get('status', 'open')}）" for q in open_questions)
+        user_blocks.append(f"待确认事项：\n{qs}")
+    cur = "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
+    user_blocks.append("请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + cur)
+
+    return {
+        "system": "\n".join(system_lines),
+        "current": "\n".join(user_blocks),
+    }
+
+
+def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str]:
+    """解析 LLM 输出为 {region_id: 译文}；容忍 markdown 代码块包裹与额外键。"""
+    text = (raw or "").strip()
+    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: str(v).strip() for k, v in data.items() if k in region_ids and str(v).strip()}
+
+
+def mechanical_guardrails(canon: list[dict], translation: dict[str, str]) -> list[str]:
+    """护栏①结构错：region_id 与输入一一对应（无漏无重）、字段齐全。"""
+    problems = []
+    ids = {r["region_id"] for r in canon}
+    for r in canon:
+        rid = r["region_id"]
+        if rid not in translation:
+            problems.append(f"missing region_id {rid}")
+        elif not translation[rid].strip():
+            problems.append(f"empty translation for {rid}")
+    extra = set(translation) - ids
+    if extra:
+        problems.append(f"extra region_ids: {sorted(extra)}")
+    return problems
+
+
+def japanese_residue_check(texts: list[str]) -> list[str]:
+    """护栏②残留错：日文残留/空译文检测。返回有问题文本列表。"""
+    bad = []
+    for t in texts:
+        t = t or ""
+        if not t.strip():
+            bad.append("")
+        elif _JAPANESE.search(t):
+            bad.append(t)
+    return bad
+
+
+def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
+                         split: bool = True) -> dict[str, str]:
+    """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
+
+    借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
+    """
+
+    def _one(batch: list[dict]) -> dict[str, str]:
+        region_ids = [r["region_id"] for r in batch]
+        for _ in range(max_retries):
+            messages = [{"role": "system", "content": "你是漫画翻译专家，输出严格 JSON。"},
+                        {"role": "user", "content": "\n".join(f'{r["region_id"]}|{r["text"]}' for r in batch)}]
+            raw = llm(messages)
+            parsed = parse_translation_response(raw, region_ids)
+            if not mechanical_guardrails(batch, parsed):
+                return parsed
+        if split and len(batch) > 1:
+            mid = len(batch) // 2
+            merged = {}
+            merged.update(_one(batch[:mid]))
+            merged.update(_one(batch[mid:]))
+            return merged
+        return {r["region_id"]: "" for r in batch}
+
+    return _one(list(canon))
+
+
+class SuggestionsExtractor:
+    """从译文里发现疑似新术语/角色 → suggestions（导演自动合并）。
+
+    借鉴自 comic-translate 的 extra_context/术语演进设计 + ADR-014 suggestions 机制。
+    """
+
+    def __init__(self, existing: set[str] | None = None) -> None:
+        self.existing = existing or set()
+
+    def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
+        suggestions = []
+        for r in canon:
+            text = r["text"]
+            for m in re.finditer(r"[\u3040-\u30ff\u4e00-\u9fff]{2,}", text):
+                term = m.group(0)
+                if term not in self.existing:
+                    suggestions.append({
+                        "term": term,
+                        "source": r.get("region_id", ""),
+                        "page": r.get("page", 0),
+                        "translation": translations.get(r["region_id"], ""),
+                        "status": "candidate",
+                    })
+        return suggestions
