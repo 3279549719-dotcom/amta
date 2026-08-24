@@ -44,3 +44,87 @@ def test_text_chat_builds_payload_and_parses(monkeypatch):
     assert out == "译文"
     assert captured["url"].endswith("/chat/completions")
     assert captured["json"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_extract_relevant_terms_partial_match():
+    from amta import translate
+
+    glossary = {"豊姫": {"canon_translation": "丰姬"}, "永琳": {"canon_translation": "永琳"}, "月の都": {"canon_translation": "月都"}}
+    terms = translate.extract_relevant_terms("豊姫が永琳と話す", glossary)
+    assert "豊姫" in terms and "永琳" in terms and "月の都" not in terms
+
+
+def test_translation_cache_hash_key():
+    from amta import translate
+
+    c = translate.TranslationCache()
+    c.put("page_1", "原文A", "译文A")
+    assert c.get("page_1", "原文A") == "译文A"
+    assert c.get("page_1", "原文B") is None
+
+
+def test_build_prompt_layers():
+    import json
+
+    from amta import translate
+
+    canon = [{"region_id": "r01", "text": "豊姫が話す"}]
+    ws = {"characters": {"豊姫": {"status": "confirmed", "source": "p4"}}, "terms": {}, "current_scene": {"page": 1}}
+    prompt = translate.build_translation_prompt(canon, ws, prev_pages=[], open_questions=[])
+    assert "system" in prompt
+    assert "豊姫" in json.dumps(prompt, ensure_ascii=False)
+
+
+def test_mechanical_guardrails_catches_missing_region():
+    from amta import translate
+
+    canon = [{"region_id": "r01", "text": "甲"}, {"region_id": "r02", "text": "乙"}]
+    translation = {"r01": "译甲"}
+    problems = translate.mechanical_guardrails(canon, translation)
+    assert any("r02" in p for p in problems)
+
+
+def test_japanese_residue_detects_kanji():
+    from amta import translate
+
+    assert translate.japanese_residue_check(["完全译文", "残り日本語"]) == ["残り日本語"]
+
+
+def test_translate_with_retry_uses_mechanical_loop():
+    from amta import translate
+
+    class _LLM:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, messages):
+            self.calls += 1
+            return '{"r01": "译文", "r02": "译文二"}'
+
+    canon = [{"region_id": "r01", "text": "甲"}, {"region_id": "r02", "text": "乙"}]
+    llm = _LLM()
+    out = translate.translate_with_retry(canon, llm, max_retries=2)
+    assert out["r01"] == "译文" and out["r02"] == "译文二"
+
+
+def test_translate_with_retry_splits_on_failure():
+    from amta import translate
+
+    calls = {"n": 0}
+
+    def llm(messages):
+        calls["n"] += 1
+        return '{"r01": "译文"}' if calls["n"] == 1 else '{"r01": "译文", "r02": "译文二"}'
+
+    canon = [{"region_id": "r01", "text": "甲"}, {"region_id": "r02", "text": "乙"}]
+    out = translate.translate_with_retry(canon, llm, max_retries=2)
+    assert set(out) == {"r01", "r02"} and calls["n"] >= 2
+
+
+def test_suggestions_extractor_finds_new_term():
+    from amta import translate
+
+    ex = translate.SuggestionsExtractor(existing={"豊姫"})
+    canon = [{"region_id": "r01", "text": "稀神サグメが現れた"}]
+    suggestions = ex.extract(canon, translations={"r01": "稀神朔姬出现了"})
+    assert any("サグメ" in s.get("term", "") for s in suggestions)
