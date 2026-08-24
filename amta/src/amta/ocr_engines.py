@@ -70,12 +70,12 @@ def send_chat(
         return ""
 
 
-def send_one(base_url: str, model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT) -> str:
+def send_one(base_url: str, model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT, timeout: int = 120) -> str:
     """本地 llama-server 单图 OCR（无鉴权）。保留旧名供 ocr_eval_86 等复用。
 
     默认关闭 prompt cache（L17：多模态 cache 误命中不同图像）。
     """
-    return send_chat(base_url, model, img_path, prompt=prompt, cache_prompt=False)
+    return send_chat(base_url, model, img_path, prompt=prompt, cache_prompt=False, timeout=timeout)
 
 
 def get_dashscope_key() -> str:
