@@ -128,3 +128,31 @@ def test_suggestions_extractor_finds_new_term():
     canon = [{"region_id": "r01", "text": "稀神サグメが現れた"}]
     suggestions = ex.extract(canon, translations={"r01": "稀神朔姬出现了"})
     assert any("サグメ" in s.get("term", "") for s in suggestions)
+
+
+def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from amta import translate
+    import json as _json
+
+    canon = [{"region_id": "r01", "text": "豊姫が話す", "page": 1}]
+    canon_path = tmp_path / "canon_text.json"
+    canon_path.write_text(_json.dumps(canon, ensure_ascii=False), encoding="utf-8")
+    out_path = tmp_path / "translation.json"
+
+    # 脚本内 llm 闭包按 text_chat(base_url, model, messages, api_key=...) 调用，fake 须匹配其签名
+    def fake_llm(base_url, model, messages, api_key=None):
+        return '{"r01": "丰姬在说话"}'
+
+    monkeypatch.setattr(translate, "get_chat_config", lambda: {"base_url": "x", "model": "m", "api_key": "k"})
+    monkeypatch.setattr(translate, "text_chat", fake_llm)
+
+    from _03_translate import run
+
+    run(str(canon_path), str(out_path))
+    data = _json.loads(out_path.read_text(encoding="utf-8"))
+    # run() 落盘信封 {work_id, translations, residue}，译文在 translations 下
+    assert data["translations"]["r01"] == "丰姬在说话"
