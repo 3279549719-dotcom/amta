@@ -1,43 +1,27 @@
-"""Benchmark A recall 探测：对源图跑 4 detector，输出每页每个 engine 的原始框(未去重)。
+"""Benchmark A recall 探测：对源图跑 4 detector，输出每页每 engine 的原始框（未去重）。
 
 recall 需要知道「每个 engine 检出了哪些框」去和 GT(整页枚举) 做 IoU 对齐。
 输出 output/data/recall_detections.json:
-  { "<page_key>": { "<engine>": [{node_id, bbox:[x0,y0,x1,y1], bubble_type}], ... }, ... }
-用法: python scripts/recall_detect.py <src_dir>
+  { "<page_key>": { path, engines: { "<engine>": [{node_id, bbox, bubble_type, ocr}], ... } }, ... }
+用法: python scripts/recall_detect.py <src_dir> [max_pages]
 """
 from __future__ import annotations
 
-import json
 import sys
-import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.koharu_client import KoharuClient, KoharuError  # noqa: E402
+from amta.koharu_client import KoharuClient  # noqa: E402
+from amta.paths import DATA, write_json  # noqa: E402
 from amta.pipeline import DETECTOR_STEPS  # noqa: E402
-from amta.geometry import bbox_from_block as _bbox  # noqa: E402
+from amta.runner import compact_blocks, run_all_pages  # noqa: E402
 
-OUT = Path(__file__).resolve().parent.parent / "output" / "data"
+OUT = DATA / "recall_detections.json"
 
 
-def run_one(client: KoharuClient, page: Path, engine: str) -> list[dict]:
-    proj = f"amta-rec-{uuid.uuid4().hex[:8]}"
-    client.close_current_project()
-    client.create_project(proj)
-    try:
-        page_id = client.import_page(page)
-        op = client.run_pipeline(page_ids=[page_id], steps=DETECTOR_STEPS[engine])
-        result = client.wait_operation(op, timeout=1200)
-        if result.get("status") != "completed":
-            raise KoharuError(f"{engine} failed: {result}")
-        nodes = client.get_page_nodes(page_id)
-        blocks = KoharuClient.collect_blocks(nodes)  # returns list[dict]
-        return [{"node_id": b.get("node_id", ""), "bbox": _bbox(b), "bubble_type": b.get("bubble_type", ""),
-                 "ocr": b.get("ocr", "")}
-                for b in blocks]
-    finally:
-        client.close_current_project()
+def _page_key(page: Path, idx: int) -> str:
+    return f"page_{idx}"
 
 
 def main(argv: list[str]) -> int:
@@ -51,21 +35,14 @@ def main(argv: list[str]) -> int:
     print(f"[recall] {len(pages)} pages (limit={max_pages}), engines={list(DETECTOR_STEPS)}", flush=True)
     client = KoharuClient()
     client.wait_server()
-    out: dict[str, dict] = {}
-    for idx, page in enumerate(pages):
-        key = f"page_{idx}"
-        out[key] = {"path": str(page), "engines": {}}
-        for eng in DETECTOR_STEPS:
-            print(f"[recall] {key} / {eng} ...", flush=True)
-            try:
-                out[key]["engines"][eng] = run_one(client, page, eng)
-            except Exception as e:  # noqa: BLE001
-                print(f"[recall] WARN {key} {eng}: {e}", flush=True)
-                out[key]["engines"][eng] = []
-    OUT.mkdir(parents=True, exist_ok=True)
-    dest = OUT / "recall_detections.json"
-    dest.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[recall] done -> {dest}", flush=True)
+    out = run_all_pages(client, pages, DETECTOR_STEPS, _page_key, prefix="amta-rec",
+                        timeout=1200, label="recall")
+    # 兼容旧输出形状：只留 {node_id, bbox, bubble_type, ocr}（下游 recall_crop 依赖 bbox）
+    for entry in out.values():
+        entry["engines"] = {eng: compact_blocks(blocks, ("node_id", "bubble_type", "ocr"))
+                            for eng, blocks in entry["engines"].items()}
+    write_json(OUT, out)
+    print(f"[recall] done -> {OUT}", flush=True)
     return 0
 
 

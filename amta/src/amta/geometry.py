@@ -11,7 +11,14 @@ from typing import Any, Sequence
 
 
 def bbox_from_block(block: dict) -> list[float]:
-    """从 koharu 节点 block 的 transform 提取 [x1, y1, x2, y2]（保留 1 位小数）。"""
+    """从 block 提取 [x1, y1, x2, y2]（保留 1 位小数）。
+
+    优先使用已算好的 bbox 字段（recall_detect/ocr_detect 的 compact 输出），
+    否则从 koharu 节点 transform 推导。
+    """
+    bb = block.get("bbox")
+    if isinstance(bb, (list, tuple)) and len(bb) == 4:
+        return [round(float(v), 1) for v in bb]
     t = block.get("transform", {})
     x = float(t.get("x", 0))
     y = float(t.get("y", 0))
