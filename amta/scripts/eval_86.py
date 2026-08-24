@@ -1,19 +1,24 @@
-"""对 eval_86 的 entries + preds 算 CER/EM，分 4 类 + ALL。"""
+"""对 eval_86 的 entries + preds 算 CER/EM，分 4 类 + ALL（基于 amta.evalkit）。
+
+输入: output/data/eval_86.json (entries: crop图 + GT内容 + type)
+输出: --out <preds 评测结果 json>
+用法: python scripts/eval_86.py --engine <name> --preds <preds.json> --out <result.json>
+"""
 from __future__ import annotations
+
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
-from amta.metrics import cer  # noqa: E402
+from amta.evalkit import basename_key, eval_rows  # noqa: E402
+from amta.paths import DATA, ensure_utf8_stdio, read_json, write_json  # noqa: E402
 
-CLASSES = ["dialogue_in", "dialogue_out", "sfx", "bg_text"]
+ensure_utf8_stdio()
+
+EVAL_86 = DATA / "eval_86.json"
 
 
 def main() -> int:
@@ -23,31 +28,19 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    data = json.loads((ROOT / "output" / "data" / "eval_86.json").read_text(encoding="utf-8"))
+    data = read_json(EVAL_86)
     entries = data["entries"]
-    preds = json.loads(Path(a.preds).read_text(encoding="utf-8"))
-    by_crop = {os.path.basename(p["crop"]): (p.get("ocr") or "") for p in preds}
-
-    rows = []
-    for e in entries:
-        pred = by_crop.get(os.path.basename(e["crop"]), "")
-        c = cer(e["content"], pred)
-        em = 1 if c == 0.0 else 0
-        rows.append({"crop": os.path.basename(e["crop"]), "page": e["page"], "type": e["type"],
-                     "gt": e["content"], "pred": pred, "cer": c, "em": em})
-
-    summary = {}
-    for t in CLASSES + ["ALL"]:
-        sub = rows if t == "ALL" else [r for r in rows if r["type"] == t]
-        n = len(sub)
-        summary[t] = {"n": n,
-                      "cer": round(sum(r["cer"] for r in sub) / n, 4) if n else 0.0,
-                      "em": round(sum(r["em"] for r in sub) / n, 4) if n else 0.0}
+    preds = read_json(a.preds)
+    rows, summary = eval_rows(entries, preds)
+    # 兼容旧输出：crop 用 basename，并补 page 字段
+    page_by_crop = {basename_key(e["crop"]): e.get("page", "") for e in entries}
+    for r in rows:
+        r["crop"] = basename_key(r["crop"])
+        r["page"] = page_by_crop.get(r["crop"], "")
 
     out = {"engine": a.engine, "summary": summary, "rows": rows,
            "unmatched": data["unmatched"]}
-    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(a.out).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(a.out, out)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     print(f"[eval_86] -> {a.out}", file=sys.stderr)
     return 0
