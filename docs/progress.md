@@ -8,15 +8,24 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-24，最后一笔：产物结构 rebaseline ADR-013）
+## 当前状态（2026-08-24，最后一笔：翻译工位架构定稿 ADR-014）
 
+- **翻译工位架构定稿（2026-08-24，ADR-014）**：grill 定案 7 条，产物结构 ADR-013 的落地形态：
+  - **翻译层 = 脚本直调 DeepSeek API**（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY 现成，`https://api.deepseek.com`）→ **修订锁定决策 #5**（弃 koharu 内 llm 引擎，not-ready 悬空）
+  - **Harness**：Context+Guardrails+Loop 做，Tools 砍（脚本直读文件，不搞 function calling）
+  - **护栏双层**：机械层（结构错/残留错/region_id 一一对应，纯代码，类比 fastcheck/hook）+ 语义层（手搓 VLM 脚本验证译文质量，DASHSCOPE 通道）
+  - **工位边界**：translate 只管文本质量；detect/inpaint/typeset 错误归各自工位未来 mechanical check
+  - **Loop 分层**：脚本机械 loop（schema 错自动重译 1 次）+ 导演语义 loop（VLM 拦出 → FAILED 附证据 → DSH 会话修订）
+  - **术语演进**：suggestions.json 中间层 + 导演自动合并（零人工卡点，可追溯）
+  - **工位清单**：00_run_all（文件存在=跳过）→ 01_detect → 02_ocr(For-Manga) → 03_translate(DeepSeek) → 04_inpaint → 05_typeset
+  - state/ 四文件：touhou_knowledge / work_state / open_questions（ADR-013）+ suggestions.json（新增）
 - **产物结构 rebaseline（2026-08-24，ADR-013）**：按 reference（touhou_doujin_first_principles_dikw.html）第一性原理/DIKW，把产物从"逐页 benchmark 报表"重定为**每本同人志一个工作区**（Touhou 同人志缩域）：
   - `workspace/<work_id>/{raw, artifacts, state}`；state/ 三文件：`touhou_knowledge.json`（共享 canon prior）+ `work_state.json`（当前本子逐页生长）+ `open_questions.json`（未决问题）
   - 三层上下文分离：canon prior ≠ 本子真相（同人志可改关系/语气，当前页证据 ＞ work_state ＞ canon ＞ 猜测）；work_state 逐页生长，首版不做 DB/Vector/Event Graph/Memory Service
   - Evidence tracking：条目带 `status ∈ {confirmed,inferred,candidate}` + source 页码；新证据可修正旧状态；单页可运行
   - 代码：`src/amta/workstate.py`（workspace 布局 + 空 schema + init/update/validate）+ `tests/test_workstate.py`（8 测试）；fastcheck ALL PASS（53）
   - **OCR 评测底座不变**：For-Manga 定案（ADR-011）、指标口径（ADR-010）仍是事实，output/ 旧评测数据保留供迁移
-  - 未锁定：翻译层归属（DeepSeek 会话翻译 vs koharu 内 llm）是下游决策
+  - 翻译层归属已定（ADR-014）：脚本直调 DeepSeek API，修订决策 #5
 - **OCR 引擎三选一对比完成（2026-08-24，86 个 detector 对齐 GT 框）**：锚点=detector 并集 crop 图（全尺寸可靠坐标）+ GT 语义内容（字符重合度≥0.6 对齐，86/101；15 个未检出=page_5 设定页检测不足，单独计数不混入 OCR 指标，ADR-011）：
   - **For-Manga（现役·漫画微调）ALL CER 0.062 / EM 0.779**：dialogue_in 0.001/0.974、sfx 0.161/0.643、bg_text 0.0/1.0 → **保持现役，无需换 1.6**
   - **PaddleOCR-VL-1.6（官方原版）ALL CER 0.113 / EM 0.721**：对白类与 For-Manga 持平，但 **sfx 0.458 明显落后**
@@ -82,7 +91,7 @@
 2. Agent 形态 = **会话驱动**（DSH 会话=单 LLM Agent 导演；Python=确定性工具层；describe_image=Vision QA 眼睛）。
 3. 第一里程碑 = **Benchmark A/B/C**（VLM 当 oracle，**零人工全量标注**——用户明确拒绝人工标注）。
 4. Vision QA 通道 = **describe_image**（用户禁了 ModLens，注入 .env）。
-5. 翻译通道 = koharu 内 `llm` 引擎（做法 1，systemPrompt 注入 Story Memory）。
+5. 翻译通道 = **脚本直调 DeepSeek API**（`.env` CHAT_*，ADR-014；**修订原 #5**：弃 koharu 内 `llm` 引擎——not-ready 悬空）。
 6. 场景级翻译**不在 MVP**（Story Memory + 前页上下文优先；Benchmark D 再定）。
 7. 成功标准 = **benchmark 数据 + 失败可定位到具体模块**。
 8. skills = 3 个（benchmark/koharu-drive/verify）。
@@ -110,8 +119,10 @@
 ## 下一步
 
 0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011）
-1. **产物结构落地推进（ADR-013）**：workstate.py 骨架已建（workspace 布局 + 三 state 文件 + evidence tracking）；下一步把现有评测产物（detection/ocr/translation）逐步接入 per-work 结构，并定翻译层归属（DeepSeek 会话翻译 vs koharu 内 llm）后打通第一本子的单页翻译闭环 → translation.json + work_state.json
-2. **将 For-Manga 正式接入 pipeline**（repair loop 用）：独立 llama-server:8118 是常驻服务，需正式 start/stop 脚本（`start_llama_ocr.ps1` 已建）+ `src/` OCR 封装（当前是 scripts/ 下的评测脚本）；引擎结论：**保持 For-Manga**（86 框最优）。
-3. Benchmark C（mask + lama-manga inpainting 区域评分）。
-4. Benchmark A 框外漏检（真 recall）人工抽查 detector 均漏区域——本次确认 detector 未检出 15 个 GT 框（page_5 设定页为主），是检测覆盖缺口，非 OCR 问题。
-5. 结果回填本节「当前状态」并推送。
+1. **实现 03_translate.py（ADR-014 核心工位）**：DeepSeek API 直调 + Context 组装（canon/work_state/前 3 页/open_questions）+ 双层护栏（机械：结构/残留/region_id 对应；语义：VLM 脚本验证）+ 机械 loop（schema 错自动重译 1 次）+ suggestions.json 写入。产出 translation.json。
+2. **00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约**：文件存在=跳过断点续跑；detection.json/canon_text.json 落 workspace/<work_id>/artifacts/。
+3. **04_inpaint / 05_typeset 工位**（koharu lama-manga + renderer 验证）+ 各自 mechanical check（mask 区域像素变化/译文区渲染）。
+4. **VLM 语义护栏脚本**（DASHSCOPE 通道）：crop+译文 → 忠实度/漏译判断；拦出问题标 FAILED 附证据交导演。
+5. **最终验收**：final.png 整体 VLM/导演检查（日文残留/溢出/可读性）。
+6. Benchmark C（mask + inpainting 评分）与 Benchmark A 框外漏检抽查（15 个未检出 GT 框，检测覆盖缺口）随工位推进穿插。
+7. 结果回填本节「当前状态」并推送。
