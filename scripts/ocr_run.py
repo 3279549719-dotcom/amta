@@ -1,166 +1,50 @@
-"""在 recall_gt.json 的 101 个 GT 框上跑指定 OCR 引擎。
-引擎: local(本地 llama-server :8118) | dashscope(qwen-vl-ocr)
-用法: python scripts/ocr_run.py --engine local|dashscope [--pages N]
+"""在 recall_gt 的 GT 框上跑指定 OCR 引擎（local llama-server / dashscope qwen-vl-ocr）。
+
+实现收敛在 amta.ocr_engines（引擎请求）与 amta.gt_alignment（GT→detector 框对齐裁剪），
+本文件只保留 CLI 编排与落盘。
+用法: python scripts/ocr_run.py --engine local|dashscope [--pages N] [--out ...] [--write-meta ...]
 """
 from __future__ import annotations
+
 import argparse
-import base64
 import json
-import os
 import sys
 from pathlib import Path
 
-# Windows 控制台默认 GBK，打印日文会 UnicodeEncodeError；统一走 UTF-8 输出
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-import requests
-from PIL import Image
+from amta.gt_alignment import crop_regions  # noqa: E402
+from amta.ocr_engines import (  # noqa: E402
+    DASHSCOPE_URL,
+    dashscope_ocr_batch,
+    local_ocr_batch,
+    send_one,
+)
+from amta.paths import DATA, ensure_utf8_stdio, write_json  # noqa: E402
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "output" / "data"
+ensure_utf8_stdio()
 
-DASHSCOPE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+__all__ = ["crop_regions", "send_one", "local_ocr_batch", "dashscope_ocr_batch", "DASHSCOPE_URL"]
 
 
-def crop_regions(gt, page_paths, crop_dir, det_boxes=None):
-    """从原图按 detector 可靠坐标裁框，用 GT 内容做比对基准。
+def _load_det_boxes(det_path: Path) -> dict[int, list[dict]]:
+    """读 ocr_result.json → {GT 页号: [{bbox, text}]}。
 
-    背景（ADR-011）：GT bbox 是 VLM 整页枚举的缩略坐标（x 约 40% 宽），直接裁图全空白
-    （「VLM 整页坐标不可靠」坑）。评测锚点改为：裁框用 detector 全尺寸可靠坐标，
-    比对用 GT 内容。recall_report 证明 101 条 GT 内容有 99 条被 detector 框覆盖。
-
-    det_boxes: {page_num: [{bbox:[x0,y0,x1,y1], text:str}]} —— 来自 ocr_result.json 的
-    manga-ocr（For-Manga 现役输出），坐标为全尺寸可靠。缺省时回退到 GT bbox（仅测试用）。
-    返回 (crop_paths, meta)；meta 每条含 {page, crop, bbox, content, type}。
+    注意页码偏移：ocr_result 的 page_N 是 0 基（page_0=1.jpg），recall_gt 是 1 基（page_1=1.jpg），
+    故 det 的 page_N 要存成 GT 页号 N+1。
     """
-    if isinstance(gt, (str, Path)):
-        gt = json.loads(Path(gt).read_text(encoding="utf-8"))
-    crop_dir = Path(crop_dir); crop_dir.mkdir(parents=True, exist_ok=True)
-    crops, meta = [], []
-    for gkey, regions in gt["pages"].items():
-        page_num = int(gkey.split("_")[1])
-        src = page_paths.get(page_num)
-        if src is None or not Path(src).exists():
-            continue
-        im = Image.open(src)
-        # 内容 → detector 框映射（同一页内按字符重合度对齐 GT 内容与 detector 文本）
-        dets = det_boxes.get(page_num, []) if det_boxes else []
-        used = [False] * len(dets)
-        for i, region in enumerate(regions):
-            content = region["content"]
-            # 选出与该 GT 内容字符重合度最高的未用 detector 框
-            best_j, best_score = -1, 0.6
-            for j, d in enumerate(dets):
-                if used[j] or not d.get("text"):
-                    continue
-                sc = _content_overlap(content, d["text"])
-                if sc >= best_score:
-                    best_score, best_j = sc, j
-            if best_j >= 0:
-                bbox = dets[best_j]["bbox"]
-                used[best_j] = True
-            else:
-                bbox = region["bbox"]  # 无匹配框：回退 GT bbox（该条计入未检出）
-            x0, y0, x1, y1 = (int(v) for v in bbox)
-            box = (max(0, x0 - 4), max(0, y0 - 4), min(im.width, x1 + 4), min(im.height, y1 + 4))
-            fname = f"{gkey}_gt{i:02d}.png"
-            crop = im.crop(box)
-            p = crop_dir / fname
-            crop.save(p)
-            crops.append(str(p))
-            meta.append({"page": page_num, "crop": str(p), "bbox": bbox,
-                         "content": content, "type": region["type"]})
-    return crops, meta
+    det_boxes: dict[int, list[dict]] = {}
+    if not det_path.exists():
+        return det_boxes
+    det = json.loads(det_path.read_text(encoding="utf-8"))
+    for pkey, pinfo in det.items():
+        pnum0 = int(pkey.split("_")[1])
+        eng = (pinfo.get("engines") or {}).get("manga-ocr", [])
+        det_boxes[pnum0 + 1] = [{"bbox": b.get("bbox"), "text": b.get("ocr") or ""} for b in eng]
+    return det_boxes
 
 
-def _content_overlap(a: str, b: str) -> float:
-    """字符重合度（归一化后），用于内容级对齐 GT 与 detector 文本。"""
-    from difflib import SequenceMatcher
-    na, nb = a or "", b or ""
-    if not na and not nb:
-        return 1.0
-    if not na or not nb:
-        return 0.0
-    return SequenceMatcher(None, na, nb).ratio()
-
-
-def local_ocr_batch(crop_paths, base_url="http://127.0.0.1:8118/v1", model="paddle", concurrency=1):
-    """依次送图给 llama-server，OpenAI 兼容 completions。并发固定 1（CPU 单机）。"""
-    out = []
-    for p in crop_paths:
-        ocr = send_one(base_url, model, p)
-        out.append({"crop": p, "ocr": ocr})
-    return out
-
-
-def send_one(base_url, model, img_path):
-    """llama-server 单张多模态 OCR 请求：{base_url}/chat/completions + image_url。
-
-    llama.cpp b10582 多模态走 OpenAI 兼容 chat/completions，图作为 image_url(data URI)，
-    与 DashScope qwen-vl-ocr 请求格式对称。PaddleOCR-VL 用 'OCR' 文本触发识别。
-    解析 choices[0].message.content。单会话单图：每 crop 一次请求。
-    """
-    import base64 as _b64
-    with open(img_path, "rb") as f:
-        b64 = _b64.b64encode(f.read()).decode()
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": [
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-            {"type": "text", "text": "OCR"},
-        ]}],
-    }
-    r = requests.post(f"{base_url}/chat/completions", json=payload, timeout=120)
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
-
-
-def _get_dashscope_key():
-    """读 DASHSCOPE_API_KEY：环境变量优先，回退 .env 文件（兼容 DASHSCOPE_KEY 旧名）。绝不打印 key。"""
-    for name in ("DASHSCOPE_API_KEY", "DASHSCOPE_KEY"):
-        v = os.environ.get(name)
-        if v:
-            return v
-    for env_path in (ROOT / ".env", ROOT.parent / ".env"):
-        if env_path.exists():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith("DASHSCOPE_API_KEY=") or line.startswith("DASHSCOPE_KEY="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
-    raise RuntimeError("缺少 DASHSCOPE_API_KEY：请在 .env 配置或设置环境变量")
-
-
-def dashscope_ocr_batch(crop_paths, model="qwen-vl-ocr-latest", concurrency=4):
-    """DashScope qwen-vl-ocr：OpenAI 兼容端点，base64 图，纯文本输出。101 张约 ¥0.1、1-3 分钟。"""
-    key = _get_dashscope_key()
-    out = []
-    for p in crop_paths:
-        with open(p, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-                {"type": "text", "text": "OCR"},
-            ]}],
-        }
-        r = requests.post(DASHSCOPE_URL, headers={"Authorization": f"Bearer {key}"}, json=payload, timeout=60)
-        r.raise_for_status()
-        data = r.json()
-        try:
-            text = data["choices"][0]["message"]["content"] or ""
-        except (KeyError, IndexError, TypeError):
-            text = ""
-        if not text:
-            print(f"[ocr_run] WARN dashscope 空响应: {Path(p).name} "
-                  f"{json.dumps(data, ensure_ascii=False)[:120]}", file=sys.stderr)
-        out.append({"crop": p, "ocr": text})
-    return out
-
-
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser(description="在 recall_gt 的 GT 框上跑指定 OCR 引擎")
     ap.add_argument("--engine", choices=["local", "dashscope"], required=True)
     ap.add_argument("--pages", type=int, default=None, help="只处理前 N 页（默认全部）")
@@ -182,21 +66,11 @@ def main():
 
     page_paths = {int(k.split("_")[1]): str(Path(a.src_dir) / f"{int(k.split('_')[1])}.jpg")
                   for k in gt["pages"]}
-    # 从 ocr_result.json 取 detector 全尺寸 bbox + 文本，作为评测坐标源（绕过 GT bbox 缩略坐标）。
-    # 注意页码偏移：ocr_result 的 page_N 是 0 基（page_0=1.jpg），recall_gt 的 page_N 是 1 基（page_1=1.jpg），
-    # 故 det 的 page_N 要存成 GT 页号 N+1。
-    det_boxes = {}
-    if Path(a.det).exists():
-        det = json.loads(Path(a.det).read_text(encoding="utf-8"))
-        for pkey, pinfo in det.items():
-            pnum0 = int(pkey.split("_")[1])
-            eng = (pinfo.get("engines") or {}).get("manga-ocr", [])
-            det_boxes[pnum0 + 1] = [{"bbox": b.get("bbox"), "text": b.get("ocr") or ""} for b in eng]
+    det_boxes = _load_det_boxes(Path(a.det))
     crops, meta = crop_regions(gt, page_paths, a.crop_dir, det_boxes=det_boxes)
     print(f"[ocr_run] {len(crops)} crops -> {a.crop_dir}", file=sys.stderr)
     if a.write_meta:
-        Path(a.write_meta).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.write_meta).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_json(a.write_meta, meta)
         print(f"[ocr_run] meta -> {a.write_meta}", file=sys.stderr)
 
     if a.engine == "local":
@@ -207,10 +81,10 @@ def main():
     for p in preds:
         print(f"{Path(p['crop']).name}: {p['ocr']}")
     if a.out:
-        Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.out).write_text(json.dumps(preds, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_json(a.out, preds)
         print(f"[ocr_run] preds -> {a.out}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
