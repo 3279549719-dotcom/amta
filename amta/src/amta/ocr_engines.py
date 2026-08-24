@@ -27,15 +27,22 @@ def image_data_uri(img_path: str | Path, mime: str = "image/png") -> str:
     return f"data:{mime};base64,{b64}"
 
 
-def build_payload(model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT) -> dict:
-    """构造 OpenAI 兼容多模态请求体：单图 + 文本提示。"""
-    return {
+def build_payload(model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT, cache_prompt: bool | None = None) -> dict:
+    """构造 OpenAI 兼容多模态请求体：单图 + 文本提示。
+
+    cache_prompt=False 时禁用 llama-server 的 prompt cache——多模态下 cache 会误命中
+    不同图像（教训 L17），必须逐张真实推理。
+    """
+    payload = {
         "model": model,
         "messages": [{"role": "user", "content": [
             {"type": "image_url", "image_url": {"url": image_data_uri(img_path)}},
             {"type": "text", "text": prompt},
         ]}],
     }
+    if cache_prompt is not None:
+        payload["cache_prompt"] = cache_prompt
+    return payload
 
 
 def send_chat(
@@ -46,13 +53,14 @@ def send_chat(
     api_key: str | None = None,
     timeout: int = 120,
     prompt: str = DEFAULT_PROMPT,
+    cache_prompt: bool | None = None,
 ) -> str:
     """发一次 OpenAI 兼容 OCR 请求（base_url 为 API 根，自动拼 /chat/completions），返回识别文本；解析失败返回空串。"""
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     r = requests.post(
         f"{base_url}/chat/completions",
         headers=headers,
-        json=build_payload(model, img_path, prompt),
+        json=build_payload(model, img_path, prompt, cache_prompt),
         timeout=timeout,
     )
     r.raise_for_status()
@@ -63,8 +71,11 @@ def send_chat(
 
 
 def send_one(base_url: str, model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT) -> str:
-    """本地 llama-server 单图 OCR（无鉴权）。保留旧名供 ocr_eval_86 等复用。"""
-    return send_chat(base_url, model, img_path, prompt=prompt)
+    """本地 llama-server 单图 OCR（无鉴权）。保留旧名供 ocr_eval_86 等复用。
+
+    默认关闭 prompt cache（L17：多模态 cache 误命中不同图像）。
+    """
+    return send_chat(base_url, model, img_path, prompt=prompt, cache_prompt=False)
 
 
 def get_dashscope_key() -> str:
@@ -83,8 +94,11 @@ def get_dashscope_key() -> str:
 
 
 def local_ocr_batch(crops, base_url: str = LOCAL_DEFAULT_URL, model: str = "paddle", concurrency: int = 1) -> list[dict]:
-    """本地 llama-server 批量 OCR；并发固定 1（CPU 单机，参数保留）。"""
-    return [{"crop": p, "ocr": send_chat(base_url, model, p)} for p in crops]
+    """本地 llama-server 批量 OCR；并发固定 1（CPU 单机，参数保留）。
+
+    每张关闭 prompt cache（L17：多模态 cache 误命中不同图像）。
+    """
+    return [{"crop": p, "ocr": send_chat(base_url, model, p, cache_prompt=False)} for p in crops]
 
 
 def dashscope_ocr_batch(crops, model: str = "qwen-vl-ocr-latest", concurrency: int = 4) -> list[dict]:
