@@ -199,6 +199,36 @@ class OcrEnginesTest(unittest.TestCase):
             with mock.patch.object(ocr_engines.requests, "post", fake):
                 out = ocr_engines.send_chat("http://x/v1", "m", crop)
         self.assertEqual(out, "")
+    def test_local_payload_disables_prompt_cache(self):
+        """L17：多模态 cache 误命中不同图像——本地引擎请求必须带 cache_prompt:false。"""
+        import tempfile
+        import unittest.mock as mock
+
+        with tempfile.TemporaryDirectory() as td:
+            crop = Path(td) / "a.png"
+            crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
+            fake = mock.Mock()
+            fake.return_value.status_code = 200
+            fake.return_value.json.return_value = {"choices": [{"message": {"content": "x"}}]}
+            with mock.patch.object(ocr_engines.requests, "post", fake):
+                ocr_engines.local_ocr_batch([str(crop)])
+        self.assertIs(fake.call_args.kwargs["json"]["cache_prompt"], False)
+
+    def test_dashscope_payload_has_no_cache_prompt(self):
+        """DashScope 兼容端点不认识 cache_prompt，不应携带（L17）。"""
+        import tempfile
+        import unittest.mock as mock
+
+        with tempfile.TemporaryDirectory() as td:
+            crop = Path(td) / "a.png"
+            crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
+            fake = mock.Mock()
+            fake.return_value.status_code = 200
+            fake.return_value.json.return_value = {"choices": [{"message": {"content": "x"}}]}
+            with mock.patch.object(ocr_engines.requests, "post", fake):
+                with mock.patch.dict("os.environ", {"DASHSCOPE_API_KEY": "sk"}):
+                    ocr_engines.dashscope_ocr_batch([str(crop)])
+        self.assertNotIn("cache_prompt", fake.call_args.kwargs["json"])
 
 
 if __name__ == "__main__":

@@ -140,6 +140,22 @@
 - **Prevention**：评测脚本从 recall_ocr.json（detector 内容）+ recall_crops（图）+ recall_gt.json（GT 内容）构造评测清单；页码注意偏移（ocr_result/recall_ocr 的 page_N 是 0 基 ↔ recall_gt 的 page_N 是 1 基）。
 - **Regression**：`tests/test_ocr_run.py` 已锁「评测坐标来自 det_boxes 而非 GT bbox」；OCR 评测跑批前需人工核对 crop dark% 非 0。[已自动化：部分]
 
+## L17 — llama-server prompt cache 误命中不同图像，本地 OCR 必须 cache_prompt:false
+
+- **Problem**：连续请求两张不同 crop 时，后一张 0.1s "秒回"，但内容是前一张图的识别结果（错图复用）——实测 gt05 开缓存 0.1s 返回 'と'，关缓存 39s 返回真实推理 'しかし、'。
+- **Root cause**：llama.cpp 的 prompt cache 按 token 序列匹配；PaddleOCR-VL mmproj 把所有图统一缩放处理，不同图可能产生相同 patch 网格 → token 序列相同 → 缓存误命中。
+- **Durable lesson**：多模态 OCR 逐张请求必须带 `cache_prompt:false`，禁止依赖默认缓存；"秒回"在 OCR 评测里是错误信号（教训 L2 的变体：快不一定是真）。
+- **Prevention**：`src/amta/ocr_engines.py` 的 send_chat 对本地引擎默认传 cache_prompt=False。
+- **Regression**：tests/test_refactor_shared.py 校验本地引擎 payload 含 `cache_prompt:false`。
+
+## L18 — 本地 OCR 性能：BF16 未量化 + 缺省参数 = 30s/张；Q8_0 + 参数优化 + baberu 快路径
+
+- **Problem**：PaddleOCR-VL-For-Manga（BF16 未量化）每张 crop 20-40s，101 张约 1 小时，用户感知"非常慢"。
+- **Root cause**：① 主模型 BF16 全精度（16BPW），CPU prompt eval 仅 6-8 tok/s；② llama-server 用默认参数（线程 4、无 batch/fa/KV 量化）；③ 逐张 HTTP 请求无法复用；④ 图像被统一缩放成 ~210-230 视觉 token，与输入尺寸无关（缩放输入图无效）。
+- **Durable lesson**：CPU 推理先量化 Q8_0（实测 -30% prompt eval 耗时）；llama-server 加 `-t 8 -c 8192 -b 256 -ub 512 -fa on -ctk q8_0 -ctv q8_0 --mlock`；`--cache-reuse` 对多模态无效别加；换 baberu-OCR（ONNX）可 28 倍提速（1s/张，常规对白 CER 相当）。
+- **Prevention**：start_llama_ocr.ps1 默认 Q8_0 + 优化参数；mmproj 保持 BF16（列 4304 非 32 倍数，Q8_0 量化会失败）。
+- **Regression**：实测基线 BF16 31.3s/张 → Q8_0+参数 27.1s/张（真实推理）；baberu 1.05s/张。
+
 ---
 
 ## 模板（新增时复制）
