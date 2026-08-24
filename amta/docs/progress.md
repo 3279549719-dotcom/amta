@@ -104,6 +104,7 @@
 - 前端/playwright：**本项目永远不需要**（判卷是 describe_image 看静态图，无浏览器自动化）。
 - **调度权在我**：改了 detector/OCR/prompt 后我自记 todo 跑 benchmark，用户不碰终端。
 - 稳定后才上 GitHub Actions（每次 push/PR 自动跑同一验证 skill）。
+- **Superpowers 分工（2026-08-24 定案）**：流程模板用 Superpowers（brainstorming → writing-plans → subagent-driven-development/executing-plans → verification，计划落 `docs/superpowers/plans/`）；任务收尾仍走我们的 /finish（cycle-close，五路分流知识晋升 Superpowers 没有）。两套互补，不互相替代。
 
 ## 关键坑速查（完整经验见 docs/lessons.md）
 
