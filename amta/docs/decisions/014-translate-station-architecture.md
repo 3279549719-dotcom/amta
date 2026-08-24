@@ -65,5 +65,13 @@ state/ 三文件保持 ADR-013：`touhou_knowledge.json`（canon prior，跨本�
 - ✅ 护栏哲学与项目一致（机械强制层 + 验收层）；VLM 只做语义，不做坐标/仲裁。
 - ✅ 导演仍是最终裁决层（语义 loop + 验收），脚本不硬编码翻译判断。
 - ⚠️ **修订锁定决策 #5**：progress.md「已锁定决策」需同步；koharu 内 llm 引擎弃用（除非未来需要其 Story Memory 注入面）。
-- ⚠️ 03_translate.py 尚待实现（本 ADR 是设计定稿，非实现）；VLM 语义护栏脚本、04/05 工位 mechanical check 是后续工作。
-- 代码落点：`scripts/` 新增工位脚本 + `src/amta/` 新增 translate 相关库（prompt 组装/护栏/loop）。
+- ✅ **03_translate 已实现（2026-08-25）**：`src/amta/translate.py`（纯库：chat client/3 机制/Context/护栏/Loop/suggestions）+ `scripts/03_translate.py`（薄 CLI）+ `tests/test_translate.py`（11 测试）；fastcheck ALL PASS。
+- ⚠️ VLM 语义护栏脚本、04/05 工位 mechanical check 是后续工作。
+- 代码落点：`src/amta/translate.py` + `scripts/03_translate.py`。
+
+## 借鉴来源与许可证（grill 定案，2026-08-24）
+
+- **机制① glossary 相关条目提取** —— 借鉴自 manga-image-translator（zyddnys，GPL-3.0）`extract_relevant_terms` 设计：只喂与当前文本匹配的术语，防大词表稀释 system 权重。**只借鉴设计，不复制代码**。
+- **机制② 分层拆分重试** —— 借鉴自 manga-image-translator（GPL-3.0）：数量校验 → 重试 → 二分拆分递归 → 保留原文。**只借鉴两层（数量校验+拆分重试），不抄其 300+ 行全逻辑**。
+- **机制③ 翻译缓存层** —— 借鉴自 comic-translate（ogkalu2，Apache-2.0）：源文 hash 作键，源文变才重翻。
+- **纪律**：GPL-3.0 仓库仅借鉴设计思路；Apache-2.0 可自由复制（带署名）。代码注释已记录来源（`src/amta/translate.py` 文件头 + 各机制函数 docstring）。若未来开源 AMTA，GPL 借鉴点需换实现。
