@@ -1,72 +1,45 @@
-"""Benchmark B (路2) OCR 探测：对每页跑 detector+OCR 流水线，收集 3 引擎的识别文字。
+"""Benchmark B (跑) OCR 探测：对每页跑 detector+OCR 流水线，收集 3 引擎的识别文字。
 
-路2 口径：detector 框出文字 → OCR 识别。与 GT 内容匹配算 CER/EM。
 输出 output/data/ocr_result.json:
-  { page_N: { "<ocr_engine>": [{bbox, ocr, confidence}], ... }, ... }
-用法: python scripts/ocr_detect.py <src_dir> <page_count>
+  { page_N: { path, engines: { "<ocr_engine>": [{bbox, ocr, confidence}], ... } }, ... }
+用法: python scripts/ocr_detect.py <src_dir> [page_count]
 """
 from __future__ import annotations
 
-import json
 import sys
-import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.koharu_client import KoharuClient, KoharuError  # noqa: E402
+from amta.koharu_client import KoharuClient  # noqa: E402
+from amta.paths import DATA, write_json  # noqa: E402
 from amta.pipeline import OCR_ENGINES  # noqa: E402
-from amta.geometry import bbox_from_block as _bbox  # noqa: E402
+from amta.runner import compact_blocks, run_all_pages  # noqa: E402
 
-OUT = Path(__file__).resolve().parent.parent / "output" / "data"
+OUT = DATA / "ocr_result.json"
 DETECTOR = "comic-text-detector"  # produce TextBoxes，作为 OCR 前置
 
 
-def run_ocr(client: KoharuClient, page: Path, ocr_engine: str) -> list[dict]:
-    proj = f"amta-ocr-{uuid.uuid4().hex[:8]}"
-    client.close_current_project()
-    client.create_project(proj)
-    try:
-        page_id = client.import_page(page)
-        steps = [DETECTOR, ocr_engine]
-        op = client.run_pipeline(page_ids=[page_id], steps=steps)
-        result = client.wait_operation(op, timeout=1800)
-        if result.get("status") == "failed":
-            raise KoharuError(f"{ocr_engine} failed: {result}")
-        # completed / completed_with_errors 都尝试读取（可能已有部分识别内容）
-        nodes = client.get_page_nodes(page_id)
-        blocks = KoharuClient.collect_blocks(nodes)
-        out = []
-        for b in blocks:
-            ocr = (b.get("ocr") or "").strip()
-            out.append({"bbox": _bbox(b), "ocr": ocr, "confidence": b.get("confidence")})
-        return out
-    finally:
-        client.close_current_project()
+def _page_key(page: Path, idx: int) -> str:
+    return f"page_{idx}"
 
 
 def main(argv: list[str]) -> int:
     src = Path(argv[0])
     max_pages = int(argv[1]) if len(argv) > 1 else 10
     pages = sorted(src.glob("*.jpg"), key=lambda p: int(p.stem))[:max_pages]
+    steps = {eng: [DETECTOR, eng] for eng in OCR_ENGINES}
     print(f"[ocr] {len(pages)} pages, ocr_engines={OCR_ENGINES}, detector={DETECTOR}", flush=True)
     client = KoharuClient()
     client.wait_server()
-    out: dict[str, dict] = {}
-    for idx, page in enumerate(pages):
-        key = f"page_{idx}"
-        out[key] = {"path": str(page), "engines": {}}
-        for eng in OCR_ENGINES:
-            print(f"[ocr] {key} / {eng} ...", flush=True)
-            try:
-                out[key]["engines"][eng] = run_ocr(client, page, eng)
-            except Exception as e:  # noqa: BLE001
-                print(f"[ocr] WARN {key} {eng}: {e}", flush=True)
-                out[key]["engines"][eng] = []
-    OUT.mkdir(parents=True, exist_ok=True)
-    dest = OUT / "ocr_result.json"
-    dest.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[ocr] done -> {dest}", flush=True)
+    out = run_all_pages(client, pages, steps, _page_key, prefix="amta-ocr",
+                        timeout=1800, require_completed=False, label="ocr")
+    # 兼容旧输出形状：只留 {bbox, ocr, confidence}（下游评测依赖 bbox 字段）
+    for entry in out.values():
+        entry["engines"] = {eng: compact_blocks(blocks, ("ocr", "confidence"))
+                            for eng, blocks in entry["engines"].items()}
+    write_json(OUT, out)
+    print(f"[ocr] done -> {OUT}", flush=True)
     return 0
 
 

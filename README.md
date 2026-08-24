@@ -26,8 +26,14 @@ amta/
 │   ├── koharu_client.py    # Koharu REST API 封装（建项目/传图/流水线/轮询/场景/mask/导出）
 │   ├── pipeline.py         # 流水线步骤常量 + 引擎 DAG 知识
 │   ├── metrics.py          # 共享指标库：norm/levenshtein/cer/best_match/match_score
-│   └── geometry.py         # 共享几何库：bbox/iou/union_boxes
-├── scripts/                # 可执行入口（薄 CLI，import src/amta）
+│   ├── geometry.py         # 共享几何库：bbox/iou/union_boxes
+│   ├── runner.py           # 流水线执行器：run_pipeline_once / run_all_pages（建项目→跑→回读→清理）
+│   ├── ocr_engines.py      # OpenAI 兼容 OCR 引擎：本地 llama-server / DashScope qwen-vl-ocr
+│   ├── gt_alignment.py     # GT→detector 框对齐裁剪（ADR-011：裁 detector 框、比 GT 内容）
+│   ├── images.py           # 图片工具：crop_with_pad
+│   ├── evalkit.py          # 评测聚合：TEXT_CLASSES / eval_rows / summarize_rows
+│   └── paths.py            # ROOT/OUTPUT/DATA 常量 + read_json/write_json/ensure_utf8_stdio
+├── scripts/                # 可执行入口（薄 CLI，只做参数解析与落盘，逻辑在 src/amta）
 │   ├── benchmark.py        # Benchmark A/B/C（两阶段：emit crops → ingest 标注）
 │   ├── ocr_detect.py / ocr_score.py      # Benchmark B（OCR 探测 + CER/EM 评分）
 │   ├── recall_detect.py / recall_crop.py / recall_score.py  # recall 内容级匹配
@@ -36,7 +42,7 @@ amta/
 │   ├── fastcheck.py / audit.py / smoke_test.py
 │   └── start_koharu.ps1 / precheck.ps1 / install_hooks.ps1
 ├── tests/                  # 确定性单测（fastcheck 第 4 步）
-├── docs/                   # progress / lessons / decisions（ADR-001..008）
+├── docs/                   # progress / lessons / decisions（ADR-001..012）
 ├── context/                # <作品>.story.json / cast 种子（Phase 2）
 ├── testsets/               # benchmark 测试集（页面不入库）
 ├── output/                 # 运行产物（gitignored，除 data/ 白名单 JSON）

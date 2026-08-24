@@ -1,37 +1,37 @@
 """SFX 三路 OCR 对比：manga-ocr / mit48px / baberu vs GT SFX 内容，算 CER/EM。
 
 输入:
-  output/data/ocr_result.json    (koharu manga-ocr + mit48px 整页 detector 框输出)
-  output/baberu_smoke.json  (baberu 对 recall_crops 的输出)
-  output/data/recall_gt.json     (GT SFX 内容)
+  output/data/ocr_result.json        (koharu manga-ocr + mit48px 整页 detector 框输出)
+  output/data/baberu_result.json     (baberu 对 recall_crops 的输出)
+  output/data/recall_gt.json         (GT SFX 内容)
 输出:
-  output/benchmark_b_sfx.json
+  output/data/benchmark_b_sfx.json
 """
 from __future__ import annotations
-import json
+
+import statistics
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from amta.metrics import best_match  # noqa: E402
-
-ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "output" / "data"
+from amta.paths import DATA, read_json, write_json  # noqa: E402
 
 
 def main() -> int:
-    ocr = json.loads((OUT / "ocr_result.json").read_text(encoding="utf-8"))
-    bab = json.loads((OUT / "baberu_result.json").read_text(encoding="utf-8"))
-    gt_data = json.loads((OUT / "recall_gt.json").read_text(encoding="utf-8"))
+    ocr = read_json(DATA / "ocr_result.json")
+    bab = read_json(DATA / "baberu_result.json")
+    gt_data = read_json(DATA / "recall_gt.json")
 
     rows = []
     for gkey, regions in gt_data["pages"].items():
         idx = int(gkey.split("_")[1]) - 1
         okey = f"page_{idx}"
         sfx = [r for r in regions if r["type"] == "sfx"]
-        if not sfx: continue
-        # manga-ocr 该页所有输出(做匹配池)
+        if not sfx:
+            continue
+        # manga-ocr 该页所有输出（做匹配池）
         manga_preds = [(b.get("ocr") or "") for b in ocr.get(okey, {}).get("engines", {}).get("manga-ocr", [])]
         mit_preds = [(b.get("ocr") or "") for b in ocr.get(okey, {}).get("engines", {}).get("mit48px-ocr", [])]
         # baberu 对 page_{idx}_uXX crops 的输出
@@ -46,20 +46,18 @@ def main() -> int:
                          "mit48px": {"pred": mi_p, "cer": round(mi_cer, 3)},
                          "baberu": {"pred": b_p, "cer": round(b_cer, 3)}})
 
-    # 汇总
-    import statistics
     out = {"engine": "sfx-3way", "n_sfx": len(rows), "rows": rows}
-    for eng in ["manga", "mit48px", "baberu"]:
+    for eng in ("manga", "mit48px", "baberu"):
         cers = [r[eng]["cer"] for r in rows]
         em = sum(1 for r in rows if r[eng]["cer"] == 0)
         out[f"{eng}_summary"] = {"cer": round(statistics.mean(cers), 3) if cers else 0,
                                  "em": round(em / len(rows), 3) if rows else 0}
-    (OUT / "benchmark_b_sfx.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(DATA / "benchmark_b_sfx.json", out)
     print("=== SFX 三路 OCR 对比 ===")
-    for eng in ["manga", "mit48px", "baberu"]:
+    for eng in ("manga", "mit48px", "baberu"):
         s = out[f"{eng}_summary"]
         print(f"  {eng}: CER={s['cer']} EM={s['em']}")
-    print(f"-> {OUT / 'benchmark_b_sfx.json'}")
+    print(f"-> {DATA / 'benchmark_b_sfx.json'}")
     return 0
 
 
