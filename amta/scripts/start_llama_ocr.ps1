@@ -4,8 +4,8 @@
 # 性能说明（教训 L18）:
 #   - 主模型默认用 Q8_0（BF16 是 16BPW 全精度，CPU prompt eval 慢 ~30%）；mmproj 保持 BF16
 #     （PaddleOCR-VL mmproj 张量列 4304 非 32 倍数，Q8_0 量化会失败，属预期）
-#   - -t 8 / -c 8192 / -b 256 -ub 512 / -fa on / -ctk/-ctv q8_0 / --mlock 为实测最优组合
-#     （i5-1135G7 4C8T，t=4 vs t=8 无显著差异，取 8）
+#   - -t 8 / -c 8192 / -b 256 -ub 512 / -fa on / -ctk/-ctv q8_0 为实测最优组合
+#     （i5-1135G7 4C8T，t=4 vs t=8 无显著差异，取 8；--mlock 在 b10582 已弃用，不设）
 #   - 不要加 --cache-reuse：多模态下不支持（日志会提示 disabled）
 param(
     [string]$Model = "paddle-manga",   # paddle-manga | paddle-1.6 | ...（models/<Model>/ 子目录）
@@ -52,7 +52,7 @@ if (-not (Test-LlamaHttp -P $Port)) {
     $llamaArgs = @("--model", $main.FullName, "--mmproj", $mmproj.FullName,
                    "--host", "127.0.0.1", "--port", "$Port", "-ngl", "0",
                    "-t", "8", "-c", "8192", "-b", "256", "-ub", "512",
-                   "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", "--mlock")
+                   "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0")
     Start-Process $LlamaExe -ArgumentList $llamaArgs -WindowStyle Hidden
     for ($i = 0; $i -lt $WaitSeconds; $i += 2) {
         if (Test-LlamaHttp -P $Port) { break }
