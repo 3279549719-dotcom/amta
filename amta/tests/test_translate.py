@@ -288,3 +288,24 @@ def test_translate_with_retry_injects_tools_ctx(monkeypatch):
                                          tools_ctx="工具查得·额外上下文", max_retries=1)
     assert out["r01"] == "译文"
     assert "工具查得·额外上下文" in seen_system["s"]
+
+
+def test_record_failure_append(tmp_path):
+    import json
+    from amta import translate
+    log = tmp_path / "failure_log.json"
+    entry = {"region_id": "a", "reason": "mechanical retry exhausted", "attempts": 3}
+    translate.record_failure(log, entry)
+    translate.record_failure(log, {"region_id": "b", "reason": "x"})
+    doc = json.loads(log.read_text(encoding="utf-8"))
+    assert len(doc["failures"]) == 2
+    assert doc["failures"][0]["attempts"] == 3
+
+
+def test_record_failure_overwrites_empty_list(tmp_path):
+    import json
+    from amta import translate
+    log = tmp_path / "failure_log.json"
+    translate.record_failure(log, {"region_id": "a", "reason": "x"})
+    doc = json.loads(log.read_text(encoding="utf-8"))
+    assert doc["failures"] == [{"region_id": "a", "reason": "x"}]
