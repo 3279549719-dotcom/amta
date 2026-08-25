@@ -28,6 +28,10 @@ def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None) -> dict:
     canon = paths.read_json(canon_path)
+    from amta.canon_schema import validate_canon
+    problems = validate_canon(canon)
+    if problems:
+        raise ValueError(f"canon input schema failed: {'; '.join(problems[:5])}")
     cfg = translate.get_chat_config()
     ws = load_state(work_id) if work_id else {}
     open_questions = _load_open_questions(state_dir)
@@ -35,11 +39,27 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     def llm(messages):
         return translate.text_chat(cfg["base_url"], cfg["model"], messages, api_key=cfg["api_key"])
 
-    result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions)
+    tools_ctx = translate.build_tools_context(canon, ws, open_questions=open_questions)
+    result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions,
+                                            tools_ctx=tools_ctx)
 
     residue = translate.japanese_residue_check(list(result.values()))
-    out = {"work_id": work_id or "", "translations": result, "residue": residue}
+    from amta.glossary import check_glossary
+    violations = check_glossary(canon, result, ws)
+    out = {"work_id": work_id or "", "translations": result, "residue": residue,
+           "glossary_violations": violations}
     paths.write_json(out_path, out)
+
+    # on-failure 结构化记录（ADR-016）：残留/术语违例/空译文 → failure_log.json 供断点重跑
+    if state_dir:
+        from pathlib import Path as _Path
+        problems = [{"region_id": rid, "kind": "residue", "text": t}
+                    for rid, t in result.items() if t in residue]
+        problems += [{"region_id": rid, "kind": "glossary", "detail": v}
+                     for rid, v in violations]
+        if problems:
+            translate.record_failure(_Path(state_dir) / "failure_log.json",
+                                     {"work_id": work_id or "", "problems": problems})
 
     if work_id and state_dir:
         ex = translate.SuggestionsExtractor(existing=set(ws.get("characters", {})) | set(ws.get("terms", {})))

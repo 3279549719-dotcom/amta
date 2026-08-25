@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from translate_semantic_check import parse_verdict, run  # noqa: E402
+from translate_semantic_check import parse_verdict, parse_verdict_with_scores, run  # noqa: E402
 
 
 def test_parse_verdict_pass():
@@ -77,3 +77,26 @@ def test_run_only_filters_regions(tmp_path, monkeypatch):
     res = run(canon_p, trans_p, tmp_path, tmp_path / "out.json", only=["r1"])
     assert res["judged"] == 1
     assert res["passed"] == 1
+
+
+def test_parse_pass_with_scores():
+    out = "通过\naccuracy:4\nfluency:3\nconsistency:4\nreadability:5"
+    verdict, scores = parse_verdict_with_scores(out)
+    assert verdict == "pass"
+    assert scores["accuracy"] == 4
+    assert scores["fluency"] == 3
+    assert scores["consistency"] == 4
+    assert scores["readability"] == 5
+
+
+def test_parse_fail_with_scores():
+    out = "需修订：主语错；建议译文：xx\naccuracy:2\nfluency:3\nconsistency:5\nreadability:4"
+    verdict, scores = parse_verdict_with_scores(out)
+    assert verdict == "fail"
+    assert scores["accuracy"] == 2
+
+
+def test_parse_no_scores_defaults_none():
+    verdict, scores = parse_verdict_with_scores("通过")
+    assert verdict == "pass"
+    assert scores["accuracy"] is None

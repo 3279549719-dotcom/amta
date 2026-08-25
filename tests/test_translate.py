@@ -207,3 +207,105 @@ def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
     data = _json.loads(out_path.read_text(encoding="utf-8"))
     # run() 落盘信封 {work_id, translations, residue}，译文在 translations 下
     assert data["translations"]["r01"] == "丰姬在说话"
+
+
+def test_run_rejects_bad_canon(monkeypatch, tmp_path):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import json as _json
+
+    from _03_translate import run
+
+    bad = [{"region_id": "a", "text": "x"}]  # 缺 page
+    canon_path = tmp_path / "canon.json"
+    canon_path.write_text(_json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+    try:
+        run(str(canon_path), str(tmp_path / "out.json"))
+        raise AssertionError("should raise ValueError for bad canon")
+    except ValueError as e:
+        assert "canon" in str(e).lower()
+
+
+def test_suggestions_only_katakana_proper_nouns():
+    from amta import translate
+    ex = translate.SuggestionsExtractor(existing=set())
+    canon = [
+        {"region_id": "a", "page": 0, "text": "稀神サグメは月が好きだ"},
+        {"region_id": "b", "page": 0, "text": "永琳が来た"},
+    ]
+    tr = {"a": "稀神探女喜欢月亮", "b": "永琳来了"}
+    sugg = ex.extract(canon, tr)
+    terms = {s["term"] for s in sugg}
+    assert "サグメ" in terms            # 片假名专名应提取
+    assert "月" not in terms            # 单字不提取
+    assert "来た" not in terms          # 普通汉字/动词不提取
+    assert "が好き" not in terms        # 不整段提取
+    assert "稀神サグメは月が好きだ" not in terms  # 不再整段日文
+
+
+def test_run_reports_glossary_violation():
+    from amta import translate
+    canon = [{"region_id": "a", "text": "豊姫が来た", "page": 0}]
+    tr = {"a": "豊姫来了"}
+    out = translate._run_guardrails_for_test(canon, tr, {"terms": {
+        "豊姫": {"translation": "丰姬", "status": "confirmed", "aliases": []}}})
+    assert out  # 非空 = 有违例
+
+
+def test_run_glossary_clean_when_ok():
+    from amta import translate
+    canon = [{"region_id": "a", "text": "豊姫が来た", "page": 0}]
+    tr = {"a": "丰姬来了"}
+    out = translate._run_guardrails_for_test(canon, tr, {"terms": {
+        "豊姫": {"translation": "丰姬", "status": "confirmed", "aliases": []}}})
+    assert out == []
+
+
+def test_tools_context_lookup_and_prev():
+    from amta import translate
+    canon = [{"region_id": "a", "text": "サグメは月が好き", "page": 5}]
+    ws = {"terms": {"サグメ": {"translation": "探女", "status": "confirmed"}}}
+    prev = [{"page": 4, "translated": "前页译文"}]
+    ctx = translate.build_tools_context(canon, ws, prev_pages=prev)
+    assert "探女" in ctx            # 相关术语预取
+    assert "前页译文" in ctx        # 前页上下文
+    assert translate.TERM_BUDGET >= 1
+    assert translate.VISION_BUDGET == 2
+
+
+def test_translate_with_retry_injects_tools_ctx(monkeypatch):
+    from amta import translate
+    seen_system = {}
+
+    def llm(messages):
+        seen_system["s"] = messages[0]["content"]
+        return '{"r01": "译文"}'
+
+    canon = [{"region_id": "r01", "text": "サグメ", "page": 0}]
+    out = translate.translate_with_retry(canon, llm, work_state={"terms": {}},
+                                         tools_ctx="工具查得·额外上下文", max_retries=1)
+    assert out["r01"] == "译文"
+    assert "工具查得·额外上下文" in seen_system["s"]
+
+
+def test_record_failure_append(tmp_path):
+    import json
+    from amta import translate
+    log = tmp_path / "failure_log.json"
+    entry = {"region_id": "a", "reason": "mechanical retry exhausted", "attempts": 3}
+    translate.record_failure(log, entry)
+    translate.record_failure(log, {"region_id": "b", "reason": "x"})
+    doc = json.loads(log.read_text(encoding="utf-8"))
+    assert len(doc["failures"]) == 2
+    assert doc["failures"][0]["attempts"] == 3
+
+
+def test_record_failure_overwrites_empty_list(tmp_path):
+    import json
+    from amta import translate
+    log = tmp_path / "failure_log.json"
+    translate.record_failure(log, {"region_id": "a", "reason": "x"})
+    doc = json.loads(log.read_text(encoding="utf-8"))
+    assert doc["failures"] == [{"region_id": "a", "reason": "x"}]

@@ -1,0 +1,47 @@
+{
+  "work_id": "touhou-single-wing",
+  "purpose": "校准 ③ 语义评审与验收口径的判例库（无参考 GT，替代参考译文 Golden Set，ADR-016）",
+  "acceptance": {"pass_rate_min": 0.90, "director_clears_failed": true},
+  "cases": [
+    {
+      "region_id": "page_9_u01",
+      "source": "今度もらってあげるわよ",
+      "translation": "下次再让她给你吧",
+      "verdict": "fail",
+      "scores": {"accuracy": 2, "fluency": 4, "consistency": 5, "readability": 5},
+      "reason": "主语错：原文'我'拿到后给'你'，译文变'她'给你",
+      "suggestion": "下次我帮你拿过来吧",
+      "lesson": "③ 能抓主语错（accuracy 低）"
+    },
+    {
+      "region_id": "page_0_u07",
+      "source": "私、稀神サグメはそんな月の生活を気に入っていただが一つだけ不満があるとすればー",
+      "translation": "我，稀神探女，很喜欢那样的月球生活。不过若说有什么不满的话——",
+      "verdict": "fail",
+      "scores": {"accuracy": 3, "fluency": 4, "consistency": 5, "readability": 5},
+      "reason": "漏译'一つだけ'(只有一点)",
+      "suggestion": "不过，若说只有一点不满的话——",
+      "lesson": "③ 对程度副词敏感，会抓漏译但需导演确认"
+    },
+    {
+      "region_id": "page_2_u05",
+      "source": "研究室を一人で使えることの方が嬉しかった",
+      "translation": "但能一个人使用研究室更让我开心",
+      "verdict": "pass",
+      "scores": {"accuracy": 4, "fluency": 5, "consistency": 5, "readability": 5},
+      "reason": "加'但'是中文衔接，③ 误报样本，不改译",
+      "suggestion": "",
+      "lesson": "③ 会误报风格选择（加连接词），非硬伤不改译"
+    },
+    {
+      "region_id": "page_0_u09",
+      "source": "穢れとは心である",
+      "translation": "污秽即是心",
+      "verdict": "review",
+      "scores": {"accuracy": 4, "fluency": 4, "consistency": 5, "readability": 5},
+      "reason": "③ 盲区：语境润色主张'污秽源于心中'",
+      "suggestion": "污秽源于心中",
+      "lesson": "③ 漏语境润色，导演终审兜底"
+    }
+  ]
+}
