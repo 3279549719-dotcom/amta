@@ -5,7 +5,7 @@
 - ADR-013 定了产物结构（per-work workspace + work_state），本 ADR 落地其核心工位——**翻译工位**的形态。
 - 参考 two references（first-principles/DIKW + simple structure factory）后 grill 定案：
   - 原锁定决策 #5（koharu 内 `llm` 引擎 + Story Memory 注入）**悬空未兑现**：koharu 未在跑、`llm` 引擎 not-ready（需 Settings 配 provider，`llm_status()` 校验不过）。
-  - `.env` 已有现成 DeepSeek 通道：`CHAT_BASE_URL=https://api.deepseek.com` + `CHAT_MODEL=deepseek-v4-pro-0813` + `CHAT_API_KEY` → 脚本直调可行。
+  - `.env` 已有现成 DeepSeek 通道：`CHAT_BASE_URL=https://api.deepseek.com` + `CHAT_MODEL=deepseek-v4-pro`（原记 `deepseek-v4-pro-0813` 无效，已修，见 L22）+ `CHAT_API_KEY` → 脚本直调可行。
   - 用户明确：多 OCR 忽略（For-Manga 单引擎已定案 ADR-011），reference 的 Harness 四维度有出入需按会话驱动架构修正。
 
 ## Decision
@@ -66,7 +66,8 @@ state/ 三文件保持 ADR-013：`touhou_knowledge.json`（canon prior，跨本�
 - ✅ 导演仍是最终裁决层（语义 loop + 验收），脚本不硬编码翻译判断。
 - ⚠️ **修订锁定决策 #5**：progress.md「已锁定决策」需同步；koharu 内 llm 引擎弃用（除非未来需要其 Story Memory 注入面）。
 - ✅ **03_translate 已实现（2026-08-25）**：`src/amta/translate.py`（纯库：chat client/3 机制/Context/护栏/Loop/suggestions）+ `scripts/03_translate.py`（薄 CLI）+ `tests/test_translate.py`（11 测试）；fastcheck ALL PASS。
-- ⚠️ VLM 语义护栏脚本、04/05 工位 mechanical check 是后续工作。
+- ✅ **语义护栏③ 已实现（2026-08-26）**：`scripts/translate_semantic_check.py`（VLM 逐 region 粗筛评审，默认 `deepseek-v4-flash-vision-exp`，空响应自动重试）+ `tests/test_semantic_check.py`（5 测试）；86 框全量通过率 96.5%。04/05 工位 mechanical check 仍是后续工作。
+- ⚠️ **③ 实测校准（2026-08-26）**：VLM 评审是**粗筛+随机**——抓粗错（主语错/漏译/OCR 读错导致），漏语境润色（"污秽即是心"两模型判通过，导演才抓出），会误报风格选择（如加"但"）。通过率是**粗筛层**指标，FAILED 列表=导演过目队列，非判决书。
 - 代码落点：`src/amta/translate.py` + `scripts/03_translate.py`。
 
 ## 借鉴来源与许可证（grill 定案，2026-08-24）
