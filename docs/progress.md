@@ -8,7 +8,9 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-25，最后一笔：03_translate 工位实现，fastcheck 全绿）
+## 当前状态（2026-08-25，最后一笔：Matt 技能包钉入 + ask-matt 入口，fastcheck 全绿）
+
+- **Matt Pocock 技能包已钉入（2026-08-25，commit 702e452）**：ask-matt 路由器 + 25 技能从 `~/.agents/skills` 逐字节复制进 `.dsh/skills` git 钉版（ADR-009）；`~/.agents/skills` 当只读上游，`npx skills update` 后需重复制同步。CLAUDE.md 渐进式加载已加 ask-matt 行。无阻塞；用户 WIP（audit/dependency-guard）未动。
 
 - **03_translate 工位已实现（2026-08-25，ADR-014 落地）**：
   - `src/amta/translate.py`（264 行纯库）：`text_chat` + `get_chat_config`（.env CHAT_*）+ 三借鉴机制（`extract_relevant_terms` / `translate_with_retry` 分层拆分 / `TranslationCache` 源文 hash）+ `build_translation_prompt`（Context 分层）+ 机械护栏（region_id 一一对应 + 假名残留）+ `SuggestionsExtractor`

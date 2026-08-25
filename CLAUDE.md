@@ -11,6 +11,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 - **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
 - **工具面**：`src/amta/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/ocr_engines.py`（本地/DashScope OCR 引擎）+ `src/amta/translate.py`（翻译工位纯库：chat client + 三借鉴机制 + Context 组装 + 机械护栏 + suggestions，ADR-014）+ `src/amta/evalkit.py`（CER/EM 聚合）+ `src/amta/workstate.py`（per-work workspace + work_state，ADR-013）+ `src/amta/metrics.py`/`geometry.py`/`images.py`（共享库）。
+- **技能根三路径**：`.dsh/skills`=项目维护根（git 钉版/唯一事实源，包技能一律钉此）；`~/.agents/skills`=只读下载根（`npx skills add` 落点，update 后需重复制同步钉版）；`~/.dsh/skills`=个人跨项目。包技能勿只放 `~/.agents/skills`（ADR-009）。
 
 ## 关键坑速查（完整经验见 docs/lessons.md）
 
@@ -22,9 +23,11 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 
 | 触发 | 读 |
 |---|---|
+| 不确定用哪个技能/流程（技能路由器） | `.dsh/skills/ask-matt/SKILL.md` |
 | 跑 Benchmark A/B/C | `.dsh/skills/benchmark/SKILL.md` |
 | VLM 标注 crop（oracle 判真假/分类/评分） | `.dsh/skills/oracle-label/SKILL.md` |
 | 后台长任务自主监控（轮询/失败检测/汇报） | `.dsh/skills/background-monitoring/SKILL.md` |
+| 引入第三方依赖前（依赖膨胀拦截） | `.dsh/skills/dependency-guard/SKILL.md` |
 | 驱动 koharu（接口/mask/修复循环） | `.dsh/skills/koharu-drive/SKILL.md` |
 | 回归/发布流程 | `.dsh/skills/verify/SKILL.md` |
 | 任务收尾 / 学习落盘（/finish） | `.dsh/skills/cycle-close/SKILL.md` |

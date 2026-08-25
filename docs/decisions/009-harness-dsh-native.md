@@ -9,11 +9,12 @@
 
 ## Decision
 
-1. **技能唯一事实源 = `.dsh/skills/<name>/SKILL.md`**（git 正常跟踪）。经 `npx dsh-movein` 迁移 + `git mv` 定唯一源，删除 `.claude/skills` 与空 `.claude/`。
+1. **技能唯一事实源 = `.dsh/skills/<name>/SKILL.md`**（git 正常跟踪）。经 `npx dsh-movein` 迁移 + `git mv` 定唯一源，删除 `.claude/skills` 与空 `.claude/`。**三路径职责**：`.dsh/skills`=项目维护根（git 钉版）；`~/.agents/skills`=只读下载根（`npx skills add` 落点，`.skill-lock.json` 登记）；`~/.dsh/skills`=个人跨项目根。
 2. **判断链五路分流**：`观察 → 可复用?No 丢弃 / Yes → 会复发?No lesson(docs/lessons.md) / Yes → 五路：全局规则(CLAUDE.md) · 流程(.dsh/skills/) · 架构(docs/decisions/ADR-N) · 瞬时(docs/progress.md) · 机械(test/lint/hook)`。**test/lint/hook 是唯一真强制层**，rules/lesson 均为 prompt 级。
 3. **hook 层仅 git hooks**（`.githooks/pre-commit`、`pre-push`，fastcheck 门禁）；**不装** hooks-claude-code 桥、**不装** 权限类插件（本项目全权限模式，deny/ask 无需求）。
 4. **finisher / researcher 以技能形式实现**（技能正文 = subagent 委派 prompt 模板），由主 agent 在任务边界按 cycle-close 协议主动 spawn subagent。DSH 无 `.claude/agents` 注册表、无描述自动匹配委派 → 不做 CC 兼容声明层。
 5. 不维护 CC 兼容双份（无 `.claude/rules`、无 `.claude/agents` 文件、无 `.claude/settings.json`）。
+6. **第三方包技能钉版机制**：包技能（Matt Pocock 技能包 2026-08-25，commit 702e452）原样钉入 `.dsh/skills` git 版（逐字节 diff 校验一致）；`~/.agents/skills` 仅当只读上游，`npx skills update` 后需重复制同步钉版。CC 专有 `disable-model-invocation` 标记 DSH 丢弃（L11），"仅用户触发"在 DSH 下不生效。
 
 ## Consequences
 
