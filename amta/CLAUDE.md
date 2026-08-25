@@ -5,12 +5,12 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 ## 核心事实
 
 - **钉 koharu v0.59.1**（server 世代，REST /api/v1 + MCP /mcp + 像素 mask 机制）；上游 0.77.5 起已删 headless/HTTP/MCP，升级即失去全部自动化面。
-- **翻译通道**：`03_translate` 工位脚本直调 DeepSeek API（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY，`CHAT_MODEL=deepseek-v4-pro`，`https://api.deepseek.com`），双层护栏（机械：结构/残留/region_id 对应 + 语义：`scripts/translate_semantic_check.py` VLM 粗筛评审→FAILED 交导演）+ 分层 Loop（脚本机械重译 1 次 → FAILED 附证据交导演语义修订）；**弃 koharu 内 `llm` 引擎**（not-ready，ADR-014 修订决策 #5）。
+- **翻译通道**：`03_translate` 工位脚本直调 DeepSeek API（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY，`CHAT_MODEL=deepseek-v4-pro`，`https://api.deepseek.com`），机械护栏（pre-translate Input schema gate `canon_schema.py` + 结构/残留/region_id 对应 + Glossary Validator `glossary.py` Knowledge guardrail）+ 语义护栏 `scripts/translate_semantic_check.py` VLM 逐 region **四维评分**（accuracy/fluency/consistency/readability，粗筛层，FAILED 附证据交导演）；分层 Loop（脚本机械重译 1 次 → `apply_revisions.py` 导演修订+`--only` 重评审闭环）；Tools 预取 `build_tools_context`（`TERM_BUDGET=10`/`VISION_BUDGET=2`，ADR-016）；验收阈值 = ③ ≥90% + 导演清 FAILED；**弃 koharu 内 `llm` 引擎**（ADR-014 修订决策 #5）。
 - **Vision QA**：`vqa()` 抽象，会话内 describe_image 实现。
 - **本地漫画 OCR**：`PaddleOCR-VL-For-Manga` GGUF（`models/paddle-manga/`）+ 独立 llama-server（`models/llama-cpp/llama-server.exe`，端口 8118，`--mmproj`）。koharu 内置 llama.cpp b8935 太旧，其 paddle/mit48px OCR 引擎全部不可用（MTMD 初始化失败），只 manga-ocr 可用；漫画 OCR 走独立 llama-server（OpenAI 兼容接口，prompt `OCR:`）。
 - **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
-- **工具面**：`src/amta/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/ocr_engines.py`（本地/DashScope OCR 引擎）+ `src/amta/translate.py`（翻译工位纯库：chat client + 三借鉴机制 + Context 组装 + 机械护栏 + suggestions，ADR-014）+ `src/amta/evalkit.py`（CER/EM 聚合）+ `src/amta/workstate.py`（per-work workspace + work_state，ADR-013）+ `src/amta/metrics.py`/`geometry.py`/`images.py`（共享库）。
+- **工具面**：`src/amta/koharu_client.py`（16 方法，清单见 koharu-drive skill）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/ocr_engines.py`（本地/DashScope OCR 引擎）+ `src/amta/translate.py`（翻译工位纯库：chat client + 三借鉴机制 + Context 组装 + 机械护栏 + suggestions + Tools 预取，ADR-014/016）+ `src/amta/canon_schema.py`（Input gate）/`glossary.py`（Knowledge guardrail）/`evalkit.py`（CER/EM 聚合）+ `src/amta/workstate.py`（per-work workspace + work_state 四层，ADR-013/016）+ `src/amta/metrics.py`/`geometry.py`/`images.py`（共享库）。
 - **技能根三路径**：`.dsh/skills`=项目维护根（git 钉版/唯一事实源，包技能一律钉此）；`~/.agents/skills`=只读下载根（`npx skills add` 落点，update 后需重复制同步钉版）；`~/.dsh/skills`=个人跨项目。包技能勿只放 `~/.agents/skills`（ADR-009）。
 
 ## 关键坑速查（完整经验见 docs/lessons.md）
