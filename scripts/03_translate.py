@@ -14,16 +14,28 @@ from amta import paths, translate  # noqa: E402
 from amta.workstate import load_state  # noqa: E402
 
 
+def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
+    """从 state/open_questions.json 读未决问题列表；无则 None。"""
+    if not state_dir:
+        return None
+    p = Path(state_dir) / "open_questions.json"
+    if not p.exists():
+        return None
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    return doc.get("questions", [])
+
+
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None) -> dict:
     canon = paths.read_json(canon_path)
     cfg = translate.get_chat_config()
     ws = load_state(work_id) if work_id else {}
+    open_questions = _load_open_questions(state_dir)
 
     def llm(messages):
         return translate.text_chat(cfg["base_url"], cfg["model"], messages, api_key=cfg["api_key"])
 
-    result = translate.translate_with_retry(canon, llm)
+    result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions)
 
     residue = translate.japanese_residue_check(list(result.values()))
     out = {"work_id": work_id or "", "translations": result, "residue": residue}

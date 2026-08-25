@@ -134,12 +134,11 @@ class TranslationCache:
         return self._data.get(self._key(page, src))
 
 
-def build_translation_prompt(canon: list[dict], work_state: dict, *,
-                             prev_pages: list[dict] | None = None,
-                             open_questions: list[dict] | None = None) -> dict:
-    """Context 分层组装：System/Current/History/Knowledge/Uncertainty。
+def _prompt_parts(canon: list[dict], work_state: dict,
+                  prev_pages: list[dict] | None, open_questions: list[dict] | None) -> tuple[str, str]:
+    """拆出 System 层 + 上下文前缀（History/Knowledge/Uncertainty，不含当前页块）。
 
-    借鉴自 manga-image-translator 的 prev_context 独立 system message 设计（ADR-014 History 层）。
+    System 含角色/术语一致性约束；前缀含前页译文与待确认事项。两者对单页分批（二分拆分）只算一次。
     """
     system_lines = ["你是专业日文→中文漫画翻译专家，输出严格 JSON，不要输出任何额外文字。"]
     cur_text = " ".join(r["text"] for r in canon)
@@ -161,13 +160,25 @@ def build_translation_prompt(canon: list[dict], work_state: dict, *,
     if open_questions:
         qs = "\n".join(f"- {q['question']}（{q.get('status', 'open')}）" for q in open_questions)
         user_blocks.append(f"待确认事项：\n{qs}")
-    cur = "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
-    user_blocks.append("请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + cur)
+    return "\n".join(system_lines), "\n\n".join(user_blocks)
 
-    return {
-        "system": "\n".join(system_lines),
-        "current": "\n".join(user_blocks),
-    }
+
+def _current_block(canon: list[dict]) -> str:
+    """当前批的 region_id|text 块（分批时每批单独拼）。"""
+    return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
+
+
+def build_translation_prompt(canon: list[dict], work_state: dict, *,
+                             prev_pages: list[dict] | None = None,
+                             open_questions: list[dict] | None = None) -> dict:
+    """Context 分层组装：System/Current/History/Knowledge/Uncertainty。
+
+    借鉴自 manga-image-translator 的 prev_context 独立 system message 设计（ADR-014 History 层）。
+    """
+    system, prefix = _prompt_parts(canon, work_state, prev_pages, open_questions)
+    cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(canon)
+    current = f"{prefix}\n\n{cur}" if prefix else cur
+    return {"system": system, "current": current}
 
 
 def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str]:
@@ -212,17 +223,26 @@ def japanese_residue_check(texts: list[str]) -> list[str]:
 
 
 def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
-                         split: bool = True) -> dict[str, str]:
+                         split: bool = True, work_state: dict | None = None,
+                         prev_pages: list[dict] | None = None,
+                         open_questions: list[dict] | None = None) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
+
+    Context 分层接入：System 层与上下文前缀（History/Knowledge/Uncertainty）对整页算一次，
+    分批重试时仅当前批的 region_id|text 块变化。
     """
+    ws = work_state or {}
+    system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
         for _ in range(max_retries):
-            messages = [{"role": "system", "content": "你是漫画翻译专家，输出严格 JSON。"},
-                        {"role": "user", "content": "\n".join(f'{r["region_id"]}|{r["text"]}' for r in batch)}]
+            cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
+            content = f"{prefix}\n\n{cur}" if prefix else cur
+            messages = [{"role": "system", "content": system},
+                        {"role": "user", "content": content}]
             raw = llm(messages)
             parsed = parse_translation_response(raw, region_ids)
             if not mechanical_guardrails(batch, parsed):
