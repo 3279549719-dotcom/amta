@@ -156,6 +156,30 @@
 - **Prevention**：start_llama_ocr.ps1 默认 Q8_0 + 优化参数；mmproj 保持 BF16（列 4304 非 32 倍数，Q8_0 量化会失败）。
 - **Regression**：实测基线 BF16 31.3s/张 → Q8_0+参数 27.1s/张（真实推理）；baberu 1.05s/张。
 
+## L19 — pytest Windows 尾部 PermissionError: pytest-current 是 teardown 噪音：exit 1 ≠ 失败；fastcheck 必须用 pytest 收集
+
+- **Problem**：Windows 上跑 pytest，测试全部 PASS 但进程 exit 1（stderr 尾行 `PermissionError: pytest-current`）；曾有两个 subagent 据 exit code 误判实现失败，实际全绿。
+- **Root cause**：pytest 的 tmp_path 清理（`cleanup_dead_symlinks`，含 symlink `pytest-current`）在 Windows 上抛 PermissionError，发生在所有测试结束后的 teardown 阶段，不影响测试结果但污染退出码并中断 stdout 缓冲（汇总行打不出）。另一层：本项目 `scripts/fastcheck.py` 原本用 `unittest discover` 只收集 `TestCase` 类，**静默跳过全部模块级 pytest 函数**（translate/workstate/ocr_run 的测试），报 "55 passed" 假信号。
+- **Durable lesson**：① Windows 判断 pytest 结果看**汇总行**（`N passed`）不看 exit code；委派 subagent 跑验证前必须预教此噪音，否则绿测试被当红。② **`tests/` 一律 pytest 风格，fastcheck 必须用 pytest 收集**——unittest discover 只收 TestCase 会漏掉模块级测试却报 PASS（唯一真强制层失效）。③ Windows 无 tail，取输出尾部用 PowerShell `Select-Object -Last N`。
+- **Prevention**：`scripts/fastcheck.py` `_test()` 改跑 `python -m pytest tests -q --basetemp <output/logs/.pytest-basetemp>`——`--basetemp` 指定显式目录后 pytest 不建 `pytest-current` symlink，正常输出汇总并退出 0；判定用正则 `(\d+) passed` 且无 `failed`。新测试一律 pytest 风格。
+- **Regression**：`python scripts/fastcheck.py` 输出 `== [fastcheck] pytest: 82 passed ==`（含全部 pytest 测试，非 55）。[已自动化：fastcheck 已修]
+
+## L20 — 数字前缀脚本无法按名 import：测试需 `_NN_name.py` 桥
+
+- **Problem**：`scripts/03_translate.py` 不能 `from 03_translate import run`（标识符不能以数字开头），tests 复用 CLI 的 run() 报 ImportError。
+- **Root cause**：数字前缀合法做文件名（可运行）但不合法做模块名（不可 import），Python 语法限制。
+- **Durable lesson**：`scripts/` 数字前缀工位脚本凡需被测试 import，必须另建 `_NN_name.py` 桥（importlib.util 按文件路径加载真实脚本并转导出 run/main）；脚本本体保持可 `python scripts/NN_name.py` 直跑。
+- **Prevention**：新建 00_run_all/01_detect/02_ocr/04_inpaint/05_typeset 时，凡测试需 import 的一律配桥。
+- **Regression**：`tests/test_translate.py::test_cli_translate_uses_llm_and_writes_translation` 经 `_03_translate` 桥覆盖 CLI。[已自动化：测试锁桥用法，fastcheck 改跑 pytest 后强制执行]
+
+## L21 — 日文残留检测判据只用假名范围：汉字 CJK 共用不可作残留依据
+
+- **Problem**：残留检测若用汉字范围（U+4E00-9FFF）会把中文译文误判为"日文残留"（中日汉字共用码位，如"完全译文"会被命中汉字）。
+- **Root cause**：CJK 统一汉字 U+4E00-U+9FFF 中日共用，无法区分中/日汉字；假名 U+3040-30FF 是日文独有特征。
+- **Durable lesson**：`_JAPANESE` 只匹配假名 `[\u3040-\u30ff]`；代价是"纯汉字无假名的日文残留"（如 完全）检测不到，属可接受漏报——换汉字范围则中文译文全灭，代价不可接受。
+- **Prevention**：任何"检测某语言残留"的正则用该语言**独有字符集**而非共享字符集；改 `src/amta/translate.py` 的 `_JAPANESE` 前先读本条。
+- **Regression**：`test_japanese_residue_detects_kanji` 锁定「纯中文不误报 + 含假名日文报出」。[已自动化：测试已锁，fastcheck 改跑 pytest 后强制执行]
+
 ---
 
 ## 模板（新增时复制）

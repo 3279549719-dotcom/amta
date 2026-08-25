@@ -8,6 +8,7 @@ description: 回归验证与发布流程——smoke/check/precheck 门槛与 git
 ## 回归门槛
 
 - `npm run check` — 语法门（`python -m compileall -q src scripts`）
+- `npm run fastcheck` — 全量门（compile+ruff+pyright+pytest）。**tests/ 用 pytest 收集**（unittest discover 只收 `TestCase` 类，静默跳过模块级 pytest 函数会假 PASS）；Windows 下 pytest 尾部 `PermissionError: pytest-current` 是 tmp_path teardown 噪音（L19），**判据 = 汇总行 `N passed` 而非 exit code**（fastcheck 已用 `--basetemp` 根治）。
 - `npm run precheck` — 4000 端口可达性（exit 0/1）
 - `npm run smoke` — 冒烟测试（**需先 `npm start`**）：连引擎→建项目→传图→跑检测→读场景→读 mask→关项目，PASS 即通路 OK
 
