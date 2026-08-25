@@ -226,3 +226,20 @@ def test_run_rejects_bad_canon(monkeypatch, tmp_path):
         raise AssertionError("should raise ValueError for bad canon")
     except ValueError as e:
         assert "canon" in str(e).lower()
+
+
+def test_suggestions_only_katakana_proper_nouns():
+    from amta import translate
+    ex = translate.SuggestionsExtractor(existing=set())
+    canon = [
+        {"region_id": "a", "page": 0, "text": "稀神サグメは月が好きだ"},
+        {"region_id": "b", "page": 0, "text": "永琳が来た"},
+    ]
+    tr = {"a": "稀神探女喜欢月亮", "b": "永琳来了"}
+    sugg = ex.extract(canon, tr)
+    terms = {s["term"] for s in sugg}
+    assert "サグメ" in terms            # 片假名专名应提取
+    assert "月" not in terms            # 单字不提取
+    assert "来た" not in terms          # 普通汉字/动词不提取
+    assert "が好き" not in terms        # 不整段提取
+    assert "稀神サグメは月が好きだ" not in terms  # 不再整段日文
