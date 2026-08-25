@@ -1,0 +1,123 @@
+"""depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
+
+在"引入第三方依赖"这个动作发生前/后做确定性拦截与审计，等价于 vibe-check-mcp
+在 AI 准备引入第三方库解决小任务时喊停："能否用原生/标准库实现？"
+
+扫描范围：src/ scripts/ tests/ 里的顶层第三方 import（stdlib / 本仓模块除外）。
+三档判定：
+  1. **未声明**（undeclared）：代码 import 了第三方库，但 pyproject.toml [project].dependencies 没声明
+     → 拦截。要么补声明（并审视是否真需要），要么改用标准库。
+  2. **已声明未使用**（unused）：pyproject 声明了，但代码里没 import → 死依赖，删除。
+  3. **死传递依赖**（redundant）：锁在 venv/uv.lock，但既未直接 import 也不是任一已用库的传递依赖
+     → 提醒（本脚本只报直接 import 与声明，传递链交给 uv tree 审查）。
+
+例外（白名单，模型目录等运行时动态 import，不入 pyproject）：
+  - onnx_infer        # models/baberu-ocr/ 内嵌，sys.path 动态注入
+  - pytest            # 开发工具链（全局安装，非运行时依赖，ADR-004）
+
+退出码：0 = 干净；非 0 = 有未声明/未使用依赖（建议硬门禁，接进 pre-commit/fastcheck）。
+"""
+from __future__ import annotations
+
+import ast
+import sys
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SCAN_DIRS = ("src", "scripts", "tests")
+LOCAL_TOP = {"amta", "scripts", "tests"}  # 本仓顶层模块，不是第三方
+# 分布名与 import 名的映射（import PIL → 包名 pillow）
+IMPORT_TO_PKG = {"PIL": "pillow"}
+# 运行时动态 import / 开发工具链白名单（不入 [project].dependencies）
+ALLOWLIST = {"onnx_infer", "pytest"}
+
+
+def _is_local_module(top: str) -> bool:
+    """top 是否对应本仓内某个脚本/测试文件（tests/scripts 常互 import，是本地模块不是第三方）。"""
+    for sub in SCAN_DIRS:
+        if (ROOT / sub / f"{top}.py").is_file():
+            return True
+    return False
+
+
+def _declared_deps() -> set[str]:
+    pyproject = ROOT / "pyproject.toml"
+    if not pyproject.is_file():
+        return set()
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    proj = data.get("project", {})
+    deps = proj.get("dependencies", [])
+    names = set()
+    for d in deps:
+        # 形如 "requests==2.34.2" / "pillow>=10"
+        name = d.strip().split(">=")[0].split("==")[0].split("<")[0].strip()
+        names.add(name.lower())
+    return names
+
+
+def _scan_third_party() -> dict[str, set[str]]:
+    """返回 {文件相对路径: {第三方顶层模块名}}。"""
+    found: dict[str, set[str]] = {}
+    for top in SCAN_DIRS:
+        base = ROOT / top
+        if not base.is_dir():
+            continue
+        for p in base.rglob("*.py"):
+            try:
+                tree = ast.parse(p.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            third = set()
+            for node in ast.walk(tree):
+                mods = []
+                if isinstance(node, ast.Import):
+                    mods = [a.name.split(".")[0] for a in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    mods = [node.module.split(".")[0]]
+                for m in mods:
+                    if m in LOCAL_TOP or m == "__future__":
+                        continue
+                    if m in sys.stdlib_module_names:
+                        continue
+                    if m in ALLOWLIST:
+                        continue
+                    if _is_local_module(m):
+                        continue
+                    third.add(m)
+            if third:
+                found[str(p.relative_to(ROOT))] = third
+    return found
+
+
+def main() -> int:
+    declared = _declared_deps()
+    found = _scan_third_party()
+    used: set[str] = set()
+    issues: list[str] = []
+    for rel, mods in sorted(found.items()):
+        for m in sorted(mods):
+            pkg = IMPORT_TO_PKG.get(m, m).lower()
+            used.add(pkg)
+            if pkg not in declared:
+                issues.append(f"[未声明] {rel}: import {m} 未在 [project].dependencies 声明")
+
+    # 声明了但没被任何 import 用到
+    for d in sorted(declared):
+        if d not in used:
+            issues.append(f"[未使用] pyproject 声明 {d}，但 src/scripts/tests 未 import 到 —— 死依赖，删除")
+
+    if issues:
+        print("== [depguard] 依赖膨胀检查：发现问题 ==")
+        for i in issues:
+            print(f"  - {i}")
+        print("== 提示：加依赖前先自问『能否用原生/标准库实现？』（ADR-015）；")
+        print("   确认需要再进 pyproject.toml，并用 `uv run uv lock` + `uv tree` 复核传递链。 ==")
+        return 1
+
+    print("== [depguard] 依赖干净：所有第三方 import 均已声明且在使用中 ==")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
