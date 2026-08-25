@@ -51,12 +51,29 @@ def _typecheck() -> int:
 
 
 def _test() -> int:
+    """跑 tests/ 单测。tests/ 是 pytest 风格（模块级 test_* 函数 + tmp_path/monkeypatch fixtures）；
+    `unittest discover` 只收 TestCase 类会静默跳过模块级函数（曾致 translate/workstate 测试不跑却报 PASS，L19/L20）。
+    Windows 下 pytest 尾部 PermissionError: pytest-current 是 tmp_path teardown 噪音（L19），
+    结果以汇总行 "N passed" 判定，不以 exit code 判定。
+    """
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-    return subprocess.call(
-        [sys.executable, "-m", "unittest", "discover", "-s", str(ROOT / "tests"), "-v"],
-        cwd=str(ROOT),
-        env=env,
+    # --basetemp 规避 Windows 下 pytest 默认 basetemp 的 pytest-current symlink teardown
+    # PermissionError（L19）：指定显式目录后 pytest 不建该 symlink，正常输出 "N passed" 汇总并退出 0。
+    basetemp = ROOT / "output" / "logs" / ".pytest-basetemp"
+    r = subprocess.run(
+        [sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q", "--basetemp", str(basetemp)],
+        cwd=str(ROOT), env=env, capture_output=True, text=True,
     )
+    out = (r.stdout or "") + (r.stderr or "")
+    print(out[-2000:])
+    import re as _re
+    m = _re.search(r"(\d+) passed", out)
+    failed = _re.search(r"(\d+) failed", out)
+    if m and not failed:
+        print(f"== [fastcheck] pytest: {m.group(1)} passed ==")
+        return 0
+    print(f"== [fastcheck] pytest 无通过汇总（exit {r.returncode}）==")
+    return 1
 
 
 def main() -> int:
