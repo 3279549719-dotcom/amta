@@ -39,6 +39,7 @@ amta/
 | `progress.md` | 项目现在在哪？ | 每次收尾（/finish） |
 | `lessons.md` | 踩过什么坑、学到什么？ | 出现可复用经验时 |
 | `decisions/` | 为什么这样选？ | 架构/方向变更时 |
+| `dependency-governance.md` | 依赖膨胀治理流程（ADR-015） | 依赖治理相关时 |
 | `CLAUDE.md` | Agent 必须知道并遵守什么？ | 出现稳定规则时（保持精简） |
 | `.dsh/skills/` | 怎么做某事（流程/程序/委派）？ | 出现可复用流程时（按需加载） |
 

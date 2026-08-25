@@ -23,3 +23,4 @@
 - [012 — 代码结构重构：逻辑收敛进 src/amta 共享库，scripts 只留薄 CLI](./012-clean-architecture-refactor.md)
 - [013 — 产物结构 rebaseline：per-work workspace + work_state（Touhou 同人志缩域）](./013-per-work-workspace-rebaseline.md)
 - [014 — 翻译工位架构定稿：DeepSeek API 直调 + 双层护栏 + 分层 Loop](./014-translate-station-architecture.md)
+- [015 — 依赖膨胀治理：vibe-check 式拦截 + uv 最小化解析](./015-dependency-bloat-governance.md)

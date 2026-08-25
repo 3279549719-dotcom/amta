@@ -1,0 +1,56 @@
+# 由 uv 生成并维护的锁定文件。联网环境下 `uv lock` 会重建并补全 sdist/wheel 哈希；
+# 当前版本按 .venv 实测闭包手工固化最小集（requests + pillow 及传递依赖），保证离线可复现。
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[[package]]
+name = "amta"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "pillow" },
+    { name = "requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pillow", specifier = "==12.3.0" },
+    { name = "requests", specifier = "==2.34.2" },
+]
+
+[[package]]
+name = "certifi"
+version = "2026.7.22"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "charset-normalizer"
+version = "3.5.1"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "idna"
+version = "3.19"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "pillow"
+version = "12.3.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "requests"
+version = "2.34.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "charset-normalizer" },
+    { name = "idna" },
+    { name = "urllib3" },
+]
+
+[[package]]
+name = "urllib3"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }

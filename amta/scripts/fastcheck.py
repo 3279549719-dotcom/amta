@@ -5,9 +5,10 @@
   2. ruff lint（代码风格/未使用导入）
   3. pyright type check（类型错误）
   4. 确定性单测（tests/，纯数据，不依赖引擎/网络）
+  5. depguard（依赖膨胀守卫：未声明/未使用第三方依赖拦截，ADR-015）
 
-等价于 `npm run check` + lint + typecheck + `npm run test`，合并为一条命令。
-退出码：0 = 全过；非 0 = 有失败。
+等价于 `npm run check` + lint + typecheck + `npm run test` + depguard，
+合并为一条命令。退出码：0 = 全过；非 0 = 有失败。
 """
 from __future__ import annotations
 
@@ -76,12 +77,18 @@ def _test() -> int:
     return 1
 
 
+def _depguard() -> int:
+    """依赖膨胀守卫（ADR-015）：拦截未声明/未使用的第三方依赖。"""
+    return _run([sys.executable, str(ROOT / "scripts" / "depguard.py")], "depguard (依赖膨胀守卫)")
+
+
 def main() -> int:
     c = _compile()
     lint_rc = _lint()
     t = _typecheck()
     u = _test()
-    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u)) if rc]
+    d = _depguard()
+    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u), ("depguard", d)) if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
         return 1

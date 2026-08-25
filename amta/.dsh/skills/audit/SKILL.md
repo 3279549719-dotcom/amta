@@ -27,7 +27,7 @@ npm run audit
 ### Architecture
 - 架构是否漂移？（对照 README / ADR）
 - 模块边界是否仍被尊重？（src 不应直接依赖不该依赖的层）
-- 新依赖是否合理？（本仓零运行时依赖原则）
+- 新依赖是否合理？（本仓零运行时依赖原则，ADR-015：跑 `npm run depcheck` + `uv tree` 复核）
 
 ### Verification
 - 反复出现的失败是否缺回归测试？
