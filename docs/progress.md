@@ -8,8 +8,13 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-24，最后一笔：翻译工位架构定稿 ADR-014）
+## 当前状态（2026-08-25，最后一笔：03_translate 工位实现，fastcheck 全绿）
 
+- **03_translate 工位已实现（2026-08-25，ADR-014 落地）**：
+  - `src/amta/translate.py`（264 行纯库）：`text_chat` + `get_chat_config`（.env CHAT_*）+ 三借鉴机制（`extract_relevant_terms` / `translate_with_retry` 分层拆分 / `TranslationCache` 源文 hash）+ `build_translation_prompt`（Context 分层）+ 机械护栏（region_id 一一对应 + 假名残留）+ `SuggestionsExtractor`
+  - `scripts/03_translate.py`（薄 CLI：canon_text.json → translation.json + suggestions.json）+ `scripts/_03_translate.py`（测试桥，数字前缀无法 import，L20）+ `tests/test_translate.py`（11 测试）
+  - ⚠️ **已知缺口**：`build_translation_prompt`（Context 分层）与 `translate_with_retry`（当前硬编码 messages）**未接线**——Knowledge（work_state 术语/角色）与 History（前 3 页译文）目前没进真实 LLM 调用，是下一步 #1。
+  - ⚠️ **验证口径修复**：fastcheck 原用 unittest discover 只收 TestCase（55），漏跑全部 pytest 测试；已改跑 `pytest --basetemp` 全量 82 测试（L19/L20）。
 - **翻译工位架构定稿（2026-08-24，ADR-014）**：grill 定案 7 条，产物结构 ADR-013 的落地形态：
   - **翻译层 = 脚本直调 DeepSeek API**（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY 现成，`https://api.deepseek.com`）→ **修订锁定决策 #5**（弃 koharu 内 llm 引擎，not-ready 悬空）
   - **Harness**：Context+Guardrails+Loop 做，Tools 砍（脚本直读文件，不搞 function calling）
@@ -120,7 +125,7 @@
 ## 下一步
 
 0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011）
-1. **实现 03_translate.py（ADR-014 核心工位）**：DeepSeek API 直调 + Context 组装（canon/work_state/前 3 页/open_questions）+ 双层护栏（机械：结构/残留/region_id 对应；语义：VLM 脚本验证）+ 机械 loop（schema 错自动重译 1 次）+ suggestions.json 写入。产出 translation.json。
+1. ~~实现 03_translate.py~~ → **已实现（2026-08-25）**；剩**接线 Context 分层**：`build_translation_prompt`（System/Current/History/Knowledge/Uncertainty）与 `translate_with_retry`（当前硬编码 messages）接入真实调用——Knowledge（work_state 术语/角色）与 History（前 3 页译文）目前未进 LLM。
 2. **00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约**：文件存在=跳过断点续跑；detection.json/canon_text.json 落 workspace/<work_id>/artifacts/。
 3. **04_inpaint / 05_typeset 工位**（koharu lama-manga + renderer 验证）+ 各自 mechanical check（mask 区域像素变化/译文区渲染）。
 4. **VLM 语义护栏脚本**（DASHSCOPE 通道）：crop+译文 → 忠实度/漏译判断；拦出问题标 FAILED 附证据交导演。
