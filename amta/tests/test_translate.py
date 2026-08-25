@@ -207,3 +207,22 @@ def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
     data = _json.loads(out_path.read_text(encoding="utf-8"))
     # run() 落盘信封 {work_id, translations, residue}，译文在 translations 下
     assert data["translations"]["r01"] == "丰姬在说话"
+
+
+def test_run_rejects_bad_canon(monkeypatch, tmp_path):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import json as _json
+
+    from _03_translate import run
+
+    bad = [{"region_id": "a", "text": "x"}]  # 缺 page
+    canon_path = tmp_path / "canon.json"
+    canon_path.write_text(_json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+    try:
+        run(str(canon_path), str(tmp_path / "out.json"))
+        raise AssertionError("should raise ValueError for bad canon")
+    except ValueError as e:
+        assert "canon" in str(e).lower()

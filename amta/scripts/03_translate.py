@@ -28,6 +28,10 @@ def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None) -> dict:
     canon = paths.read_json(canon_path)
+    from amta.canon_schema import validate_canon
+    problems = validate_canon(canon)
+    if problems:
+        raise ValueError(f"canon input schema failed: {'; '.join(problems[:5])}")
     cfg = translate.get_chat_config()
     ws = load_state(work_id) if work_id else {}
     open_questions = _load_open_questions(state_dir)
