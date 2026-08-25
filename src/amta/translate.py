@@ -332,3 +332,12 @@ def _run_guardrails_for_test(canon: list[dict], translation: dict[str, str],
     """测试桥：机械护栏 + Glossary Validator 合并（ADR-016 双层机械硬约束）。"""
     from amta.glossary import check_glossary
     return mechanical_guardrails(canon, translation) + check_glossary(canon, translation, work_state)
+
+
+def record_failure(log_path: Path, entry: dict) -> None:
+    """on-failure 结构化落盘（ADR-016）：追加失败条目供 00_run_all 断点重跑。"""
+    doc = {"failures": []}
+    if log_path.exists():
+        doc = json.loads(log_path.read_text(encoding="utf-8"))
+    doc.setdefault("failures", []).append(entry)
+    log_path.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")

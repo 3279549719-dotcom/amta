@@ -50,6 +50,17 @@ def run(canon_path: str | Path, out_path: str | Path, *,
            "glossary_violations": violations}
     paths.write_json(out_path, out)
 
+    # on-failure 结构化记录（ADR-016）：残留/术语违例/空译文 → failure_log.json 供断点重跑
+    if state_dir:
+        from pathlib import Path as _Path
+        problems = [{"region_id": rid, "kind": "residue", "text": t}
+                    for rid, t in result.items() if t in residue]
+        problems += [{"region_id": rid, "kind": "glossary", "detail": v}
+                     for rid, v in violations]
+        if problems:
+            translate.record_failure(_Path(state_dir) / "failure_log.json",
+                                     {"work_id": work_id or "", "problems": problems})
+
     if work_id and state_dir:
         ex = translate.SuggestionsExtractor(existing=set(ws.get("characters", {})) | set(ws.get("terms", {})))
         sugg = ex.extract(canon, result)
