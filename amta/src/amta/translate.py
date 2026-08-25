@@ -163,6 +163,33 @@ def _prompt_parts(canon: list[dict], work_state: dict,
     return "\n".join(system_lines), "\n\n".join(user_blocks)
 
 
+# ADR-016 Tools Contract：预算常量（vision 最贵，token 受控）
+TERM_BUDGET = 10      # 每页预取术语上限
+VISION_BUDGET = 2     # 每页 vision 调用预算
+
+
+def build_tools_context(canon: list[dict], work_state: dict,
+                        prev_pages: list[dict] | None = None,
+                        open_questions: list[dict] | None = None) -> str:
+    """预取式 Tools 上下文（ADR-016）：当前页相关术语 + 前页译文显式注入。
+
+    lookup_term/get_context 为本地文件读（免费），按 TERM_BUDGET 限条防 prompt 膨胀。
+    """
+    parts = []
+    terms = work_state.get("terms", {})
+    cur_text = " ".join(r["text"] for r in canon)
+    rel = {k: v for k, v in terms.items()
+           if _norm(k) and (_norm(k) in _norm(cur_text) or _norm(cur_text) in _norm(k))}
+    if rel:
+        parts.append(f"工具查得·本页相关术语(最多{TERM_BUDGET}条):")
+        for k, v in list(rel.items())[:TERM_BUDGET]:
+            parts.append(f"- {k} = {v.get('translation', '?')} (status={v.get('status', '?')})")
+    if prev_pages:
+        parts.append("工具查得·前页译文:")
+        parts.extend(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
+    return "\n".join(parts)
+
+
 def _current_block(canon: list[dict]) -> str:
     """当前批的 region_id|text 块（分批时每批单独拼）。"""
     return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
@@ -225,16 +252,20 @@ def japanese_residue_check(texts: list[str]) -> list[str]:
 def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          split: bool = True, work_state: dict | None = None,
                          prev_pages: list[dict] | None = None,
-                         open_questions: list[dict] | None = None) -> dict[str, str]:
+                         open_questions: list[dict] | None = None,
+                         tools_ctx: str | None = None) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
 
     Context 分层接入：System 层与上下文前缀（History/Knowledge/Uncertainty）对整页算一次，
     分批重试时仅当前批的 region_id|text 块变化。
+    tools_ctx：ADR-016 Tools 预取上下文（build_tools_context 产出），注入 System 层。
     """
     ws = work_state or {}
     system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
+    if tools_ctx:
+        system = f"{system}\n\n{tools_ctx}"
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
@@ -258,10 +289,21 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
     return _one(list(canon))
 
 
+# 片假名词段 = 专有名词/外来语特征最强（サグメ）；汉字人名难自动判别，留导演批（ADR-016）
+_KATAKANA_TERM = re.compile(r"[\u30a0-\u30ff]{2,}")
+# 过滤常见语法片假名（>=2 字仍会误抓），黑名单
+_KATAKANA_STOP = {
+    "カラ", "デス", "マス", "タリ", "シテ", "トモ", "ノニ", "コト",
+    "トキ", "ヒト", "モノ", "コレ", "ソレ", "アレ", "コノ", "ソノ",
+    "アイテ", "シテ", "カラ", "デモ", "ナノ", "ノデ", "トイウ", "トシテ",
+}
+
+
 class SuggestionsExtractor:
-    """从译文里发现疑似新术语/角色 → suggestions（导演自动合并）。
+    """从译文里发现疑似新角色/专有名词 → suggestions（导演自动合并）。
 
     借鉴自 comic-translate 的 extra_context/术语演进设计 + ADR-014 suggestions 机制。
+    ADR-016 收紧：只提片假名专有名词段，不整段日文，防污染 work_state 术语表。
     """
 
     def __init__(self, existing: set[str] | None = None) -> None:
@@ -270,15 +312,32 @@ class SuggestionsExtractor:
     def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
         suggestions = []
         for r in canon:
-            text = r["text"]
-            for m in re.finditer(r"[\u3040-\u30ff\u4e00-\u9fff]{2,}", text):
+            text = r["text"] or ""
+            for m in _KATAKANA_TERM.finditer(text):
                 term = m.group(0)
-                if term not in self.existing:
-                    suggestions.append({
-                        "term": term,
-                        "source": r.get("region_id", ""),
-                        "page": r.get("page", 0),
-                        "translation": translations.get(r["region_id"], ""),
-                        "status": "candidate",
-                    })
+                if term in self.existing or term in _KATAKANA_STOP:
+                    continue
+                suggestions.append({
+                    "term": term,
+                    "source": r.get("region_id", ""),
+                    "page": r.get("page", 0),
+                    "translation": translations.get(r["region_id"], ""),
+                    "status": "candidate",
+                })
         return suggestions
+
+
+def _run_guardrails_for_test(canon: list[dict], translation: dict[str, str],
+                             work_state: dict) -> list[str]:
+    """测试桥：机械护栏 + Glossary Validator 合并（ADR-016 双层机械硬约束）。"""
+    from amta.glossary import check_glossary
+    return mechanical_guardrails(canon, translation) + check_glossary(canon, translation, work_state)
+
+
+def record_failure(log_path: Path, entry: dict) -> None:
+    """on-failure 结构化落盘（ADR-016）：追加失败条目供 00_run_all 断点重跑。"""
+    doc = {"failures": []}
+    if log_path.exists():
+        doc = json.loads(log_path.read_text(encoding="utf-8"))
+    doc.setdefault("failures", []).append(entry)
+    log_path.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")

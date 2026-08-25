@@ -8,7 +8,16 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-26，最后一笔：翻译工位首次真实运行 + 语义护栏③，fastcheck 全绿 89）
+## 当前状态（2026-08-26，最后一笔：Translate Harness 对齐 GPT 设计落地，fastcheck 全绿）
+
+- **Translate Harness 对齐 GPT 设计（2026-08-26，ADR-016，commit 见 feat/translate-harness）**：以 GPT 设计为基准补齐 translate 层，不再"以现有实现放行"：
+  - **Guardrails 补全**：新增 pre-translate **Input schema gate**（`src/amta/canon_schema.py` `validate_canon`，03 前置校验）+ **Glossary Validator**（`src/amta/glossary.py` `check_glossary`，Knowledge guardrail：confirmed 术语残留日文/非 canon 中文写法→违例）。
+  - **Eval 四维**：③ 升级**四维评分**（accuracy/fluency/consistency/readability 1~5，合并同次 VLM 调用，`parse_verdict_with_scores` + `avg_scores`，**不当闸门**=导演排序/监控）；**判例库** `testsets/case_law.json`（4 实测样本，替代参考译文 GT）。
+  - **Tools 恢复**：`build_tools_context`（lookup/get_context 预取）+ Contract（`TERM_BUDGET=10`、`VISION_BUDGET=2`），03 注入 system 层。
+  - **State 四层**：work_state 加 **observed** 层（observed/confirmed/inferred/candidate，ADR-016）；`scripts/merge_suggestions.py` 跨页一致→confirmed 自动升、导演可降级。
+  - **导演语义 loop**：`scripts/apply_revisions.py`（修订落盘 + `--only` 重评审闭环，budget=1 轮→needs_review）+ on-failure 结构化记录（`record_failure`→failure_log.json）。
+  - **验收阈值**：③ ≥90% + 导演清 FAILED。fastcheck 全绿（含新增 test_canon_schema/glossary/merge_suggestions/apply_revisions）。
+  - **注意**：本分支尚未合并回 main；`.env` 误粘贴 GitHub token 待轮换（交接事项，未处理）。
 
 - **翻译工位首次真实运行 + 语义护栏③ 落地（2026-08-26）**：
   - **首次真实调用 DeepSeek**：修 `.env` `CHAT_MODEL=deepseek-v4-pro-0813`（无效，L22）→ 实测 `deepseek-v4-pro`；探针"月の都→月之都"通。
@@ -137,7 +146,7 @@
 1. ~~实现 03_translate.py + 接线 Context 分层~~ → **已完成（2026-08-25）**：`translate_with_retry` 接入 `build_translation_prompt`（Knowledge/History/Uncertainty/Current 真进 LLM 消息），`03_translate.py` 传 work_state + open_questions。
 2. **00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约**：文件存在=跳过断点续跑；detection.json/canon_text.json 落 workspace/<work_id>/artifacts/。
 3. **04_inpaint / 05_typeset 工位**（koharu lama-manga + renderer 验证）+ 各自 mechanical check（mask 区域像素变化/译文区渲染）。
-4. ~~VLM 语义护栏脚本~~ → **已实现（2026-08-26）**：`scripts/translate_semantic_check.py` 全量 86 框通过率 96.5%（通道实际用 DeepSeek `deepseek-v4-flash-vision-exp`，非 DASHSCOPE）。剩余：**导演语义 loop 落地**（审 FAILED 队列 → 回填修订，先手工跑通）+ **术语演进**（suggestions → 合并 work_state）+ **定通过率验收阈值**。
+4. ~~VLM 语义护栏脚本~~ + ~~导演语义 loop~~ + ~~术语演进~~ + ~~验收阈值~~ → **已完成（2026-08-26，ADR-016）**：③ 四维评分 + 判例库 `testsets/case_law.json`；`scripts/apply_revisions.py`（导演修订+重评审闭环）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并，跨页一致自动升）；验收阈值 = ③ ≥90% + 导演清 FAILED。剩余：**导演人工终审 4 条样本**（判例库已记录 verdict，需跑 03+③ 真数据闭环验证）。
 5. **最终验收**：final.png 整体 VLM/导演检查（日文残留/溢出/可读性）。
 6. Benchmark C（mask + inpainting 评分）与 Benchmark A 框外漏检抽查（15 个未检出 GT 框，检测覆盖缺口）随工位推进穿插。
 7. 结果回填本节「当前状态」并推送。

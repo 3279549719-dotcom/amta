@@ -27,10 +27,15 @@ from amta import translate  # noqa: E402
 JUDGE_PROMPT = """你是漫画翻译质量评审。请阅读图中日文原文，并判断给出的译文是否合格。
 图中原文(OCR): {text}
 现有译文: {translation}
-检查要点：1) 译文是否忠实于图中原文（有无明显错译/跑偏/编造） 2) 是否漏译或空白 3) 人名术语是否与图一致。
-输出严格二选一：
+检查要点：1) 是否忠实原文（错译/跑偏/编造） 2) 是否漏译/空白 3) 人名术语是否与图一致。
+对四项各评 1-5 分（5=最好）：accuracy(语义准确) fluency(中文自然) consistency(术语一致) readability(漫画可读)。
+输出格式：
 通过
-需修订：<一句话理由>；建议译文：<译文>"""
+accuracy:{1-5}
+fluency:{1-5}
+consistency:{1-5}
+readability:{1-5}
+（若不合格，则第一行改为：需修订：<一句话理由>；建议译文：<译文>，并同样输出四项评分）"""
 
 
 def _judge_vision(cfg: dict, crop_path: Path, text: str, translation: str,
@@ -67,6 +72,30 @@ def parse_verdict(out: str) -> tuple[str, str]:
     return "fail", out
 
 
+def parse_verdict_with_scores(out: str) -> tuple[str, dict]:
+    """解析评审输出 + 四维评分（ADR-016：全量合并同次 VLM 调用，监控/排序用）。
+
+    返回 (verdict, {accuracy, fluency, consistency, readability})，未给出的分为 None。
+    """
+    import re as _re
+    verdict, _ = parse_verdict(out)
+    scores: dict = {}
+    for key in ("accuracy", "fluency", "consistency", "readability"):
+        m = _re.search(rf"{key}\s*[:：]\s*(\d)", out or "")
+        scores[key] = int(m.group(1)) if m else None
+    return verdict, scores
+
+
+def _avg_scores(rows: list[dict]) -> dict:
+    """对通过项的四维分求均值（None 忽略），无数据返回空 dict。"""
+    keys = ("accuracy", "fluency", "consistency", "readability")
+    out: dict = {}
+    for k in keys:
+        vals = [r[k] for r in rows if r.get(k) is not None]
+        out[k] = round(sum(vals) / len(vals), 2) if vals else None
+    return out
+
+
 def run(canon_path: Path, trans_path: Path, crops_dir: Path, out_path: Path,
         *, model: str = "deepseek-v4-flash-vision-exp", limit: int | None = None,
         only: list[str] | None = None) -> dict:
@@ -81,6 +110,7 @@ def run(canon_path: Path, trans_path: Path, crops_dir: Path, out_path: Path,
         canon = [r for r in canon if r["region_id"] in only_set]
 
     judged = passed = 0
+    passed_scores: list[dict] = []
     failed: list[dict] = []
     inconclusive: list[dict] = []
     for i, r in enumerate(canon, 1):
@@ -102,15 +132,17 @@ def run(canon_path: Path, trans_path: Path, crops_dir: Path, out_path: Path,
             failed.append({"region_id": rid, "source": src, "translation": tgt,
                            "reason": f"评审调用失败: {e}", "suggestion": ""})
             continue
-        verdict, detail = parse_verdict(out)
+        verdict, scores = parse_verdict_with_scores(out)
+        detail = (out or "").strip()
         if verdict == "pass":
             passed += 1
+            passed_scores.append(scores)
         elif verdict == "fail":
             failed.append({"region_id": rid, "source": src, "translation": tgt,
-                           "reason": detail, "suggestion": ""})
+                           "reason": detail, "suggestion": "", "scores": scores})
         else:
             inconclusive.append({"region_id": rid, "source": src, "translation": tgt,
-                                 "reason": detail, "suggestion": ""})
+                                 "reason": detail, "suggestion": "", "scores": scores})
         judged += 1
         print(f"[{i}/{len(canon)}] {rid}: {verdict}", flush=True)
 
@@ -122,6 +154,7 @@ def run(canon_path: Path, trans_path: Path, crops_dir: Path, out_path: Path,
         "failed": failed,
         "inconclusive": inconclusive,
         "pass_rate": round(passed / conclusive, 3) if conclusive else None,
+        "avg_scores": _avg_scores(passed_scores),
     }
     Path(out_path).write_text(json.dumps(result, ensure_ascii=False, indent=1),
                               encoding="utf-8")

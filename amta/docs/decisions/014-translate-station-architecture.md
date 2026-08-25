@@ -68,7 +68,9 @@ state/ 三文件保持 ADR-013：`touhou_knowledge.json`（canon prior，跨本�
 - ✅ **03_translate 已实现（2026-08-25）**：`src/amta/translate.py`（纯库：chat client/3 机制/Context/护栏/Loop/suggestions）+ `scripts/03_translate.py`（薄 CLI）+ `tests/test_translate.py`（11 测试）；fastcheck ALL PASS。
 - ✅ **语义护栏③ 已实现（2026-08-26）**：`scripts/translate_semantic_check.py`（VLM 逐 region 粗筛评审，默认 `deepseek-v4-flash-vision-exp`，空响应自动重试）+ `tests/test_semantic_check.py`（5 测试）；86 框全量通过率 96.5%。04/05 工位 mechanical check 仍是后续工作。
 - ⚠️ **③ 实测校准（2026-08-26）**：VLM 评审是**粗筛+随机**——抓粗错（主语错/漏译/OCR 读错导致），漏语境润色（"污秽即是心"两模型判通过，导演才抓出），会误报风格选择（如加"但"）。通过率是**粗筛层**指标，FAILED 列表=导演过目队列，非判决书。
-- 代码落点：`src/amta/translate.py` + `scripts/03_translate.py`。
+- ✅ **③ 校准 + 验收阈值（2026-08-26，ADR-016 落地）**：③ 升级**四维评分**（accuracy/fluency/consistency/readability 1~5，合并进同一次 VLM 调用，当导演排序+趋势监控、**不当闸门**）；**验收阈值 = ③ 通过率 ≥90% + 导演清 FAILED 队列**（判例库 `testsets/case_law.json`）；work_state 增 observed 层变**四层**（跨页一致自动升、导演可降级）；Tools 恢复（lookup/get_context 预取 `TERM_BUDGET=10` + vision `VISION_BUDGET=2`）；新增 pre-translate Input schema gate（`canon_schema.py`）与 Glossary Validator（`glossary.py`，Knowledge guardrail）。
+- ✅ **导演语义 loop 工具（2026-08-26）**：`scripts/apply_revisions.py`（修订落盘 + `--only` 重评审闭环，budget=1 轮→needs_review）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并）+ on-failure 结构化记录（`record_failure`）。
+- 代码落点：`src/amta/translate.py` + `scripts/03_translate.py`（补充 `src/amta/canon_schema.py`/`glossary.py`）。
 
 ## 借鉴来源与许可证（grill 定案，2026-08-24）
 
