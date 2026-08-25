@@ -47,3 +47,7 @@ testsets/pages/
 workspace/*/raw/
 workspace/*/artifacts/
 
+
+# ---- workstate 测试残留（init_workspace 在真实 workspace/ 建目录）----
+workspace/ws-*/
+
