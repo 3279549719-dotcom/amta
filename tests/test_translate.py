@@ -243,3 +243,21 @@ def test_suggestions_only_katakana_proper_nouns():
     assert "来た" not in terms          # 普通汉字/动词不提取
     assert "が好き" not in terms        # 不整段提取
     assert "稀神サグメは月が好きだ" not in terms  # 不再整段日文
+
+
+def test_run_reports_glossary_violation():
+    from amta import translate
+    canon = [{"region_id": "a", "text": "豊姫が来た", "page": 0}]
+    tr = {"a": "豊姫来了"}
+    out = translate._run_guardrails_for_test(canon, tr, {"terms": {
+        "豊姫": {"translation": "丰姬", "status": "confirmed", "aliases": []}}})
+    assert out  # 非空 = 有违例
+
+
+def test_run_glossary_clean_when_ok():
+    from amta import translate
+    canon = [{"region_id": "a", "text": "豊姫が来た", "page": 0}]
+    tr = {"a": "丰姬来了"}
+    out = translate._run_guardrails_for_test(canon, tr, {"terms": {
+        "豊姫": {"translation": "丰姬", "status": "confirmed", "aliases": []}}})
+    assert out == []

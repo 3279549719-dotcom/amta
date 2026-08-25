@@ -42,7 +42,10 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions)
 
     residue = translate.japanese_residue_check(list(result.values()))
-    out = {"work_id": work_id or "", "translations": result, "residue": residue}
+    from amta.glossary import check_glossary
+    violations = check_glossary(canon, result, ws)
+    out = {"work_id": work_id or "", "translations": result, "residue": residue,
+           "glossary_violations": violations}
     paths.write_json(out_path, out)
 
     if work_id and state_dir:
