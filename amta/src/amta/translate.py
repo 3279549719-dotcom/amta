@@ -258,10 +258,21 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
     return _one(list(canon))
 
 
+# 片假名词段 = 专有名词/外来语特征最强（サグメ）；汉字人名难自动判别，留导演批（ADR-016）
+_KATAKANA_TERM = re.compile(r"[\u30a0-\u30ff]{2,}")
+# 过滤常见语法片假名（>=2 字仍会误抓），黑名单
+_KATAKANA_STOP = {
+    "カラ", "デス", "マス", "タリ", "シテ", "トモ", "ノニ", "コト",
+    "トキ", "ヒト", "モノ", "コレ", "ソレ", "アレ", "コノ", "ソノ",
+    "アイテ", "シテ", "カラ", "デモ", "ナノ", "ノデ", "トイウ", "トシテ",
+}
+
+
 class SuggestionsExtractor:
-    """从译文里发现疑似新术语/角色 → suggestions（导演自动合并）。
+    """从译文里发现疑似新角色/专有名词 → suggestions（导演自动合并）。
 
     借鉴自 comic-translate 的 extra_context/术语演进设计 + ADR-014 suggestions 机制。
+    ADR-016 收紧：只提片假名专有名词段，不整段日文，防污染 work_state 术语表。
     """
 
     def __init__(self, existing: set[str] | None = None) -> None:
@@ -270,15 +281,16 @@ class SuggestionsExtractor:
     def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
         suggestions = []
         for r in canon:
-            text = r["text"]
-            for m in re.finditer(r"[\u3040-\u30ff\u4e00-\u9fff]{2,}", text):
+            text = r["text"] or ""
+            for m in _KATAKANA_TERM.finditer(text):
                 term = m.group(0)
-                if term not in self.existing:
-                    suggestions.append({
-                        "term": term,
-                        "source": r.get("region_id", ""),
-                        "page": r.get("page", 0),
-                        "translation": translations.get(r["region_id"], ""),
-                        "status": "candidate",
-                    })
+                if term in self.existing or term in _KATAKANA_STOP:
+                    continue
+                suggestions.append({
+                    "term": term,
+                    "source": r.get("region_id", ""),
+                    "page": r.get("page", 0),
+                    "translation": translations.get(r["region_id"], ""),
+                    "status": "candidate",
+                })
         return suggestions
