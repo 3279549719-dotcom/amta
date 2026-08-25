@@ -30,7 +30,7 @@ Lifecycle hook：pre-translate（T2/T3）、post-translate（既有 ①②）、
 
 ### 3. Golden Set 形态
 
-无参考 GT（同人无标准译文）→ 不建参考译文对照集；建**判例库 case-law**（`output/data/case_law.json`）：4 条实测样本 + 案例，标 verdict + 四维分 + reason + lesson，校准 ③ 与验收口径。
+无参考 GT（同人无标准译文）→ 不建参考译文对照集；建**判例库 case-law**（`testsets/case_law.json`）：4 条实测样本 + 案例，标 verdict + 四维分 + reason + lesson，校准 ③ 与验收口径。
 
 ### 4. Tools 恢复 + Tool Contract
 
@@ -61,4 +61,4 @@ work_state 状态由三层（confirmed/inferred/candidate）**加 observed 层�
 - ✅ Tools 有契约（TERM_BUDGET/VISION_BUDGET），vision token 受控。
 - ✅ State 四层语义完整，observed→confirmed 自动晋升 + 导演降级。
 - ⚠️ **修订 ADR-014 的"③ 是粗筛+随机"表述**：保留"粗筛+随机"性质判定，补充"四维评分=导演排序/监控、不当闸门"。
-- ✅ 参考：实现见 `docs/superpowers/plans/2026-08-26-translate-harness-alignment.md`；判例库 `output/data/case_law.json`。
+- ✅ 参考：实现见 `docs/superpowers/plans/2026-08-26-translate-harness-alignment.md`；判例库 `testsets/case_law.json`。
