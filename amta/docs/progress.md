@@ -8,7 +8,14 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
-## 当前状态（2026-08-25，最后一笔：Matt 技能包钉入 + ask-matt 入口，fastcheck 全绿）
+## 当前状态（2026-08-26，最后一笔：翻译工位首次真实运行 + 语义护栏③，fastcheck 全绿 89）
+
+- **翻译工位首次真实运行 + 语义护栏③ 落地（2026-08-26）**：
+  - **首次真实调用 DeepSeek**：修 `.env` `CHAT_MODEL=deepseek-v4-pro-0813`（无效，L22）→ 实测 `deepseek-v4-pro`；探针"月の都→月之都"通。
+  - **端到端真跑**：源文本不信任 VLM GT，改用 **PaddleOCR-VL-For-Manga 真实 OCR 输出**（`preds86_for_manga.json`，86 框/10 页）造 canon → `03_translate.py` 真实跑 → **86/86 全译出，机械护栏全过**（结构/残留零错），角色名（探女/永琳/依姬/丰姬/辉夜）一致。产物 `output/data/canon_text_ocr_paddle.json` / `translation_ocr_paddle.json`。
+  - **语义护栏③ 实现并全量运行**：`scripts/translate_semantic_check.py`（VLM 逐 region 粗筛评审，默认 `deepseek-v4-flash-vision-exp`，空响应重试，L23）+ `tests/test_semantic_check.py`（5 测试）。86 评审 **83 过 / 3 需修订 / 通过率 96.5%**（`page_9_u01` 主语错真抓对；`page_0_u07` 漏"只有一点"可辩；`page_2_u05` 加"但"疑似误报）。产物 `output/data/semantic_check_final.json`。
+  - **③ 能力边界实测**：粗筛+随机——抓粗错、漏语境润色（"污秽即是心"两模型判通过，导演才抓出）、误报风格；通过率=粗筛层指标，FAILED=导演过目队列。
+  - **待办**：导演审 3 FAILED + "污秽即是心"；术语演进（角色名→work_state，本次空 work_state 未锻炼）；定通过率验收阈值。
 
 - **Matt Pocock 技能包已钉入（2026-08-25，commit 702e452）**：ask-matt 路由器 + 25 技能从 `~/.agents/skills` 逐字节复制进 `.dsh/skills` git 钉版（ADR-009）；`~/.agents/skills` 当只读上游，`npx skills update` 后需重复制同步。CLAUDE.md 渐进式加载已加 ask-matt 行。无阻塞；用户 WIP（audit/dependency-guard）未动。
 
@@ -130,7 +137,7 @@
 1. ~~实现 03_translate.py + 接线 Context 分层~~ → **已完成（2026-08-25）**：`translate_with_retry` 接入 `build_translation_prompt`（Knowledge/History/Uncertainty/Current 真进 LLM 消息），`03_translate.py` 传 work_state + open_questions。
 2. **00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约**：文件存在=跳过断点续跑；detection.json/canon_text.json 落 workspace/<work_id>/artifacts/。
 3. **04_inpaint / 05_typeset 工位**（koharu lama-manga + renderer 验证）+ 各自 mechanical check（mask 区域像素变化/译文区渲染）。
-4. **VLM 语义护栏脚本**（DASHSCOPE 通道）：crop+译文 → 忠实度/漏译判断；拦出问题标 FAILED 附证据交导演。
+4. ~~VLM 语义护栏脚本~~ → **已实现（2026-08-26）**：`scripts/translate_semantic_check.py` 全量 86 框通过率 96.5%（通道实际用 DeepSeek `deepseek-v4-flash-vision-exp`，非 DASHSCOPE）。剩余：**导演语义 loop 落地**（审 FAILED 队列 → 回填修订，先手工跑通）+ **术语演进**（suggestions → 合并 work_state）+ **定通过率验收阈值**。
 5. **最终验收**：final.png 整体 VLM/导演检查（日文残留/溢出/可读性）。
 6. Benchmark C（mask + inpainting 评分）与 Benchmark A 框外漏检抽查（15 个未检出 GT 框，检测覆盖缺口）随工位推进穿插。
 7. 结果回填本节「当前状态」并推送。

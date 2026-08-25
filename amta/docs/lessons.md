@@ -182,6 +182,24 @@
 
 ---
 
+## L22 — DeepSeek 模型 id 必须实测 models 端点：带日期后缀的 id 是雷
+
+- **Problem**：`.env` 的 `CHAT_MODEL=deepseek-v4-pro-0813` 无效——首次真实调用即报错。DeepSeek 公开服务实测真实 id 是 `deepseek-v4-pro` / `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp`。
+- **Root cause**：模型 id 是从文档/猜测抄来的自造值（带 `-0813` 日期后缀），未对实际 API 验证；ADR-014 里记录的也是这个错 id。
+- **Durable lesson**：调 DeepSeek 前先用 `GET {base_url}/models`（Bearer key）实测可用 id；`.env` 的 `CHAT_MODEL` 只写实测值，不写带日期后缀的猜测值。
+- **Prevention**：新增/改动 CHAT_MODEL 必须跑一次 models 端点核对；本会话已把 `.env` 修正为 `deepseek-v4-pro`。
+- **Regression**：暂无自动化（需真实 API）；以探针"月の都→月之都"证明修正后通路通。
+
+## L23 — DeepSeek v4-pro 是推理模型、vision-exp 偶发空响应：调用要防"content 为空"
+
+- **Problem**：`deepseek-v4-pro` 的 `reasoning_content` 吃光 max_tokens 后 `content` 为空（finish_reason=length，答案没出来）；`deepseek-v4-flash-vision-exp` 约 14% 概率返回空 content。
+- **Root cause**：推理模型先输出 CoT（reasoning_content）再输出正式答案，max_tokens 给不足则答案出不来；vision-exp 偶发无输出。
+- **Durable lesson**：调这两个模型都要：(a) max_tokens 给足（评审类 ≥1200）；(b) 空 content 自动重试（`translate_semantic_check._judge_vision` 已内置 retries=2）。
+- **Prevention**：写任何调 CHAT_* 的脚本先看本条；解析响应前检查 content 非空，空响应按"无输出/重试"处理，勿当"评审不通过"。
+- **Regression**：`tests/test_semantic_check.py::test_parse_verdict_inconclusive_on_empty` 锁定空响应归类 inconclusive（不误计 fail）。
+
+---
+
 ## 模板（新增时复制）
 
 ```

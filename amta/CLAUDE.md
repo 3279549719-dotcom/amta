@@ -5,7 +5,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 ## 核心事实
 
 - **钉 koharu v0.59.1**（server 世代，REST /api/v1 + MCP /mcp + 像素 mask 机制）；上游 0.77.5 起已删 headless/HTTP/MCP，升级即失去全部自动化面。
-- **翻译通道**：`03_translate` 工位脚本直调 DeepSeek API（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY，`https://api.deepseek.com`），双层护栏（机械：结构/残留/region_id 对应 + 语义：VLM 验证译文）+ 分层 Loop（脚本机械重译 1 次 → FAILED 附证据交导演语义修订）；**弃 koharu 内 `llm` 引擎**（not-ready，ADR-014 修订决策 #5）。
+- **翻译通道**：`03_translate` 工位脚本直调 DeepSeek API（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY，`CHAT_MODEL=deepseek-v4-pro`，`https://api.deepseek.com`），双层护栏（机械：结构/残留/region_id 对应 + 语义：`scripts/translate_semantic_check.py` VLM 粗筛评审→FAILED 交导演）+ 分层 Loop（脚本机械重译 1 次 → FAILED 附证据交导演语义修订）；**弃 koharu 内 `llm` 引擎**（not-ready，ADR-014 修订决策 #5）。
 - **Vision QA**：`vqa()` 抽象，会话内 describe_image 实现。
 - **本地漫画 OCR**：`PaddleOCR-VL-For-Manga` GGUF（`models/paddle-manga/`）+ 独立 llama-server（`models/llama-cpp/llama-server.exe`，端口 8118，`--mmproj`）。koharu 内置 llama.cpp b8935 太旧，其 paddle/mit48px OCR 引擎全部不可用（MTMD 初始化失败），只 manga-ocr 可用；漫画 OCR 走独立 llama-server（OpenAI 兼容接口，prompt `OCR:`）。
 - **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
