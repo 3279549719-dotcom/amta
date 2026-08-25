@@ -163,6 +163,33 @@ def _prompt_parts(canon: list[dict], work_state: dict,
     return "\n".join(system_lines), "\n\n".join(user_blocks)
 
 
+# ADR-016 Tools Contract：预算常量（vision 最贵，token 受控）
+TERM_BUDGET = 10      # 每页预取术语上限
+VISION_BUDGET = 2     # 每页 vision 调用预算
+
+
+def build_tools_context(canon: list[dict], work_state: dict,
+                        prev_pages: list[dict] | None = None,
+                        open_questions: list[dict] | None = None) -> str:
+    """预取式 Tools 上下文（ADR-016）：当前页相关术语 + 前页译文显式注入。
+
+    lookup_term/get_context 为本地文件读（免费），按 TERM_BUDGET 限条防 prompt 膨胀。
+    """
+    parts = []
+    terms = work_state.get("terms", {})
+    cur_text = " ".join(r["text"] for r in canon)
+    rel = {k: v for k, v in terms.items()
+           if _norm(k) and (_norm(k) in _norm(cur_text) or _norm(cur_text) in _norm(k))}
+    if rel:
+        parts.append(f"工具查得·本页相关术语(最多{TERM_BUDGET}条):")
+        for k, v in list(rel.items())[:TERM_BUDGET]:
+            parts.append(f"- {k} = {v.get('translation', '?')} (status={v.get('status', '?')})")
+    if prev_pages:
+        parts.append("工具查得·前页译文:")
+        parts.extend(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
+    return "\n".join(parts)
+
+
 def _current_block(canon: list[dict]) -> str:
     """当前批的 region_id|text 块（分批时每批单独拼）。"""
     return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
@@ -225,16 +252,20 @@ def japanese_residue_check(texts: list[str]) -> list[str]:
 def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          split: bool = True, work_state: dict | None = None,
                          prev_pages: list[dict] | None = None,
-                         open_questions: list[dict] | None = None) -> dict[str, str]:
+                         open_questions: list[dict] | None = None,
+                         tools_ctx: str | None = None) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
 
     Context 分层接入：System 层与上下文前缀（History/Knowledge/Uncertainty）对整页算一次，
     分批重试时仅当前批的 region_id|text 块变化。
+    tools_ctx：ADR-016 Tools 预取上下文（build_tools_context 产出），注入 System 层。
     """
     ws = work_state or {}
     system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
+    if tools_ctx:
+        system = f"{system}\n\n{tools_ctx}"
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
