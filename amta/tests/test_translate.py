@@ -130,6 +130,57 @@ def test_suggestions_extractor_finds_new_term():
     assert any("サグメ" in s.get("term", "") for s in suggestions)
 
 
+def test_translate_with_retry_wires_context_layers():
+    """回归：build_translation_prompt 的 Context 分层（Knowledge/History/Uncertainty）必须真进 LLM 消息。"""
+    from amta import translate
+
+    captured = {}
+
+    def llm(messages):
+        captured["messages"] = messages
+        return '{"r01": "译文"}'
+
+    canon = [{"region_id": "r01", "text": "豊姫が話す"}]
+    ws = {"characters": {"豊姫": {"status": "confirmed", "source": "p4"}}, "terms": {}}
+    prev = [{"page": 1, "translated": "前页译文"}]
+    oq = [{"id": "q1", "question": "这个角色是男是女？", "status": "open"}]
+
+    out = translate.translate_with_retry(canon, llm, work_state=ws, prev_pages=prev, open_questions=oq)
+    assert out["r01"] == "译文"
+
+    sys_content = captured["messages"][0]["content"]
+    usr_content = captured["messages"][1]["content"]
+    blob = sys_content + "\n" + usr_content
+    assert "豊姫" in blob  # Knowledge 角色
+    assert "前页译文" in blob  # History 前页
+    assert "男是女" in blob  # Uncertainty 待确认
+    assert "r01|豊姫が話す" in usr_content  # Current 当前页块
+
+
+def test_translate_with_retry_context_reuse_system_in_split():
+    """回归：二分拆分时 System/前缀只算一次，分批只换当前块。"""
+    from amta import translate
+
+    seen_systems = []
+    seen_currents = []
+
+    def llm(messages):
+        seen_systems.append(messages[0]["content"])
+        seen_currents.append(messages[1]["content"])
+        # 单发永远只给 r01（触发拆分）
+        return '{"r01": "译文"}'
+
+    canon = [{"region_id": "r01", "text": "甲"}, {"region_id": "r02", "text": "乙"}]
+    ws = {"characters": {"豊姫": {"status": "confirmed", "source": "p4"}}}
+    out = translate.translate_with_retry(canon, llm, work_state=ws, max_retries=1)
+    assert set(out) == {"r01", "r02"}
+    # 每批 system 相同（共享整页知识），current 只含该批 region
+    assert all(s == seen_systems[0] for s in seen_systems)
+    assert "豊姫" in seen_systems[0]
+    assert "r01" in seen_currents[0]
+    assert "r02" in seen_currents[-1]
+
+
 def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
     import sys
     from pathlib import Path
