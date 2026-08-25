@@ -261,3 +261,30 @@ def test_run_glossary_clean_when_ok():
     out = translate._run_guardrails_for_test(canon, tr, {"terms": {
         "豊姫": {"translation": "丰姬", "status": "confirmed", "aliases": []}}})
     assert out == []
+
+
+def test_tools_context_lookup_and_prev():
+    from amta import translate
+    canon = [{"region_id": "a", "text": "サグメは月が好き", "page": 5}]
+    ws = {"terms": {"サグメ": {"translation": "探女", "status": "confirmed"}}}
+    prev = [{"page": 4, "translated": "前页译文"}]
+    ctx = translate.build_tools_context(canon, ws, prev_pages=prev)
+    assert "探女" in ctx            # 相关术语预取
+    assert "前页译文" in ctx        # 前页上下文
+    assert translate.TERM_BUDGET >= 1
+    assert translate.VISION_BUDGET == 2
+
+
+def test_translate_with_retry_injects_tools_ctx(monkeypatch):
+    from amta import translate
+    seen_system = {}
+
+    def llm(messages):
+        seen_system["s"] = messages[0]["content"]
+        return '{"r01": "译文"}'
+
+    canon = [{"region_id": "r01", "text": "サグメ", "page": 0}]
+    out = translate.translate_with_retry(canon, llm, work_state={"terms": {}},
+                                         tools_ctx="工具查得·额外上下文", max_retries=1)
+    assert out["r01"] == "译文"
+    assert "工具查得·额外上下文" in seen_system["s"]

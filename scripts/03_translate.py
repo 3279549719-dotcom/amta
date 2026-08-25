@@ -39,7 +39,9 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     def llm(messages):
         return translate.text_chat(cfg["base_url"], cfg["model"], messages, api_key=cfg["api_key"])
 
-    result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions)
+    tools_ctx = translate.build_tools_context(canon, ws, open_questions=open_questions)
+    result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions,
+                                            tools_ctx=tools_ctx)
 
     residue = translate.japanese_residue_check(list(result.values()))
     from amta.glossary import check_glossary
