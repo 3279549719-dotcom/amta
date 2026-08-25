@@ -26,11 +26,12 @@ from amta.paths import ROOT
 # workspace 根目录（gitignored 大产物 + 入库的 state JSON）
 WORKSPACE = ROOT / "workspace"
 
-# 证据状态枚举
+# 证据状态枚举（ADR-016 四层：observed/confirmed/inferred/candidate）
+STATUS_OBSERVED = "observed"
 STATUS_CONFIRMED = "confirmed"
 STATUS_INFERRED = "inferred"
 STATUS_CANDIDATE = "candidate"
-STATUSES = (STATUS_CONFIRMED, STATUS_INFERRED, STATUS_CANDIDATE)
+STATUSES = (STATUS_CONFIRMED, STATUS_INFERRED, STATUS_CANDIDATE, STATUS_OBSERVED)
 
 # 文本类型
 TEXT_CLASSES = ["dialogue_in", "dialogue_out", "sfx", "bg_text"]

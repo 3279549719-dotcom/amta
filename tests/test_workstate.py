@@ -10,6 +10,21 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
+def test_observed_status_in_statuses():
+    from amta import workstate as ws
+    assert "observed" in ws.STATUSES
+
+
+def test_update_character_observed(tmp_path, monkeypatch):
+    from amta import workstate as ws
+    work_id = "ws-test-observed"
+    monkeypatch.setattr(ws, "WORKSPACE", tmp_path)
+    ws.init_workspace(work_id)
+    ws.update_character(work_id, "サグメ", status="observed", source="page_0")
+    state = ws.load_state(work_id)
+    assert state["characters"]["サグメ"]["status"] == "observed"
+
+
 def test_ensure_workspace_creates_subdirs():
     from amta import workstate as ws
     wid = _new_id("ws")
