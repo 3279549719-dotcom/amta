@@ -294,3 +294,10 @@ class SuggestionsExtractor:
                     "status": "candidate",
                 })
         return suggestions
+
+
+def _run_guardrails_for_test(canon: list[dict], translation: dict[str, str],
+                             work_state: dict) -> list[str]:
+    """测试桥：机械护栏 + Glossary Validator 合并（ADR-016 双层机械硬约束）。"""
+    from amta.glossary import check_glossary
+    return mechanical_guardrails(canon, translation) + check_glossary(canon, translation, work_state)
