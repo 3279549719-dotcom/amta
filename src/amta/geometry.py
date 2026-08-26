@@ -103,3 +103,64 @@ def _contained_in(child: Sequence[float], parent: Sequence[float], ioa_thresh: f
     y1 = min(child[3], parent[3])
     inter = max(0.0, x1 - x0) * max(0.0, y1 - y0)
     return inter / c >= ioa_thresh
+
+
+def assign_sub_tier(lines: list[dict], ratio: float = 1.4) -> list[dict]:
+    """机械主次分段: 容器内每行, 与最大行宽比 >= ratio 则标 aside(碎碎念), 否则 primary。
+
+    Gemini v1.1 Stage 1 原案: 行宽比>=1.4 自动拆分主台词与碎碎念 sub_tier。
+    bbox = [x1,y1,x2,y2], 宽 = x2-x1。最大宽行为基准(primary), 明显更窄的行标 aside。
+    """
+    if not lines:
+        return list(lines)
+    widths = [b["bbox"][2] - b["bbox"][0] for b in lines]
+    max_w = max(widths) or 1.0
+    out = []
+    for b, w in zip(lines, widths):
+        item = dict(b)
+        item["sub_tier"] = "aside" if (w / max_w) < (1.0 / ratio) else "primary"
+        out.append(item)
+    return out
+
+
+def build_regions(blocks: list[dict], ioa_thresh: float = 0.75, ratio: float = 1.4) -> list[dict]:
+    """把扁平 blocks 重组为层级 regions[]（容器 + child_lines + sub_tier）。
+
+    契约升级(Gemini DetectionArtifact): 全嵌套于更大框内的子框挂到容器的 child_lines,
+    而非像 absorb_contained 那样丢弃。独立框自成 region(child_lines=[])。child_lines
+    内每行由 assign_sub_tier 标 primary/aside, 供 02_ocr 展平翻译 + 未来 05 复合排版。
+
+    返回: [{node_id, bbox, bubble_type, text, child_lines: [line_with_sub_tier]}, ...]
+    """
+    if not blocks:
+        return []
+    ordered = sorted(blocks, key=lambda b: _area(b["bbox"]), reverse=True)
+    regions: list[dict] = []
+    for b in ordered:
+        bb = b["bbox"]
+        parent = next((r for r in regions if _contained_in(bb, r["bbox"], ioa_thresh)), None)
+        if parent is not None:
+            parent["child_lines"].append(dict(b))
+        else:
+            item = dict(b)
+            item["child_lines"] = []
+            regions.append(item)
+    for r in regions:
+        r["child_lines"] = assign_sub_tier(r["child_lines"], ratio)
+    return regions
+
+
+def flatten_regions(regions: list[dict]) -> list[dict]:
+    """把层级 regions[] 展平为扁平 blocks[]（容器自身 + 每个 child_line 各一框）。
+
+    02_ocr 按展平后的 bbox 裁框出独立 region_id；03 保持扁平翻译。兼容旧 blocks[] 消费方。
+    """
+    out: list[dict] = []
+    for r in regions:
+        if r["child_lines"]:
+            for line in r["child_lines"]:
+                item = dict(line)
+                out.append(item)
+        else:
+            out.append(dict(r))
+    return out

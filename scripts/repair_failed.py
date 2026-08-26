@@ -2,7 +2,7 @@
 
 对 semantic_check 的 failed 列表逐条：
   1. 构造修复 prompt：原文 + 旧译文 + 评审意见(reason) + 请重译
-  2. 调 DeepSeek（deepseek-v4-pro，可带 lookup_term/get_context 工具）重译
+  2. 调 DeepSeek（deepseek-v4-flash，可带 lookup_term/get_context 工具）重译
   3. 机械护栏（结构/残留/glossary）检查，不过则下一轮
   4. 通过 → 写 revisions（复用 apply_revisions 语义：写回 translation + 历史）→ --only 重评审
   5. 重评审未过 → 带新评审意见下一轮（max_rounds 上限，蓝图 bounded retry）

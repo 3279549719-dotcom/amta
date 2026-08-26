@@ -20,7 +20,7 @@ from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import write_json  # noqa: E402
 from amta.pipeline import DETECTOR_STEPS  # noqa: E402
 from amta.runner import compact_blocks, run_all_pages  # noqa: E402
-from amta.geometry import absorb_contained, union_blocks  # noqa: E402
+from amta.geometry import build_regions, flatten_regions, union_blocks  # noqa: E402
 
 # 全部 4 个 detector 并集(评测召回 0.98 的配置),按文件内定义顺序稳定
 DETECT_STEPS = list(DETECTOR_STEPS.keys())
@@ -43,14 +43,18 @@ def run(work_id: str, raw_page: Path, out_path: Path,
     # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)
     comp = {eng: compact_blocks(blks, _FIELDS) for eng, blks in per_engine.items()}
     blocks = union_blocks(comp)  # IoU 去重并保留首个命中框元数据
-    blocks = absorb_contained(blocks)  # IoA 包含去重:丢弃全嵌套碎片子框(Phase B-light)
+    # 契约升级: 重组为 regions[].child_lines[].sub_tier(嵌套子框挂容器, 不丢弃)
+    regions = build_regions(blocks)
+    flat_blocks = flatten_regions(regions)  # 展平供 02_ocr 裁框(每 child_line 一框)
 
     doc = {
         "work_id": work_id,
         "page": raw_page.stem,
         "source": str(raw_page),
-        "blocks": blocks,
-        "n_boxes": len(blocks),
+        "regions": regions,
+        "blocks": flat_blocks,
+        "n_boxes": len(flat_blocks),
+        "n_regions": len(regions),
         "detect_steps": DETECT_STEPS,
         "per_engine_boxes": {eng: len(blks) for eng, blks in comp.items()},
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
