@@ -270,9 +270,14 @@ def execute_tool(name: str, args: dict, work_state: dict,
         return f"{hit['kind']}「{hit['key']}」= {trans}（status={status}，来源 {src}）"
     if name == "get_context":
         pages = max(1, min(int(args.get("pages") or 3), 3))
-        # 优先读 state_dir/translation.json（断点续跑时已有产物），回退 prev_pages 参数
+        # 优先读前页产物:state_dir/../artifacts/translation.json(00_run_all 断点续跑布局),
+        # 回退 state_dir/translation.json / prev_pages 参数
+        candidates: list[Path] = []
         if state_dir is not None:
-            p = Path(state_dir) / "translation.json"
+            sdir = Path(state_dir)
+            candidates = [sdir.parent / "artifacts" / "translation.json",
+                          sdir / "translation.json"]
+        for p in candidates:
             if p.exists():
                 try:
                     doc = json.loads(p.read_text(encoding="utf-8"))
