@@ -8,14 +8,13 @@ crop: artifacts/crops/<region_id>.png(供语义评审③按 region_id 读图)
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.ocr_engines import ocr_batch  # noqa: E402
-from amta.paths import write_json  # noqa: E402
+from amta.paths import read_json, write_json  # noqa: E402
 from PIL import Image  # noqa: E402
 
 
@@ -46,7 +45,7 @@ def _crop_by_region(raw: Path, blocks: list[dict], page_idx: int,
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         page_idx: int = 0, crop_dir: Path | None = None,
         engine: str = "auto") -> dict:
-    det = json.loads(det_path.read_text(encoding="utf-8"))
+    det = read_json(det_path)
     blocks = det.get("blocks", [])
     crop_dir = crop_dir or out_path.parent / "crops"
     pairs = _crop_by_region(raw_page, blocks, page_idx, crop_dir)

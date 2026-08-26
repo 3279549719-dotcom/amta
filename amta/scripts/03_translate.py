@@ -11,6 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta import paths, translate  # noqa: E402
+from amta.canon_schema import validate_canon  # noqa: E402
+from amta.glossary import check_glossary  # noqa: E402
 from amta.workstate import load_state  # noqa: E402
 
 
@@ -21,7 +23,7 @@ def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
     p = Path(state_dir) / "open_questions.json"
     if not p.exists():
         return None
-    doc = json.loads(p.read_text(encoding="utf-8"))
+    doc = paths.read_json(p)
     return doc.get("questions", [])
 
 
@@ -29,7 +31,6 @@ def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None,
         trace_path: str | Path | None = None) -> dict:
     canon = paths.read_json(canon_path)
-    from amta.canon_schema import validate_canon
     problems = validate_canon(canon)
     if problems:
         raise ValueError(f"canon input schema failed: {'; '.join(problems[:5])}")
@@ -57,7 +58,6 @@ def run(canon_path: str | Path, out_path: str | Path, *,
                                             tools=translate.TOOLS_SCHEMA, state_dir=state_dir)
 
     residue = translate.japanese_residue_check(list(result.values()))
-    from amta.glossary import check_glossary
     violations = check_glossary(canon, result, ws)
     out = {"work_id": work_id or "", "translations": result, "residue": residue,
            "glossary_violations": violations}
@@ -65,13 +65,12 @@ def run(canon_path: str | Path, out_path: str | Path, *,
 
     # on-failure 结构化记录（ADR-016）：残留/术语违例/空译文 → failure_log.json 供断点重跑
     if state_dir:
-        from pathlib import Path as _Path
         problems = [{"region_id": rid, "kind": "residue", "text": t}
                     for rid, t in result.items() if t in residue]
         problems += [{"region_id": rid, "kind": "glossary", "detail": v}
                      for rid, v in violations]
         if problems:
-            translate.record_failure(_Path(state_dir) / "failure_log.json",
+            translate.record_failure(Path(state_dir) / "failure_log.json",
                                      {"work_id": work_id or "", "problems": problems})
 
     if trace_path and trace:

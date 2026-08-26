@@ -20,10 +20,6 @@ from amta.runner import compact_blocks, run_all_pages  # noqa: E402
 OUT = DATA / "recall_detections.json"
 
 
-def _page_key(page: Path, idx: int) -> str:
-    return f"page_{idx}"
-
-
 def main(argv: list[str]) -> int:
     src = Path(argv[0])
     max_pages = int(argv[1]) if len(argv) > 1 else 10
@@ -35,7 +31,7 @@ def main(argv: list[str]) -> int:
     print(f"[recall] {len(pages)} pages (limit={max_pages}), engines={list(DETECTOR_STEPS)}", flush=True)
     client = KoharuClient()
     client.wait_server()
-    out = run_all_pages(client, pages, DETECTOR_STEPS, _page_key, prefix="amta-rec",
+    out = run_all_pages(client, pages, DETECTOR_STEPS, prefix="amta-rec",
                         timeout=1200, label="recall")
     # 兼容旧输出形状：只留 {node_id, bbox, bubble_type, ocr}（下游 recall_crop 依赖 bbox）
     for entry in out.values():

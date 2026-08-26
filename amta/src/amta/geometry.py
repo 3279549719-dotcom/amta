@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import Sequence
 
 
 def bbox_from_block(block: dict) -> list[float]:
@@ -48,13 +48,3 @@ def union_boxes(detections: dict[str, list[dict]], threshold: float = 0.5) -> li
                 continue
             seen.append(bb)
     return [{"bbox": list(s)} for s in seen]
-
-
-def fit_block(block: dict) -> dict[str, Any]:
-    """归一化 block 展示字段：id/bbox/ocr/confidence。"""
-    return {
-        "id": block.get("id"),
-        "bbox": bbox_from_block(block),
-        "ocr": (block.get("ocr") or "").strip(),
-        "confidence": block.get("confidence"),
-    }
