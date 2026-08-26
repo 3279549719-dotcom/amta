@@ -18,32 +18,12 @@ from typing import Any
 
 import requests
 
+from amta.metrics import levenshtein, norm
 from amta.paths import ROOT
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
 _JAPANESE = re.compile(r"[\u3040-\u30ff]")  # 假名即日文残留的判别特征；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
-_NORM_STRIP = re.compile(r"[^\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9]")
-
-
-def _norm(text: str) -> str:
-    """与 metrics.norm 同口径：去空白+去标点，保留假名/汉字/字母数字。"""
-    return _NORM_STRIP.sub("", text or "")
-
-
-def _levenshtein(a: str, b: str) -> int:
-    """编辑距离（供术语相关度匹配）。"""
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a):
-        cur = [i + 1]
-        for j, cb in enumerate(b):
-            cur.append(min(prev[j + 1] + 1, cur[j] + 1, prev[j] + (ca != cb)))
-        prev = cur
-    return prev[-1]
 
 
 def get_chat_config() -> dict[str, str]:
@@ -128,15 +108,15 @@ def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
     """
     if not glossary:
         return {}
-    norm_text = _norm(text)
+    norm_text = norm(text)
     relevant: dict[str, Any] = {}
     for term, meta in glossary.items():
-        norm_term = _norm(term)
+        norm_term = norm(term)
         if not norm_term:
             continue
         if norm_term in norm_text or norm_text in norm_term:
             relevant[term] = meta
-        elif _levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
+        elif levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
             relevant[term] = meta
     return relevant
 
@@ -231,7 +211,7 @@ def build_tools_context(canon: list[dict], work_state: dict,
     terms = work_state.get("terms", {})
     cur_text = " ".join(r["text"] for r in canon)
     rel = {k: v for k, v in terms.items()
-           if _norm(k) and (_norm(k) in _norm(cur_text) or _norm(cur_text) in _norm(k))}
+           if norm(k) and (norm(k) in norm(cur_text) or norm(cur_text) in norm(k))}
     if rel:
         parts.append(f"工具查得·本页相关术语(最多{TERM_BUDGET}条):")
         for k, v in list(rel.items())[:TERM_BUDGET]:
@@ -257,7 +237,7 @@ def execute_tool(name: str, args: dict, work_state: dict,
         hit: dict[str, Any] | None = None
         for pool, kind in ((ws.get("terms", {}), "术语"), (ws.get("characters", {}), "角色")):
             for k, v in pool.items():
-                if k == term or _norm(k) == _norm(term):
+                if k == term or norm(k) == norm(term):
                     hit = {**v, "kind": kind, "key": k}
                     break
             if hit:
@@ -300,9 +280,56 @@ def execute_tool(name: str, args: dict, work_state: dict,
     return f"未知工具：{name}"
 
 
+def run_tool_loop(llm, messages, budgets, *, work_state: dict | None = None,
+                  prev_pages: list[dict] | None = None,
+                  state_dir: Path | str | None = None,
+                  tools: list[dict] | None = None) -> str:
+    """真工具循环：模型请求工具 → execute_tool 执行 → 结果回传，直到纯文本输出。
+
+    预算（budgets: {工具名: 剩余次数}）超限拒绝服务；轮次超 MAX_TOOL_ROUNDS 强制终止。
+    llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools) -> dict（chat_with_tools）。
+    translate_with_retry 与 scripts/repair_failed.py 共用（原为两处重复实现）。
+    """
+    raw = ""
+    for _round in range(MAX_TOOL_ROUNDS):
+        if tools:
+            resp = llm(messages, tools=tools)
+        else:
+            resp = llm(messages)
+        if isinstance(resp, str):
+            return resp
+        calls = resp.get("tool_calls") or []
+        content_text = resp.get("content") or ""
+        if not calls:
+            return content_text
+        messages.append({"role": "assistant", "content": content_text or None,
+                         "tool_calls": calls})
+        for call in calls:
+            fn = call.get("function", {})
+            name = fn.get("name", "")
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            if budgets.get(name, 0) <= 0:
+                result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
+            else:
+                budgets[name] -= 1
+                result = execute_tool(name, args, work_state or {}, prev_pages, state_dir)
+            messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
+                             "content": result})
+    return raw
+
+
 def _current_block(canon: list[dict]) -> str:
     """当前批的 region_id|text 块（分批时每批单独拼）。"""
     return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
+
+
+def _build_current_content(prefix: str, batch: list[dict]) -> str:
+    """组装当前批 user 内容（Current 层）：region_id|text 块 + Uncertainty 前缀。"""
+    cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
+    return f"{prefix}\n\n{cur}" if prefix else cur
 
 
 def build_translation_prompt(canon: list[dict], work_state: dict, *,
@@ -313,9 +340,7 @@ def build_translation_prompt(canon: list[dict], work_state: dict, *,
     借鉴自 manga-image-translator 的 prev_context 独立 system message 设计（ADR-014 History 层）。
     """
     system, prefix = _prompt_parts(canon, work_state, prev_pages, open_questions)
-    cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(canon)
-    current = f"{prefix}\n\n{cur}" if prefix else cur
-    return {"system": system, "current": current}
+    return {"system": system, "current": _build_current_content(prefix, canon)}
 
 
 def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str]:
@@ -387,40 +412,11 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
         region_ids = [r["region_id"] for r in batch]
         budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET}
         for _ in range(max_retries):
-            cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
-            content = f"{prefix}\n\n{cur}" if prefix else cur
+            content = _build_current_content(prefix, batch)
             messages: list[dict[str, Any]] = [{"role": "system", "content": system},
                                         {"role": "user", "content": content}]
-            raw = ""
-            for _round in range(MAX_TOOL_ROUNDS):
-                if tools:
-                    resp = llm(messages, tools=tools)
-                else:
-                    resp = llm(messages)
-                if isinstance(resp, str):
-                    raw = resp
-                    break
-                calls = resp.get("tool_calls") or []
-                content_text = resp.get("content") or ""
-                if not calls:
-                    raw = content_text
-                    break
-                messages.append({"role": "assistant", "content": content_text or None,
-                                 "tool_calls": calls})
-                for call in calls:
-                    fn = call.get("function", {})
-                    name = fn.get("name", "")
-                    try:
-                        args = json.loads(fn.get("arguments") or "{}")
-                    except json.JSONDecodeError:
-                        args = {}
-                    if budgets.get(name, 0) <= 0:
-                        result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
-                    else:
-                        budgets[name] -= 1
-                        result = execute_tool(name, args, ws, prev_pages, state_dir)
-                    messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
-                                     "content": result})
+            raw = run_tool_loop(llm, messages, budgets, work_state=ws,
+                                prev_pages=prev_pages, state_dir=state_dir, tools=tools)
             parsed = parse_translation_response(raw, region_ids)
             if not mechanical_guardrails(batch, parsed):
                 return parsed
