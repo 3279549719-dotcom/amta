@@ -14,6 +14,12 @@
   - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
   - 测试 +6（134 全绿）
 
+## 当前状态（2026-08-26 三笔：工单机制落地 + /finish 收尾，feat/translate-tools-fc 合并 master）
+
+- **工单机制（ADR-017，借鉴 CMMS）**：src/amta/tickets.py TicketStore——状态机 open→in_progress→resolved/rejected，JSON 文件即状态（state_dir/tickets.json）；repair_failed 达上限自动开单（classify_kind 关键词分类 term_conflict/false_positive/hard_case）；**归档闭环**：resolve/reject 时处理结论自动回写判例库（维修手册逻辑，导演处置即沉淀判例）。测试 +5。
+- **/finish 收尾（cycle-close + finisher subagent）**：CLAUDE.md 翻译通道/工具面/坑速查更新（预取→真 FC、导演不手写译文、tickets.py）；ADR-014/016 加修订标注（导演角色归位、Tools 预取→真 FC）；ADR-017 新建 + README 索引补 016/017；lessons L24-L27（prompt 花括号 format 坑/可复现基线/Python313 环境/OpenClaw 脱敏坑）；pre-commit 优先 Python3.13；package.json test 改 pytest（修 unittest discover 漏收集陷阱）；JUDGE_PROMPT format 冒烟测试。fastcheck 140 全绿。
+- 本分支 5 commits（a44f7e4 工具 / a9bc36c 闭环 / d78ed74 自动修复 / +工单机制 / +收尾），合并回 main 并推送。
+
 ## 当前状态（2026-08-26 二笔：真 function calling + 导演闭环端到端验证，fastcheck 全绿）
 
 - **Tools 真实现（Patrick 裁决，feat/translate-tools-fc 分支，commit a44f7e4）**：预取注入 → 真 function calling：
