@@ -68,10 +68,10 @@ def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
     det_path = tmp_path / "det.json"
     det_path.write_text(json.dumps(det), encoding="utf-8")
 
-    def fake_ocr(crops, base_url="", model="paddle", concurrency=1):
+    def fake_ocr(crops, engine="auto", **kw):
         return [{"crop": c, "ocr": "月の都" if "u00" in c else ""} for c in crops]
 
-    monkeypatch.setattr(impl, "local_ocr_batch", fake_ocr)  # 打实现模块已绑定引用
+    monkeypatch.setattr(impl, "ocr_batch", fake_ocr)  # 打实现模块已绑定引用
     out = tmp_path / "canon.json"
     doc = impl.run("w", det_path, raw, out, page_idx=0)
     canon = json.loads(out.read_text(encoding="utf-8"))

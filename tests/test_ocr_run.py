@@ -114,3 +114,50 @@ def test_dashscope_engine_uses_env_key(monkeypatch, tmp_path):
     assert parts[0]["type"] == "image_url"
     assert parts[0]["image_url"]["url"].startswith("data:image/png;base64,")
     assert parts[1] == {"type": "text", "text": "OCR"}
+
+
+# ---------- ocr_batch 可插拔分发器 ----------
+
+def test_ocr_batch_routes_to_local(monkeypatch, tmp_path):
+    """engine=local → 走 local_ocr_batch（llama-server），不碰 baberu。"""
+    from amta import ocr_engines
+
+    crops = [str(tmp_path / "a.png"), str(tmp_path / "b.png")]
+    for c in crops:
+        (tmp_path / "b.png").write_bytes(b"x")
+
+    called = {}
+    def fake_local(crops_, **kw):
+        called["local"] = True
+        return [{"crop": c, "ocr": "月の都"} for c in crops_]
+
+    monkeypatch.setattr(ocr_engines, "local_ocr_batch", fake_local)
+    monkeypatch.setattr(ocr_engines, "_baberu_batch",
+                        lambda crops: (_ for _ in ()).throw(AssertionError("baberu 不应被调")))
+    out = ocr_engines.ocr_batch(crops, engine="local")
+    assert called.get("local") and out[0]["ocr"] == "月の都"
+
+
+def test_ocr_batch_baberu_falls_back_on_empty(monkeypatch, tmp_path):
+    """auto：baberu 空输出 → 回退 local。"""
+    from amta import ocr_engines
+
+    crops = [str(tmp_path / "a.png"), str(tmp_path / "b.png")]
+    for c in crops:
+        Path(c).write_bytes(b"x")
+
+    def fake_baberu(crops_):
+        # 用文件名判断：b.png 空输出 → 触发回退（勿用全路径，tmp 目录名可能含 "a"）
+        return [{"crop": c, "ocr": "短" if Path(c).name == "a.png" else ""} for c in crops_]
+
+    fall_calls = {"n": 0}
+    def fake_local(crops_, **kw):
+        fall_calls["n"] += 1
+        return [{"crop": c, "ocr": "回退" + c[-5]} for c in crops_]
+
+    monkeypatch.setattr(ocr_engines, "_baberu_batch", fake_baberu)
+    monkeypatch.setattr(ocr_engines, "local_ocr_batch", fake_local)
+    out = ocr_engines.ocr_batch(crops, engine="auto")
+    assert out[0]["ocr"] == "短"
+    assert out[1]["ocr"].startswith("回退")
+    assert fall_calls["n"] == 1  # 只回退空的那张

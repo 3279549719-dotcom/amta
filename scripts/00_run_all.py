@@ -39,7 +39,7 @@ def _out(ws_root: Path, name: str) -> Path:
 
 
 def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
-        with_review: bool = False) -> int:
+        with_review: bool = False, ocr_engine: str = "auto") -> int:
     ws_root = ensure_workspace(work_id)
     state_dir = ws_root / "state"
     log = PipelineLog(state_dir / "pipeline_log.json")
@@ -83,7 +83,8 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 t0 = time.time()
                 _run_cli([str(HERE / "02_ocr.py"), "--work-id", work_id,
                           "--det", str(det_path), "--raw", str(raw),
-                          "--out", str(canon_path), "--page-idx", str(page_idx)])
+                          "--out", str(canon_path), "--page-idx", str(page_idx),
+                          "--engine", ocr_engine])
                 log.add_span(run_id, step="02_ocr", page=page, status="ok",
                              input=str(det_path), output=str(canon_path),
                              duration_s=time.time() - t0)
@@ -148,8 +149,12 @@ def main() -> int:
     ap.add_argument("--start-page", type=int, default=1)
     ap.add_argument("--end-page", type=int, required=True)
     ap.add_argument("--with-review", action="store_true", help="附带 ③ 评审 + 自动修复")
+    ap.add_argument("--ocr-engine", default="auto",
+                    choices=["auto", "baberu", "local", "dashscope"],
+                    help="OCR 引擎(auto=baberu fast path+回退; 默认 auto)")
     a = ap.parse_args()
-    return run(a.work_id, a.src_dir, a.start_page, a.end_page, with_review=a.with_review)
+    return run(a.work_id, a.src_dir, a.start_page, a.end_page,
+               with_review=a.with_review, ocr_engine=a.ocr_engine)
 
 
 if __name__ == "__main__":

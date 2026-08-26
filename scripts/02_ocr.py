@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.ocr_engines import local_ocr_batch  # noqa: E402
+from amta.ocr_engines import ocr_batch  # noqa: E402
 from amta.paths import write_json  # noqa: E402
 from PIL import Image  # noqa: E402
 
@@ -44,14 +44,15 @@ def _crop_by_region(raw: Path, blocks: list[dict], page_idx: int,
 
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
-        page_idx: int = 0, crop_dir: Path | None = None) -> dict:
+        page_idx: int = 0, crop_dir: Path | None = None,
+        engine: str = "auto") -> dict:
     det = json.loads(det_path.read_text(encoding="utf-8"))
     blocks = det.get("blocks", [])
     crop_dir = crop_dir or out_path.parent / "crops"
     pairs = _crop_by_region(raw_page, blocks, page_idx, crop_dir)
     if not pairs:
         raise RuntimeError(f"02_ocr: no valid bbox in {det_path}")
-    ocr_rows = local_ocr_batch([str(c) for _, _, c in pairs])
+    ocr_rows = ocr_batch([str(c) for _, _, c in pairs], engine=engine)
     ocr_by_crop = {r["crop"]: (r.get("ocr") or "").strip() for r in ocr_rows}
     canon = []
     for rid, b, crop in pairs:
@@ -77,8 +78,11 @@ def main() -> int:
     ap.add_argument("--raw", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--page-idx", type=int, default=0, help="页面序号(region_id 用,0 基)")
+    ap.add_argument("--engine", default="auto",
+                    choices=["auto", "baberu", "local", "dashscope"],
+                    help="OCR 引擎(auto=baberu fast path+回退; 默认 auto)")
     a = ap.parse_args()
-    doc = run(a.work_id, a.det, a.raw, a.out, page_idx=a.page_idx)
+    doc = run(a.work_id, a.det, a.raw, a.out, page_idx=a.page_idx, engine=a.engine)
     print(f"[02_ocr] {doc['page']}: {doc['n_regions']} regions -> {a.out}")
     return 0
 
