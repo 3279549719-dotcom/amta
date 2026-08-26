@@ -8,6 +8,12 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
+- **自动修复层落地（Patrick 裁决，commit 待填）**：scripts/repair_failed.py——FAILED 带评审意见喂回 DeepSeek 自修复（可带工具），机械护栏 + --only 重评审，max_rounds 上限，修不掉进 needs_review（导演只碰这里，日常修复全自动）：
+  - 验收：判例库 5 条 fail 样本 → **4/5 直接自动修复**（2 条与手动修订一字不差，1 条更优），重评审全过
+  - needs_review 真实触发 1 条（page_2_u08）：评审推翻 confirmed 术语「咔恰」→ 导演更新 work_state 术语表为「咔嗒」→ 自动修复 1 轮通过
+  - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
+  - 测试 +6（134 全绿）
+
 ## 当前状态（2026-08-26 二笔：真 function calling + 导演闭环端到端验证，fastcheck 全绿）
 
 - **Tools 真实现（Patrick 裁决，feat/translate-tools-fc 分支，commit a44f7e4）**：预取注入 → 真 function calling：
