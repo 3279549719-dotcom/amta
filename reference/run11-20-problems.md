@@ -8,8 +8,13 @@
 
 ## 未解决
 
-- **跨页回溯缺口（get_context）**：`get_context`（translate.py L278）只读**合并单文件** `artifacts/translation.json`，但 00_run_all 写的是 per-page `page_N_translation.json` → 跨页前页回溯当前**不工作**（无合并文件）。**方案 B 转正已补**（backfill_1_10.py 生成合并文件，含 1-10 页 86 条）。
-- **00_run_all 不维护合并文件**：00_run_all 只写 per-page `page_N_translation.json`，不会把新完成的页并入 `artifacts/translation.json`。若 get_context 依赖合并文件，跑批新增页不会自动反映到前页回溯 → 需 00_run_all 每完成一页更新合并文件，或 get_context 改为读 per-page。**待跑批完成后处理。**
+- **00_run_all 不维护合并文件（已修）**：00_run_all 只写 per-page，不并入 `artifacts/translation.json`。**已修**：加 `_refresh_merged_translation`，每完成一页刷新合并文件；get_context 前页回溯始终可用。
+
+## 已解决
+
+- **修复后 semantic.json 残留旧快照误报（/loop 发现，已修）**：page_13_u08 / page_14_u00 被 auto_repair 修好（revisions source=auto-repair，译文正确），但 `semantic.json` failed 数组未随 repair 更新 → 误报仍显示 FAILED。根因：`repair_failed.run()` 只写 translation + needs_review，不回写 semantic。**修复**：run() 末尾把 repaired 区域从 semantic failed 移除并回写（更新 passed/pass_rate）。已跑产物 page_13/14 semantic 手动同步（导演终审确认译文正确）。测试 +1（semantic writeback 断言）。
+
+- **get_context 合并文件缺口（已修）**：get_context 只读 `artifacts/translation.json`，1-10 页无此产物。**修复**：`backfill_1_10.py` 转正 1-10 页 + 生成合并文件；00_run_all 新增 `_refresh_merged_translation` 持续维护。合并文件现含 20 页 148 条。
 
 ## 观察记录（非问题，evidence）
 
