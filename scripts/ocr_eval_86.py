@@ -6,18 +6,16 @@
 """
 from __future__ import annotations
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from amta.paths import DATA, ensure_utf8_stdio, read_json, write_json  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from ocr_run import send_one, dashscope_ocr_batch  # noqa: E402
+
+ensure_utf8_stdio()
 
 
 def run_local(crops, base_url="http://127.0.0.1:8118/v1", model="paddle"):
@@ -39,7 +37,7 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
-    data = json.loads((ROOT / "output" / "data" / "eval_86.json").read_text(encoding="utf-8"))
+    data = read_json(DATA / "eval_86.json")
     entries = data["entries"]
     crops = [e["crop"] for e in entries]
     print(f"[ocr_eval_86] {len(crops)} crops, engine={a.engine}", file=sys.stderr)
@@ -49,8 +47,7 @@ def main() -> int:
     else:
         preds = dashscope_ocr_batch(crops, model=a.model or "qwen-vl-ocr-latest")
 
-    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(a.out).write_text(json.dumps(preds, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(a.out, preds)
     print(f"[ocr_eval_86] preds -> {a.out}", file=sys.stderr)
     return 0
 

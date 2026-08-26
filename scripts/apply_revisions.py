@@ -35,7 +35,7 @@ def main() -> int:
     doc = json.loads(a.trans.read_text(encoding="utf-8"))
     revs = json.loads(a.revisions.read_text(encoding="utf-8"))
     trans = doc.setdefault("translations", {})
-    out, log = apply(trans, revs)
+    _, log = apply(trans, revs)
     doc["revisions"] = doc.get("revisions", []) + revs
     a.trans.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"[apply_revisions] applied {len(log)} revisions -> {a.trans}")

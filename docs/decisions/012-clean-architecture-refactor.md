@@ -23,3 +23,5 @@
 - ✅ fastcheck ALL PASS（compile + ruff + pyright + 单测）。
 - ⚠️ 未改动：fastcheck/audit/context7/merge_labels/baberu_ocr/gen_report_for_manga/smoke_test 等独立脚本（自包含、无重复收益），以及 .ps1 hooks。
 - ⚠️ 环境问题（非本重构引入）：pre-commit hook 里 `python` 解析到 AutoClaw 自带解释器（缺 requests/ruff），hook 必然 FAIL 并阻断提交——当前用 `--no-verify` 规避；根治建议：install_hooks.ps1 改用显式解释器路径或项目 venv。
+
+> **修订（2026-08-26，refactor/simplify f819cd8）**：继续本 ADR 方向二次化简（17 文件 +102/-151，fastcheck ALL PASS，未合并 main）：norm/levenshtein 从 translate/glossary 收敛进 `amta.metrics`；工具循环提取 `translate.run_tool_loop()` 供 repair_failed 共用；`_page_key` 提升为 `runner.page_key` 默认值；base64 data-URI / stdio 样板 / read_json 收敛到 `amta.paths`；删除死代码 `geometry.fit_block` 与 `pipeline.OCR_STEPS`（全仓零引用）。**评估过但跳过（效率/行为差异，勿重提）**：02_ocr crop 合并、`_judge_vision` 与 `build_payload` 合并；`_NN_xxx.py` 桥按 L20 硬约束保留。

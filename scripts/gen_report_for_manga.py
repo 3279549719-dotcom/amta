@@ -3,16 +3,16 @@ benchmark_b_paddle_manga.html (Summary by type + Rows worst-first).
 Input: output/data/benchmark86_for_manga.json
 """
 from __future__ import annotations
-import json
 import sys
 from pathlib import Path
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from amta.paths import DATA, REPORTS, ensure_utf8_stdio, read_json  # noqa: E402
 
-ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "output" / "data" / "benchmark86_for_manga.json"
-OUT = ROOT / "output" / "reports" / "ocr_benchmark_for_manga.html"
+ensure_utf8_stdio()
+
+SRC = DATA / "benchmark86_for_manga.json"
+OUT = REPORTS / "ocr_benchmark_for_manga.html"
 
 
 def h(s: str) -> str:
@@ -20,7 +20,7 @@ def h(s: str) -> str:
 
 
 def main() -> int:
-    data = json.loads(SRC.read_text(encoding="utf-8"))
+    data = read_json(SRC)
     summary = data["summary"]
     rows = list(data["rows"])
     # worst-first by CER, tiebreak by page

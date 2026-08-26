@@ -6,7 +6,8 @@
 """
 from __future__ import annotations
 
-from amta.translate import _levenshtein, _norm, _JAPANESE
+from amta.metrics import levenshtein, norm
+from amta.translate import _JAPANESE
 
 
 def check_glossary(canon: list[dict], translation: dict[str, str], work_state: dict) -> list[str]:
@@ -35,9 +36,9 @@ def check_glossary(canon: list[dict], translation: dict[str, str], work_state: d
                 continue
             if _JAPANESE.search(tgt):
                 continue  # 纯日文残留交给 ②，不重复报
-            norm_tgt = _norm(tgt)
-            norm_canon = _norm(canon_zh)
-            if norm_canon and _levenshtein(norm_tgt[: len(norm_canon)], norm_canon) <= 2 \
+            norm_tgt = norm(tgt)
+            norm_canon = norm(canon_zh)
+            if norm_canon and levenshtein(norm_tgt[: len(norm_canon)], norm_canon) <= 2 \
                     and norm_canon not in norm_tgt:
                 violations.append(f"{r['region_id']}: 术语 {term} 中文写法与 canon {canon_zh} 不一致")
     return violations

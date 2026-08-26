@@ -8,13 +8,13 @@
 from __future__ import annotations
 import argparse
 import sys
+from collections import defaultdict
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta import paths, workstate  # noqa: E402
 
 
 def merge(state: dict, suggestions: list[dict]) -> dict:
-    from collections import defaultdict
     grouped: dict[str, list[dict]] = defaultdict(list)
     for s in suggestions:
         grouped[s["term"]].append(s)

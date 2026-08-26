@@ -22,7 +22,6 @@ DETECTOR_STEPS = {
 
 # Benchmark B：三 OCR 同框对比（需要先有 TextBoxes）
 OCR_ENGINES = ["manga-ocr", "paddle-ocr-vl-1.5", "mit48px-ocr"]
-OCR_STEPS = {name: [name] for name in OCR_ENGINES}
 
 # Benchmark C：mask + inpainting（CPU 上 lama 是唯一现实选择）
 INPAINT_STEPS = ["comic-text-detector-seg", "speech-bubble-segmentation", "lama-manga"]

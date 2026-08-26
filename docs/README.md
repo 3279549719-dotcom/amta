@@ -28,7 +28,7 @@ amta/
     ├── README.md             # 本导航
     ├── progress.md           # 项目状态
     ├── lessons.md            # 经验库（坑的唯一归属）
-    ├── decisions/            # 架构决策 ADR（001~004）
+    ├── decisions/            # 架构决策 ADR（001~018）
     └── 01-04 调研报告         # 历史调研（可选：移入 research/ 子目录，见下）
 ```
 
