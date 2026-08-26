@@ -48,3 +48,21 @@ def union_boxes(detections: dict[str, list[dict]], threshold: float = 0.5) -> li
                 continue
             seen.append(bb)
     return [{"bbox": list(s)} for s in seen]
+
+
+def union_blocks(detections: dict[str, list[dict]], threshold: float = 0.5) -> list[dict]:
+    """多 detector 并集，保留首个命中框的元数据（node_id/bubble_type/ocr 等）。
+
+    union_boxes 只留 bbox；这里把 blocks 的附加字段一并带出，供 01_detect 输出扁平 blocks[]。
+    去重判据与 union_boxes 一致（IoU > threshold 视为重复），重复时保留首个出现的完整 block。
+    """
+    seen: list[dict] = []
+    for blocks in detections.values():
+        for b in blocks:
+            bb = bbox_from_block(b)
+            if any(iou(bb, s["bbox"]) > threshold for s in seen):
+                continue
+            item = dict(b)
+            item["bbox"] = bb
+            seen.append(item)
+    return seen

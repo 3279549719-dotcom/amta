@@ -110,6 +110,26 @@ class GeometryTest(unittest.TestCase):
         out = geometry.union_boxes(detections)
         self.assertEqual(len(out), 2)
 
+    def test_union_blocks_keeps_metadata_and_dedupes(self):
+        detections = {
+            "ctd": [
+                {"node_id": "a", "bubble_type": "dialogue", "text": None,
+                 "transform": {"x": 0, "y": 0, "w": 10, "h": 10}},
+            ],
+            "anime": [
+                {"node_id": "b", "bubble_type": "sfx", "text": None,
+                 "transform": {"x": 0, "y": 0, "w": 10, "h": 10}},  # 与 a 重复
+                {"node_id": "c", "bubble_type": "dialogue", "text": None,
+                 "transform": {"x": 100, "y": 100, "w": 5, "h": 5}},
+            ],
+        }
+        out = geometry.union_blocks(detections)
+        self.assertEqual(len(out), 2)
+        # 保留首个命中框元数据 + bbox 字段
+        self.assertEqual(out[0]["node_id"], "a")
+        self.assertEqual(out[0]["bbox"], [0.0, 0.0, 10.0, 10.0])
+        self.assertEqual(out[1]["node_id"], "c")
+
 
 if __name__ == "__main__":
     unittest.main()
