@@ -3,7 +3,11 @@
 # Install: scripts/install_hooks.ps1 (git config core.hooksPath .githooks)
 set -e
 cd "$(dirname "$0")/.."
-command -v python >/dev/null 2>&1 && PY=python || PY=py
+# prefer Python 3.13 global interpreter (PATH default python = AutoClaw, lacks pytest/ruff, L26)
+if command -v python3.13 >/dev/null 2>&1; then PY=python3.13
+elif command -v py >/dev/null 2>&1 && py -3.13 -c "import pytest, ruff" >/dev/null 2>&1; then PY="py -3.13"
+elif command -v python >/dev/null 2>&1 && python -c "import pytest, ruff" >/dev/null 2>&1; then PY=python
+else echo "[pre-commit] ERROR: need Python 3.13 with pytest/ruff (AutoClaw python lacks them)" >&2; exit 1; fi
 
 echo "[pre-commit] fastcheck (compile + ruff + pyright + unit tests + depguard)..."
 $PY scripts/fastcheck.py

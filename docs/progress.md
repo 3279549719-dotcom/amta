@@ -8,6 +8,33 @@
 
 会话驱动漫画翻译自动化：**DSH 会话=导演，amta Python=确定性执行器，koharu v0.59.1 headless(:4000)=引擎**。第一里程碑：Benchmark A/B/C 定量钉死能力边界。
 
+- **自动修复层落地（Patrick 裁决，commit 待填）**：scripts/repair_failed.py——FAILED 带评审意见喂回 DeepSeek 自修复（可带工具），机械护栏 + --only 重评审，max_rounds 上限，修不掉进 needs_review（导演只碰这里，日常修复全自动）：
+  - 验收：判例库 5 条 fail 样本 → **4/5 直接自动修复**（2 条与手动修订一字不差，1 条更优），重评审全过
+  - needs_review 真实触发 1 条（page_2_u08）：评审推翻 confirmed 术语「咔恰」→ 导演更新 work_state 术语表为「咔嗒」→ 自动修复 1 轮通过
+  - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
+  - 测试 +6（134 全绿）
+
+## 当前状态（2026-08-26 三笔：工单机制落地 + /finish 收尾，feat/translate-tools-fc 合并 master）
+
+- **工单机制（ADR-017，借鉴 CMMS）**：src/amta/tickets.py TicketStore——状态机 open→in_progress→resolved/rejected，JSON 文件即状态（state_dir/tickets.json）；repair_failed 达上限自动开单（classify_kind 关键词分类 term_conflict/false_positive/hard_case）；**归档闭环**：resolve/reject 时处理结论自动回写判例库（维修手册逻辑，导演处置即沉淀判例）。测试 +5。
+- **/finish 收尾（cycle-close + finisher subagent）**：CLAUDE.md 翻译通道/工具面/坑速查更新（预取→真 FC、导演不手写译文、tickets.py）；ADR-014/016 加修订标注（导演角色归位、Tools 预取→真 FC）；ADR-017 新建 + README 索引补 016/017；lessons L24-L27（prompt 花括号 format 坑/可复现基线/Python313 环境/OpenClaw 脱敏坑）；pre-commit 优先 Python3.13；package.json test 改 pytest（修 unittest discover 漏收集陷阱）；JUDGE_PROMPT format 冒烟测试。fastcheck 140 全绿。
+- 本分支 5 commits（a44f7e4 工具 / a9bc36c 闭环 / d78ed74 自动修复 / +工单机制 / +收尾），合并回 main 并推送。
+
+## 当前状态（2026-08-26 二笔：真 function calling + 导演闭环端到端验证，fastcheck 全绿）
+
+- **Tools 真实现（Patrick 裁决，feat/translate-tools-fc 分支，commit a44f7e4）**：预取注入 → 真 function calling：
+  - chat_with_tools（OpenAI 兼容 tools + tool_calls 解析）+ TOOLS_SCHEMA（lookup_term / get_context）+ execute_tool（本地 JSON 读）
+  - 工具循环：模型请求 → 执行 → 回传 → 继续，直到纯文本；预算真拦截（TERM_BUDGET=10 / GET_CONTEXT_BUDGET=3 超限拒绝服务，MAX_TOOL_ROUNDS=6 防死循环）
+  - Context 最小披露：角色/术语/前页不再预塞（_prompt_parts 精简），模型按需调工具；open_questions 保留
+  - vision 工具第一版未接线（VISION_BUDGET=2 预留），看图职责归评审③
+- **86 条真实数据重跑（function calling 版）**：	ranslation_ocr_paddle_fc.json 86/86 全译出、机械护栏零错；semantic_check_fc.json 首轮 79/86（94.0%）
+- **修复隐藏 bug**：	ranslate_semantic_check.py JUDGE_PROMPT 里 {1-5} 花括号被 .format() 当占位符 → 全量评审必崩（此前 83/86 是在旧 prompt 版本上跑的）；已修复并重跑
+- **导演闭环端到端验证通过（round 1）**：5 FAILED（page_0_u11 生硬 / page_2_u08 拟声词 / page_5_u02 漏语气 / page_6_u00 か误译 / page_9_u01 主语）→ 导演修订 
+evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 合并后 **86/86 全清（pass_rate 1.0）**；page_7_u05 评审误报（语境补全当编造）导演驳回维持原译；page_4_u08 重试通过
+- **术语演进闭环**：merge_suggestions 19 条候选 → work_state（カチャ 跨页一致自动升 confirmed，其余 candidate）
+- **判例库 4 → 10 条**：沉淀 round1 五条修订样本 + 两条误报/自动修复样本
+- 环境注意：fastcheck 必须用 Python313 全局解释器（PATH 默认 python 是 AutoClaw 的，无 pytest/ruff；pre-commit hook 同样受影响，提交时需把 Python313 放 PATH 前）
+
 ## 当前状态（2026-08-26，最后一笔：Translate Harness 对齐 GPT 设计落地，fastcheck 全绿）
 
 - **Translate Harness 对齐 GPT 设计（2026-08-26，ADR-016，commit 见 feat/translate-harness）**：以 GPT 设计为基准补齐 translate 层，不再"以现有实现放行"：

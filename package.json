@@ -9,7 +9,7 @@
     "precheck": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
     "smoke": "python scripts/smoke_test.py",
     "check": "python -m compileall -q src scripts",
-    "test": "python -m unittest discover -s tests -v",
+    "test": "python -m pytest tests -q --basetemp output/logs/.pytest-basetemp",
     "lint": "python -m ruff check src scripts tests",
     "typecheck": "pyright src",
     "depcheck": "python scripts/depguard.py",

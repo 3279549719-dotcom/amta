@@ -200,6 +200,38 @@
 
 ---
 
+## L24 — prompt 模板含字面花括号会被 .format() 当占位符
+
+- **Problem**：`translate_semantic_check.py` JUDGE_PROMPT 里写 `accuracy:{1-5}` 等字面花括号，`.format(text=…, translation=…)` 直接抛 `KeyError('1-5')`——全量评审必崩。
+- **Root cause**：str.format() 把 `{}` 当占位符；模板里想表达"评分范围/JSON 示例"的字面花括号未转义。
+- **Durable lesson**：prompt 模板含字面花括号时禁止直接 .format()——双写 `{{ }}` 或改用 .replace()/命名占位符；任何"模板+format"组合，format 调用本身必须可测。
+- **Prevention**：新增含 `{` 的 prompt 后先跑一次 format 冒烟（test_judge_prompt_format_safe 已锁定）。
+- **Regression**：`tests/test_semantic_check.py::test_judge_prompt_format_safe`。[已自动化：是]
+
+## L25 — 声称"全量验证"必须有可复现基线：未提交旧版上跑的数不算
+
+- **Problem**：修复 JUDGE_PROMPT 后重跑，通过率 83/86（96.5%）→ 79/86（94.0%）——83/86 是在未提交的旧 prompt 版本上跑的，不可复现。
+- **Root cause**：验证结果在代码未提交/未钉版本时记录，HEAD 变化后旧数无法复现。
+- **Durable lesson**：报告任何"全量验证"数字前：`git status` 必须干净（或明确记录 commit）；改代码后旧基线作废必须重跑，新旧数不可混用。
+- **Prevention**：跑全量验证前确认工作区干净并记 commit；结果文件/进度条目标注 HEAD。
+- **Regression**：暂无自动化（流程约束）。[已自动化：否]
+
+## L26 — fastcheck/pre-commit 需要 Python 3.13 全局解释器：AutoClaw 的 python 无 pytest/ruff
+
+- **Problem**：PATH 默认 `python` 是 AutoClaw 自带环境（无 pytest/ruff/pyright），跑 fastcheck 报缺依赖，pre-commit hook 直接拦截 commit。
+- **Root cause**：本机 PATH 被 AutoClaw 等工具抢占；hook 用 `command -v python` 取到错的解释器（.githooks/pre-commit）。
+- **Durable lesson**：本项目所有验证命令（fastcheck/hooks/npm scripts）必须用 Python 3.13 全局解释器；验证/提交前把 Python313 放 PATH 最前。
+- **Prevention**：pre-commit 显式优先 python3.13（已改 .githooks/pre-commit）。
+- **Regression**：暂无自动化（环境约束）。[已自动化：否]
+
+## L27 — OpenClaw 工具输出对 api_key= 赋值脱敏：写代码后必须校验实际内容
+
+- **Problem**：本环境 read/exec/write 对 api_key= 相关赋值片段会显示/写入 `api_key=***`（如 repair_failed.py 曾被写入 `api_key=***` 导致 SyntaxError）。
+- **Root cause**：OpenClaw 主机对 api_key= 模式做脱敏（防密钥泄漏）；脱敏可能发生在显示层，也可能真实写入文件。
+- **Durable lesson**：在本环境写含 API key 引用的代码后，必须用 compile/import/git diff 校验文件实际内容，不能以工具显示为准。
+- **Prevention**：落盘后立即 compile 校验 + git diff 核对。
+- **Regression**：暂无自动化。[已自动化：否]
+
 ## 模板（新增时复制）
 
 ```
