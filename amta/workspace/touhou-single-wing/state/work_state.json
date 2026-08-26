@@ -1,155 +1,156 @@
 {
-  "work_id": "touhou-single-wing",
-  "updated_page": 0,
-  "characters": {
-    "八意永琳": {
-      "status": "confirmed",
-      "source": "p4",
-      "aliases": [
-        "永琳"
-      ]
-    },
-    "稀神サグメ": {
-      "status": "confirmed",
-      "source": "p4",
-      "aliases": [
-        "探女",
-        "稀神探女"
-      ]
-    },
-    "綿月依姫": {
-      "status": "confirmed",
-      "source": "p4",
-      "aliases": [
-        "依姬"
-      ]
-    },
-    "綿月豊姫": {
-      "status": "confirmed",
-      "source": "p4",
-      "aliases": [
-        "丰姬"
-      ]
-    },
-    "蓬莱山輝夜": {
-      "status": "confirmed",
-      "source": "p4",
-      "aliases": [
-        "辉夜"
-      ]
-    }
+ "work_id": "touhou-single-wing",
+ "updated_page": 0,
+ "characters": {
+  "八意永琳": {
+   "status": "confirmed",
+   "source": "p4",
+   "aliases": [
+    "永琳"
+   ]
   },
-  "terms": {
-    "月の都": {
-      "translation": "月之都",
-      "status": "confirmed",
-      "source": "p0"
-    },
-    "穢れ": {
-      "translation": "污秽",
-      "status": "confirmed",
-      "source": "p0"
-    },
-    "サグメ": {
-      "translation": "说起来，探女你在做什么研究？",
-      "status": "candidate",
-      "source": "page_0",
-      "pages": [
-        0,
-        3,
-        4,
-        5,
-        7,
-        8
-      ]
-    },
-    "ルール": {
-      "translation": "对话只限必要的最低限度，这已成为月之民之间默认的规则",
-      "status": "candidate",
-      "source": "page_1",
-      "pages": [
-        1
-      ]
-    },
-    "カチャ": {
-      "translation": "咔恰",
-      "status": "confirmed",
-      "source": "page_1",
-      "pages": [
-        1,
-        2
-      ]
-    },
-    "チャッ": {
-      "translation": "嚓",
-      "status": "candidate",
-      "source": "page_1",
-      "pages": [
-        1
-      ]
-    },
-    "メリット": {
-      "translation": "我在做药物的研究，想着如果能和你的研究结合起来，对彼此都会有好处呢",
-      "status": "candidate",
-      "source": "page_3",
-      "pages": [
-        3
-      ]
-    },
-    "キャラ": {
-      "translation": "角色介绍",
-      "status": "candidate",
-      "source": "page_4",
-      "pages": [
-        4
-      ]
-    },
-    "ガチャ": {
-      "translation": "嘎恰",
-      "status": "candidate",
-      "source": "page_5",
-      "pages": [
-        5
-      ]
-    },
-    "コクッ": {
-      "translation": "点点头",
-      "status": "candidate",
-      "source": "page_6",
-      "pages": [
-        6
-      ]
-    },
-    "ヒョイ": {
-      "translation": "嘿咻",
-      "status": "candidate",
-      "source": "page_8",
-      "pages": [
-        8
-      ]
-    },
-    "リスク": {
-      "translation": "但确实也有月之民即使承担这样的风险也仍然渴望孩子",
-      "status": "candidate",
-      "source": "page_9",
-      "pages": [
-        9
-      ]
-    },
-    "パタン": {
-      "translation": "啪嗒",
-      "status": "candidate",
-      "source": "page_9",
-      "pages": [
-        9
-      ]
-    }
+  "稀神サグメ": {
+   "status": "confirmed",
+   "source": "p4",
+   "aliases": [
+    "探女",
+    "稀神探女"
+   ]
   },
-  "relationships": [],
-  "current_scene": {
-    "page": null,
-    "location": null,
-    "present": []
+  "綿月依姫": {
+   "status": "confirmed",
+   "source": "p4",
+   "aliases": [
+    "依姬"
+   ]
   },
-  "recent_context": []
+  "綿月豊姫": {
+   "status": "confirmed",
+   "source": "p4",
+   "aliases": [
+    "丰姬"
+   ]
+  },
+  "蓬莱山輝夜": {
+   "status": "confirmed",
+   "source": "p4",
+   "aliases": [
+    "辉夜"
+   ]
+  }
+ },
+ "terms": {
+  "月の都": {
+   "translation": "月之都",
+   "status": "confirmed",
+   "source": "p0"
+  },
+  "穢れ": {
+   "translation": "污秽",
+   "status": "confirmed",
+   "source": "p0"
+  },
+  "サグメ": {
+   "translation": "说起来，探女你在做什么研究？",
+   "status": "candidate",
+   "source": "page_0",
+   "pages": [
+    0,
+    3,
+    4,
+    5,
+    7,
+    8
+   ]
+  },
+  "ルール": {
+   "translation": "对话只限必要的最低限度，这已成为月之民之间默认的规则",
+   "status": "candidate",
+   "source": "page_1",
+   "pages": [
+    1
+   ]
+  },
+  "カチャ": {
+   "translation": "咔嗒",
+   "status": "confirmed",
+   "source": "page_1",
+   "pages": [
+    1,
+    2
+   ],
+   "note": "导演终审 2026-08-26: 评审判「咔恰」不自然, confirmed 译名更新为「咔嗒」(needs_review 触发)"
+  },
+  "チャッ": {
+   "translation": "嚓",
+   "status": "candidate",
+   "source": "page_1",
+   "pages": [
+    1
+   ]
+  },
+  "メリット": {
+   "translation": "我在做药物的研究，想着如果能和你的研究结合起来，对彼此都会有好处呢",
+   "status": "candidate",
+   "source": "page_3",
+   "pages": [
+    3
+   ]
+  },
+  "キャラ": {
+   "translation": "角色介绍",
+   "status": "candidate",
+   "source": "page_4",
+   "pages": [
+    4
+   ]
+  },
+  "ガチャ": {
+   "translation": "嘎恰",
+   "status": "candidate",
+   "source": "page_5",
+   "pages": [
+    5
+   ]
+  },
+  "コクッ": {
+   "translation": "点点头",
+   "status": "candidate",
+   "source": "page_6",
+   "pages": [
+    6
+   ]
+  },
+  "ヒョイ": {
+   "translation": "嘿咻",
+   "status": "candidate",
+   "source": "page_8",
+   "pages": [
+    8
+   ]
+  },
+  "リスク": {
+   "translation": "但确实也有月之民即使承担这样的风险也仍然渴望孩子",
+   "status": "candidate",
+   "source": "page_9",
+   "pages": [
+    9
+   ]
+  },
+  "パタン": {
+   "translation": "啪嗒",
+   "status": "candidate",
+   "source": "page_9",
+   "pages": [
+    9
+   ]
+  }
+ },
+ "relationships": [],
+ "current_scene": {
+  "page": null,
+  "location": null,
+  "present": []
+ },
+ "recent_context": []
 }
