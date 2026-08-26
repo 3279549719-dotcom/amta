@@ -14,6 +14,14 @@
   - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
   - 测试 +6（134 全绿）
 
+## 当前状态（2026-08-26，/simplify 化简重构：分支 refactor/simplify 未合并未推送）
+
+- **/simplify 式化简重构（独立 worktree，分支 refactor/simplify，commit f819cd8，17 文件 +102/-151，fastcheck ALL PASS / 121 passed，零依赖不变，未 push）**：
+  - 去重：translate/glossary 的 norm/levenshtein 收敛到 `amta.metrics`；工具循环提取 `translate.run_tool_loop()` 供 repair_failed 共用；`_page_key` 提升为 `runner.page_key` 默认值；base64 data-URI / stdio 样板 / read_json 收敛到 `amta.paths`/`amta.*`
+  - 死代码删除：`geometry.fit_block`、`pipeline.OCR_STEPS`（全仓零引用）
+  - CLI 接口与行为语义全部保持；评估过但跳过（PLAUSIBLE，理由见 ADR-012 修订注）：02_ocr crop 合并、`_judge_vision` 与 `build_payload` 合并；`_NN_xxx.py` 桥按 L20 保留
+  - ⚠️ 未合并回 main、未 push——合并前需重跑 fastcheck；交接 correctness 线索两条（见「下一步」9/10）
+
 ## 当前状态（2026-08-26 三笔：工单机制落地 + /finish 收尾，feat/translate-tools-fc 合并 master）
 
 - **工单机制（ADR-017，借鉴 CMMS）**：src/amta/tickets.py TicketStore——状态机 open→in_progress→resolved/rejected，JSON 文件即状态（state_dir/tickets.json）；repair_failed 达上限自动开单（classify_kind 关键词分类 term_conflict/false_positive/hard_case）；**归档闭环**：resolve/reject 时处理结论自动回写判例库（维修手册逻辑，导演处置即沉淀判例）。测试 +5。
@@ -178,3 +186,5 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 6. Benchmark C（mask + inpainting 评分）与 Benchmark A 框外漏检抽查（15 个未检出 GT 框，检测覆盖缺口）随工位推进穿插。
 7. 结果回填本节「当前状态」并推送。
 8. **handoff 2026-08-26（下一 AI 接手）**：① 1-10 页评测产物转正为流水线布局（artifacts/translation.json + state 配套），从 11 页起 00_run_all 续翻——验证 state 跨页累积 + get_context 前页回溯（这是上一轮拍板的方案 B）；② 工单微信通知；③ 02 OCR 提速（单页 156s CPU，41 页约 2h+）；④ vision 工具接线（VISION_BUDGET 已留，千问 3.5 omni 备选）；⑤ 角色 lookup 返回 aliases 小修补；⑥ 04_inpaint/05_typeset 工位。
+9. **修 tickets.py 判例回写字段错标**（`src/amta/tickets.py` `_append_case_law` L129 `"ticket_id": region_id`）：case-law 条目的 `ticket_id` 字段实际存 region_id，真实工单 id 从未传入（resolve/reject 只传 region_id，`_append_case_law` 签名也没有 ticket_id 参数）→ 要么签名加 ticket_id 传入真实值，要么删该字段（region_id 已冗余）；修后加测试锁「ticket_id 与真实工单一致」，防将来按 ticket_id 追溯判例时静默取到 region_id。
+10. **修 recall_score.py 输出字段语义错标**（`scripts/recall_score.py` L52-53 `"best_det": best`）：字段名暗示"最佳检出文本"，实际存数值 match_score（同行另有 `match_score` 字段）→ 改名 `best_match_score` 或改存匹配到的 det 文本；改前核对 recall_result.json 下游消费方（报告生成）避免静默断链。
