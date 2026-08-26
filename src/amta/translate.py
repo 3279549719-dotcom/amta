@@ -90,6 +90,37 @@ def text_chat(
         return ""
 
 
+def chat_with_tools(
+    base_url: str,
+    model: str,
+    messages: list[dict],
+    *,
+    tools: list[dict] | None = None,
+    api_key: str | None = None,
+    timeout: int = 120,
+) -> dict:
+    """发一次 OpenAI 兼容 chat 请求（支持 tools/function calling），返回完整 message 结构。
+
+    响应 message 可能含 tool_calls（模型请求调用工具）或纯 content（最终回答）；
+    解析失败返回 {"content": ""}。
+    """
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    payload: dict[str, Any] = {"model": model, "messages": messages}
+    if tools:
+        payload["tools"] = tools
+    r = requests.post(
+        f"{base_url}/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=timeout,
+    )
+    r.raise_for_status()
+    try:
+        return r.json()["choices"][0]["message"] or {}
+    except (KeyError, IndexError, TypeError):
+        return {"content": ""}
+
+
 def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
     """机制①：只返回与当前文本相关的术语（Levenshtein + 归一化 + 部分匹配）。
 
@@ -136,36 +167,57 @@ class TranslationCache:
 
 def _prompt_parts(canon: list[dict], work_state: dict,
                   prev_pages: list[dict] | None, open_questions: list[dict] | None) -> tuple[str, str]:
-    """拆出 System 层 + 上下文前缀（History/Knowledge/Uncertainty，不含当前页块）。
+    """拆出 System 层 + 上下文前缀（Uncertainty，不含当前页块）。
 
-    System 含角色/术语一致性约束；前缀含前页译文与待确认事项。两者对单页分批（二分拆分）只算一次。
+    最小披露原则（Patrick 裁决，2026-08-26）：角色/术语/前页译文不再预塞进 Prompt，
+    由模型通过 lookup_term / get_context 工具按需获取；仅保留量小的待确认事项披露。
+    两者对单页分批（二分拆分）只算一次。
     """
     system_lines = ["你是专业日文→中文漫画翻译专家，输出严格 JSON，不要输出任何额外文字。"]
-    cur_text = " ".join(r["text"] for r in canon)
-    chars = work_state.get("characters", {})
-    terms = work_state.get("terms", {})
-    rel_chars = extract_relevant_terms(cur_text, chars)
-    rel_terms = extract_relevant_terms(cur_text, terms)
-    if rel_chars or rel_terms:
-        system_lines.append("本子已确认术语/角色（翻译时保持一致性）：")
-        for k, v in rel_chars.items():
-            system_lines.append(f"- 角色 {k}（来源 {v.get('source', '?')}）")
-        for k, v in rel_terms.items():
-            system_lines.append(f"- 术语 {k} = {v.get('translation', '?')}")
-
     user_blocks = []
-    if prev_pages:
-        hist = "\n".join(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
-        user_blocks.append(f"前几页译文（保持风格/术语一致）：\n{hist}")
     if open_questions:
         qs = "\n".join(f"- {q['question']}（{q.get('status', 'open')}）" for q in open_questions)
         user_blocks.append(f"待确认事项：\n{qs}")
     return "\n".join(system_lines), "\n\n".join(user_blocks)
 
 
-# ADR-016 Tools Contract：预算常量（vision 最贵，token 受控）
-TERM_BUDGET = 10      # 每页预取术语上限
-VISION_BUDGET = 2     # 每页 vision 调用预算
+# ADR-016 Tools Contract：预算常量（真拦截——超限拒绝服务，非死常量）
+TERM_BUDGET = 10          # 每页 lookup_term 调用预算
+GET_CONTEXT_BUDGET = 3    # 每页 get_context 调用预算
+VISION_BUDGET = 2         # 每页 vision 调用预算（第一版未接线，预留）
+MAX_TOOL_ROUNDS = 6       # 单批工具循环轮次上限（防死循环）
+
+# 真 function calling 工具声明（DeepSeek OpenAI 兼容 tools 格式）
+TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_term",
+            "description": "查询本子已确认的术语/角色译名（如 豊姫→丰姬）。翻译中遇到专有名词、角色名、作品术语不确定译法时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "term": {"type": "string", "description": "要查询的日文术语或角色名原文"}
+                },
+                "required": ["term"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_context",
+            "description": "获取前几页的译文（保持风格/术语一致）。翻译当前页前可调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pages": {"type": "integer", "description": "回溯页数，最多 3"}
+                },
+                "required": [],
+            },
+        },
+    },
+]
 
 
 def build_tools_context(canon: list[dict], work_state: dict,
@@ -188,6 +240,59 @@ def build_tools_context(canon: list[dict], work_state: dict,
         parts.append("工具查得·前页译文:")
         parts.extend(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
     return "\n".join(parts)
+
+
+def execute_tool(name: str, args: dict, work_state: dict,
+                 prev_pages: list[dict] | None = None,
+                 state_dir: Path | str | None = None) -> str:
+    """真工具执行器：lookup_term 查 work_state 术语/角色；get_context 读前页译文。
+
+    返回给模型的文本结果（本地文件读，免费）；预算拦截由调用方（工具循环）负责。
+    """
+    ws = work_state or {}
+    if name == "lookup_term":
+        term = str(args.get("term", "")).strip()
+        if not term:
+            return "参数缺失：请提供 term"
+        hit: dict[str, Any] | None = None
+        for pool, kind in ((ws.get("terms", {}), "术语"), (ws.get("characters", {}), "角色")):
+            for k, v in pool.items():
+                if k == term or _norm(k) == _norm(term):
+                    hit = {**v, "kind": kind, "key": k}
+                    break
+            if hit:
+                break
+        if not hit:
+            return f"未找到术语「{term}」的已确认译名（可基于上下文自行判断）"
+        trans = hit.get("translation") or hit.get("canon_translation") or "?"
+        status = hit.get("status", "?")
+        src = hit.get("source", "?")
+        return f"{hit['kind']}「{hit['key']}」= {trans}（status={status}，来源 {src}）"
+    if name == "get_context":
+        pages = max(1, min(int(args.get("pages") or 3), 3))
+        # 优先读 state_dir/translation.json（断点续跑时已有产物），回退 prev_pages 参数
+        if state_dir is not None:
+            p = Path(state_dir) / "translation.json"
+            if p.exists():
+                try:
+                    doc = json.loads(p.read_text(encoding="utf-8"))
+                    trans = doc.get("translations", {})
+                    by_page: dict[str, list[str]] = {}
+                    for rid, t in trans.items():
+                        m = re.match(r"page_(\d+)", str(rid))
+                        pg = m.group(1) if m else "?"
+                        by_page.setdefault(pg, []).append(f"[{rid}] {t}")
+                    ordered = sorted(by_page.items(), key=lambda kv: kv[0])
+                    selected = ordered[-pages:]
+                    if selected:
+                        return "前页译文：\n" + "\n\n".join("\n".join(v) for _, v in selected)
+                except (json.JSONDecodeError, OSError):
+                    pass
+        if prev_pages:
+            lines = [f"[{h.get('page', '?')}] {h.get('translated', '')}" for h in prev_pages[-pages:]]
+            return "前页译文：\n" + "\n".join(lines)
+        return "暂无前页译文"
+    return f"未知工具：{name}"
 
 
 def _current_block(canon: list[dict]) -> str:
@@ -253,14 +358,20 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          split: bool = True, work_state: dict | None = None,
                          prev_pages: list[dict] | None = None,
                          open_questions: list[dict] | None = None,
-                         tools_ctx: str | None = None) -> dict[str, str]:
+                         tools_ctx: str | None = None,
+                         tools: list[dict] | None = None,
+                         state_dir: Path | str | None = None) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
 
-    Context 分层接入：System 层与上下文前缀（History/Knowledge/Uncertainty）对整页算一次，
+    Context 分层接入：System 层与上下文前缀（Uncertainty）对整页算一次，
     分批重试时仅当前批的 region_id|text 块变化。
-    tools_ctx：ADR-016 Tools 预取上下文（build_tools_context 产出），注入 System 层。
+    tools_ctx：ADR-016 旧预取上下文（build_tools_context 产出），向后兼容保留，新代码不再使用。
+    tools：真 function calling 工具声明（TOOLS_SCHEMA）。传了则启用工具循环：
+    模型请求工具 → execute_tool 执行 → 结果回传 → 继续，直到纯文本输出；
+    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools=None) -> dict（chat_with_tools）。
     """
     ws = work_state or {}
     system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
@@ -269,12 +380,42 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
+        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET}
         for _ in range(max_retries):
             cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
             content = f"{prefix}\n\n{cur}" if prefix else cur
-            messages = [{"role": "system", "content": system},
-                        {"role": "user", "content": content}]
-            raw = llm(messages)
+            messages: list[dict[str, Any]] = [{"role": "system", "content": system},
+                                        {"role": "user", "content": content}]
+            raw = ""
+            for _round in range(MAX_TOOL_ROUNDS):
+                if tools:
+                    resp = llm(messages, tools=tools)
+                else:
+                    resp = llm(messages)
+                if isinstance(resp, str):
+                    raw = resp
+                    break
+                calls = resp.get("tool_calls") or []
+                content_text = resp.get("content") or ""
+                if not calls:
+                    raw = content_text
+                    break
+                messages.append({"role": "assistant", "content": content_text or None,
+                                 "tool_calls": calls})
+                for call in calls:
+                    fn = call.get("function", {})
+                    name = fn.get("name", "")
+                    try:
+                        args = json.loads(fn.get("arguments") or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    if budgets.get(name, 0) <= 0:
+                        result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
+                    else:
+                        budgets[name] -= 1
+                        result = execute_tool(name, args, ws, prev_pages, state_dir)
+                    messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
+                                     "content": result})
             parsed = parse_translation_response(raw, region_ids)
             if not mechanical_guardrails(batch, parsed):
                 return parsed

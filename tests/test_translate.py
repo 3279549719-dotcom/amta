@@ -64,15 +64,14 @@ def test_translation_cache_hash_key():
 
 
 def test_build_prompt_layers():
-    import json
-
     from amta import translate
 
     canon = [{"region_id": "r01", "text": "豊姫が話す"}]
     ws = {"characters": {"豊姫": {"status": "confirmed", "source": "p4"}}, "terms": {}, "current_scene": {"page": 1}}
     prompt = translate.build_translation_prompt(canon, ws, prev_pages=[], open_questions=[])
     assert "system" in prompt
-    assert "豊姫" in json.dumps(prompt, ensure_ascii=False)
+    assert "r01|豊姫が話す" in prompt["current"]  # Current 当前页块
+    assert "豊姫" not in prompt["system"]  # 最小披露：术语/角色不再预塞（Patrick 裁决）
 
 
 def test_mechanical_guardrails_catches_missing_region():
@@ -130,8 +129,8 @@ def test_suggestions_extractor_finds_new_term():
     assert any("サグメ" in s.get("term", "") for s in suggestions)
 
 
-def test_translate_with_retry_wires_context_layers():
-    """回归：build_translation_prompt 的 Context 分层（Knowledge/History/Uncertainty）必须真进 LLM 消息。"""
+def test_translate_with_retry_minimal_context_disclosure():
+    """回归（Patrick 裁决）：Context 最小披露——角色/前页不再预塞，待确认事项保留，当前页块在。"""
     from amta import translate
 
     captured = {}
@@ -150,10 +149,9 @@ def test_translate_with_retry_wires_context_layers():
 
     sys_content = captured["messages"][0]["content"]
     usr_content = captured["messages"][1]["content"]
-    blob = sys_content + "\n" + usr_content
-    assert "豊姫" in blob  # Knowledge 角色
-    assert "前页译文" in blob  # History 前页
-    assert "男是女" in blob  # Uncertainty 待确认
+    assert "豊姫" not in sys_content  # Knowledge 不再预塞（按需 lookup_term）
+    assert "前页译文" not in usr_content  # History 不再预塞（按需 get_context）
+    assert "男是女" in usr_content  # Uncertainty 待确认保留披露
     assert "r01|豊姫が話す" in usr_content  # Current 当前页块
 
 
@@ -176,7 +174,7 @@ def test_translate_with_retry_context_reuse_system_in_split():
     assert set(out) == {"r01", "r02"}
     # 每批 system 相同（共享整页知识），current 只含该批 region
     assert all(s == seen_systems[0] for s in seen_systems)
-    assert "豊姫" in seen_systems[0]
+    assert "豊姫" not in seen_systems[0]  # 最小披露：system 不再预塞角色
     assert "r01" in seen_currents[0]
     assert "r02" in seen_currents[-1]
 
@@ -194,12 +192,12 @@ def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
     canon_path.write_text(_json.dumps(canon, ensure_ascii=False), encoding="utf-8")
     out_path = tmp_path / "translation.json"
 
-    # 脚本内 llm 闭包按 text_chat(base_url, model, messages, api_key=...) 调用，fake 须匹配其签名
-    def fake_llm(base_url, model, messages, api_key=None):
-        return '{"r01": "丰姬在说话"}'
+    # 脚本内 llm 闭包按 chat_with_tools(base_url, model, messages, tools=..., api_key=...) 调用，fake 须匹配其签名
+    def fake_llm(base_url, model, messages, tools=None, api_key=None):
+        return {"content": '{"r01": "丰姬在说话"}'}
 
     monkeypatch.setattr(translate, "get_chat_config", lambda: {"base_url": "x", "model": "m", "api_key": "k"})
-    monkeypatch.setattr(translate, "text_chat", fake_llm)
+    monkeypatch.setattr(translate, "chat_with_tools", fake_llm)
 
     from _03_translate import run
 
@@ -309,3 +307,138 @@ def test_record_failure_overwrites_empty_list(tmp_path):
     translate.record_failure(log, {"region_id": "a", "reason": "x"})
     doc = json.loads(log.read_text(encoding="utf-8"))
     assert doc["failures"] == [{"region_id": "a", "reason": "x"}]
+def test_chat_with_tools_passes_tools_payload(monkeypatch):
+    from amta import translate
+    captured = {}
+
+    def fake_post(url, headers=None, json=None, timeout=120):
+        captured["json"] = json
+
+        class _R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"choices": [{"message": {"content": "ok"}}]}
+
+        return _R()
+
+    monkeypatch.setattr(translate.requests, "post", fake_post)
+    out = translate.chat_with_tools(
+        "https://api.deepseek.com", "m", [{"role": "user", "content": "hi"}],
+        tools=[{"type": "function", "function": {"name": "lookup_term"}}],
+        api_key="k",
+    )
+    assert out["content"] == "ok"
+    assert captured["json"]["tools"] == [{"type": "function", "function": {"name": "lookup_term"}}]
+
+
+def test_chat_with_tools_parses_tool_calls(monkeypatch):
+    from amta import translate
+
+    def fake_post(url, headers=None, json=None, timeout=120):
+        class _R:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"choices": [{"message": {
+                    "content": None,
+                    "tool_calls": [{"id": "call_1", "type": "function",
+                                    "function": {"name": "lookup_term", "arguments": '{"term": "サグメ"}'}}],
+                }}]}
+
+        return _R()
+
+    monkeypatch.setattr(translate.requests, "post", fake_post)
+    out = translate.chat_with_tools("u", "m", [{"role": "user", "content": "hi"}])
+    assert out["tool_calls"][0]["function"]["name"] == "lookup_term"
+
+
+def test_execute_lookup_term_hit_and_miss():
+    from amta import translate
+    ws = {"terms": {"サグメ": {"translation": "探女", "status": "confirmed", "source": "p1"}},
+          "characters": {"永琳": {"translation": "永琳", "status": "confirmed", "source": "p0"}}}
+    hit = translate.execute_tool("lookup_term", {"term": "サグメ"}, ws)
+    assert "探女" in hit and "confirmed" in hit
+    miss = translate.execute_tool("lookup_term", {"term": "存在しない"}, ws)
+    assert "未找到" in miss
+
+
+def test_execute_get_context_from_state_dir(tmp_path):
+    import json
+    from amta import translate
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / "translation.json").write_text(json.dumps({
+        "work_id": "w", "translations": {
+            "page_0_u01": "第一页译文",
+            "page_1_u01": "第二页译文A",
+            "page_1_u02": "第二页译文B",
+            "page_2_u01": "第三页译文",
+        }}, ensure_ascii=False), encoding="utf-8")
+    out = translate.execute_tool("get_context", {"pages": 2}, {}, state_dir=state_dir)
+    assert "第二页译文A" in out and "第三页译文" in out
+    assert "第一页译文" not in out  # 只回溯最近 2 页
+
+
+def test_translate_with_retry_tool_loop():
+    """真工具循环：模型第一轮请求 lookup_term，工具结果回传，第二轮输出译文。"""
+    from amta import translate
+    calls = []
+
+    def llm(messages, tools=None):
+        calls.append(messages)
+        if len(calls) == 1:
+            return {"content": None, "tool_calls": [
+                {"id": "call_1", "type": "function",
+                 "function": {"name": "lookup_term", "arguments": '{"term": "サグメ"}'}}]}
+        return {"content": '{"r01": "探女"}', "tool_calls": None}
+
+    canon = [{"region_id": "r01", "text": "サグメ", "page": 0}]
+    ws = {"terms": {"サグメ": {"translation": "探女", "status": "confirmed", "source": "p1"}}}
+    out = translate.translate_with_retry(canon, llm, work_state=ws, max_retries=1,
+                                         tools=translate.TOOLS_SCHEMA)
+    assert out["r01"] == "探女"
+    roles = [m["role"] for m in calls[1]]
+    assert roles == ["system", "user", "assistant", "tool"]  # 工具结果回传
+    assert "探女" in calls[1][-1]["content"]
+
+
+def test_tool_budget_enforced():
+    """预算真拦截：一次请求发 TERM_BUDGET+1 个工具调用，最后一个拒绝服务。"""
+    from amta import translate
+    captured = {}
+
+    def llm(messages, tools=None):
+        if "round2" not in captured:
+            captured["round2"] = messages
+            tcs = [{"id": f"c{i}", "type": "function",
+                    "function": {"name": "lookup_term", "arguments": '{"term": "X"}'}}
+                   for i in range(translate.TERM_BUDGET + 1)]
+            return {"content": None, "tool_calls": tcs}
+        return {"content": '{"r01": "译文"}', "tool_calls": None}
+
+    canon = [{"region_id": "r01", "text": "X", "page": 0}]
+    out = translate.translate_with_retry(canon, llm, work_state={}, max_retries=1,
+                                         tools=translate.TOOLS_SCHEMA)
+    assert out["r01"] == "译文"
+    tool_msgs = [m for m in captured["round2"] if m["role"] == "tool"]
+    assert len(tool_msgs) == translate.TERM_BUDGET + 1
+    assert "预算已耗尽" in tool_msgs[-1]["content"]  # 第 11 个被拦截
+    assert "未找到术语" in tool_msgs[0]["content"]   # 前 10 个正常执行（查不到）
+
+
+def test_tool_round_cap():
+    """轮次上限：模型一直请求工具不产出 → MAX_TOOL_ROUNDS 强制终止 → 走机械失败路径。"""
+    from amta import translate
+
+    def llm(messages, tools=None):
+        return {"content": None, "tool_calls": [
+            {"id": "c", "type": "function",
+             "function": {"name": "lookup_term", "arguments": '{"term": "X"}'}}]}
+
+    canon = [{"region_id": "r01", "text": "X", "page": 0}]
+    out = translate.translate_with_retry(canon, llm, work_state={}, max_retries=1,
+                                         tools=translate.TOOLS_SCHEMA)
+    assert out == {"r01": ""}  # 空译文 = 机械重试失败路径

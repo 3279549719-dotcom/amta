@@ -36,12 +36,13 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     ws = load_state(work_id) if work_id else {}
     open_questions = _load_open_questions(state_dir)
 
-    def llm(messages):
-        return translate.text_chat(cfg["base_url"], cfg["model"], messages, api_key=cfg["api_key"])
+    def llm(messages, tools=None):
+        return translate.chat_with_tools(cfg["base_url"], cfg["model"], messages,
+                                         tools=tools, api_key=cfg["api_key"])
 
-    tools_ctx = translate.build_tools_context(canon, ws, open_questions=open_questions)
+    # 真 function calling：模型按需调 lookup_term / get_context（Patrick 裁决，2026-08-26）
     result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions,
-                                            tools_ctx=tools_ctx)
+                                            tools=translate.TOOLS_SCHEMA, state_dir=state_dir)
 
     residue = translate.japanese_residue_check(list(result.values()))
     from amta.glossary import check_glossary
