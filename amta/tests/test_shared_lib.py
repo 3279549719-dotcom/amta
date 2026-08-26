@@ -150,6 +150,46 @@ class GeometryTest(unittest.TestCase):
         out = geometry.absorb_contained(blocks)
         self.assertEqual(len(out), 2)
 
+    def test_assign_sub_tier_primary_vs_aside(self):
+        # 容器内两行: 与最大行宽比 >= 1.4 → 判定为 aside(碎碎念), 否则 primary
+        lines = [
+            {"bbox": [100, 100, 500, 200]},  # 宽 400
+            {"bbox": [100, 220, 160, 260]},  # 宽 60, 与最大行宽比 400/60≈6.7 → aside
+        ]
+        out = geometry.assign_sub_tier(lines, ratio=1.4)
+        self.assertEqual(out[0]["sub_tier"], "primary")
+        self.assertEqual(out[1]["sub_tier"], "aside")
+
+    def test_assign_sub_tier_all_primary_when_ratio_low(self):
+        lines = [{"bbox": [0, 0, 100, 30]}, {"bbox": [0, 40, 110, 70]}]  # 宽 100/110 → 比值<1.4
+        out = geometry.assign_sub_tier(lines, ratio=1.4)
+        self.assertEqual([line["sub_tier"] for line in out], ["primary", "primary"])
+
+    def test_assign_sub_tier_empty(self):
+        self.assertEqual(geometry.assign_sub_tier([]), [])
+
+    def test_build_regions_nests_child_lines(self):
+        # 容器大框 + 内部碎片子框 → 子框挂 child_lines, 独立框自成 region
+        blocks = [
+            {"node_id": "container", "bbox": [0, 0, 200, 200], "bubble_type": "dialogue"},
+            {"node_id": "inner", "bbox": [10, 10, 190, 60], "bubble_type": "dialogue"},  # 全嵌套
+            {"node_id": "separate", "bbox": [300, 300, 400, 400], "bubble_type": "sfx"},   # 独立
+        ]
+        regions = geometry.build_regions(blocks)
+        self.assertEqual(len(regions), 2)
+        cont = next(r for r in regions if r["node_id"] == "container")
+        self.assertEqual(len(cont["child_lines"]), 1)
+        self.assertEqual(cont["child_lines"][0]["node_id"], "inner")
+        # child_lines 被赋予 sub_tier
+        self.assertIn(cont["child_lines"][0]["sub_tier"], ("primary", "aside"))
+
+    def test_build_regions_no_nesting(self):
+        blocks = [{"node_id": "a", "bbox": [0, 0, 50, 50]},
+                  {"node_id": "b", "bbox": [100, 100, 150, 150]}]
+        regions = geometry.build_regions(blocks)
+        self.assertEqual(len(regions), 2)
+        self.assertTrue(all(r["child_lines"] == [] for r in regions))
+
 
 if __name__ == "__main__":
     unittest.main()
