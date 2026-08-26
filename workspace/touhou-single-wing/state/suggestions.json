@@ -1,0 +1,47 @@
+{
+  "work_id": "touhou-single-wing",
+  "suggestions": [
+    {
+      "term": "アイテム",
+      "source": "page_10_u07",
+      "page": 10,
+      "translation": "只差一点，利用传闻改写过去的道具就能完成了，可是……",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_13_u05",
+      "page": 13,
+      "translation": "探女姐姐，谢谢你！",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_16_u02",
+      "page": 16,
+      "translation": "八意大人、探女姐姐，发生什么事了吗？比如肚子疼之类的？",
+      "status": "candidate"
+    },
+    {
+      "term": "サボ",
+      "source": "page_17_u03",
+      "page": 17,
+      "translation": "偷懒，是吧",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_18_u02",
+      "page": 18,
+      "translation": "探女姐姐，这边请",
+      "status": "candidate"
+    },
+    {
+      "term": "ゼロ",
+      "source": "page_19_u07",
+      "page": 19,
+      "translation": "正如之前所说，从量子的观点来看，只要可能性不为零，一切事象就都存在",
+      "status": "candidate"
+    }
+  ]
+}
