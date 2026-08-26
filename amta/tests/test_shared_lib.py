@@ -130,6 +130,26 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(out[0]["bbox"], [0.0, 0.0, 10.0, 10.0])
         self.assertEqual(out[1]["node_id"], "c")
 
+    def test_absorb_contained_drops_nested_fragment(self):
+        # u04「ぽ」全嵌套于 u05「ぽっらん」,IoU≈0 但 IoA=1.0 → 丢弃子框
+        blocks = [
+            {"node_id": "big", "bbox": [1256, 497, 1643, 799]},   # 容器
+            {"node_id": "frag", "bbox": [1264, 509, 1377, 616]},  # 全嵌套碎片
+            {"node_id": "disjoint", "bbox": [0, 0, 100, 100]},    # 独立框保留
+        ]
+        out = geometry.absorb_contained(blocks)
+        ids = sorted(b["node_id"] for b in out)
+        self.assertEqual(ids, ["big", "disjoint"])
+
+    def test_absorb_contained_keeps_partial_overlap(self):
+        # 仅部分重叠(IoA<0.75)不吸收
+        blocks = [
+            {"node_id": "a", "bbox": [0, 0, 100, 100]},
+            {"node_id": "b", "bbox": [50, 0, 150, 100]},  # 与 a 部分重叠
+        ]
+        out = geometry.absorb_contained(blocks)
+        self.assertEqual(len(out), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -66,3 +66,40 @@ def union_blocks(detections: dict[str, list[dict]], threshold: float = 0.5) -> l
             item["bbox"] = bb
             seen.append(item)
     return seen
+
+
+def _area(bb: Sequence[float]) -> float:
+    return max(0.0, bb[2] - bb[0]) * max(0.0, bb[3] - bb[1])
+
+
+def absorb_contained(blocks: list[dict], ioa_thresh: float = 0.75) -> list[dict]:
+    """包含度去重（IoA）：全嵌套于更大框内的碎片子框被吸收丢弃。
+
+    修 L10/并集残留：竖排碎片框（u04「ぽ」在 u05「ぽっらん」内）因 IoU≈0 逃过
+    union 去重，此处按 IoA（子框∩容器 / 子框）≥0.75 判定为同一文本区域的碎片，
+    丢弃子框，保留更大的容器框。扁平 blocks[] 契约不变（Phase B-light）。
+    """
+    if not blocks:
+        return []
+    # 按面积降序：大框先入,后续小框若被某已保留框包含则丢弃
+    ordered = sorted(blocks, key=lambda b: _area(b["bbox"]), reverse=True)
+    kept: list[dict] = []
+    for b in ordered:
+        bb = b["bbox"]
+        if any(_contained_in(bb, k["bbox"], ioa_thresh) for k in kept):
+            continue
+        kept.append(b)
+    return kept
+
+
+def _contained_in(child: Sequence[float], parent: Sequence[float], ioa_thresh: float) -> bool:
+    """child 是否全嵌套于 parent（IoA ≥ 阈值，即 child 被 parent 覆盖的比例）。"""
+    c = _area(child)
+    if c <= 0:
+        return False
+    x0 = max(child[0], parent[0])
+    y0 = max(child[1], parent[1])
+    x1 = min(child[2], parent[2])
+    y1 = min(child[3], parent[3])
+    inter = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    return inter / c >= ioa_thresh
