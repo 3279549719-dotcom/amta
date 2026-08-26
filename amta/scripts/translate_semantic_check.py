@@ -31,10 +31,10 @@ JUDGE_PROMPT = """你是漫画翻译质量评审。请阅读图中日文原文�
 对四项各评 1-5 分（5=最好）：accuracy(语义准确) fluency(中文自然) consistency(术语一致) readability(漫画可读)。
 输出格式：
 通过
-accuracy:{1-5}
-fluency:{1-5}
-consistency:{1-5}
-readability:{1-5}
+accuracy:1-5
+fluency:1-5
+consistency:1-5
+readability:1-5
 （若不合格，则第一行改为：需修订：<一句话理由>；建议译文：<译文>，并同样输出四项评分）"""
 
 

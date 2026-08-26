@@ -1,24 +1,37 @@
 {
   "work_id": "touhou-single-wing",
   "purpose": "校准 ③ 语义评审与验收口径的判例库（无参考 GT，替代参考译文 Golden Set，ADR-016）",
-  "acceptance": {"pass_rate_min": 0.90, "director_clears_failed": true},
+  "acceptance": {
+    "pass_rate_min": 0.9,
+    "director_clears_failed": true
+  },
   "cases": [
     {
       "region_id": "page_9_u01",
       "source": "今度もらってあげるわよ",
       "translation": "下次再让她给你吧",
       "verdict": "fail",
-      "scores": {"accuracy": 2, "fluency": 4, "consistency": 5, "readability": 5},
+      "scores": {
+        "accuracy": 2,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 5
+      },
       "reason": "主语错：原文'我'拿到后给'你'，译文变'她'给你",
-      "suggestion": "下次我帮你拿过来吧",
-      "lesson": "③ 能抓主语错（accuracy 低）"
+      "suggestion": "这次我就收下啦",
+      "lesson": "③ 能抓主语错（accuracy 低）；导演闭环修订后重评审通过，今度=这次、もらってあげる=收下"
     },
     {
       "region_id": "page_0_u07",
       "source": "私、稀神サグメはそんな月の生活を気に入っていただが一つだけ不満があるとすればー",
       "translation": "我，稀神探女，很喜欢那样的月球生活。不过若说有什么不满的话——",
       "verdict": "fail",
-      "scores": {"accuracy": 3, "fluency": 4, "consistency": 5, "readability": 5},
+      "scores": {
+        "accuracy": 3,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 5
+      },
       "reason": "漏译'一つだけ'(只有一点)",
       "suggestion": "不过，若说只有一点不满的话——",
       "lesson": "③ 对程度副词敏感，会抓漏译但需导演确认"
@@ -28,7 +41,12 @@
       "source": "研究室を一人で使えることの方が嬉しかった",
       "translation": "但能一个人使用研究室更让我开心",
       "verdict": "pass",
-      "scores": {"accuracy": 4, "fluency": 5, "consistency": 5, "readability": 5},
+      "scores": {
+        "accuracy": 4,
+        "fluency": 5,
+        "consistency": 5,
+        "readability": 5
+      },
       "reason": "加'但'是中文衔接，③ 误报样本，不改译",
       "suggestion": "",
       "lesson": "③ 会误报风格选择（加连接词），非硬伤不改译"
@@ -38,10 +56,105 @@
       "source": "穢れとは心である",
       "translation": "污秽即是心",
       "verdict": "review",
-      "scores": {"accuracy": 4, "fluency": 4, "consistency": 5, "readability": 5},
+      "scores": {
+        "accuracy": 4,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 5
+      },
       "reason": "③ 盲区：语境润色主张'污秽源于心中'",
       "suggestion": "污秽源于心中",
       "lesson": "③ 漏语境润色，导演终审兜底"
+    },
+    {
+      "region_id": "page_0_u11",
+      "source": "永遠に近い時間をひたすらに 自己の研鑽・研究に費やす",
+      "translation": "将接近永远的时间一味地耗费在自我钻研与研究上",
+      "verdict": "fail",
+      "scores": {
+        "accuracy": 4,
+        "fluency": 3,
+        "consistency": 5,
+        "readability": 4
+      },
+      "reason": "“接近永远的时间”生硬有歧义",
+      "suggestion": "将近乎永恒的时间，一味地投入到自我钻研与研究之中",
+      "lesson": "③ 抓中文生硬（fluency 低）；修订后重评审 pass（导演闭环 round1）"
+    },
+    {
+      "region_id": "page_2_u08",
+      "source": "カチャ",
+      "translation": "咔恰",
+      "verdict": "fail",
+      "scores": {
+        "accuracy": 2,
+        "fluency": 2,
+        "consistency": 5,
+        "readability": 2
+      },
+      "reason": "カチャ 是清脆咔嗒声，“咔恰”不自然",
+      "suggestion": "咔嗒",
+      "lesson": "③ 抓拟声词不贴（sfx）；修订后 pass"
+    },
+    {
+      "region_id": "page_5_u02",
+      "source": "私は未来を変える研究をしているのだけど",
+      "translation": "我则在研究改变未来",
+      "verdict": "fail",
+      "scores": {
+        "accuracy": 2,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 3
+      },
+      "reason": "漏译句末语气“のだけど”，且添加原文没有的“则”",
+      "suggestion": "我在做改变未来的研究，不过……",
+      "lesson": "③ 抓漏译语气词+凭空增字；修订后 pass"
+    },
+    {
+      "region_id": "page_6_u00",
+      "source": "か、輝夜どうしてここに!?",
+      "translation": "辉、辉夜你怎么会在这里！？",
+      "verdict": "fail",
+      "scores": {
+        "accuracy": 3,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 4
+      },
+      "reason": "「か」是惊讶语气词，不应译成“辉”",
+      "suggestion": "啊、辉夜你怎么会在这里！？",
+      "lesson": "③ 抓感叹词误译；修订后 pass"
+    },
+    {
+      "region_id": "page_7_u05",
+      "source": "永琳がよく話すのよ",
+      "translation": "永琳经常说起你哦",
+      "verdict": "pass",
+      "scores": {
+        "accuracy": 1,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 4
+      },
+      "reason": "评审误报：把语境补全（辉夜在场）当“凭空添加宾语”，导演驳回维持原译",
+      "suggestion": "",
+      "lesson": "③ 会把语境补全当编造（同 page_2_u05 类），导演终审兜底"
+    },
+    {
+      "region_id": "page_0_u07",
+      "source": "私、稀神サグメはそんな月の生活を気に入っていただが一つだけ不満があるとすればー",
+      "translation": "我，稀神探女，很喜欢那样的月球生活。但如果说有一点不满的话——",
+      "verdict": "pass",
+      "scores": {
+        "accuracy": 4,
+        "fluency": 4,
+        "consistency": 5,
+        "readability": 5
+      },
+      "reason": "旧版漏译“一つだけ”，function calling 版自动补上“有一点”（工具/prompt 变化红利）",
+      "suggestion": "",
+      "lesson": "同一源句旧版 fail、新版自动 pass——基线漂移要靠重跑发现"
     }
   ]
 }
