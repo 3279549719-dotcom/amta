@@ -103,7 +103,8 @@ def _rerun_judge(trans_path: Path, canon_path: Path, crops: Path, rid: str,
 
 def run(canon_path: Path, trans_path: Path, semantic_path: Path, crops: Path,
         *, state_dir: Path | None = None, max_rounds: int = 3,
-        only: list[str] | None = None, out_review: Path | None = None) -> dict:
+        only: list[str] | None = None, out_review: Path | None = None,
+        tickets_path: Path | None = None) -> dict:
     """自动修复主流程。返回 {repaired: [...], needs_review: [...], rounds: {...}}"""
     cfg = translate.get_chat_config()
     canon = json.loads(canon_path.read_text(encoding="utf-8"))
@@ -118,6 +119,10 @@ def run(canon_path: Path, trans_path: Path, semantic_path: Path, crops: Path,
     work_state = {}
     if state_dir is not None and (state_dir / "work_state.json").exists():
         work_state = json.loads((state_dir / "work_state.json").read_text(encoding="utf-8"))
+
+    # ADR-017 工单：needs_review 时自动开单（默认 state_dir/tickets.json）
+    if tickets_path is None and state_dir is not None:
+        tickets_path = state_dir / "tickets.json"
 
     repaired: list[dict] = []
     needs_review: list[dict] = []
@@ -167,6 +172,12 @@ def run(canon_path: Path, trans_path: Path, semantic_path: Path, crops: Path,
                 "region_id": rid, "source": source,
                 "translation": trans.get(rid, ""), "reason": reason, "rounds": max_rounds,
             })
+            if tickets_path is not None:
+                from amta.tickets import TicketStore
+                TicketStore(tickets_path).create(
+                    work_id=trans_doc.get("work_id", ""), region_id=rid,
+                    reason=reason, auto_rounds=max_rounds,
+                    source=source, translation=trans.get(rid, ""))
 
     if out_review is not None:
         out_review.write_text(json.dumps({"needs_review": needs_review},
@@ -184,10 +195,12 @@ def main() -> int:
     ap.add_argument("--max-rounds", type=int, default=3)
     ap.add_argument("--only", type=str, default=None)
     ap.add_argument("--out-review", type=Path, default=None)
+    ap.add_argument("--tickets", type=Path, default=None, help="工单文件路径（ADR-017，默认 state_dir/tickets.json）")
     a = ap.parse_args()
     only = a.only.split(",") if a.only else None
     res = run(a.canon, a.trans, a.semantic, a.crops, state_dir=a.state_dir,
-              max_rounds=a.max_rounds, only=only, out_review=a.out_review)
+              max_rounds=a.max_rounds, only=only, out_review=a.out_review,
+              tickets_path=a.tickets)
     print(f"[repair_failed] repaired={len(res['repaired'])} "
           f"needs_review={len(res['needs_review'])} rounds={res['rounds']}")
     for r in res["repaired"]:

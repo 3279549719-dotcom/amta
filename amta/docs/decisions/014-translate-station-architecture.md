@@ -39,6 +39,8 @@
 
 - **脚本层机械 loop**：初译 → 机械护栏失败（如 JSON schema 错）→ 错误回填 prompt → 自动重译 **1 次**。
 - **导演层语义 loop**：VLM 语义护栏拦出问题 → 脚本标记 `FAILED` + 附证据（VLM 输出/错误行）→ 交 DSH 会话修订（导演是最终 loop 层，脚本不硬编码翻译判断）。
+
+> **修订（2026-08-26，ADR-016 修订 + ADR-017 落地）**：导演不再手写修订——FAILED 先走 `scripts/repair_failed.py` DeepSeek 自修复（≤3 轮，可带 lookup_term/get_context 工具），仍失败才进 needs_review 工单交外部（误报驳回/术语校准/终审）。
 - 确定性错误（机械护栏失败 2 次仍不过）→ 不无限重试，标 FAILED 交导演；重跑由 00_run_all 断点机制覆盖（删除工件再跑）。
 
 ### 5. 术语演进（suggestions → 导演自动合并）
@@ -70,6 +72,7 @@ state/ 三文件保持 ADR-013：`touhou_knowledge.json`（canon prior，跨本�
 - ⚠️ **③ 实测校准（2026-08-26）**：VLM 评审是**粗筛+随机**——抓粗错（主语错/漏译/OCR 读错导致），漏语境润色（"污秽即是心"两模型判通过，导演才抓出），会误报风格选择（如加"但"）。通过率是**粗筛层**指标，FAILED 列表=导演过目队列，非判决书。
 - ✅ **③ 校准 + 验收阈值（2026-08-26，ADR-016 落地）**：③ 升级**四维评分**（accuracy/fluency/consistency/readability 1~5，合并进同一次 VLM 调用，当导演排序+趋势监控、**不当闸门**）；**验收阈值 = ③ 通过率 ≥90% + 导演清 FAILED 队列**（判例库 `testsets/case_law.json`）；work_state 增 observed 层变**四层**（跨页一致自动升、导演可降级）；Tools 恢复（lookup/get_context 预取 `TERM_BUDGET=10` + vision `VISION_BUDGET=2`）；新增 pre-translate Input schema gate（`canon_schema.py`）与 Glossary Validator（`glossary.py`，Knowledge guardrail）。
 - ✅ **导演语义 loop 工具（2026-08-26）**：`scripts/apply_revisions.py`（修订落盘 + `--only` 重评审闭环，budget=1 轮→needs_review）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并）+ on-failure 结构化记录（`record_failure`）。
+- ✅ 导演角色归位（2026-08-26）：外部/DSH 只处理 needs_review 工单（tickets.py，ADR-017），日常修复全自动；验收 = ③≥90% + 工单清零。
 - 代码落点：`src/amta/translate.py` + `scripts/03_translate.py`（补充 `src/amta/canon_schema.py`/`glossary.py`）。
 
 ## 借鉴来源与许可证（grill 定案，2026-08-24）

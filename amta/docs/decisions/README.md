@@ -23,4 +23,6 @@
 - [012 — 代码结构重构：逻辑收敛进 src/amta 共享库，scripts 只留薄 CLI](./012-clean-architecture-refactor.md)
 - [013 — 产物结构 rebaseline：per-work workspace + work_state（Touhou 同人志缩域）](./013-per-work-workspace-rebaseline.md)
 - [014 — 翻译工位架构定稿：DeepSeek API 直调 + 双层护栏 + 分层 Loop](./014-translate-station-architecture.md)
-- [015 — 依赖膨胀治理：vibe-check 式拦截 + uv 最小化解析](./015-dependency-bloat-governance.md)
+- [015 — 依赖膨胀治理：vibe-check 式拦截 + uv 最小化解析](./015-dependency-bloat-governance.md
+- [016 — Translate Harness 对齐 GPT 设计：Guardrails 补全 / Eval 四维 / Tools / State 四层 / 验收阈值](./016-translate-harness-alignment.md)
+- [017 — needs_review 工单机制：TicketStore 状态机 + 判例库回写（维修手册逻辑）](./017-needs-review-ticket-store.md))

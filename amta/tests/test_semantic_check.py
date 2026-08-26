@@ -100,3 +100,9 @@ def test_parse_no_scores_defaults_none():
     verdict, scores = parse_verdict_with_scores("通过")
     assert verdict == "pass"
     assert scores["accuracy"] is None
+def test_judge_prompt_format_safe():
+    """回归（L24）：JUDGE_PROMPT 必须能被 .format() 安全调用——禁止字面花括号占位符。"""
+    from translate_semantic_check import JUDGE_PROMPT
+    out = JUDGE_PROMPT.format(text="原文です", translation="译文")
+    assert "原文です" in out
+    assert "译文" in out

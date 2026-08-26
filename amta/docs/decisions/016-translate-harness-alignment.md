@@ -36,6 +36,8 @@ Lifecycle hook：pre-translate（T2/T3）、post-translate（既有 ①②）、
 
 "脚本直读文件"本质是无约束读文件。恢复：
 - **lookup_term**（本地 glossary 查当前页相关术语）、**get_context**（前 3 页译文）→ **预取式**（脚本先行注入 prompt，模型不主动调，成本≈0）。
+
+> **修订（2026-08-26，a44f7e4）**：预取式 → 真 function calling——`chat_with_tools`（OpenAI 兼容 tools 参数）+ `TOOLS_SCHEMA`（lookup_term/get_context）+ `execute_tool`；工具循环（请求→执行→回传→继续），预算真拦截（TERM_BUDGET=10/GET_CONTEXT_BUDGET=3 超限拒绝服务，MAX_TOOL_ROUNDS=6 防死循环）；Context 退回最小披露（`_prompt_parts` 不再预塞术语/前页译文，只留 open_questions）；vision 工具第一版不接线（VISION_BUDGET=2 预留）。`build_tools_context` 保留为向后兼容（新代码不再使用）。
 - **vision**（OCR 冲突复查）→ 走 ③ 的 VLM 通道，**多轮按需**。
 - **Contract**：`TERM_BUDGET=10`/页（预取术语上限）、`VISION_BUDGET=2`/页（token 控制，vision 调用最贵）。
 
@@ -50,6 +52,8 @@ work_state 状态由三层（confirmed/inferred/candidate）**加 observed 层�
 - 脚本机械层：retry+split（既有）+ on-failure 结构化落盘（`record_failure`，供 00_run_all 断点重跑）。
 - 导演语义层：③ 拦出 FAILED → `apply_revisions` 应用导演修订 → `--only` 补跑重评审（Re-verify）→ **budget=1 轮** → 仍 FAILED 则 `needs_review` 终态（不无限循环）。
 
+> **修订（2026-08-26，d78ed74）**：导演角色归位——本 ADR「导演手写修订」是角色错位；蓝图本意 = **DeepSeek 自修复**（`scripts/repair_failed.py`：FAILED+reason 喂回重译（可带工具）→ 机械护栏 → `--only` 重评审 → ≤3 轮 → 仍败进 needs_review 工单）；外部（DSH 导演）只处理 needs_review（误报驳回 / 术语表校准 / 终审），不再手写译文。
+
 ### 7. 验收阈值
 
 **③ 通过率 ≥90% + 导演清 FAILED 队列**（判例库 acceptance 记录）。③ 的 FAILED=导演过目队列，非判决书。
@@ -62,3 +66,4 @@ work_state 状态由三层（confirmed/inferred/candidate）**加 observed 层�
 - ✅ State 四层语义完整，observed→confirmed 自动晋升 + 导演降级。
 - ⚠️ **修订 ADR-014 的"③ 是粗筛+随机"表述**：保留"粗筛+随机"性质判定，补充"四维评分=导演排序/监控、不当闸门"。
 - ✅ 参考：实现见 `docs/superpowers/plans/2026-08-26-translate-harness-alignment.md`；判例库 `testsets/case_law.json`。
+- ✅ 修订两处（2026-08-26）：§4 预取→真 FC（a44f7e4，86/86 全译出、探针 8 次自主工具调用、机械护栏零错、首轮评审 79/86）；§6 导演语义 loop→DeepSeek 自修复+工单（d78ed74，判例 5 fail 样本 4 条 round1 自动修好（2 条与手动修订一字不差），1 条术语冲突进工单→导演校准术语表→1 轮通过）。
