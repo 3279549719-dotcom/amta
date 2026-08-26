@@ -13,13 +13,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.paths import read_json  # noqa: E402
+from amta.paths import read_json, write_json  # noqa: E402
 from amta.pipeline_log import PipelineLog  # noqa: E402
 from amta.workstate import ensure_workspace  # noqa: E402
 
@@ -36,6 +37,29 @@ def _run_cli(args: list[str]) -> None:
 
 def _out(ws_root: Path, name: str) -> Path:
     return ws_root / "artifacts" / name
+
+
+def _refresh_merged_translation(ws_root: Path) -> None:
+    """刷新 artifacts/translation.json：合并所有 page_*_translation.json（get_context 前页回溯读取）。
+
+    get_context（translate.py）只读合并单文件，故每完成一页都要并进去。
+    """
+    import re as _re
+
+    artifacts = ws_root / "artifacts"
+    merged: dict[str, str] = {}
+    for p in sorted(artifacts.glob("page_*_translation.json")):
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        for rid, t in (doc.get("translations") or {}).items():
+            if _re.match(r"page_\d+_", str(rid)):
+                merged[str(rid)] = t
+    if merged:
+        write_json(artifacts / "translation.json",
+                   {"work_id": ws_root.name, "translations": merged,
+                    "residue": [], "glossary_violations": []})
 
 
 def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
@@ -102,6 +126,8 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 log.add_span(run_id, step="03_translate", page=page, status="ok",
                              input=str(canon_path), output=str(trans_path),
                              duration_s=time.time() - t0)
+            # 每完成一页刷新合并 translation.json（get_context 前页回溯读取）
+            _refresh_merged_translation(ws_root)
 
             # ---- ③ semantic review + auto-repair (optional) ----
             if with_review:

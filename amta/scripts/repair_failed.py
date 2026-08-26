@@ -157,6 +157,17 @@ def run(canon_path: Path, trans_path: Path, semantic_path: Path, crops: Path,
     if out_review is not None:
         out_review.write_text(json.dumps({"needs_review": needs_review},
                                          ensure_ascii=False, indent=1), encoding="utf-8")
+    # 修复成功后回写 semantic.json：把 repaired 区域从 failed 移除（否则语义评审残留旧快照误报）
+    if repaired:
+        repaired_ids = {r["region_id"] for r in repaired}
+        before = len(sem.get("failed", []))
+        sem["failed"] = [f for f in sem.get("failed", []) if f.get("region_id") not in repaired_ids]
+        if len(sem["failed"]) != before:
+            sem["passed"] = sem.get("passed", 0) + (before - len(sem["failed"]))
+            n = sem.get("passed", 0) + len(sem.get("failed", [])) + len(sem.get("inconclusive", []))
+            sem["pass_rate"] = round(sem["passed"] / n, 4) if n else 0.0
+            semantic_path.write_text(json.dumps(sem, ensure_ascii=False, indent=1),
+                                     encoding="utf-8")
     return {"repaired": repaired, "needs_review": needs_review, "rounds": rounds}
 
 

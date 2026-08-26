@@ -84,6 +84,24 @@ def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
 
 # ---------- 00_run_all ----------
 
+def test_refresh_merged_translation(tmp_path):
+    """00_run_all 完成后 artifacts/translation.json 合并所有 per-page 译文（get_context 读取）。"""
+    import json
+
+    impl = _impl("_00_run_all")
+    art = tmp_path / "artifacts"
+    art.mkdir()
+    (art / "page_0_translation.json").write_text(
+        json.dumps({"work_id": "w", "translations": {"page_0_u00": "月之都"}}, ensure_ascii=False),
+        encoding="utf-8")
+    (art / "page_1_translation.json").write_text(
+        json.dumps({"work_id": "w", "translations": {"page_1_u00": "污秽"}}, ensure_ascii=False),
+        encoding="utf-8")
+    impl._refresh_merged_translation(tmp_path)
+    merged = json.loads((art / "translation.json").read_text(encoding="utf-8"))
+    assert merged["translations"] == {"page_0_u00": "月之都", "page_1_u00": "污秽"}
+
+
 def test_00_skip_existing_and_fail_anchor(tmp_path, monkeypatch):
     """产物存在=跳过;失败写 failed_step 锚点。"""
     import json

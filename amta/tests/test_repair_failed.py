@@ -97,6 +97,11 @@ def test_run_repairs_failed_and_reruns(tmp_path, monkeypatch):
     doc = json.loads((tmp_path / "translation.json").read_text(encoding="utf-8"))
     assert doc["translations"]["r01"] == "修正译文"
     assert doc["revisions"][0]["source"] == "auto-repair"
+    # 修复成功后 semantic.json 的 failed 应清空并回写（避免残留旧快照误报）
+    sem_after = json.loads((tmp_path / "sem.json").read_text(encoding="utf-8"))
+    assert sem_after["failed"] == []
+    assert sem_after["passed"] == 2
+    assert sem_after["pass_rate"] == 1.0
 
 
 def test_run_rounds_exhausted_marks_needs_review(tmp_path, monkeypatch):
