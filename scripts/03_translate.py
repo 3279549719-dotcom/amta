@@ -26,7 +26,8 @@ def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
 
 
 def run(canon_path: str | Path, out_path: str | Path, *,
-        work_id: str | None = None, state_dir: str | Path | None = None) -> dict:
+        work_id: str | None = None, state_dir: str | Path | None = None,
+        trace_path: str | Path | None = None) -> dict:
     canon = paths.read_json(canon_path)
     from amta.canon_schema import validate_canon
     problems = validate_canon(canon)
@@ -36,9 +37,20 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     ws = load_state(work_id) if work_id else {}
     open_questions = _load_open_questions(state_dir)
 
+    trace: list[dict] = []
+
     def llm(messages, tools=None):
-        return translate.chat_with_tools(cfg["base_url"], cfg["model"], messages,
+        resp = translate.chat_with_tools(cfg["base_url"], cfg["model"], messages,
                                          tools=tools, api_key=cfg["api_key"])
+        if trace_path:
+            trace.append({
+                "roles": [m["role"] for m in messages],
+                "tool_calls": [{"name": c.get("function", {}).get("name"),
+                                 "args": c.get("function", {}).get("arguments")}
+                                for c in (resp.get("tool_calls") or [])],
+                "content": (resp.get("content") or "")[:200],
+            })
+        return resp
 
     # 真 function calling：模型按需调 lookup_term / get_context（Patrick 裁决，2026-08-26）
     result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions,
@@ -62,6 +74,9 @@ def run(canon_path: str | Path, out_path: str | Path, *,
             translate.record_failure(_Path(state_dir) / "failure_log.json",
                                      {"work_id": work_id or "", "problems": problems})
 
+    if trace_path and trace:
+        paths.write_json(trace_path, {"work_id": work_id or "", "trace": trace})
+
     if work_id and state_dir:
         ex = translate.SuggestionsExtractor(existing=set(ws.get("characters", {})) | set(ws.get("terms", {})))
         sugg = ex.extract(canon, result)
@@ -79,8 +94,9 @@ def main() -> int:
     ap.add_argument("--out", required=True, help="输出 translation.json 路径")
     ap.add_argument("--work-id", default=None)
     ap.add_argument("--state-dir", default=None)
+    ap.add_argument("--trace", default=None, help="LLM/工具调用观测落盘路径(可选)")
     a = ap.parse_args()
-    run(a.canon, a.out, work_id=a.work_id, state_dir=a.state_dir)
+    run(a.canon, a.out, work_id=a.work_id, state_dir=a.state_dir, trace_path=a.trace)
     print(f"[03_translate] -> {a.out}")
     return 0
 

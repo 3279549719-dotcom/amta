@@ -171,9 +171,10 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 
 0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011）
 1. ~~实现 03_translate.py + 接线 Context 分层~~ → **已完成（2026-08-25）**：`translate_with_retry` 接入 `build_translation_prompt`（Knowledge/History/Uncertainty/Current 真进 LLM 消息），`03_translate.py` 传 work_state + open_questions。
-2. **00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约**：文件存在=跳过断点续跑；detection.json/canon_text.json 落 workspace/<work_id>/artifacts/。
+2. ~~00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约~~ → **已完成（2026-08-26，ADR-018）**：00_run_all + 01_detect + 02_ocr + pipeline_log + 03 --trace，1 页冒烟通过（断点续跑/step tracing/LLM 观测全部验证）。
 3. **04_inpaint / 05_typeset 工位**（koharu lama-manga + renderer 验证）+ 各自 mechanical check（mask 区域像素变化/译文区渲染）。
-4. ~~VLM 语义护栏脚本~~ + ~~导演语义 loop~~ + ~~术语演进~~ + ~~验收阈值~~ → **已完成（2026-08-26，ADR-016）**：③ 四维评分 + 判例库 `testsets/case_law.json`；`scripts/apply_revisions.py`（导演修订+重评审闭环）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并，跨页一致自动升）；验收阈值 = ③ ≥90% + 导演清 FAILED。剩余：**导演人工终审 4 条样本**（判例库已记录 verdict，需跑 03+③ 真数据闭环验证）。
+4. ~~VLM 语义护栏脚本~~ + ~~导演语义 loop~~ + ~~术语演进~~ + ~~验收阈值~~ → **已完成（2026-08-26，ADR-016）**：③ 四维评分 + 判例库 `testsets/case_law.json`；`scripts/apply_revisions.py`（导演修订+重评审闭环）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并，跨页一致自动升）；验收阈值 = ③ ≥90% + 导演清 FAILED。**导演终审闭环已端到端验证（2026-08-26）**：5 FAILED 修订→5/5 过→86/86 清；自动修复层 + 工单机制（ADR-017）落地。
 5. **最终验收**：final.png 整体 VLM/导演检查（日文残留/溢出/可读性）。
 6. Benchmark C（mask + inpainting 评分）与 Benchmark A 框外漏检抽查（15 个未检出 GT 框，检测覆盖缺口）随工位推进穿插。
 7. 结果回填本节「当前状态」并推送。
+8. **handoff 2026-08-26（下一 AI 接手）**：① 1-10 页评测产物转正为流水线布局（artifacts/translation.json + state 配套），从 11 页起 00_run_all 续翻——验证 state 跨页累积 + get_context 前页回溯（这是上一轮拍板的方案 B）；② 工单微信通知；③ 02 OCR 提速（单页 156s CPU，41 页约 2h+）；④ vision 工具接线（VISION_BUDGET 已留，千问 3.5 omni 备选）；⑤ 角色 lookup 返回 aliases 小修补；⑥ 04_inpaint/05_typeset 工位。
