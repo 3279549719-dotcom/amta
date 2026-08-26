@@ -53,33 +53,8 @@ def repair_one(cfg: dict, rid: str, source: str, old: str, reason: str,
             return translate.chat_with_tools(cfg["base_url"], cfg["model"], msgs,
                                              tools=tools, api_key=cfg["api_key"])
     budgets = {"lookup_term": 3, "get_context": 1}
-    for _round in range(translate.MAX_TOOL_ROUNDS):
-        resp = llm(messages, tools=translate.TOOLS_SCHEMA)
-        if isinstance(resp, str):
-            raw = resp
-            break
-        calls = resp.get("tool_calls") or []
-        if not calls:
-            raw = resp.get("content") or ""
-            break
-        messages.append({"role": "assistant", "content": resp.get("content") or None,
-                         "tool_calls": calls})
-        for call in calls:
-            fn = call.get("function", {})
-            name = fn.get("name", "")
-            try:
-                args = json.loads(fn.get("arguments") or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            if budgets.get(name, 0) <= 0:
-                result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
-            else:
-                budgets[name] -= 1
-                result = translate.execute_tool(name, args, work_state, None, state_dir)
-            messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
-                             "content": result})
-    else:
-        raw = ""
+    raw = translate.run_tool_loop(llm, messages, budgets, work_state=work_state,
+                                  state_dir=state_dir, tools=translate.TOOLS_SCHEMA)
     parsed = translate.parse_translation_response(raw, [rid])
     return parsed.get(rid, "")
 

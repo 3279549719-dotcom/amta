@@ -13,13 +13,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from amta.paths import read_json  # noqa: E402
 from amta.pipeline_log import PipelineLog  # noqa: E402
 from amta.workstate import ensure_workspace  # noqa: E402
 
@@ -118,7 +118,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                                  input=str(trans_path), output=str(sem_path),
                                  duration_s=time.time() - t0)
                 # 自动修复:有 FAILED 才跑
-                sem = json.loads(sem_path.read_text(encoding="utf-8")) if sem_path.exists() else {}
+                sem = read_json(sem_path) if sem_path.exists() else {}
                 if sem.get("failed"):
                     t0 = time.time()
                     _run_cli([str(HERE / "repair_failed.py"),

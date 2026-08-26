@@ -222,9 +222,7 @@ class KoharuClient:
             if not (isinstance(kind, dict) and "text" in kind):
                 continue
             text_data = kind["text"]
-            raw_type = ""
-            if isinstance(kind, dict):
-                raw_type = kind.get("type", "")
+            raw_type = kind.get("type", "")
             if not raw_type:
                 kind_keys = set(kind.keys()) - {"text"}
                 if "speech_bubble" in kind_keys:

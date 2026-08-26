@@ -20,10 +20,6 @@ OUT = DATA / "ocr_result.json"
 DETECTOR = "comic-text-detector"  # produce TextBoxes，作为 OCR 前置
 
 
-def _page_key(page: Path, idx: int) -> str:
-    return f"page_{idx}"
-
-
 def main(argv: list[str]) -> int:
     src = Path(argv[0])
     max_pages = int(argv[1]) if len(argv) > 1 else 10
@@ -32,7 +28,7 @@ def main(argv: list[str]) -> int:
     print(f"[ocr] {len(pages)} pages, ocr_engines={OCR_ENGINES}, detector={DETECTOR}", flush=True)
     client = KoharuClient()
     client.wait_server()
-    out = run_all_pages(client, pages, steps, _page_key, prefix="amta-ocr",
+    out = run_all_pages(client, pages, steps, prefix="amta-ocr",
                         timeout=1800, require_completed=False, label="ocr")
     # 兼容旧输出形状：只留 {bbox, ocr, confidence}（下游评测依赖 bbox 字段）
     for entry in out.values():

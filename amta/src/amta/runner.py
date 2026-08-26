@@ -48,11 +48,16 @@ def compact_blocks(blocks: list[dict], fields: tuple[str, ...]) -> list[dict]:
     return [{**{f: b.get(f) for f in fields}, "bbox": bbox_from_block(b)} for b in blocks]
 
 
+def page_key(page: Path, idx: int) -> str:
+    """默认页键：page_{idx}（0 基，与评测 canon 对齐）。"""
+    return f"page_{idx}"
+
+
 def run_all_pages(
     client: KoharuClient,
     pages: list[Path],
     steps_by_engine: dict[str, list[str]],
-    key_fn: Callable[[Path, int], str],
+    key_fn: Callable[[Path, int], str] = page_key,
     *,
     prefix: str = "amta",
     timeout: int = 1200,
