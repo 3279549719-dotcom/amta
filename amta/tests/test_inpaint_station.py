@@ -48,9 +48,16 @@ def test_station_fill_white_and_inpaint(tmp_path, monkeypatch):
         def import_page(self, p):
             return "pg1"
 
-        def run_inpaint(self, page_id, mask_png, **kw):
-            self.calls.append(("run_inpaint", len(mask_png)))
+        def run_inpaint(self, page_id, masks, **kw):
+            self.calls.append(("run_inpaint", sorted(masks.keys()), len(masks["segment"])))
             return {"status": "completed"}
+
+        def fetch_inpainted(self, page_id):
+            # 返回整页白色图(模拟 koharu 已擦除)
+            import io
+            buf = io.BytesIO()
+            Image.new("RGB", (200, 100), "white").save(buf, format="PNG")
+            return buf.getvalue()
 
     fake = FakeK()
     monkeypatch.setattr(impl, "KoharuClient", lambda **kw: fake)
@@ -63,10 +70,14 @@ def test_station_fill_white_and_inpaint(tmp_path, monkeypatch):
     assert data["checks"]["filled"] == 1
     assert data["checks"]["inpainted"] == 1
     assert data["checks"]["size_ok"] is True
+    assert data["checks"]["pixel_diff_ratio"] > 0  # 有擦除发生(黑块变白)
     clean = Image.open(clean_dir / "page_0_clean.png")
     assert clean.size == (200, 100)
     assert clean.getpixel((50, 25)) == (255, 255, 255)  # bubble 区域已涂白
-    assert any(c[0] == "run_inpaint" for c in fake.calls)  # mask 上传执行过
+    assert any(c[0] == "run_inpaint" for c in fake.calls)
+    call = [c for c in fake.calls if c[0] == "run_inpaint"][0]
+    assert call[1] == ["bubble", "segment"]  # 双 mask 上传
+    assert call[2] > 0  # PNG 字节非空
 
 
 def test_station_dry_run_no_execution(tmp_path):
