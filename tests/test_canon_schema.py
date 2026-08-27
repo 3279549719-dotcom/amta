@@ -35,3 +35,22 @@ def test_bad_page_type():
 
 def test_not_a_list():
     assert "canon must be a list" in validate_canon({"region_id": "a"})
+
+
+def test_optional_category_and_subtier_valid():
+    canon = [{"region_id": "a", "text": "x", "page": 0,
+              "category": "dialogue_bubble", "sub_tier": "primary"},
+             {"region_id": "b", "text": "y", "page": 0,
+              "category": "sfx", "sub_tier": "aside"},
+             {"region_id": "c", "text": "z", "page": 0}]  # 无扩展字段仍合法
+    assert validate_canon(canon) == []
+
+
+def test_bad_category_rejected():
+    canon = [{"region_id": "a", "text": "x", "page": 0, "category": "bubble"}]
+    assert any("category" in p for p in validate_canon(canon))
+
+
+def test_bad_subtier_rejected():
+    canon = [{"region_id": "a", "text": "x", "page": 0, "sub_tier": "main"}]
+    assert any("sub_tier" in p for p in validate_canon(canon))

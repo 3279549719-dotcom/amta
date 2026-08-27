@@ -139,3 +139,39 @@ def test_00_skip_existing_and_fail_anchor(tmp_path, monkeypatch):
     log = json.loads((tmp_path / "ws" / "t" / "state" / "pipeline_log.json").read_text(encoding="utf-8"))
     assert log["runs"][0]["failed_step"]["reason"].startswith("boom")
     assert "01_detect.py" in calls
+
+
+# ---------- Phase 1 contract hygiene (ADR-019) ----------
+
+def test_02_canon_passthrough_subtier_category_and_items_rename(tmp_path, monkeypatch):
+    """canon 透传 sub_tier/category; 返回 doc 字段 regions→items 消除撞名。"""
+    import json
+    from PIL import Image
+
+    impl = _impl("_02_ocr")
+
+    raw = tmp_path / "1.jpg"
+    Image.new("RGB", (200, 100), "white").save(raw)
+    det = {"work_id": "w", "page": "1", "blocks": [
+        {"node_id": "n0", "bbox": [10, 10, 90, 40], "bubble_type": "dialogue",
+         "category": "dialogue_bubble"},
+        {"node_id": "n1", "bbox": [110, 50, 190, 80], "bubble_type": "sfx",
+         "category": "sfx", "sub_tier": "aside"},
+    ]}
+    det_path = tmp_path / "det.json"
+    det_path.write_text(json.dumps(det), encoding="utf-8")
+
+    def fake_ocr(crops, engine="auto", **kw):
+        return [{"crop": c, "ocr": "text"} for c in crops]
+
+    monkeypatch.setattr(impl, "ocr_batch", fake_ocr)
+    out = tmp_path / "canon.json"
+    doc = impl.run("w", det_path, raw, out, page_idx=0)
+    canon = json.loads(out.read_text(encoding="utf-8"))
+
+    assert "regions" not in doc          # 撞名消除(01_detect 的 regions 是层级结构)
+    assert doc["items"][0]["region_id"] == "page_0_u00"
+    assert canon[0]["category"] == "dialogue_bubble"
+    assert canon[1]["category"] == "sfx"
+    assert canon[1]["sub_tier"] == "aside"
+    assert canon[0].get("sub_tier") is None  # 无 sub_tier 不硬造(可选字段)

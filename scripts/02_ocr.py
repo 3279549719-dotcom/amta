@@ -58,13 +58,17 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         text = ocr_by_crop.get(str(crop), "")
         if not text:
             continue  # 空 OCR 跳过(防脏数据)
-        canon.append({
+        item = {
             "region_id": rid,
             "text": text,
             "page": page_idx,
             "node_id": b.get("node_id"),
-        })
-    doc = {"work_id": work_id, "page": raw_page.stem, "regions": canon,
+        }
+        for k in ("category", "sub_tier"):  # Phase 1/ADR-019: optional passthrough
+            if b.get(k) is not None:
+                item[k] = b[k]
+        canon.append(item)
+    doc = {"work_id": work_id, "page": raw_page.stem, "items": canon,
            "n_regions": len(canon), "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
     write_json(out_path, canon)
     return doc

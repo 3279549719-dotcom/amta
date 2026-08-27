@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from typing import Any
 
+CATEGORIES = {"dialogue_bubble", "overlay_text", "sfx"}
+SUB_TIERS = {"primary", "aside"}
+
 
 def validate_canon(canon: Any) -> list[str]:
     problems: list[str] = []
@@ -28,4 +31,10 @@ def validate_canon(canon: Any) -> list[str]:
             problems.append(f"item {i}: empty text")
         if not isinstance(r.get("page"), int):
             problems.append(f"item {i}: bad page")
+        cat = r.get("category")
+        if cat is not None and cat not in CATEGORIES:
+            problems.append(f"item {i}: bad category {cat!r}")
+        st = r.get("sub_tier")
+        if st is not None and st not in SUB_TIERS:
+            problems.append(f"item {i}: bad sub_tier {st!r}")
     return problems
