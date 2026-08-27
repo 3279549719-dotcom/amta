@@ -63,7 +63,8 @@ def _refresh_merged_translation(ws_root: Path) -> None:
 
 
 def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
-        with_review: bool = False, ocr_engine: str = "auto") -> int:
+        with_review: bool = False, ocr_engine: str = "auto",
+        with_inpaint: bool = False, with_typeset: bool = False) -> int:
     ws_root = ensure_workspace(work_id)
     state_dir = ws_root / "state"
     log = PipelineLog(state_dir / "pipeline_log.json")
@@ -155,6 +156,43 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                     log.add_span(run_id, step="auto_repair", page=page, status="ok",
                                  input=str(sem_path), output=str(trans_path),
                                  duration_s=time.time() - t0)
+
+            # ---- 04 inpaint / 05 typeset (optional, Stage 4/5) ----
+            if with_inpaint:
+                inpaint_path = _out(ws_root, f"{page}_inpaint.json")
+                if inpaint_path.exists():
+                    log.add_span(run_id, step="04_inpaint", page=page, status="skipped",
+                                 input=str(det_path), output=str(inpaint_path))
+                    print(f"[00_run_all] {page} 04_inpaint skipped (exists)")
+                else:
+                    t0 = time.time()
+                    _run_cli([str(HERE / "04_inpaint.py"), "--work-id", work_id,
+                              "--det", str(det_path), "--raw", str(raw),
+                              "--out", str(inpaint_path),
+                              "--clean-dir", str(_out(ws_root, "clean"))])
+                    log.add_span(run_id, step="04_inpaint", page=page, status="ok",
+                                 input=str(det_path), output=str(inpaint_path),
+                                 duration_s=time.time() - t0)
+            if with_typeset:
+                typeset_path = _out(ws_root, f"{page}_typeset.json")
+                clean_img = _out(ws_root, "clean") / f"{page}_clean.png"
+                if not clean_img.exists():
+                    print(f"[00_run_all] WARN {page} 05_typeset skipped (no clean image; need --with-inpaint)")
+                elif typeset_path.exists():
+                    log.add_span(run_id, step="05_typeset", page=page, status="skipped",
+                                 input=str(clean_img), output=str(typeset_path))
+                    print(f"[00_run_all] {page} 05_typeset skipped (exists)")
+                else:
+                    t0 = time.time()
+                    _run_cli([str(HERE / "05_typeset.py"), "--work-id", work_id,
+                              "--canon", str(canon_path), "--trans", str(trans_path),
+                              "--det", str(det_path), "--clean", str(clean_img),
+                              "--out", str(typeset_path),
+                              "--final", str(_out(ws_root, "final") / f"{page}_final.png")])
+                    log.add_span(run_id, step="05_typeset", page=page, status="ok",
+                                 input=str(clean_img), output=str(typeset_path),
+                                 duration_s=time.time() - t0)
+
         except Exception as e:  # noqa: BLE001
             log.fail_run(run_id, step="pipeline", page=page, reason=str(e)[:300])
             failed = (page, str(e)[:200])
@@ -174,13 +212,16 @@ def main() -> int:
     ap.add_argument("--src-dir", required=True, type=Path, help="源图目录(N.jpg)")
     ap.add_argument("--start-page", type=int, default=1)
     ap.add_argument("--end-page", type=int, required=True)
-    ap.add_argument("--with-review", action="store_true", help="附带 ③ 评审 + 自动修复")
+    ap.add_argument("--with-review", action="store_true", help="semantic review")
+    ap.add_argument("--with-inpaint", action="store_true", help="04_inpaint station")
+    ap.add_argument("--with-typeset", action="store_true", help="05_typeset station")
     ap.add_argument("--ocr-engine", default="auto",
                     choices=["auto", "baberu", "local", "dashscope"],
                     help="OCR 引擎(auto=baberu fast path+回退; 默认 auto)")
     a = ap.parse_args()
     return run(a.work_id, a.src_dir, a.start_page, a.end_page,
-               with_review=a.with_review, ocr_engine=a.ocr_engine)
+               with_review=a.with_review, ocr_engine=a.ocr_engine,
+               with_inpaint=a.with_inpaint, with_typeset=a.with_typeset)
 
 
 if __name__ == "__main__":
