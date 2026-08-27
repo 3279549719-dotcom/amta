@@ -14,7 +14,20 @@
   - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
   - 测试 +6（134 全绿）
 
-## 当前状态（2026-08-27，/finish：11-20 全量重跑 + Stage 4/5 完成，feat/contract-hygiene 14 commits 未推送）
+## 当前状态（2026-08-27，仓库卫生整改 + C4 架构文档 + audit 机器化）
+
+- **仓库卫生整改（commit 8fb5364/0ab552e，feat/contract-hygiene）**：
+  - **调研单一事实源**：research/ 归位（01-07 详报 + AGENTS.md + README 索引 + koharu-upstream/ 素材归档 52 文件）；docs/ 移除重复的 01-04（CLAUDE.md 渐进式加载表改指 research/）
+  - **reference/ 整理**：第三方源码 clone → `_vendor/`；设计文档 → `design-docs/`；散落 misc/ 归档
+  - **workspace/ 清理**：删 595 个 ws-* 空壳（work_dir() 每次调用残留）+ 27 个临时调试脚本；根因=init_workspace 随机 id
+  - **v2 计划归位**：`docs/superpowers/plans/2026-08-27-front3-stages-v2.md`
+- **audit 机器化卫生检查（scripts/audit.py + tests/test_audit_hygiene.py）**：workspace 空壳 ws-* 计数 / 跨目录重复文件检测 / 顶层散落检测，3 函数 6 测试
+- **c4-codebase-architecture skill 钉版**：`.dsh/skills/c4-codebase-architecture/`（npx skills 安装 → 项目钉版）
+- **AMTA C4 架构文档**：`docs/architecture/README.md`（Context/Container/Component 三视图 + Mermaid，c4 skill 生成）
+- **vision 微探针（worktree 产物，未入库）**：`thinking:disabled` 被 vision-exp 接受且生效——B 组整页全量 1 次调用 2-3s（原 3 图/次 33-65s），零螺旋，转写质量 ≥ baberu；对照 HTML `probe_vision_report.html`
+- **fastcheck 198 全绿**（+6 卫生检查测试）
+
+## 下一步
 
 - **11-20 全量重跑完成（新 detector + ADR-019 契约 + deepseek-v4-flash）**：10 页零失败（run 043db62d2c5c），canon **108 条**（手工真值 97，宁多勿漏 +11），**category 覆盖 108/108（100%）**，sub_tier 41 条；语义评审 8/10 页 pass_rate 1.0（页 14 0.889 自动修复、页 13 有 2 inconclusive 待导演复核）；对比旧跑检出翻倍（页 11 3→9、页 14 3→17）。旧产物备份 `output/backup/2026-08-27-pre-rerun-11-20/`。
 - **Stage 4 inpaint 完成（ADR-020 + 探针定案）**：`inpaint_strategy`（category→fill_white/inpaint/skip）+ `04_inpaint` 工位 + `KoharuClient.run_inpaint/fetch_inpainted`；探针结论——lama-manga 需 **segment+bubble 双 mask（PNG 编码）**，~20s（400×600 CPU），结果经 scene 节点 blob 取回为 **WEBP**（export 走不通）。
