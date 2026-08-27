@@ -66,6 +66,8 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         if inpaint_boxes:
             client = KoharuClient(host=host, port=port)
             client.wait_server(timeout=60)
+            client.close_current_project()
+            client.create_project(f"amta-inpaint-{work_id}")
             page_id = client.import_page(raw_page)
             client.run_inpaint(page_id, {"segment": _build_mask(img, inpaint_boxes),
                                          "bubble": _build_mask(img, inpaint_boxes)},

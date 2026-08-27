@@ -45,6 +45,12 @@ def test_station_fill_white_and_inpaint(tmp_path, monkeypatch):
         def wait_server(self, **kw):
             pass
 
+        def close_current_project(self):
+            pass
+
+        def create_project(self, name):
+            return "proj1"
+
         def import_page(self, p):
             return "pg1"
 
