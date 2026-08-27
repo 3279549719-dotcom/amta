@@ -26,6 +26,12 @@
 - **AMTA C4 架构文档**：`docs/architecture/README.md`（Context/Container/Component 三视图 + Mermaid，c4 skill 生成）
 - **vision 微探针（worktree 产物，未入库）**：`thinking:disabled` 被 vision-exp 接受且生效——B 组整页全量 1 次调用 2-3s（原 3 图/次 33-65s），零螺旋，转写质量 ≥ baberu；对照 HTML `probe_vision_report.html`
 - **fastcheck 198 全绿**（+6 卫生检查测试）
+- **深接口重构（codebase-design，commit 7ab8bc1/1fd92ef，feat/contract-hygiene）**：按深模块（小接口+大实现）拆解——
+  - `chat_client.py` 新深模块：合并 `translate.text_chat`/`chat_with_tools` + `ocr_engines.send_chat` 的 OpenAI 兼容 HTTP/解析接缝，translate/ocr_engines 退化为薄适配器
+  - `translate.py`（461→~254 行）拆出 `translate_tools.py`（工具机：TOOLS_SCHEMA/预算/execute/loop，repair_failed 独立复用）+ `guardrails.py`（机械护栏）；`_JAPANESE` 私有正则收敛为 `metrics.contains_japanese`（修 glossary→translate 泄漏耦合）
+  - `koharu_client.py` 拆出 `koharu_blocks.py`（scene 节点→blocks 纯整形），KoharuClient 退化为纯 REST 适配器
+  - 行为零变化：ruff/pyright/depguard 全绿，全套 204 passed
+- **OCR VLM 审计（ADR-022 + 探针证据）**：ADR-022 两趟式 audit 定稿（Pass1 crop 批量存在性确认 + Pass2 整页枚举）从 feat/audit-v2 cherry-pick 进主树（commit f8a44d4/eb48456）；探针脚本/结果/HTML 证据归档 `research/08-ocr-vlm-audit-probe/`（原 worktree workspace，gitignore 产物已捞回）；**用户复核结论——全页通用 VLM 转写不可当真值源，仅作差异提示器，判定以本地 For-Manga 重 OCR + 机械规则为准**（详见 handoff-OCR-vlm-audit-顾问简报）
 
 ## 下一步
 
