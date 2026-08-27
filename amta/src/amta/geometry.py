@@ -105,6 +105,32 @@ def _contained_in(child: Sequence[float], parent: Sequence[float], ioa_thresh: f
     return inter / c >= ioa_thresh
 
 
+def assign_category(blocks: list[dict]) -> list[dict]:
+    """bubble_type 值域统一映射到 3 级 category(Phase 1 / ADR-019)。
+
+    koharu 推断的 bubble_type(dialogue/narration/sfx/unknown/overlay_text)
+    → category ∈ {dialogue_bubble, overlay_text, sfx}。
+    映射规则: dialogue/narration/unknown → dialogue_bubble(旁白归气泡类,
+    未知默认保守——避免误判 overlay 被错误 inpaint); sfx → sfx;
+    overlay_text 透传。保留原 bubble_type 字段(兼容下游)。
+    """
+    _MAP = {
+        "dialogue": "dialogue_bubble",
+        "narration": "dialogue_bubble",
+        "unknown": "dialogue_bubble",
+        "sfx": "sfx",
+        "overlay_text": "overlay_text",
+    }
+    out = []
+    for b in blocks:
+        item = dict(b)
+        bt = item.get("bubble_type")
+        item["category"] = _MAP.get(bt if isinstance(bt, str) else "",
+                                     "dialogue_bubble")
+        out.append(item)
+    return out
+
+
 def assign_sub_tier(lines: list[dict], ratio: float = 1.4) -> list[dict]:
     """机械主次分段: 容器内每行, 与最大行宽比 >= ratio 则标 aside(碎碎念), 否则 primary。
 

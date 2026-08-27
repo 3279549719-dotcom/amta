@@ -20,7 +20,8 @@ from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import write_json  # noqa: E402
 from amta.pipeline import DETECTOR_STEPS  # noqa: E402
 from amta.runner import compact_blocks, run_all_pages  # noqa: E402
-from amta.geometry import build_regions, flatten_regions, union_blocks  # noqa: E402
+from amta.geometry import assign_category, build_regions, flatten_regions, union_blocks  # noqa: E402
+from PIL import Image  # noqa: E402
 
 # 全部 4 个 detector 并集(评测召回 0.98 的配置),按文件内定义顺序稳定
 DETECT_STEPS = list(DETECTOR_STEPS.keys())
@@ -42,15 +43,19 @@ def run(work_id: str, raw_page: Path, out_path: Path,
     per_engine = next(iter(results.values()))["engines"]
     # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)
     comp = {eng: compact_blocks(blks, _FIELDS) for eng, blks in per_engine.items()}
-    blocks = union_blocks(comp)  # IoU 去重并保留首个命中框元数据
+    blocks = union_blocks(comp)
+    blocks = assign_category(blocks)  # Phase 1/ADR-019: bubble_type to 3-level category  # IoU 去重并保留首个命中框元数据
     # 契约升级: 重组为 regions[].child_lines[].sub_tier(嵌套子框挂容器, 不丢弃)
     regions = build_regions(blocks)
     flat_blocks = flatten_regions(regions)  # 展平供 02_ocr 裁框(每 child_line 一框)
 
+    img = Image.open(raw_page)
     doc = {
         "work_id": work_id,
         "page": raw_page.stem,
         "source": str(raw_page),
+        "image_meta": {"width": img.width, "height": img.height,
+                       "channels": len(img.getbands())},
         "regions": regions,
         "blocks": flat_blocks,
         "n_boxes": len(flat_blocks),
