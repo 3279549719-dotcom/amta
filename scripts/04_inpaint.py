@@ -3,12 +3,13 @@
 用法: python scripts/04_inpaint.py --work-id <id> --det <detection.json> --raw <page图>
       --out <page>_inpaint.json --clean-dir <artifacts/clean> [--dry-run]
 策略: category 三级分类(ADR-019) → dialogue_bubble 白底直填 / overlay_text+sfx mask+inpaint(koharu lama-manga)。
+贴回: 探针 2026-08-27 定案 — fetch_inpainted(WEBP) 整页替换,再重放 fill_white。
 断点: --out 存在 → 跳过(00_run_all 调用方决定)。
-注: koharu inpaint 结果贴回(探针 Task 1 定案后补)——本期 clean 图 = 白底直填后 + mask 已提交 inpaint 引擎。
 """
 from __future__ import annotations
 
 import argparse
+import io
 import sys
 import time
 from pathlib import Path
@@ -17,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.inpaint_strategy import FILL_WHITE, INPAINT, SKIP, plan_inpaint  # noqa: E402
 from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import read_json, write_json  # noqa: E402
-from PIL import Image, ImageDraw  # noqa: E402
+from PIL import Image, ImageChops, ImageDraw  # noqa: E402
 
 
 def _apply_fill_white(img: Image.Image, bbox: list) -> None:
@@ -26,7 +27,7 @@ def _apply_fill_white(img: Image.Image, bbox: list) -> None:
 
 
 def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4) -> bytes:
-    """inpaint 区域聚合 mask: 目标区黑(0),其余白(255)。"""
+    """inpaint 区域聚合 mask(PNG 编码): 目标区黑(0),其余白(255)。探针定案: 必须 PNG 字节。"""
     mask = Image.new("L", img.size, 255)
     d = ImageDraw.Draw(mask)
     for bb in bboxes:
@@ -35,14 +36,26 @@ def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4) -> bytes:
         x2, y2 = min(img.width, x2 + pad), min(img.height, y2 + pad)
         if x2 > x1 and y2 > y1:
             d.rectangle([x1, y1, x2, y2], fill=0)
-    return mask.tobytes()
+    buf = io.BytesIO()
+    mask.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _pixel_diff_ratio(a: Image.Image, b: Image.Image) -> float:
+    """clean vs raw 像素差异比例(>0 证明有擦除发生)。"""
+    if a.size != b.size:
+        return 1.0
+    hist = ImageChops.difference(a.convert("RGB"), b.convert("RGB")).convert("L").histogram()
+    changed = sum(hist[1:])
+    return round(changed / (a.width * a.height), 4)
 
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         clean_dir: Path | None = None, dry_run: bool = False,
         host: str = "127.0.0.1", port: int = 4000) -> dict:
     det = read_json(det_path)
-    img = Image.open(raw_page).convert("RGB")
+    raw_img = Image.open(raw_page).convert("RGB")
+    img = raw_img.copy()
     plan = plan_inpaint(det.get("regions") or [], det.get("image_meta"))
 
     filled = [p for p in plan if p["action"] == FILL_WHITE]
@@ -50,15 +63,25 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
     skipped = [p for p in plan if p["action"] == SKIP]
 
     if not dry_run and (filled or inpaint_boxes):
-        for p in filled:
-            _apply_fill_white(img, p["bbox"])
         if inpaint_boxes:
             client = KoharuClient(host=host, port=port)
             client.wait_server(timeout=60)
             page_id = client.import_page(raw_page)
-            client.run_inpaint(page_id, _build_mask(img, inpaint_boxes),
-                               role="segment", engine="lama-manga")
-            # TODO(probe): 探针定案后按结论贴回 Inpainted 结果(export_page/blob)
+            client.run_inpaint(page_id, {"segment": _build_mask(img, inpaint_boxes),
+                                         "bubble": _build_mask(img, inpaint_boxes)},
+                               engine="lama-manga")
+            data = client.fetch_inpainted(page_id)
+            if data:
+                try:
+                    inpainted = Image.open(io.BytesIO(data)).convert("RGB")
+                    if inpainted.size == img.size:
+                        img = inpainted  # 整页替换为 inpaint 结果(探针定案)
+                except Exception as e:  # noqa: BLE001
+                    print(f"[04_inpaint] WARN inpainted decode failed: {e}")
+            else:
+                print("[04_inpaint] WARN no inpainted result found")
+        for p in filled:  # 贴回后重放涂白(保险)
+            _apply_fill_white(img, p["bbox"])
         if clean_dir:
             clean_dir.mkdir(parents=True, exist_ok=True)
             page_key = out_path.stem.removesuffix("_inpaint")
@@ -74,7 +97,7 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
             "inpainted": len(inpaint_boxes),
             "skipped": len(skipped),
             "size_ok": True,
-            "pixel_diff_ratio": None,  # 贴回后与原图 diff(探针定案后补)
+            "pixel_diff_ratio": _pixel_diff_ratio(img, raw_img),
         },
         "dry_run": dry_run,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -94,7 +117,8 @@ def main() -> int:
     a = ap.parse_args()
     doc = run(a.work_id, a.det, a.raw, a.out, clean_dir=a.clean_dir, dry_run=a.dry_run)
     print(f"[04_inpaint] {doc['page']}: filled={doc['checks']['filled']} "
-          f"inpainted={doc['checks']['inpainted']} skipped={doc['checks']['skipped']} -> {a.out}")
+          f"inpainted={doc['checks']['inpainted']} skipped={doc['checks']['skipped']} "
+          f"diff={doc['checks']['pixel_diff_ratio']} -> {a.out}")
     return 0
 
 
