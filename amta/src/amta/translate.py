@@ -17,12 +17,22 @@ from pathlib import Path
 from typing import Any
 
 from amta.chat_client import chat, chat_text
-from amta.metrics import contains_japanese, levenshtein, norm
+from amta.guardrails import (_run_guardrails_for_test,  # noqa: F401  # 测试桥回导出
+                             japanese_residue_check,  # noqa: F401
+                             mechanical_guardrails)
+from amta.metrics import levenshtein, norm
 from amta.paths import ROOT
+from amta.translate_tools import (GET_CONTEXT_BUDGET, MAX_TOOL_ROUNDS,  # noqa: F401
+                                  TERM_BUDGET, TOOLS_SCHEMA, VISION_BUDGET,  # noqa: F401
+                                  build_tools_context,  # noqa: F401
+                                  execute_tool,  # noqa: F401
+                                  run_tool_loop)
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
 # 日文残留判别特征唯一归属 metrics.contains_japanese；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
+# 工具机（TOOLS_SCHEMA/预算/execute_tool/run_tool_loop）与机械护栏（mechanical/japanese_residue）
+# 均已拆到 amta.translate_tools / amta.guardrails 深模块，此处仅 re-export 保持向后兼容。
 
 
 def get_chat_config() -> dict[str, str]:
@@ -137,164 +147,8 @@ def _prompt_parts(canon: list[dict], work_state: dict,
     return "\n".join(system_lines), "\n\n".join(user_blocks)
 
 
-# ADR-016 Tools Contract：预算常量（真拦截——超限拒绝服务，非死常量）
-TERM_BUDGET = 10          # 每页 lookup_term 调用预算
-GET_CONTEXT_BUDGET = 3    # 每页 get_context 调用预算
-VISION_BUDGET = 2         # 每页 vision 调用预算（第一版未接线，预留）
-MAX_TOOL_ROUNDS = 6       # 单批工具循环轮次上限（防死循环）
-
-# 真 function calling 工具声明（DeepSeek OpenAI 兼容 tools 格式）
-TOOLS_SCHEMA = [
-    {
-        "type": "function",
-        "function": {
-            "name": "lookup_term",
-            "description": "查询本子已确认的术语/角色译名（如 豊姫→丰姬）。翻译中遇到专有名词、角色名、作品术语不确定译法时调用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "term": {"type": "string", "description": "要查询的日文术语或角色名原文"}
-                },
-                "required": ["term"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_context",
-            "description": "获取前几页的译文（保持风格/术语一致）。翻译当前页前可调用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pages": {"type": "integer", "description": "回溯页数，最多 3"}
-                },
-                "required": [],
-            },
-        },
-    },
-]
-
-
-def build_tools_context(canon: list[dict], work_state: dict,
-                        prev_pages: list[dict] | None = None,
-                        open_questions: list[dict] | None = None) -> str:
-    """预取式 Tools 上下文（ADR-016）：当前页相关术语 + 前页译文显式注入。
-
-    lookup_term/get_context 为本地文件读（免费），按 TERM_BUDGET 限条防 prompt 膨胀。
-    """
-    parts = []
-    terms = work_state.get("terms", {})
-    cur_text = " ".join(r["text"] for r in canon)
-    rel = {k: v for k, v in terms.items()
-           if norm(k) and (norm(k) in norm(cur_text) or norm(cur_text) in norm(k))}
-    if rel:
-        parts.append(f"工具查得·本页相关术语(最多{TERM_BUDGET}条):")
-        for k, v in list(rel.items())[:TERM_BUDGET]:
-            parts.append(f"- {k} = {v.get('translation', '?')} (status={v.get('status', '?')})")
-    if prev_pages:
-        parts.append("工具查得·前页译文:")
-        parts.extend(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
-    return "\n".join(parts)
-
-
-def execute_tool(name: str, args: dict, work_state: dict,
-                 prev_pages: list[dict] | None = None,
-                 state_dir: Path | str | None = None) -> str:
-    """真工具执行器：lookup_term 查 work_state 术语/角色；get_context 读前页译文。
-
-    返回给模型的文本结果（本地文件读，免费）；预算拦截由调用方（工具循环）负责。
-    """
-    ws = work_state or {}
-    if name == "lookup_term":
-        term = str(args.get("term", "")).strip()
-        if not term:
-            return "参数缺失：请提供 term"
-        hit: dict[str, Any] | None = None
-        for pool, kind in ((ws.get("terms", {}), "术语"), (ws.get("characters", {}), "角色")):
-            for k, v in pool.items():
-                if k == term or norm(k) == norm(term):
-                    hit = {**v, "kind": kind, "key": k}
-                    break
-            if hit:
-                break
-        if not hit:
-            return f"未找到术语「{term}」的已确认译名（可基于上下文自行判断）"
-        trans = hit.get("translation") or hit.get("canon_translation") or "?"
-        status = hit.get("status", "?")
-        src = hit.get("source", "?")
-        return f"{hit['kind']}「{hit['key']}」= {trans}（status={status}，来源 {src}）"
-    if name == "get_context":
-        pages = max(1, min(int(args.get("pages") or 3), 3))
-        # 优先读前页产物:state_dir/../artifacts/translation.json(00_run_all 断点续跑布局),
-        # 回退 state_dir/translation.json / prev_pages 参数
-        candidates: list[Path] = []
-        if state_dir is not None:
-            sdir = Path(state_dir)
-            candidates = [sdir.parent / "artifacts" / "translation.json",
-                          sdir / "translation.json"]
-        for p in candidates:
-            if p.exists():
-                try:
-                    doc = json.loads(p.read_text(encoding="utf-8"))
-                    trans = doc.get("translations", {})
-                    by_page: dict[str, list[str]] = {}
-                    for rid, t in trans.items():
-                        m = re.match(r"page_(\d+)", str(rid))
-                        pg = m.group(1) if m else "?"
-                        by_page.setdefault(pg, []).append(f"[{rid}] {t}")
-                    ordered = sorted(by_page.items(), key=lambda kv: kv[0])
-                    selected = ordered[-pages:]
-                    if selected:
-                        return "前页译文：\n" + "\n\n".join("\n".join(v) for _, v in selected)
-                except (json.JSONDecodeError, OSError):
-                    pass
-        if prev_pages:
-            lines = [f"[{h.get('page', '?')}] {h.get('translated', '')}" for h in prev_pages[-pages:]]
-            return "前页译文：\n" + "\n".join(lines)
-        return "暂无前页译文"
-    return f"未知工具：{name}"
-
-
-def run_tool_loop(llm, messages, budgets, *, work_state: dict | None = None,
-                  prev_pages: list[dict] | None = None,
-                  state_dir: Path | str | None = None,
-                  tools: list[dict] | None = None) -> str:
-    """真工具循环：模型请求工具 → execute_tool 执行 → 结果回传，直到纯文本输出。
-
-    预算（budgets: {工具名: 剩余次数}）超限拒绝服务；轮次超 MAX_TOOL_ROUNDS 强制终止。
-    llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools) -> dict（chat_with_tools）。
-    translate_with_retry 与 scripts/repair_failed.py 共用（原为两处重复实现）。
-    """
-    raw = ""
-    for _round in range(MAX_TOOL_ROUNDS):
-        if tools:
-            resp = llm(messages, tools=tools)
-        else:
-            resp = llm(messages)
-        if isinstance(resp, str):
-            return resp
-        calls = resp.get("tool_calls") or []
-        content_text = resp.get("content") or ""
-        if not calls:
-            return content_text
-        messages.append({"role": "assistant", "content": content_text or None,
-                         "tool_calls": calls})
-        for call in calls:
-            fn = call.get("function", {})
-            name = fn.get("name", "")
-            try:
-                args = json.loads(fn.get("arguments") or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            if budgets.get(name, 0) <= 0:
-                result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
-            else:
-                budgets[name] -= 1
-                result = execute_tool(name, args, work_state or {}, prev_pages, state_dir)
-            messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
-                             "content": result})
-    return raw
+# ADR-016 Tools Contract（TOOLS_SCHEMA/预算/execute_tool/run_tool_loop）→ amta.translate_tools
+# （见文件头 re-export）
 
 
 def _current_block(canon: list[dict]) -> str:
@@ -330,34 +184,6 @@ def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str
     if not isinstance(data, dict):
         return {}
     return {k: str(v).strip() for k, v in data.items() if k in region_ids and str(v).strip()}
-
-
-def mechanical_guardrails(canon: list[dict], translation: dict[str, str]) -> list[str]:
-    """护栏①结构错：region_id 与输入一一对应（无漏无重）、字段齐全。"""
-    problems = []
-    ids = {r["region_id"] for r in canon}
-    for r in canon:
-        rid = r["region_id"]
-        if rid not in translation:
-            problems.append(f"missing region_id {rid}")
-        elif not translation[rid].strip():
-            problems.append(f"empty translation for {rid}")
-    extra = set(translation) - ids
-    if extra:
-        problems.append(f"extra region_ids: {sorted(extra)}")
-    return problems
-
-
-def japanese_residue_check(texts: list[str]) -> list[str]:
-    """护栏②残留错：日文残留/空译文检测。返回有问题文本列表。"""
-    bad = []
-    for t in texts:
-        t = t or ""
-        if not t.strip():
-            bad.append("")
-        elif contains_japanese(t):
-            bad.append(t)
-    return bad
 
 
 def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
@@ -443,13 +269,6 @@ class SuggestionsExtractor:
                     "status": "candidate",
                 })
         return suggestions
-
-
-def _run_guardrails_for_test(canon: list[dict], translation: dict[str, str],
-                             work_state: dict) -> list[str]:
-    """测试桥：机械护栏 + Glossary Validator 合并（ADR-016 双层机械硬约束）。"""
-    from amta.glossary import check_glossary
-    return mechanical_guardrails(canon, translation) + check_glossary(canon, translation, work_state)
 
 
 def record_failure(log_path: Path, entry: dict) -> None:
