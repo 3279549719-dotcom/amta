@@ -28,3 +28,4 @@
 - [017 — needs_review 工单机制：TicketStore 状态机 + 判例库回写（维修手册逻辑）](./017-needs-review-ticket-store.md)
 - [018 — 流水线编排器：00_run_all + step tracing + LLM 观测（零依赖自造）](./018-pipeline-orchestrator.md)
 - [019 - Stage 4-6 契约裁剪:category/sub_tier 契约 + 字段卫生](./019-contract-triage.md)
+- [021 - Stage 5 排版工位:自研 Pillow 引擎 + node_id 关联契约](./021-stage5-typeset-station.md)
