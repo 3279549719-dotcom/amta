@@ -105,6 +105,46 @@ def _contained_in(child: Sequence[float], parent: Sequence[float], ioa_thresh: f
     return inter / c >= ioa_thresh
 
 
+def mark_contained(blocks: list[dict], ioa_threshold: float = 0.75) -> list[dict]:
+    """标记嵌套框但不丢弃。
+
+    替代 absorb_contained：IoA >= threshold 的小框被标记 contained_in=<父框region_id>，
+    但保留在输出中，信息留给下游 LLM 判断。
+
+    Args:
+        blocks: 输入框列表（需含 bbox 字段）
+        ioa_threshold: 嵌套判定阈值（默认 0.75，与原 absorb_contained 一致）
+
+    Returns:
+        标记后的框列表，每个框新增 region_id（u00, u01, ...）和 contained_in（None 或父框 id）
+    """
+    if not blocks:
+        return []
+
+    # 先分配 region_id（按原始顺序）
+    for i, b in enumerate(blocks):
+        b["region_id"] = f"u{i:02d}"
+        if "contained_in" not in b:
+            b["contained_in"] = None
+
+    # 按面积降序排列，大框优先作为候选父框
+    sorted_by_area = sorted(blocks, key=lambda b: _area(b["bbox"]), reverse=True)
+
+    for i, small in enumerate(sorted_by_area):
+        if small["contained_in"] is not None:
+            continue  # 已经被标记
+        for j, big in enumerate(sorted_by_area):
+            if i == j:
+                continue
+            if big["contained_in"] == small["region_id"]:
+                continue  # 避免循环引用
+            if _contained_in(small["bbox"], big["bbox"], ioa_threshold):
+                small["contained_in"] = big["region_id"]
+                break
+
+    return blocks
+
+
 def assign_category(blocks: list[dict]) -> list[dict]:
     """bubble_type 值域统一映射到 3 级 category(Phase 1 / ADR-019)。
 
