@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -54,8 +55,33 @@ def run(canon_path: str | Path, out_path: str | Path, *,
         return resp
 
     # 真 function calling：模型按需调 lookup_term / get_context（Patrick 裁决，2026-08-26）
+    t_translate_start = time.time()
     result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions,
                                             tools=translate.TOOLS_SCHEMA, state_dir=state_dir)
+    translate_elapsed = time.time() - t_translate_start
+
+    # Front3 Stage 3 trace: 每区域双引擎文本 + 最终译文，供后续分析 LLM 选择了哪个引擎
+    page_name = canon[0].get("page", "unknown") if canon else "unknown"
+    stage3_trace = {
+        "page": str(page_name),
+        "model": cfg.get("model", ""),
+        "n_regions": len(canon),
+        "translate_elapsed": round(translate_elapsed, 2),
+        "regions": [
+            {
+                "region_id": r.get("region_id"),
+                "baberu_text": r.get("baberu_text"),
+                "vlm_text": r.get("vlm_text"),
+                "vlm_status": r.get("vlm_status"),
+                "contained_in": r.get("contained_in"),
+                "translation": result.get(r.get("region_id", ""), ""),
+            }
+            for r in canon
+        ],
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    stage3_trace_path = Path(out_path).parent / f"{page_name}_03_translate_trace.json"
+    paths.write_json(stage3_trace_path, stage3_trace)
 
     residue = translate.japanese_residue_check(list(result.values()))
     violations = check_glossary(canon, result, ws)
