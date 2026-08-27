@@ -10,8 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-import requests
-
+from amta.chat_client import chat_text
 from amta.paths import ROOT
 
 DASHSCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -55,19 +54,14 @@ def send_chat(
     prompt: str = DEFAULT_PROMPT,
     cache_prompt: bool | None = None,
 ) -> str:
-    """发一次 OpenAI 兼容 OCR 请求（base_url 为 API 根，自动拼 /chat/completions），返回识别文本；解析失败返回空串。"""
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=headers,
-        json=build_payload(model, img_path, prompt, cache_prompt),
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"]["content"] or ""
-    except (KeyError, IndexError, TypeError):
-        return ""
+    """发一次 OpenAI 兼容 OCR 请求（base_url 为 API 根），返回识别文本；解析失败返回空串。
+
+    HTTP/解析接缝唯一归属 chat_client.chat_text；本函数只负责构多模态 message（image_url+OCR）。
+    cache_prompt=False 时禁用 llama-server 的 prompt cache（L17：多模态 cache 误命中不同图像）。
+    """
+    payload = build_payload(model, img_path, prompt, cache_prompt)
+    extra = {"cache_prompt": cache_prompt} if cache_prompt is not None else {}
+    return chat_text(base_url, model, payload["messages"], api_key=api_key, timeout=timeout, **extra)
 
 
 def send_one(base_url: str, model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT, timeout: int = 120) -> str:

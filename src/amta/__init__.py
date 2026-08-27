@@ -2,8 +2,9 @@
 
 对外稳定接口：
 - koharu_client.KoharuClient — koharu REST 封装
+- chat_client.* — OpenAI 兼容 chat/completions 深模块（翻译/OCR 共用接缝）
 - pipeline.* — 引擎 DAG 常量
-- metrics.* — CER/EM/归一化/匹配
+- metrics.* — CER/EM/归一化/匹配/日文残留判据
 - geometry.* — bbox/iou/并集
 - runner.* — 单页流水线执行器（建项目→跑→回读→关项目）
 - ocr_engines.* — OpenAI 兼容 OCR 引擎（本地 llama-server / DashScope）
@@ -14,6 +15,7 @@
 - paths.* — 项目路径与 JSON/UTF-8 IO 工具
 """
 from amta import (  # noqa: F401
+    chat_client,
     evalkit,
     geometry,
     gt_alignment,
@@ -28,6 +30,7 @@ from amta import (  # noqa: F401
 )
 
 __all__ = [
+    "chat_client",
     "evalkit",
     "geometry",
     "gt_alignment",

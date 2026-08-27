@@ -16,14 +16,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-import requests
-
-from amta.metrics import levenshtein, norm
+from amta.chat_client import chat, chat_text
+from amta.metrics import contains_japanese, levenshtein, norm
 from amta.paths import ROOT
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
-_JAPANESE = re.compile(r"[\u3040-\u30ff]")  # 假名即日文残留的判别特征；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
+# 日文残留判别特征唯一归属 metrics.contains_japanese；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
 
 
 def get_chat_config() -> dict[str, str]:
@@ -55,19 +54,11 @@ def text_chat(
     api_key: str | None = None,
     timeout: int = 120,
 ) -> str:
-    """发一次 OpenAI 兼容纯文本 chat 请求（base_url 为 API 根，自动拼 /chat/completions），返回回复文本；解析失败返回空串。"""
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=headers,
-        json={"model": model, "messages": messages},
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"]["content"] or ""
-    except (KeyError, IndexError, TypeError):
-        return ""
+    """发一次 OpenAI 兼容纯文本 chat 请求，返回回复文本；解析失败返回空串。
+
+    深模块代理：HTTP/解析逻辑唯一归属 chat_client.chat_text（translate/ocr_engines 共用接缝）。
+    """
+    return chat_text(base_url, model, messages, api_key=api_key, timeout=timeout)
 
 
 def chat_with_tools(
@@ -81,24 +72,9 @@ def chat_with_tools(
 ) -> dict:
     """发一次 OpenAI 兼容 chat 请求（支持 tools/function calling），返回完整 message 结构。
 
-    响应 message 可能含 tool_calls（模型请求调用工具）或纯 content（最终回答）；
-    解析失败返回 {"content": ""}。
+    深模块代理：请求构造/响应解析唯一归属 chat_client.chat。
     """
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    payload: dict[str, Any] = {"model": model, "messages": messages}
-    if tools:
-        payload["tools"] = tools
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=headers,
-        json=payload,
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"] or {}
-    except (KeyError, IndexError, TypeError):
-        return {"content": ""}
+    return chat(base_url, model, messages, tools=tools, api_key=api_key, timeout=timeout)
 
 
 def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
@@ -379,7 +355,7 @@ def japanese_residue_check(texts: list[str]) -> list[str]:
         t = t or ""
         if not t.strip():
             bad.append("")
-        elif _JAPANESE.search(t):
+        elif contains_japanese(t):
             bad.append(t)
     return bad
 

@@ -12,6 +12,14 @@ import re
 # 保留：日文假名 / 汉字 / 拉丁字母 / 数字（去掉标点、空白、特殊符号）
 _NORM_RE = re.compile(r"[^\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9]")
 
+# 日文残留判别特征：仅假名区（汉字与中文共用 U+4E00-U+9FFF，不可作残留依据）
+_JAPANESE_RE = re.compile(r"[\u3040-\u30ff]")
+
+
+def contains_japanese(s: str) -> bool:
+    """字符串是否含日文假名（日文残留判据；汉字不判，因与中文共用字面）。"""
+    return bool(_JAPANESE_RE.search(s or ""))
+
 
 def norm(s: str) -> str:
     """归一化：去掉空白/标点/特殊符号，保留假名、汉字、字母、数字。"""
