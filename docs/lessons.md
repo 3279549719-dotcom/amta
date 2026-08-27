@@ -232,6 +232,38 @@
 - **Prevention**：落盘后立即 compile 校验 + git diff 核对。
 - **Regression**：暂无自动化。[已自动化：否]
 
+## L28 — PowerShell 管道缓冲会让后台任务输出"消失"：Tee-Object 经 2>&1 可能整体延迟
+
+- **Problem**：后台 00_run_all 经 `2>&1 | Tee-Object` 跑，轮询时看不到中间输出，误判"没跑"。
+- **Root cause**：PowerShell 对原生命令 stdout 的管道批处理/缓冲，Tee 落盘与显示都可能滞后到进程结束。
+- **Durable lesson**：后台长任务的进度验证以**产物文件为准**（artifacts/*.json 是否生成/更新），不要依赖管道日志。
+- **Prevention**：长任务重定向到独立日志文件（`*> file`）而非 Tee；核对产物 mtime/内容。
+- **Regression**：暂无自动化，规则见本条目。
+
+## L29 — 中文/多行字符串 JSON 勿用 PowerShell ConvertFrom-Json（PS5.1 解析失败）
+
+- **Problem**：canon.json 含多行 OCR 文本，`ConvertFrom-Json` 报"应为 ':' 或 '}'"，统计条数全 0。
+- **Root cause**：Windows PowerShell 5.1 ConvertFrom-Json 对字符串内换行的处理缺陷。
+- **Durable lesson**：JSON 统计/解析一律用 Python（`json.loads`），PowerShell 只做文件存在性检查。
+- **Prevention**：写临时 python 脚本或 `python -c`；勿信 PS 解析结果。
+- **Regression**：暂无自动化。
+
+## L30 — CRLF 行尾文件 edit 工具精确匹配失败：用 Python 脚本替换并保持行尾
+
+- **Problem**：scripts/02_ocr.py（CRLF）用 edit 工具改不动（oldText 匹配不上），报"exact text not found"。
+- **Root cause**：edit 工具按 LF 语义匹配，CRLF 文件含 \r\n。
+- **Durable lesson**：改 CRLF 文件用 Python（read→replace→write，读出来的 \r\n 原样写回），断言 anchor count==1 防误替换。
+- **Prevention**：先 `Get-Content -Raw` 检查含 "\r\n"；替换后 `compile()` 验证语法。
+- **Regression**：暂无自动化。
+
+## L31 — koharu mask/inpaint 契约（探针 2026-08-27 定案，详见 ADR-020）
+
+- **Problem**：put_mask 400（裸像素非 PNG）；lama-manga completed_with_errors（缺 BubbleMask）；export 422（无 renderer 节点）。
+- **Root cause**：koharu REST 契约未文档化：mask 需 PNG 编码字节；lama-manga 需 segment+bubble 双 mask；inpainted 结果在 scene 节点 blob（WEBP）。
+- **Durable lesson**：koharu inpaint 链路 = put_mask(PNG) ×2 → run_pipeline([lama-manga]) → fetch_inpainted(blob WEBP)；勿用 export_page 取 inpaint 结果。
+- **Prevention**：客户端封装 run_inpaint/fetch_inpainted（已测）；ADR-020 固化。
+- **Regression**：tests/test_koharu_inpaint.py 4 测。
+
 ## 模板（新增时复制）
 
 ```

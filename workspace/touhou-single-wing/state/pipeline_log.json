@@ -492,6 +492,536 @@
    ],
    "failed_step": null,
    "ended_at": "2026-08-26T14:07:08+00:00"
+  },
+  {
+   "run_id": "043db62d2c5c",
+   "git_head": "d5853b4",
+   "started_at": "2026-08-27T03:33:11+00:00",
+   "trigger": "pages 11-20 +review",
+   "steps": [
+    {
+     "step": "01_detect",
+     "page": "page_10",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\11.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_detection.json",
+     "detail": {},
+     "duration_s": 122.75,
+     "at": "2026-08-27T03:35:14+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_10",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_canon.json",
+     "detail": {},
+     "duration_s": 25.42,
+     "at": "2026-08-27T03:35:39+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_10",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_translation.json",
+     "detail": {},
+     "duration_s": 166.08,
+     "at": "2026-08-27T03:38:25+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_10",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_semantic.json",
+     "detail": {},
+     "duration_s": 47.29,
+     "at": "2026-08-27T03:39:13+00:00"
+    },
+    {
+     "step": "auto_repair",
+     "page": "page_10",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_translation.json",
+     "detail": {},
+     "duration_s": 51.83,
+     "at": "2026-08-27T03:40:05+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_11",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\12.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_detection.json",
+     "detail": {},
+     "duration_s": 98.79,
+     "at": "2026-08-27T03:41:43+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_11",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_canon.json",
+     "detail": {},
+     "duration_s": 11.53,
+     "at": "2026-08-27T03:41:55+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_11",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_translation.json",
+     "detail": {},
+     "duration_s": 77.32,
+     "at": "2026-08-27T03:43:12+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_11",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_semantic.json",
+     "detail": {},
+     "duration_s": 43.42,
+     "at": "2026-08-27T03:43:56+00:00"
+    },
+    {
+     "step": "auto_repair",
+     "page": "page_11",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_11_translation.json",
+     "detail": {},
+     "duration_s": 12.53,
+     "at": "2026-08-27T03:44:08+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_12",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\13.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_detection.json",
+     "detail": {},
+     "duration_s": 108.37,
+     "at": "2026-08-27T03:45:56+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_12",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_canon.json",
+     "detail": {},
+     "duration_s": 15.71,
+     "at": "2026-08-27T03:46:12+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_12",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_translation.json",
+     "detail": {},
+     "duration_s": 499.6,
+     "at": "2026-08-27T03:54:32+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_12",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_semantic.json",
+     "detail": {},
+     "duration_s": 74.79,
+     "at": "2026-08-27T03:55:47+00:00"
+    },
+    {
+     "step": "auto_repair",
+     "page": "page_12",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_12_translation.json",
+     "detail": {},
+     "duration_s": 44.38,
+     "at": "2026-08-27T03:56:31+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_13",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\14.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_detection.json",
+     "detail": {},
+     "duration_s": 90.36,
+     "at": "2026-08-27T03:58:01+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_13",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_canon.json",
+     "detail": {},
+     "duration_s": 24.18,
+     "at": "2026-08-27T03:58:26+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_13",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_translation.json",
+     "detail": {},
+     "duration_s": 186.54,
+     "at": "2026-08-27T04:01:32+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_13",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_semantic.json",
+     "detail": {},
+     "duration_s": 145.88,
+     "at": "2026-08-27T04:03:58+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_14",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\15.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_detection.json",
+     "detail": {},
+     "duration_s": 93.09,
+     "at": "2026-08-27T04:05:31+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_14",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_canon.json",
+     "detail": {},
+     "duration_s": 15.87,
+     "at": "2026-08-27T04:05:47+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_14",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_translation.json",
+     "detail": {},
+     "duration_s": 124.43,
+     "at": "2026-08-27T04:07:51+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_14",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_semantic.json",
+     "detail": {},
+     "duration_s": 132.44,
+     "at": "2026-08-27T04:10:04+00:00"
+    },
+    {
+     "step": "auto_repair",
+     "page": "page_14",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_14_translation.json",
+     "detail": {},
+     "duration_s": 45.42,
+     "at": "2026-08-27T04:10:49+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_15",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\16.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_detection.json",
+     "detail": {},
+     "duration_s": 118.33,
+     "at": "2026-08-27T04:12:48+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_15",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_canon.json",
+     "detail": {},
+     "duration_s": 21.55,
+     "at": "2026-08-27T04:13:09+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_15",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_translation.json",
+     "detail": {},
+     "duration_s": 143.02,
+     "at": "2026-08-27T04:15:32+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_15",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_semantic.json",
+     "detail": {},
+     "duration_s": 55.41,
+     "at": "2026-08-27T04:16:28+00:00"
+    },
+    {
+     "step": "auto_repair",
+     "page": "page_15",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_15_translation.json",
+     "detail": {},
+     "duration_s": 11.89,
+     "at": "2026-08-27T04:16:39+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_16",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\17.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_detection.json",
+     "detail": {},
+     "duration_s": 115.26,
+     "at": "2026-08-27T04:18:35+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_16",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_canon.json",
+     "detail": {},
+     "duration_s": 18.36,
+     "at": "2026-08-27T04:18:53+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_16",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_translation.json",
+     "detail": {},
+     "duration_s": 31.9,
+     "at": "2026-08-27T04:19:25+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_16",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_16_semantic.json",
+     "detail": {},
+     "duration_s": 56.79,
+     "at": "2026-08-27T04:20:22+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_17",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\18.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_detection.json",
+     "detail": {},
+     "duration_s": 97.13,
+     "at": "2026-08-27T04:21:59+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_17",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_canon.json",
+     "detail": {},
+     "duration_s": 16.63,
+     "at": "2026-08-27T04:22:16+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_17",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_translation.json",
+     "detail": {},
+     "duration_s": 169.33,
+     "at": "2026-08-27T04:25:05+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_17",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_semantic.json",
+     "detail": {},
+     "duration_s": 43.54,
+     "at": "2026-08-27T04:25:48+00:00"
+    },
+    {
+     "step": "auto_repair",
+     "page": "page_17",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_17_translation.json",
+     "detail": {},
+     "duration_s": 35.22,
+     "at": "2026-08-27T04:26:24+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_18",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\19.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_detection.json",
+     "detail": {},
+     "duration_s": 89.43,
+     "at": "2026-08-27T04:27:53+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_18",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_canon.json",
+     "detail": {},
+     "duration_s": 7.58,
+     "at": "2026-08-27T04:28:01+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_18",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_translation.json",
+     "detail": {},
+     "duration_s": 210.38,
+     "at": "2026-08-27T04:31:31+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_18",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_18_semantic.json",
+     "detail": {},
+     "duration_s": 57.96,
+     "at": "2026-08-27T04:32:29+00:00"
+    },
+    {
+     "step": "01_detect",
+     "page": "page_19",
+     "status": "ok",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\20.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_detection.json",
+     "detail": {},
+     "duration_s": 103.25,
+     "at": "2026-08-27T04:34:12+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_19",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_canon.json",
+     "detail": {},
+     "duration_s": 18.79,
+     "at": "2026-08-27T04:34:31+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_19",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_translation.json",
+     "detail": {},
+     "duration_s": 30.07,
+     "at": "2026-08-27T04:35:01+00:00"
+    },
+    {
+     "step": "semantic_check",
+     "page": "page_19",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_translation.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_19_semantic.json",
+     "detail": {},
+     "duration_s": 64.11,
+     "at": "2026-08-27T04:36:05+00:00"
+    }
+   ],
+   "failed_step": null,
+   "ended_at": "2026-08-27T04:36:05+00:00"
+  },
+  {
+   "run_id": "e31537f6caa9",
+   "git_head": "a0f5284",
+   "started_at": "2026-08-27T04:43:14+00:00",
+   "trigger": "pages 11-11",
+   "steps": [
+    {
+     "step": "01_detect",
+     "page": "page_10",
+     "status": "skipped",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\11.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_detection.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-08-27T04:43:14+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_10",
+     "status": "skipped",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_canon.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-08-27T04:43:14+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_10",
+     "status": "skipped",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_translation.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-08-27T04:43:14+00:00"
+    },
+    {
+     "step": "04_inpaint",
+     "page": "page_10",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_inpaint.json",
+     "detail": {},
+     "duration_s": 1.33,
+     "at": "2026-08-27T04:43:15+00:00"
+    },
+    {
+     "step": "05_typeset",
+     "page": "page_10",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\clean\\page_10_clean.png",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_10_typeset.json",
+     "detail": {},
+     "duration_s": 2.14,
+     "at": "2026-08-27T04:43:17+00:00"
+    }
+   ],
+   "failed_step": null,
+   "ended_at": "2026-08-27T04:43:17+00:00"
   }
  ]
 }
