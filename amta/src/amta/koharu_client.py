@@ -190,6 +190,30 @@ class KoharuClient:
         resp.raise_for_status()
         return resp.json()
 
+    def run_inpaint(self, page_id: str, masks: dict[str, bytes],
+                    engine: str = "lama-manga", steps: list[str] | None = None,
+                    timeout: int = 1800) -> dict:
+        """上传 masks(segment+bubble,PNG 字节)并跑 inpaint pipeline,等待终态。
+
+        探针 2026-08-27 定案: lama-manga 需 SegmentMask+BubbleMask 双 mask,
+        payload 必须 PNG 编码字节;结果经 fetch_inpainted 取回。
+        """
+        for role, png in masks.items():
+            self.put_mask(page_id, role, png, engine=engine)
+        steps = steps or [engine]
+        op_id = self.run_pipeline([page_id], steps)
+        return self.wait_operation(op_id, timeout=timeout)
+
+    def fetch_inpainted(self, page_id: str) -> bytes | None:
+        """取回 inpaint 结果(WEBP 字节): 找 kind.image.role == 'inpainted' 节点 → get_blob。"""
+        for node in self.get_page_nodes(page_id).values():
+            kind = node.get("kind")
+            if isinstance(kind, dict):
+                img = kind.get("image")
+                if isinstance(img, dict) and img.get("role") == "inpainted":
+                    return self.get_blob(img["blob"])
+        return None
+
     # ---------- 导出 ----------
 
     def export_page(self, page_id: str, fmt: str, dest: Path, timeout: int = 300) -> Path:
