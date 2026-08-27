@@ -38,9 +38,10 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 | docs 导航（分工/目录） | `docs/README.md` |
 | 可复用经验库（坑的唯一归属） | `docs/lessons.md` |
 | 架构决策（为什么这样选） | `docs/decisions/README.md` |
-| 架构决策背景 | `docs/01-调研报告与集成编排方案.md` |
-| 可复用轮子资产 | `docs/02-本地轮子详报.md` |
-| 上游能力/迁移权衡 | `docs/03-koharu上游详报.md` |
+| 调研报告（唯一事实源） | `research/README.md`（01-06 详报索引 + koharu-upstream 素材） |
+| 架构决策背景 | `research/01-调研报告与集成编排方案.md` |
+| 可复用轮子资产 | `research/02-本地轮子-manga-localization-详报.md` |
+| 上游能力/迁移权衡 | `research/03-koharu-上游深度调研-详报.md` |
 | 引擎 DAG / 目录结构 | `README.md` |
 
 Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读全文。
