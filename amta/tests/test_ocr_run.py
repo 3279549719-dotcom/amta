@@ -74,14 +74,14 @@ def test_local_engine_builds_request(monkeypatch, tmp_path):
     实现已收敛到 amta.ocr_engines（scripts/ocr_run 只是 re-export），mock 打补丁在库模块上。
     """
     import ocr_run
-    from amta import ocr_engines
+    from amta import chat_client
 
     crop = tmp_path / "a.png"
     crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
     fake = mock.Mock()
     fake.return_value.status_code = 200
     fake.return_value.json.return_value = {"choices": [{"message": {"content": "月の都"}}]}
-    monkeypatch.setattr(ocr_engines.requests, "post", fake)
+    monkeypatch.setattr(chat_client.requests, "post", fake)
     out = ocr_run.local_ocr_batch([str(crop)], base_url="http://127.0.0.1:8118/v1", model="ocr")
     assert out[0]["ocr"] == "月の都"
     assert fake.call_args.args[0] == "http://127.0.0.1:8118/v1/chat/completions"
@@ -92,14 +92,14 @@ def test_local_engine_builds_request(monkeypatch, tmp_path):
 def test_dashscope_engine_uses_env_key(monkeypatch, tmp_path):
     """dashscope 引擎：环境变量 DASHSCOPE_API_KEY 走 Authorization，base64 图走 OpenAI 兼容端点。"""
     import ocr_run
-    from amta import ocr_engines
+    from amta import chat_client
 
     crop = tmp_path / "a.png"
     crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
     fake = mock.Mock()
     fake.return_value.status_code = 200
     fake.return_value.json.return_value = {"choices": [{"message": {"content": "月の都"}}]}
-    monkeypatch.setattr(ocr_engines.requests, "post", fake)
+    monkeypatch.setattr(chat_client.requests, "post", fake)
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
 
     out = ocr_run.dashscope_ocr_batch([str(crop)], model="qwen-vl-ocr-latest")

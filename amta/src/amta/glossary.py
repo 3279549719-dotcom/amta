@@ -6,8 +6,7 @@
 """
 from __future__ import annotations
 
-from amta.metrics import levenshtein, norm
-from amta.translate import _JAPANESE
+from amta.metrics import contains_japanese, levenshtein, norm
 
 
 def check_glossary(canon: list[dict], translation: dict[str, str], work_state: dict) -> list[str]:
@@ -34,7 +33,7 @@ def check_glossary(canon: list[dict], translation: dict[str, str], work_state: d
             # 2) 用了与 canon 不同且不在 alias 的中文写法（相近变体）
             if canon_zh in tgt or any(a in tgt for a in aliases):
                 continue
-            if _JAPANESE.search(tgt):
+            if contains_japanese(tgt):
                 continue  # 纯日文残留交给 ②，不重复报
             norm_tgt = norm(tgt)
             norm_canon = norm(canon_zh)

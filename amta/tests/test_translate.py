@@ -20,7 +20,7 @@ def test_get_chat_config_reads_env(tmp_path, monkeypatch):
 
 
 def test_text_chat_builds_payload_and_parses(monkeypatch):
-    from amta import translate
+    from amta import chat_client, translate
 
     captured = {}
 
@@ -37,7 +37,7 @@ def test_text_chat_builds_payload_and_parses(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(translate.requests, "post", fake_post)
+    monkeypatch.setattr(chat_client.requests, "post", fake_post)
     out = translate.text_chat(
         "https://api.deepseek.com", "m", [{"role": "user", "content": "hi"}], api_key="k"
     )
@@ -308,7 +308,7 @@ def test_record_failure_overwrites_empty_list(tmp_path):
     doc = json.loads(log.read_text(encoding="utf-8"))
     assert doc["failures"] == [{"region_id": "a", "reason": "x"}]
 def test_chat_with_tools_passes_tools_payload(monkeypatch):
-    from amta import translate
+    from amta import chat_client, translate
     captured = {}
 
     def fake_post(url, headers=None, json=None, timeout=120):
@@ -323,7 +323,7 @@ def test_chat_with_tools_passes_tools_payload(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(translate.requests, "post", fake_post)
+    monkeypatch.setattr(chat_client.requests, "post", fake_post)
     out = translate.chat_with_tools(
         "https://api.deepseek.com", "m", [{"role": "user", "content": "hi"}],
         tools=[{"type": "function", "function": {"name": "lookup_term"}}],
@@ -334,7 +334,7 @@ def test_chat_with_tools_passes_tools_payload(monkeypatch):
 
 
 def test_chat_with_tools_parses_tool_calls(monkeypatch):
-    from amta import translate
+    from amta import chat_client, translate
 
     def fake_post(url, headers=None, json=None, timeout=120):
         class _R:
@@ -350,7 +350,7 @@ def test_chat_with_tools_parses_tool_calls(monkeypatch):
 
         return _R()
 
-    monkeypatch.setattr(translate.requests, "post", fake_post)
+    monkeypatch.setattr(chat_client.requests, "post", fake_post)
     out = translate.chat_with_tools("u", "m", [{"role": "user", "content": "hi"}])
     assert out["tool_calls"][0]["function"]["name"] == "lookup_term"
 
