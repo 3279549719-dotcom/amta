@@ -41,3 +41,21 @@
 - `scripts/probe_audit.py`（一次性，已删）
 - 结果落盘：`workspace/probe_audit_result.json`
 - 坑入 lessons：推理模型 token 螺旋 + 分块对策（L32）
+
+## 附录：优化参数实测（probe2，2026-08-27 19:10）
+
+**两趟式 audit 定稿（替代原单趟分块设计）：**
+
+- **Pass1 存在性确认**（hallucination/misread）：crop 小图**多图批量**（实测 6 图/次调用被 vision-exp 支持）→ VLM 转写/判空。机械判定：空→hallucination 候选；转写与 canon 差异→misread 候选（且 VLM 直接给修正文本）。窄竖排小字可读（crop 全分辨率）→ 根除整页降采样的假阳性（じゃ、そういうことで、 不再误判）。
+- **Pass2 漏检枚举**（missed）：整页图 + **无清单**枚举 prompt（只列文字+方位，JSON）→ 与 canon 机械 diff → 候选进工单 + 方位框 re-OCR 确认。无清单→无对比推理→不触发螺旋。
+
+**计时实测**（pages 11 简 / 14 密，17 条）：
+
+| 页面 | Pass1 | Pass2 | 合计 |
+|---|---|---|---|
+| 11（9 crops） | 25s | 24s | **49s** |
+| 14（17 crops） | 104s* | 25s | **129s** |
+
+*6 图批量在密页 50% 螺旋（finish=length 白烧 ~35s）→ 顺序回退每张 1-3s。**终参数：批量 3 图**（螺旋率大幅下降，单页 Pass1 预计 ~40-60s）。
+
+41 页预估：**1.5-2.5h**（原单趟分块设计 ~7h）。Pass2 枚举质量好：密页枚举抓到 ゴッ（大拟声词）、サグ師 等 canon 缺失文本。
