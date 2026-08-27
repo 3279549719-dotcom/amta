@@ -151,14 +151,60 @@ def _prompt_parts(canon: list[dict], work_state: dict,
 # （见文件头 re-export）
 
 
+def _format_region_text(r: dict) -> str:
+    """格式化单个区域的文本，支持双引擎（Front3）和旧格式（text）。
+
+    Front3 格式: baberu_text + vlm_text + contained_in
+    旧格式: text
+    """
+    rid = r["region_id"]
+    # 旧格式向后兼容
+    if "text" in r and "baberu_text" not in r:
+        return f'{rid}|{r["text"]}'
+
+    # Front3 双引擎格式
+    baberu = r.get("baberu_text", "") or ""
+    vlm = r.get("vlm_text")
+    vlm_status = r.get("vlm_status", "ok")
+    contained = r.get("contained_in")
+
+    parts = [f"[Baberu] {baberu if baberu else '(空)'}"]
+    if vlm is not None:
+        parts.append(f"[VLM] {vlm}")
+    elif vlm_status and vlm_status != "ok":
+        parts.append(f"[VLM: {vlm_status}]")
+
+    if contained:
+        parts.append(f"[嵌套于 {contained}]")
+
+    return f'{rid}|{" ".join(parts)}'
+
+
 def _current_block(canon: list[dict]) -> str:
-    """当前批的 region_id|text 块（分批时每批单独拼）。"""
-    return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
+    """当前批的 region_id|text 块（分批时每批单独拼）。
+
+    支持 Front3 双引擎格式（baberu_text + vlm_text + contained_in）
+    和旧格式（text）。
+    """
+    return "\n".join(_format_region_text(r) for r in canon)
 
 
 def _build_current_content(prefix: str, batch: list[dict]) -> str:
-    """组装当前批 user 内容（Current 层）：region_id|text 块 + Uncertainty 前缀。"""
-    cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
+    """组装当前批 user 内容（Current 层）：region_id|text 块 + Uncertainty 前缀。
+
+    Front3 双引擎格式下，每个区域包含 [Baberu] 和 [VLM] 两个 OCR 结果，
+    LLM 应自行判断哪个更准确后翻译。
+    """
+    has_dual_engine = any("baberu_text" in r for r in batch)
+    if has_dual_engine:
+        instr = (
+            "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致。\n"
+            "每个区域有 [Baberu] 和 [VLM] 两个 OCR 结果，请结合上下文判断哪个更准确后翻译。\n"
+            "[嵌套于 X] 表示该区域嵌套在区域 X 中，可能是同一气泡的大小字，请结合父区域文本判断。\n"
+        )
+    else:
+        instr = '请翻译当前页，输出 JSON：{"r01": "译文", ...}，region_id 必须与输入完全一致：\n'
+    cur = instr + _current_block(batch)
     return f"{prefix}\n\n{cur}" if prefix else cur
 
 
