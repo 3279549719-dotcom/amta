@@ -14,6 +14,24 @@
   - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
   - 测试 +6（134 全绿）
 
+## 当前状态（2026-08-27，/finish：11-20 全量重跑 + Stage 4/5 完成，feat/contract-hygiene 14 commits 未推送）
+
+- **11-20 全量重跑完成（新 detector + ADR-019 契约 + deepseek-v4-flash）**：10 页零失败（run 043db62d2c5c），canon **108 条**（手工真值 97，宁多勿漏 +11），**category 覆盖 108/108（100%）**，sub_tier 41 条；语义评审 8/10 页 pass_rate 1.0（页 14 0.889 自动修复、页 13 有 2 inconclusive 待导演复核）；对比旧跑检出翻倍（页 11 3→9、页 14 3→17）。旧产物备份 `output/backup/2026-08-27-pre-rerun-11-20/`。
+- **Stage 4 inpaint 完成（ADR-020 + 探针定案）**：`inpaint_strategy`（category→fill_white/inpaint/skip）+ `04_inpaint` 工位 + `KoharuClient.run_inpaint/fetch_inpainted`；探针结论——lama-manga 需 **segment+bubble 双 mask（PNG 编码）**，~20s（400×600 CPU），结果经 scene 节点 blob 取回为 **WEBP**（export 走不通）。
+- **Stage 5 typeset 完成（ADR-021）**：自研 Pillow 引擎（`fonts` 4 级映射 / `typeset_engine` 方向+折行+避头尾+字号二分 / `typeset_render` 横排居中+竖排单列+白描边）+ `05_typeset` 工位（coverage/overflow 机械检查）；**overlay_text 强制竖排漏洞修复落地**；bbox 经 `node_id` 关联 detection（零契约改动）。
+- **页 11 端到端冒烟通过**：04 fill_white 9 + 05 rendered 9/9 coverage_complete，竖排 2 条（u06 52px/u07 27px）、感叹号→粗体映射、字号 20-52 自适应全生效；`final/page_10_final.png` 已出。
+- **fastcheck 192 全绿**（+28 测试）；lessons L28-L31 新增。
+- ⚠️ **渲染质量待修**（Patrick 初审）：字号跨框不一致、部分框内译文绘制/擦除观感问题——下一轮先修 renderer 再全量渲染。
+
+## 下一步
+
+0. **渲染质量修复**（字号一致性、译文绘制观感、overlay 竖排锚点）——Patrick 已指出的问题
+1. **11-20 全量 `--with-inpaint --with-typeset`**（lama 整页 1-3min/页，~30-50min），验证 sfx/overlay 真实擦除路径 + 产出全彩成品
+2. **Stage 6 QA 工位**（coverage 反压闭环 + VLM 终审，蓝图 Phase 4）
+3. **合并 main + push**（feat/contract-hygiene 14 commits；push 前 fetch→rebase 铁律）
+4. **工单微信通知**（handoff 遗留）
+5. 翻译结果对照报告已发邮箱：`output/reports/translation_check_11_20.zip`
+
 ## 当前状态（2026-08-26，/simplify 化简重构：分支 refactor/simplify 未合并未推送）
 
 - **/simplify 式化简重构（独立 worktree，分支 refactor/simplify，commit f819cd8，17 文件 +102/-151，fastcheck ALL PASS / 121 passed，零依赖不变，未 push）**：
