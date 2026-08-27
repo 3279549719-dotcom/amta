@@ -123,12 +123,17 @@ def assign_sub_tier(lines: list[dict], ratio: float = 1.4) -> list[dict]:
     return out
 
 
-def build_regions(blocks: list[dict], ioa_thresh: float = 0.75, ratio: float = 1.4) -> list[dict]:
+def build_regions(blocks: list[dict], ioa_thresh: float = 0.75, ratio: float = 1.4,
+                  iou_frag: float = 0.5) -> list[dict]:
     """把扁平 blocks 重组为层级 regions[]（容器 + child_lines + sub_tier）。
 
-    契约升级(Gemini DetectionArtifact): 全嵌套于更大框内的子框挂到容器的 child_lines,
-    而非像 absorb_contained 那样丢弃。独立框自成 region(child_lines=[])。child_lines
-    内每行由 assign_sub_tier 标 primary/aside, 供 02_ocr 展平翻译 + 未来 05 复合排版。
+    契约升级(Gemini DetectionArtifact): 被更大框包含的子框挂到容器 child_lines;
+    独立框自成 region(child_lines=[])。child_lines 内每行由 assign_sub_tier 标
+    primary/aside, 供 02_ocr 展平翻译 + 未来 05 复合排版。
+
+    碎片去重(Q11 定案): 容器 child_lines 内部, 与已收录行 IoU>=iou_frag(0.5) 视为
+    同一文字碎片, 丢弃当前框(只保留首个)。消除 p17「まあ…」primary 与嵌套 aside
+    几乎完全重合(IoA≈1.0)导致的重复 OCR。
 
     返回: [{node_id, bbox, bubble_type, text, child_lines: [line_with_sub_tier]}, ...]
     """
@@ -140,6 +145,9 @@ def build_regions(blocks: list[dict], ioa_thresh: float = 0.75, ratio: float = 1
         bb = b["bbox"]
         parent = next((r for r in regions if _contained_in(bb, r["bbox"], ioa_thresh)), None)
         if parent is not None:
+            # 碎片去重: 与容器内已收录行高度重合(被包含 IoA>=iou_frag)则丢弃
+            if any(_contained_in(bb, line["bbox"], iou_frag) for line in parent["child_lines"]):
+                continue
             parent["child_lines"].append(dict(b))
         else:
             item = dict(b)

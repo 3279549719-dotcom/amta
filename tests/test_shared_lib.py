@@ -183,6 +183,21 @@ class GeometryTest(unittest.TestCase):
         # child_lines 被赋予 sub_tier
         self.assertIn(cont["child_lines"][0]["sub_tier"], ("primary", "aside"))
 
+    def test_build_regions_dedup_overlapping_fragment(self):
+        # p17 案例: primary 与嵌套 aside 几乎完全重合(IoA≈1.0) → 碎片去重只留一个
+        blocks = [
+            {"node_id": "container", "bbox": [1615, 2100, 1840, 2921], "bubble_type": "dialogue"},
+            {"node_id": "primary", "bbox": [1720, 2094, 1843, 2778], "bubble_type": "dialogue"},
+            {"node_id": "frag", "bbox": [1749, 2119, 1814, 2762], "bubble_type": "dialogue"},  # 完全重叠
+            {"node_id": "aside2", "bbox": [1629, 2643, 1698, 2915], "bubble_type": "dialogue"},  # 独立段
+        ]
+        regions = geometry.build_regions(blocks)
+        cont = next(r for r in regions if r["node_id"] == "container")
+        ids = [line["node_id"] for line in cont["child_lines"]]
+        # frag 与 primary 重叠被去重, 保留 primary + aside2
+        self.assertEqual(sorted(ids), ["aside2", "primary"])
+        self.assertNotIn("frag", ids)
+
     def test_build_regions_no_nesting(self):
         blocks = [{"node_id": "a", "bbox": [0, 0, 50, 50]},
                   {"node_id": "b", "bbox": [100, 100, 150, 150]}]
