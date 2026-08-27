@@ -29,3 +29,4 @@
 - [018 — 流水线编排器：00_run_all + step tracing + LLM 观测（零依赖自造）](./018-pipeline-orchestrator.md)
 - [019 - Stage 4-6 契约裁剪:category/sub_tier 契约 + 字段卫生](./019-contract-triage.md)
 - [021 - Stage 5 排版工位:自研 Pillow 引擎 + node_id 关联契约](./021-stage5-typeset-station.md)
+- [020 - Stage 4 inpaint 工位:koharu lama-manga 链路 + 探针定案](./020-stage4-inpaint-station.md)
