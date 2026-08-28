@@ -42,14 +42,16 @@ def run(work_id: str, raw_page: Path, out_path: Path,
     results = run_all_pages(client, pages, DETECTOR_STEPS,
                             prefix="amta-det", timeout=1200, label="01_detect")
     per_engine = next(iter(results.values()))["engines"]
-    # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)
-    comp = {eng: compact_blocks(blks, _FIELDS) for eng, blks in per_engine.items()}
+    # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)，并注入引擎名溯源
+    comp = {eng: compact_blocks(blks, _FIELDS, source_engine=eng)
+            for eng, blks in per_engine.items()}
     blocks = union_blocks(comp)
     blocks = assign_category(blocks)  # Phase 1/ADR-019: bubble_type to 3-level category
-    # Front3 Stage 1: 记录 source_engines (哪些 detector 检到了这个框)
+    # Front3 Stage 1 (ADR-023): source_engines = 检出该框的 detector 引擎名列表(union 已注入)
+    # 仅当 union 未注入时兜底空列表（不应再出现 node_id 伪引擎名）
     for b in blocks:
-        if "source_engines" not in b:
-            b["source_engines"] = [b.get("node_id", "unknown")]
+        if not isinstance(b.get("source_engines"), list):
+            b["source_engines"] = []
     # Front3 Stage 1: 替代 absorb_contained — 标记嵌套但不丢弃, 所有框平级独立 OCR
     blocks = mark_contained(blocks)
 
