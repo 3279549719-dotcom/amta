@@ -4,7 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.translate import _current_block
+from amta.canon_schema import validate_canon
+from amta.glossary import check_glossary
+from amta.translate import SuggestionsExtractor, _current_block
 
 
 def test_translate_input_dual_engine():
@@ -86,3 +88,52 @@ def test_current_block_empty_baberu_with_vlm():
     }
     output = _current_block([item])
     assert "VLMが読み取ったテキスト" in output
+
+
+def test_validate_canon_accepts_dual_engine_format():
+    """Front3 canon（baberu_text/vlm_text，无 text 字段）应通过 schema 校验。"""
+    canon = [
+        {
+            "region_id": "u00",
+            "baberu_text": "では豊ちゃん",
+            "vlm_text": "では豊ちゃん、輝夜様にこの羽根を見せに行ってきます",
+            "contained_in": None,
+            "vlm_status": "ok",
+            "page": 14,
+        },
+        {
+            "region_id": "u01",
+            "baberu_text": "",
+            "vlm_text": "VLMのみテキスト",
+            "contained_in": "u00",
+            "vlm_status": "ok",
+            "page": 14,
+        },
+    ]
+    assert validate_canon(canon) == []
+
+
+def test_validate_canon_rejects_all_empty_text():
+    """三个文本字段全空应仍然拒绝（无内容可翻译）。"""
+    canon = [{"region_id": "u00", "text": "", "baberu_text": "", "vlm_text": "", "page": 14}]
+    problems = validate_canon(canon)
+    assert any("empty" in p for p in problems)
+
+
+def test_suggestions_extractor_dual_engine_no_keyerror():
+    """SuggestionsExtractor 在双引擎格式（无 text 字段）下不应 KeyError。"""
+    ex = SuggestionsExtractor(existing=set())
+    canon = [{"region_id": "u00", "baberu_text": "サグメはそう言った", "vlm_text": "サグメはそう言った",
+              "page": 11, "vlm_status": "ok"}]
+    sugg = ex.extract(canon, {"u00": "沙谟这么说道"})
+    assert any(s["term"] == "サグメ" for s in sugg)
+
+
+def test_check_glossary_dual_engine_matches_baberu_text():
+    """check_glossary 在双引擎格式下应能匹配 baberu_text 中的术语。"""
+    ws = {"terms": {"月の民": {"translation": "月之民", "status": "confirmed", "aliases": []}}}
+    canon = [{"region_id": "u00", "baberu_text": "月の民は穢れが多い", "vlm_text": "月の民は穢れが多い",
+              "page": 11, "vlm_status": "ok"}]
+    # 译文残留日文术语 → 违例（证明术语匹配生效）
+    violations = check_glossary(canon, {"u00": "月の民秽物多"}, ws)
+    assert any("月の民" in v for v in violations)
