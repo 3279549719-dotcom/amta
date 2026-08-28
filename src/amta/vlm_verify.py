@@ -1,8 +1,8 @@
 """VLM contact sheet 批量校验模块。
 
-把所有 crop 图拼成 contact sheet，送 DeepSeek vision 做批量转写。
-配置：thinking=disabled, detail=low（probe B 组验证最优，2-3s/页）。
-输出：按输入顺序对应的转写文本列表。
+把所有 crop 图拼成 contact sheet,送 DeepSeek vision 做批量转写。
+配置:thinking=disabled, detail=low(probe B 组验证最优,2-3s/页)。
+输出:按输入顺序对应的转写文本列表。
 
 Refs ADR-023 Stage 2 双引擎会诊。
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 import time
 from typing import Optional
 
@@ -19,17 +20,25 @@ from PIL import Image
 
 def make_contact_sheet(
     crops: list[Image.Image],
-    cols: int = 3,
+    cols: int = 4,
     pad: int = 12,
     bg: tuple = (255, 255, 255),
+    max_cell_h: int = 320,
+    max_side: int = 4000,
+    draw_index: bool = True,
 ) -> Image.Image:
-    """把 crop 图列表拼成网格 contact sheet。
+    """把 crop 图列表拼成网格 contact sheet,每个 crop 左上角画序号徽章。
+
+    VLM 按图上编号转写(不依赖位置),避开宽窄不一导致的视觉顺序错位。
 
     Args:
         crops: PIL Image 列表
         cols: 列数
         pad: 图片间距
         bg: 背景色
+        max_cell_h: 单个 crop 归一化后的最大高度(竖排长条先缩到该高,防 sheet 超长)
+        max_side: 最终 sheet 最长边上限(超出则整体等比缩放,DeepSeek 拒超长图)
+        draw_index: 是否在左上角画序号徽章
 
     Returns:
         拼接后的 PIL Image
@@ -37,45 +46,92 @@ def make_contact_sheet(
     if not crops:
         return Image.new("RGB", (10, 10), bg)
 
-    rows = (len(crops) + cols - 1) // cols
-
-    # 统一缩放到相同宽度（保持比例）
-    target_w = max(c.width for c in crops)
     normalized: list[Image.Image] = []
     for c in crops:
-        if c.width != target_w:
-            ratio = target_w / c.width
-            new_h = int(c.height * ratio)
-            c = c.resize((target_w, new_h), Image.LANCZOS)
+        if c.height > max_cell_h:
+            ratio = max_cell_h / c.height
+            c = c.resize((max(1, int(c.width * ratio)), max_cell_h), Image.LANCZOS)
         normalized.append(c)
 
-    cell_w = target_w + pad * 2
-    cell_h = max(c.height for c in normalized) + pad * 2
-    sheet = Image.new("RGB", (cols * cell_w, rows * cell_h), bg)
+    if draw_index:
+        from PIL import ImageDraw, ImageFont
 
-    for i, c in enumerate(normalized):
-        r, col = divmod(i, cols)
-        x = col * cell_w + pad
-        y = r * cell_h + pad
-        sheet.paste(c, (x, y))
+        try:
+            font = ImageFont.truetype("arial.ttf", 26)
+        except Exception:
+            font = ImageFont.load_default(size=26)
+        tagged: list[Image.Image] = []
+        for i, c in enumerate(normalized):
+            tagged_img = c.copy()
+            d = ImageDraw.Draw(tagged_img)
+            label = str(i + 1)
+            bbox = d.textbbox((0, 0), label, font=font)
+            tw, th = bbox[2] - bbox[0] + 10, bbox[3] - bbox[1] + 8
+            d.rectangle([0, 0, tw, th], fill=(20, 90, 200))
+            d.text((5, 3), label, fill=(255, 255, 255), font=font)
+            tagged.append(tagged_img)
+        normalized = tagged
+
+    # 逐行拼: cell 高度按行内最大(修复全局最大高度导致的超长 sheet)
+    row_heights: list[int] = []
+    row_imgs: list[list[Image.Image]] = []
+    for i in range(0, len(normalized), cols):
+        row = normalized[i : i + cols]
+        row_imgs.append(row)
+        row_heights.append(max(c.height for c in row))
+
+    sheet_w = max(sum(c.width + pad * 2 for c in row) for row in row_imgs)
+    sheet_h = sum(h + pad * 2 for h in row_heights)
+    sheet = Image.new("RGB", (sheet_w, sheet_h), bg)
+
+    y = 0
+    for row, rh in zip(row_imgs, row_heights):
+        x = 0
+        for c in row:
+            sheet.paste(c, (x + pad, y + pad))
+            x += c.width + pad * 2
+        y += rh + pad * 2
+
+    # 最终保护: 最长边超限则整体缩放
+    if max(sheet.size) > max_side:
+        ratio = max_side / max(sheet.size)
+        sheet = sheet.resize(
+            (max(1, int(sheet.width * ratio)), max(1, int(sheet.height * ratio))),
+            Image.LANCZOS,
+        )
 
     return sheet
 
 
 def parse_vlm_output(raw: str, expected_count: int) -> Optional[list[str]]:
-    """解析 VLM 输出，按行对应输入顺序。
+    """解析 VLM 输出,按序号前缀对应输入顺序。
+
+    优先解析「序号: 文本」格式(序号 1 基,与网格顺序对应);长气泡的内部换行
+    已由 prompt 要求折叠为空格。无编号时回退纯行模式(行数必须恰好相等)。
 
     Args:
         raw: VLM 原始输出文本
-        expected_count: 预期的行数（与 crop 数量一致）
+        expected_count: 预期的区域数量(与 crop 数量一致)
 
     Returns:
-        文本列表（长度=expected_count），或 None（数量不符时触发容错）
+        文本列表(长度=expected_count),或 None(解析失败触发容错)
     """
+    texts: list[Optional[str]] = [None] * expected_count
+    found = 0
+    for line in raw.strip().splitlines():
+        m = re.match(r"^\s*(\d{1,3})\s*[:：、.]\s*(.*)$", line)
+        if m:
+            idx = int(m.group(1)) - 1
+            if 0 <= idx < expected_count and texts[idx] is None:
+                texts[idx] = m.group(2).strip()
+                found += 1
+    if found == expected_count and all(t is not None for t in texts):
+        return texts  # type: ignore[return-value]
+    # 兜底: 无编号纯行模式(行数恰好相等才接受)
     lines = [line.strip() for line in raw.strip().split("\n")]
-    if len(lines) != expected_count:
-        return None
-    return lines
+    if len(lines) == expected_count:
+        return lines
+    return None
 
 
 def vlm_verify_batch(
@@ -94,11 +150,11 @@ def vlm_verify_batch(
         model: VLM 模型名
         base_url: API 端点
         max_retries: 最大重试次数
-        timeout: 单次调用超时（秒）
+        timeout: 单次调用超时(秒)
 
     Returns:
         {
-            "texts": list[str] | None,  # 转写文本列表，失败时为 None
+            "texts": list[str] | None,  # 转写文本列表,失败时为 None
             "status": "ok" | "failed" | "count_mismatch",
             "raw_output": str,
             "elapsed": float,
@@ -111,9 +167,10 @@ def vlm_verify_batch(
     img_b64 = base64.b64encode(buf.getvalue()).decode()
 
     prompt = (
-        f"这是一页漫画的 {len(crops)} 个文字区域截图，按从左到右、从上到下的网格顺序排列。"
-        f"请逐个转写每个区域中的日文文字，直接输出每行一个区域的转写结果，共 {len(crops)} 行。"
-        f"如果某个区域没有文字，输出空行。不要输出编号、解释或其他内容。"
+        f"这是一页漫画的 {len(crops)} 个文字区域截图,每个区域的左上角有蓝色数字编号(1~{len(crops)})。"
+        f"请按编号逐个转写对应区域中的日文文字,输出恰好 {len(crops)} 行,每行格式为「编号: 转写文本」"
+        f"(例如 1: こんにちは)。区域内部的换行用空格连接成一行;如果某个区域没有文字或编号不清,"
+        f"该行冒号后留空。除这 {len(crops)} 行外不要输出任何其他内容。"
     )
 
     payload = {
@@ -133,9 +190,9 @@ def vlm_verify_batch(
                 ],
             }
         ],
-        "max_tokens": 4000,
+        "max_tokens": 8000,
         "temperature": 0.1,
-        "extra_body": {"thinking": {"type": "disabled"}},
+        "thinking": {"type": "disabled"},
     }
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -159,7 +216,7 @@ def vlm_verify_batch(
                     "retries": attempt,
                 }
             else:
-                # 数量不符，重试
+                # 数量不符,重试
                 if attempt < max_retries:
                     time.sleep(2)
                     continue
