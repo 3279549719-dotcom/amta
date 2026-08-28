@@ -16,6 +16,10 @@ from amta.canon_schema import validate_canon  # noqa: E402
 from amta.glossary import check_glossary  # noqa: E402
 from amta.workstate import load_state  # noqa: E402
 from amta.stage3_planner import run_plan_loop, translate_with_plan, validate_plan  # noqa: E402
+try:
+    from amta.stage3_planner_vision import run_plan_loop_vision  # noqa: E402
+except ImportError:
+    run_plan_loop_vision = None
 
 
 def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
@@ -32,7 +36,7 @@ def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None,
         trace_path: str | Path | None = None,
-        with_plan: bool = False) -> dict:
+        with_plan: bool = False, with_vision_plan: bool = False) -> dict:
     canon = paths.read_json(canon_path)
     problems = validate_canon(canon)
     if problems:
@@ -59,7 +63,11 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     # 规划阶段（可选）：翻译前让 LLM 扫描全页，标记 invalid/duplicate 框
     plan = None
     plan_elapsed = 0.0
-    if with_plan:
+    if with_vision_plan and run_plan_loop_vision is not None:
+        page_num = canon[0].get('page') if canon else None
+        t_plan_start = time.time()
+        plan = run_plan_loop_vision(canon, None, page=page_num)  # vision规划用DashScope VLM，翻译仍用DeepSeek
+    elif with_plan:
         t_plan_start = time.time()
         plan = run_plan_loop(canon, llm)
         plan_elapsed = time.time() - t_plan_start
@@ -69,7 +77,7 @@ def run(canon_path: str | Path, out_path: str | Path, *,
 
     # 真 function calling：模型按需调 lookup_term / get_context（Patrick 裁决，2026-08-26）
     t_translate_start = time.time()
-    if with_plan and plan is not None:
+    if (with_plan or with_vision_plan) and plan is not None:
         result = translate_with_plan(canon, llm, plan=plan, work_state=ws,
                                      open_questions=open_questions,
                                      tools=translate.TOOLS_SCHEMA, state_dir=state_dir)
@@ -103,7 +111,7 @@ def run(canon_path: str | Path, out_path: str | Path, *,
         ],
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
-    if with_plan and plan is not None:
+    if (with_plan or with_vision_plan) and plan is not None:
         stage3_trace["plan"] = {
             "elapsed": round(plan_elapsed, 2),
             "n_invalid": len(plan.invalids),
@@ -154,9 +162,11 @@ def main() -> int:
     ap.add_argument("--trace", default=None, help="LLM/工具调用观测落盘路径(可选)")
     ap.add_argument("--with-plan", action="store_true",
                     help="开启规划阶段：翻译前 LLM 扫描全页，自动标记 invalid/duplicate 框")
+    ap.add_argument("--with-vision-plan", action="store_true",
+                    help="翻译前跑VLM规划阶段，带整页图，标记 invalid/duplicate 框")
     a = ap.parse_args()
     run(a.canon, a.out, work_id=a.work_id, state_dir=a.state_dir, trace_path=a.trace,
-        with_plan=a.with_plan)
+        with_plan=a.with_plan, with_vision_plan=a.with_vision_plan)
     print(f"[03_translate] -> {a.out}")
     return 0
 
