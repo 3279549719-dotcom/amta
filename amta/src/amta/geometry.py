@@ -55,15 +55,27 @@ def union_blocks(detections: dict[str, list[dict]], threshold: float = 0.5) -> l
 
     union_boxes 只留 bbox；这里把 blocks 的附加字段一并带出，供 01_detect 输出扁平 blocks[]。
     去重判据与 union_boxes 一致（IoU > threshold 视为重复），重复时保留首个出现的完整 block。
+    引擎溯源（ADR-023）：遍历 detections.items()，block 已含 source_engines 字段时，
+    新框确保记录当前引擎名，重复命中时把当前引擎名追加到已保留框（去重、顺序稳定）；
+    无该字段的 block 保持旧行为（不新增字段）。
     """
     seen: list[dict] = []
-    for blocks in detections.values():
+    for eng, blocks in detections.items():
         for b in blocks:
             bb = bbox_from_block(b)
-            if any(iou(bb, s["bbox"]) > threshold for s in seen):
+            dup = next((s for s in seen if iou(bb, s["bbox"]) > threshold), None)
+            if dup is not None:
+                src = dup.get("source_engines")
+                if isinstance(src, list) and eng not in src:
+                    src.append(eng)
                 continue
             item = dict(b)
             item["bbox"] = bb
+            src = item.get("source_engines")
+            if isinstance(src, list):
+                item["source_engines"] = list(src)  # 拷贝，避免与调用方共享可变列表
+                if eng not in item["source_engines"]:
+                    item["source_engines"].append(eng)
             seen.append(item)
     return seen
 
