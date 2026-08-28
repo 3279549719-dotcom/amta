@@ -74,6 +74,46 @@
      "text": ""
     }
    ]
+  },
+  {
+   "work_id": "",
+   "problems": [
+    {
+     "region_id": "u11",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
+  },
+  {
+   "work_id": "",
+   "problems": [
+    {
+     "region_id": "u05",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "u17",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "u18",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
+  },
+  {
+   "work_id": "",
+   "problems": [
+    {
+     "region_id": "u06",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
   }
  ]
 }
