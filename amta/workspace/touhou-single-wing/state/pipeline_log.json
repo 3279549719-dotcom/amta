@@ -1022,6 +1022,66 @@
    ],
    "failed_step": null,
    "ended_at": "2026-08-27T04:43:17+00:00"
+  },
+  {
+   "run_id": "c588d48ce5cf",
+   "git_head": "db633a8",
+   "started_at": "2026-08-28T06:34:35+00:00",
+   "trigger": "pages 14-14",
+   "steps": [
+    {
+     "step": "01_detect",
+     "page": "page_13",
+     "status": "skipped",
+     "input": "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地\\14.jpg",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_detection.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-08-28T06:34:35+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_13",
+     "status": "skipped",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_detection.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_canon.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-08-28T06:34:35+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_13",
+     "status": "skipped",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_canon.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_translation.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-08-28T06:34:35+00:00"
+    },
+    {
+     "step": "ai_judge",
+     "page": "page_13",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_semantic.json",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_judge.json",
+     "detail": {},
+     "duration_s": 32.7,
+     "at": "2026-08-28T06:35:08+00:00"
+    },
+    {
+     "step": "judge_repair",
+     "page": "page_13",
+     "status": "ok",
+     "input": "page_13_u01",
+     "output": "E:\\manga translator agent\\amta\\workspace\\touhou-single-wing\\artifacts\\page_13_translation.json",
+     "detail": {},
+     "duration_s": 20.42,
+     "at": "2026-08-28T06:35:28+00:00"
+    }
+   ],
+   "failed_step": null,
+   "ended_at": "2026-08-28T06:35:28+00:00"
   }
  ]
 }

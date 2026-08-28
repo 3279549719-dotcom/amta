@@ -1,0 +1,34 @@
+{
+ "tickets": [
+  {
+   "id": "d466791e14a5",
+   "work_id": "touhou-single-wing",
+   "region_id": "page_13_u16",
+   "kind": "hard_case",
+   "source": "",
+   "translation": "",
+   "reason": "「ハ意様」疑为OCR误读（很可能是“八意様”=八意永琳），译文直译为“哈意大人”存疑，需对照原图确认是“八意”还是其他称谓后再定稿。",
+   "auto_rounds": 0,
+   "status": "open",
+   "created_at": "2026-08-28T06:35:28+00:00",
+   "updated_at": "2026-08-28T06:35:28+00:00",
+   "action": null,
+   "resolution": null
+  },
+  {
+   "id": "ccf628fca8aa",
+   "work_id": "touhou-single-wing",
+   "region_id": "page_13_u12",
+   "kind": "hard_case",
+   "source": "",
+   "translation": "",
+   "reason": "judge 建议修复但 semantic 未标记 fail，需人工确认",
+   "auto_rounds": 0,
+   "status": "open",
+   "created_at": "2026-08-28T06:35:28+00:00",
+   "updated_at": "2026-08-28T06:35:28+00:00",
+   "action": null,
+   "resolution": null
+  }
+ ]
+}

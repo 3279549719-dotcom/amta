@@ -184,17 +184,57 @@ def build_regions(blocks: list[dict], ioa_thresh: float = 0.75, ratio: float = 1
     return regions
 
 
-def flatten_regions(regions: list[dict]) -> list[dict]:
+def flatten_regions(regions: list[dict], min_coverage_ratio: float = 0.60) -> list[dict]:
     """把层级 regions[] 展平为扁平 blocks[]（容器自身 + 每个 child_line 各一框）。
 
     02_ocr 按展平后的 bbox 裁框出独立 region_id；03 保持扁平翻译。兼容旧 blocks[] 消费方。
+
+    【残差保底律 Residual Container Fallback — 修复"展平吞噬"bug】
+    旧规则"容器自身不输出，只输出 child_lines"在"容器很宽但只检出一根极窄子行"时
+    会丢弃母体容器，导致容器内未被独立检出的大字主台词被吞噬
+    （15.jpg「弟子だからね」案：160px 容器只包了 52px 小字，大字被灭口）。
+
+    修复：计算 child_lines 对容器的覆盖率，若覆盖率不足或单子行极窄，触发保底——
+    丢弃不完全的子行，直接输出完整母体气泡容器送 OCR（Manga-OCR ViT 具有多行整气泡
+    自回归识别能力，不需要在 Stage 1 强行切碎）。
+
+    触发条件（任一）：
+      - coverage_ratio < min_coverage_ratio（默认 0.60）
+      - len(child_lines) == 1 且 容器宽度 > 1.5 × 子行宽度
     """
     out: list[dict] = []
     for r in regions:
-        if r["child_lines"]:
-            for line in r["child_lines"]:
+        child_lines = r.get("child_lines", [])
+
+        # 1. 孤立区域（无子行），直接输出
+        if not child_lines:
+            out.append(dict(r))
+            continue
+
+        # 2. 计算子行总面积对容器的覆盖率
+        container_area = _area(r["bbox"])
+        if container_area == 0:
+            continue
+        child_total_area = sum(_area(c["bbox"]) for c in child_lines)
+        coverage_ratio = child_total_area / container_area
+
+        # 3. 残差保底判定：覆盖率不足 或 单子行极窄
+        container_w = r["bbox"][2] - r["bbox"][0]
+        first_child_w = child_lines[0]["bbox"][2] - child_lines[0]["bbox"][0]
+        is_severely_undercovered = (
+            coverage_ratio < min_coverage_ratio
+            or (len(child_lines) == 1 and container_w > first_child_w * 1.5)
+        )
+
+        if is_severely_undercovered:
+            # 触发保底：丢弃不完全的子行，直接输出完整大气泡容器
+            fallback_region = dict(r)
+            fallback_region["child_lines"] = []  # 清空单子行，作为完整气泡送 OCR
+            fallback_region["fallback_triggered"] = True
+            out.append(fallback_region)
+        else:
+            # 正常多行完整覆盖，展平输出各子行
+            for line in child_lines:
                 item = dict(line)
                 out.append(item)
-        else:
-            out.append(dict(r))
     return out

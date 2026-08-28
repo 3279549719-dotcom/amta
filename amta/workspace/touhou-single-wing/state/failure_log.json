@@ -74,6 +74,16 @@
      "text": ""
     }
    ]
+  },
+  {
+   "work_id": "touhou-single-wing",
+   "problems": [
+    {
+     "region_id": "page_14_u01",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
   }
  ]
 }

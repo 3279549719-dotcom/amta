@@ -43,6 +43,20 @@ def run(work_id: str, raw_page: Path, out_path: Path,
     per_engine = next(iter(results.values()))["engines"]
     # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)
     comp = {eng: compact_blocks(blks, _FIELDS) for eng, blks in per_engine.items()}
+
+    # Tracing: 并集前落盘 4-detector 原始框（未去重），杜绝黑盒缺口
+    # 修复"展平吞噬"bug 后，需要 per-engine 原始数据来定位根因（上游漏检 vs 后处理误杀）
+    raw_dump = {
+        "work_id": work_id,
+        "page": raw_page.stem,
+        "source": str(raw_page),
+        "engines": {eng: list(blks) for eng, blks in comp.items()},
+        "per_engine_count": {eng: len(blks) for eng, blks in comp.items()},
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    raw_dump_path = out_path.parent / f"{raw_page.stem}_detect_raw_engines.json"
+    write_json(raw_dump_path, raw_dump)
+
     blocks = union_blocks(comp)
     blocks = assign_category(blocks)  # Phase 1/ADR-019: bubble_type to 3-level category  # IoU 去重并保留首个命中框元数据
     # 契约升级: 重组为 regions[].child_lines[].sub_tier(嵌套子框挂容器, 不丢弃)

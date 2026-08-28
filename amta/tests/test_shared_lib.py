@@ -205,6 +205,109 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(len(regions), 2)
         self.assertTrue(all(r["child_lines"] == [] for r in regions))
 
+    # ---- flatten_regions 残差保底律（Residual Container Fallback）----
+    # 根因：flatten_regions 旧规则"容器自身不输出，只输出 child_lines"
+    # 会在"容器很宽但只检出一根极窄子行"时丢弃母体容器，
+    # 导致容器内未被独立检出的大字主台词被吞噬（15.jpg「弟子だからね」案）。
+
+    def test_flatten_single_narrow_child_triggers_container_fallback(self):
+        """探针测试：15.jpg 案发现场 — 160px 容器 + 52px 单子行 → 必须输出母体容器。"""
+        container = {
+            "node_id": "c_001",
+            "bbox": [50, 2395, 210, 2698],  # 宽 160px 大气泡（含大字「弟子だからね」）
+            "bubble_type": "dialogue",
+            "category": "dialogue_bubble",
+            "child_lines": [
+                {
+                    "node_id": "l_001",
+                    "bbox": [145, 2395, 197, 2698],  # 宽 52px 小字「落ち着きなさい」
+                    "bubble_type": "dialogue",
+                    "category": "dialogue_bubble",
+                    "sub_tier": "primary",
+                }
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        # 必须输出 1 个框，且是宽 160px 的母体容器，绝不能是 52px 窄条
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["bbox"], [50, 2395, 210, 2698])
+        self.assertTrue(result[0].get("fallback_triggered"))
+
+    def test_flatten_14jpg_long_bubble_narrow_child_fallback(self):
+        """14.jpg 案发现场 — 大气泡容器 + 46px 窄子行 → 触发保底输出容器。"""
+        container = {
+            "node_id": "c_002",
+            "bbox": [1600, 2630, 1870, 3150],  # 宽 270px 长气泡（含大字长句）
+            "bubble_type": "dialogue",
+            "category": "dialogue_bubble",
+            "child_lines": [
+                {
+                    "node_id": "l_002",
+                    "bbox": [1607, 2783, 1653, 3113],  # 宽 46px 窄条
+                    "bubble_type": "dialogue",
+                    "category": "dialogue_bubble",
+                    "sub_tier": "primary",
+                }
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["bbox"], [1600, 2630, 1870, 3150])
+        self.assertTrue(result[0].get("fallback_triggered"))
+
+    def test_flatten_multi_line_full_coverage_outputs_children(self):
+        """正常多行全覆盖 → 不触发保底，输出各子行（原有行为不变）。"""
+        container = {
+            "node_id": "c_003",
+            "bbox": [100, 100, 300, 500],  # 宽 200px
+            "child_lines": [
+                {"node_id": "l1", "bbox": [110, 110, 290, 290]},  # 宽 180px
+                {"node_id": "l2", "bbox": [110, 300, 290, 490]},  # 宽 180px
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["node_id"], "l1")
+        self.assertEqual(result[1]["node_id"], "l2")
+        self.assertFalse(result[0].get("fallback_triggered", False))
+
+    def test_flatten_single_child_full_coverage_outputs_child(self):
+        """单子行但覆盖率高（子行几乎填满容器）→ 不触发保底，输出子行。"""
+        container = {
+            "node_id": "c_004",
+            "bbox": [100, 100, 200, 400],  # 宽 100px
+            "child_lines": [
+                {"node_id": "l1", "bbox": [105, 105, 195, 395]},  # 宽 90px，覆盖率高
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["node_id"], "l1")
+        self.assertFalse(result[0].get("fallback_triggered", False))
+
+    def test_flatten_no_child_outputs_container(self):
+        """无子行 → 输出容器自身（原有行为不变）。"""
+        container = {
+            "node_id": "c_005",
+            "bbox": [100, 100, 200, 300],
+            "child_lines": [],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["node_id"], "c_005")
+
+    def test_flatten_fallback_clears_child_lines(self):
+        """触发保底时，输出的容器 child_lines 必须为空（作为完整气泡送 OCR）。"""
+        container = {
+            "node_id": "c_006",
+            "bbox": [50, 2395, 210, 2698],
+            "child_lines": [
+                {"node_id": "l1", "bbox": [145, 2395, 197, 2698]},
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(result[0]["child_lines"], [])
+
 
 class CategoryTest(unittest.TestCase):
     """Phase 1: bubble_type 值域统一映射到 3 级 category（ADR-019）。"""
