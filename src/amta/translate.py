@@ -302,7 +302,8 @@ class SuggestionsExtractor:
     def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
         suggestions = []
         for r in canon:
-            text = r["text"] or ""
+            # Front3 双引擎格式（ADR-023）：text 缺失时回退 baberu_text
+            text = r.get("text") or r.get("baberu_text") or ""
             for m in _KATAKANA_TERM.finditer(text):
                 term = m.group(0)
                 if term in self.existing or term in _KATAKANA_STOP:
