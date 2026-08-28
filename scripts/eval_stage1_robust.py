@@ -27,7 +27,7 @@ REPORT_JSON = ARTIFACTS / "eval_stage1_results.json"
 KOHARU_EXE = r"D:\我的汉化\workflow\bin\koharu.exe"
 KOHARU_PORT = 4000
 
-# 11.jpg ~ 20.jpg → page_idx 10 ~ 19
+# 11.jpg ~ 20.jpg → page_11_detection.json ~ page_20_detection.json（真实页码，与 doc["page"] 一致）
 EVAL_PAGES = list(range(11, 21))
 
 # 已知漏检区域（page_num → {label, bbox}）
@@ -37,8 +37,9 @@ KNOWN_MISSES = {
 }
 
 
-def page_idx_for(page_num: int) -> int:
-    return page_num - 1
+def detection_path_for(artifacts: Path, page_num: int) -> Path:
+    """检测产物文件名使用真实页码（修复 off-by-one：page_11_detection.json 装 page 11 数据）。"""
+    return artifacts / f"page_{page_num}_detection.json"
 
 
 def bbox_overlap(a: list[float], b: list[float]) -> float:
@@ -97,20 +98,22 @@ def wait_koharu_ready(timeout: int = 120) -> bool:
 
 def run_detection(page_num: int) -> dict | None:
     """跑单页检测，返回结果 dict 或 None。"""
-    page_idx = page_idx_for(page_num)
     raw_path = RAW_DIR / f"{page_num}.jpg"
-    out_path = ARTIFACTS / f"page_{page_idx}_detection.json"
+    out_path = detection_path_for(ARTIFACTS, page_num)
 
     if not raw_path.exists():
         print(f"  [SKIP] {raw_path} not found")
         return None
 
-    # 已存在则跳过（断点续跑）
+    # 已存在则跳过（断点续跑）；文件页码与目标页不符时视为脏缓存，重新检测
     if out_path.exists():
         existing = load_json(out_path)
         if existing and existing.get("n_boxes", 0) > 0:
-            print(f"  [CACHE] page {page_num}: {existing['n_boxes']} boxes")
-            return existing
+            if existing.get("page") != str(page_num):
+                print(f"  [WARN] cache mismatch: {out_path.name} contains page={existing.get('page')}, re-running")
+            else:
+                print(f"  [CACHE] page {page_num}: {existing['n_boxes']} boxes")
+                return existing
 
     # 启动 koharu
     print(f"  Starting koharu for page {page_num}...")
@@ -142,6 +145,10 @@ def run_detection(page_num: int) -> dict | None:
 
     data = load_json(out_path)
     if data:
+        # 防御：文件名页码必须与数据内 page 字段一致（off-by-one 回归防护）
+        if data.get("page") != str(page_num):
+            print(f"  [ERROR] page mismatch: {out_path.name} contains page={data.get('page')}, expected {page_num}")
+            return None
         print(f"  [OK] page {page_num}: {data.get('n_boxes', 0)} boxes")
     return data
 
