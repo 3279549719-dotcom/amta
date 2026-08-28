@@ -3,6 +3,8 @@
 AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化。DSH 会话（单 LLM Agent）= 导演（决策/翻译判断/修复决策/验收），amta Python 执行器 = 确定性工具层，koharu v0.59.1 headless（REST :4000）= 引擎。第一里程碑：Benchmark A/B/C。
 
 ## 核心事实
+- **原图目录**：`D:\我的汉化\汉化作品\东方\单翼停留之地\`（jpg 格式，`1.jpg`~`41.jpg`，页码即文件名；Stage 3 方案 B VLM 规划需整页图时从此目录读取，不复制进 workspace）
+
 
 - **钉 koharu v0.59.1**（server 世代，REST /api/v1 + MCP /mcp + 像素 mask 机制）；上游 0.77.5 起已删 headless/HTTP/MCP，升级即失去全部自动化面。
 - **翻译通道**：`03_translate` 工位脚本直调 DeepSeek API（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY，`CHAT_MODEL=deepseek-v4-pro`，`https://api.deepseek.com`），机械护栏（pre-translate Input schema gate `canon_schema.py` + 结构/残留/region_id 对应 + Glossary Validator `glossary.py` Knowledge guardrail）+ 语义护栏 `scripts/translate_semantic_check.py` VLM 逐 region **四维评分**（accuracy/fluency/consistency/readability，粗筛层，FAILED 附证据交导演）；分层 Loop（脚本机械重译 1 次 → `repair_failed.py` DeepSeek 自修复 ≤3 轮（可带工具）→ 仍败进 needs_review 工单；`apply_revisions.py` 修订+`--only` 重评审闭环）；Tools 真 function calling（`chat_with_tools`+`TOOLS_SCHEMA` lookup_term/get_context+`execute_tool`，预算真拦截 `TERM_BUDGET=10`/`GET_CONTEXT_BUDGET=3`/`MAX_TOOL_ROUNDS=6`，Context 最小披露不预塞术语/前页，vision 工具未接线 `VISION_BUDGET=2` 预留）；验收阈值 = ③ ≥90% + 导演清 needs_review 工单；导演=终审/误报驳回/术语校准，**不手写译文**（ADR-016 修订 + ADR-017）**弃 koharu 内 `llm` 引擎**（ADR-014 修订决策 #5）。
