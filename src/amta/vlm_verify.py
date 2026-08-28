@@ -50,7 +50,7 @@ def make_contact_sheet(
     for c in crops:
         if c.height > max_cell_h:
             ratio = max_cell_h / c.height
-            c = c.resize((max(1, int(c.width * ratio)), max_cell_h), Image.LANCZOS)
+            c = c.resize((max(1, int(c.width * ratio)), max_cell_h), Image.Resampling.LANCZOS)
         normalized.append(c)
 
     if draw_index:
@@ -97,7 +97,7 @@ def make_contact_sheet(
         ratio = max_side / max(sheet.size)
         sheet = sheet.resize(
             (max(1, int(sheet.width * ratio)), max(1, int(sheet.height * ratio))),
-            Image.LANCZOS,
+            Image.Resampling.LANCZOS,
         )
 
     return sheet
@@ -239,3 +239,11 @@ def vlm_verify_batch(
                 "elapsed": elapsed,
                 "retries": attempt,
             }
+    # 不可达(最后一次 attempt 必然 return); pyright 要求全路径返回
+    return {
+        "texts": None,
+        "status": "failed",
+        "raw_output": "unreachable",
+        "elapsed": 0.0,
+        "retries": max_retries,
+    }
