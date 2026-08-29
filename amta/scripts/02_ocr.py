@@ -132,7 +132,7 @@ def run(
             "page": page_idx,
         }
         # 透传可选字段
-        for k in ("category", "bubble_type", "node_id"):
+        for k in ("category", "bubble_type", "node_id", "sub_tier"):
             if b.get(k) is not None:
                 item[k] = b[k]
         canon.append(item)

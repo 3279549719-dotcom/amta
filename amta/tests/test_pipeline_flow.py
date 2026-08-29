@@ -53,7 +53,7 @@ def test_pipeline_log_skip_append(tmp_path):
 # ---------- 02_ocr ----------
 
 def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
-    """crop 按 region_id 命名(语义评审契约) + canon 格式对齐 03 输入。"""
+    """crop 按 region_id 命名(语义评审契约) + canon 双引擎格式(baberu_text, 空 OCR 保留)。"""
     import json
     from PIL import Image
 
@@ -76,10 +76,13 @@ def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
     doc = impl.run("w", det_path, raw, out, page_idx=0)
     canon = json.loads(out.read_text(encoding="utf-8"))
 
-    assert doc["n_regions"] == 1  # 空 OCR 跳过
+    assert doc["n_regions"] == 2  # 双引擎契约：空 OCR 不跳过（vlm_text 可兜底）
     assert canon[0]["region_id"] == "page_0_u00"
-    assert canon[0]["text"] == "月の都"
+    assert canon[0]["baberu_text"] == "月の都"
+    assert canon[1]["region_id"] == "page_0_u01"
+    assert canon[1]["baberu_text"] == ""
     assert (tmp_path / "crops" / "page_0_u00.png").exists()  # region_id 命名
+    assert (tmp_path / "crops" / "page_0_u01.png").exists()
 
 
 # ---------- 00_run_all ----------
