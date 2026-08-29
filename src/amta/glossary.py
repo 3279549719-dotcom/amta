@@ -13,7 +13,8 @@ def check_glossary(canon: list[dict], translation: dict[str, str], work_state: d
     terms = work_state.get("terms", {})
     violations: list[str] = []
     for r in canon:
-        src = r.get("text") or ""
+        # Front3 双引擎格式（ADR-023）：text 缺失时回退 baberu_text/vlm_text
+        src = r.get("text") or r.get("baberu_text") or r.get("vlm_text") or ""
         tgt = (translation.get(r["region_id"]) or "").strip()
         if not tgt:
             continue

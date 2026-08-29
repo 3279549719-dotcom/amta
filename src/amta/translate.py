@@ -151,14 +151,60 @@ def _prompt_parts(canon: list[dict], work_state: dict,
 # （见文件头 re-export）
 
 
+def _format_region_text(r: dict) -> str:
+    """格式化单个区域的文本，支持双引擎（Front3）和旧格式（text）。
+
+    Front3 格式: baberu_text + vlm_text + contained_in
+    旧格式: text
+    """
+    rid = r["region_id"]
+    # 旧格式向后兼容
+    if "text" in r and "baberu_text" not in r:
+        return f'{rid}|{r["text"]}'
+
+    # Front3 双引擎格式
+    baberu = r.get("baberu_text", "") or ""
+    vlm = r.get("vlm_text")
+    vlm_status = r.get("vlm_status", "ok")
+    contained = r.get("contained_in")
+
+    parts = [f"[Baberu] {baberu if baberu else '(空)'}"]
+    if vlm is not None:
+        parts.append(f"[VLM] {vlm}")
+    elif vlm_status and vlm_status != "ok":
+        parts.append(f"[VLM: {vlm_status}]")
+
+    if contained:
+        parts.append(f"[嵌套于 {contained}]")
+
+    return f'{rid}|{" ".join(parts)}'
+
+
 def _current_block(canon: list[dict]) -> str:
-    """当前批的 region_id|text 块（分批时每批单独拼）。"""
-    return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
+    """当前批的 region_id|text 块（分批时每批单独拼）。
+
+    支持 Front3 双引擎格式（baberu_text + vlm_text + contained_in）
+    和旧格式（text）。
+    """
+    return "\n".join(_format_region_text(r) for r in canon)
 
 
 def _build_current_content(prefix: str, batch: list[dict]) -> str:
-    """组装当前批 user 内容（Current 层）：region_id|text 块 + Uncertainty 前缀。"""
-    cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
+    """组装当前批 user 内容（Current 层）：region_id|text 块 + Uncertainty 前缀。
+
+    Front3 双引擎格式下，每个区域包含 [Baberu] 和 [VLM] 两个 OCR 结果，
+    LLM 应自行判断哪个更准确后翻译。
+    """
+    has_dual_engine = any("baberu_text" in r for r in batch)
+    if has_dual_engine:
+        instr = (
+            "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致。\n"
+            "每个区域有 [Baberu] 和 [VLM] 两个 OCR 结果，请结合上下文判断哪个更准确后翻译。\n"
+            "[嵌套于 X] 表示该区域嵌套在区域 X 中，可能是同一气泡的大小字，请结合父区域文本判断。\n"
+        )
+    else:
+        instr = '请翻译当前页，输出 JSON：{"r01": "译文", ...}，region_id 必须与输入完全一致：\n'
+    cur = instr + _current_block(batch)
     return f"{prefix}\n\n{cur}" if prefix else cur
 
 
@@ -192,7 +238,10 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          open_questions: list[dict] | None = None,
                          tools_ctx: str | None = None,
                          tools: list[dict] | None = None,
-                         state_dir: Path | str | None = None) -> dict[str, str]:
+                         state_dir: Path | str | None = None,
+                         crop_dir: Path | str | None = None,
+                         vlm_api_key: str | None = None,
+                         vision_budget: int = VISION_BUDGET) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
@@ -202,23 +251,28 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
     tools_ctx：ADR-016 旧预取上下文（build_tools_context 产出），向后兼容保留，新代码不再使用。
     tools：真 function calling 工具声明（TOOLS_SCHEMA）。传了则启用工具循环：
     模型请求工具 → execute_tool 执行 → 结果回传 → 继续，直到纯文本输出；
-    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET/VISION_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    crop_dir / vlm_api_key：lookup_image 工具所需（crop 图片目录 + VLM API 密钥），未传则 lookup_image 返回未配置错误。
     llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools=None) -> dict（chat_with_tools）。
     """
     ws = work_state or {}
+    # 注入 canon 索引供 lookup_image 查询（内部键，下划线前缀）
+    ws["_canon_items"] = {r["region_id"]: r for r in canon}
     system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
     if tools_ctx:
         system = f"{system}\n\n{tools_ctx}"
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET}
+        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET,
+                   "lookup_image": vision_budget}
         for _ in range(max_retries):
             content = _build_current_content(prefix, batch)
             messages: list[dict[str, Any]] = [{"role": "system", "content": system},
                                         {"role": "user", "content": content}]
             raw = run_tool_loop(llm, messages, budgets, work_state=ws,
-                                prev_pages=prev_pages, state_dir=state_dir, tools=tools)
+                                prev_pages=prev_pages, state_dir=state_dir, tools=tools,
+                                crop_dir=crop_dir, vlm_api_key=vlm_api_key)
             parsed = parse_translation_response(raw, region_ids)
             if not mechanical_guardrails(batch, parsed):
                 return parsed
@@ -256,7 +310,8 @@ class SuggestionsExtractor:
     def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
         suggestions = []
         for r in canon:
-            text = r["text"] or ""
+            # Front3 双引擎格式（ADR-023）：text 缺失时回退 baberu_text
+            text = r.get("text") or r.get("baberu_text") or ""
             for m in _KATAKANA_TERM.finditer(text):
                 term = m.group(0)
                 if term in self.existing or term in _KATAKANA_STOP:

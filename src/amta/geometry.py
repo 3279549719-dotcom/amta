@@ -55,15 +55,27 @@ def union_blocks(detections: dict[str, list[dict]], threshold: float = 0.5) -> l
 
     union_boxes 只留 bbox；这里把 blocks 的附加字段一并带出，供 01_detect 输出扁平 blocks[]。
     去重判据与 union_boxes 一致（IoU > threshold 视为重复），重复时保留首个出现的完整 block。
+    引擎溯源（ADR-023）：遍历 detections.items()，block 已含 source_engines 字段时，
+    新框确保记录当前引擎名，重复命中时把当前引擎名追加到已保留框（去重、顺序稳定）；
+    无该字段的 block 保持旧行为（不新增字段）。
     """
     seen: list[dict] = []
-    for blocks in detections.values():
+    for eng, blocks in detections.items():
         for b in blocks:
             bb = bbox_from_block(b)
-            if any(iou(bb, s["bbox"]) > threshold for s in seen):
+            dup = next((s for s in seen if iou(bb, s["bbox"]) > threshold), None)
+            if dup is not None:
+                src = dup.get("source_engines")
+                if isinstance(src, list) and eng not in src:
+                    src.append(eng)
                 continue
             item = dict(b)
             item["bbox"] = bb
+            src = item.get("source_engines")
+            if isinstance(src, list):
+                item["source_engines"] = list(src)  # 拷贝，避免与调用方共享可变列表
+                if eng not in item["source_engines"]:
+                    item["source_engines"].append(eng)
             seen.append(item)
     return seen
 
@@ -103,6 +115,46 @@ def _contained_in(child: Sequence[float], parent: Sequence[float], ioa_thresh: f
     y1 = min(child[3], parent[3])
     inter = max(0.0, x1 - x0) * max(0.0, y1 - y0)
     return inter / c >= ioa_thresh
+
+
+def mark_contained(blocks: list[dict], ioa_threshold: float = 0.75) -> list[dict]:
+    """标记嵌套框但不丢弃。
+
+    替代 absorb_contained：IoA >= threshold 的小框被标记 contained_in=<父框region_id>，
+    但保留在输出中，信息留给下游 LLM 判断。
+
+    Args:
+        blocks: 输入框列表（需含 bbox 字段）
+        ioa_threshold: 嵌套判定阈值（默认 0.75，与原 absorb_contained 一致）
+
+    Returns:
+        标记后的框列表，每个框新增 region_id（u00, u01, ...）和 contained_in（None 或父框 id）
+    """
+    if not blocks:
+        return []
+
+    # 先分配 region_id（按原始顺序）
+    for i, b in enumerate(blocks):
+        b["region_id"] = f"u{i:02d}"
+        if "contained_in" not in b:
+            b["contained_in"] = None
+
+    # 按面积降序排列，大框优先作为候选父框
+    sorted_by_area = sorted(blocks, key=lambda b: _area(b["bbox"]), reverse=True)
+
+    for i, small in enumerate(sorted_by_area):
+        if small["contained_in"] is not None:
+            continue  # 已经被标记
+        for j, big in enumerate(sorted_by_area):
+            if i == j:
+                continue
+            if big["contained_in"] == small["region_id"]:
+                continue  # 避免循环引用
+            if _contained_in(small["bbox"], big["bbox"], ioa_threshold):
+                small["contained_in"] = big["region_id"]
+                break
+
+    return blocks
 
 
 def assign_category(blocks: list[dict]) -> list[dict]:
