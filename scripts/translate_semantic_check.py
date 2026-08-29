@@ -23,7 +23,7 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta import translate  # noqa: E402
+from amta import chat_config  # noqa: E402
 from amta.ocr_engines import image_data_uri  # noqa: E402
 
 JUDGE_PROMPT = """你是漫画翻译质量评审。请阅读图中日文原文，并判断给出的译文是否合格。
@@ -101,7 +101,7 @@ def run(canon_path: Path, trans_path: Path, crops_dir: Path, out_path: Path,
         only: list[str] | None = None) -> dict:
     canon = json.loads(Path(canon_path).read_text(encoding="utf-8"))
     trans = json.loads(Path(trans_path).read_text(encoding="utf-8")).get("translations", {})
-    cfg = translate.get_chat_config()
+    cfg = chat_config.get_chat_config()
 
     if limit:
         canon = canon[:limit]

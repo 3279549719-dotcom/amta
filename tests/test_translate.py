@@ -5,15 +5,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def test_get_chat_config_reads_env(tmp_path, monkeypatch):
-    from amta import translate
+    from amta import chat_config
 
     env = tmp_path / ".env"
     env.write_text(
         "CHAT_BASE_URL=https://api.deepseek.com\nCHAT_MODEL=deepseek-v4-pro-0813\nCHAT_API_KEY=sk-test\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(translate, "_ENV_PATH", env)
-    cfg = translate.get_chat_config()
+    monkeypatch.setattr(chat_config, "_ENV_PATH", env)
+    cfg = chat_config.get_chat_config()
     assert cfg["base_url"] == "https://api.deepseek.com"
     assert cfg["model"] == "deepseek-v4-pro-0813"
     assert cfg["api_key"] == "sk-test"

@@ -46,8 +46,8 @@ def _write_fixtures(tmp_path):
 
 
 def test_run_aggregates_pass_fail_inconclusive(tmp_path, monkeypatch):
-    from amta import translate
-    monkeypatch.setattr(translate, "get_chat_config",
+    from amta import chat_config
+    monkeypatch.setattr(chat_config, "get_chat_config",
                         lambda: {"base_url": "x", "model": "m", "api_key": "k"})
 
     canon_p, trans_p = _write_fixtures(tmp_path)
@@ -67,8 +67,8 @@ def test_run_aggregates_pass_fail_inconclusive(tmp_path, monkeypatch):
 
 
 def test_run_only_filters_regions(tmp_path, monkeypatch):
-    from amta import translate
-    monkeypatch.setattr(translate, "get_chat_config",
+    from amta import chat_config
+    monkeypatch.setattr(chat_config, "get_chat_config",
                         lambda: {"base_url": "x", "model": "m", "api_key": "k"})
 
     canon_p, trans_p = _write_fixtures(tmp_path)

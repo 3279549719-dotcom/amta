@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.page_judge import judge_page, save_decision  # noqa: E402
-from amta.translate import get_chat_config  # noqa: E402
+from amta.chat_config import get_chat_config  # noqa: E402
 
 
 def main() -> int:

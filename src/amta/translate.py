@@ -11,49 +11,25 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 from amta.chat_client import chat, chat_text
+from amta.chat_config import get_chat_config  # noqa: F401  # 兼容 re-export，唯一归属 amta.chat_config
 from amta.guardrails import (_run_guardrails_for_test,  # noqa: F401  # 测试桥回导出
                              japanese_residue_check,  # noqa: F401
                              mechanical_guardrails)
 from amta.metrics import levenshtein, norm
-from amta.paths import ROOT
 from amta.translate_tools import (GET_CONTEXT_BUDGET, MAX_TOOL_ROUNDS,  # noqa: F401
                                   TERM_BUDGET, TOOLS_SCHEMA, VISION_BUDGET,  # noqa: F401
                                   build_tools_context,  # noqa: F401
                                   execute_tool,  # noqa: F401
                                   run_tool_loop)
 
-_ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
-
-# 日文残留判别特征唯一归属 metrics.contains_japanese；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
 # 工具机（TOOLS_SCHEMA/预算/execute_tool/run_tool_loop）与机械护栏（mechanical/japanese_residue）
 # 均已拆到 amta.translate_tools / amta.guardrails 深模块，此处仅 re-export 保持向后兼容。
-
-
-def get_chat_config() -> dict[str, str]:
-    """读 CHAT_* 配置：环境变量优先，回退 .env；任一缺失 raise RuntimeError。返回 {base_url, model, api_key}。"""
-    values: dict[str, str] = {}
-    for key in ("CHAT_BASE_URL", "CHAT_MODEL", "CHAT_API_KEY"):
-        v = os.environ.get(key)
-        if not v and _ENV_PATH.exists():
-            for line in _ENV_PATH.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith(f"{key}="):
-                    v = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-        if not v:
-            raise RuntimeError(f"缺少 {key}：请在 .env 配置或设置环境变量")
-        values[key] = v
-    return {
-        "base_url": values["CHAT_BASE_URL"],
-        "model": values["CHAT_MODEL"],
-        "api_key": values["CHAT_API_KEY"],
-    }
+# CHAT_* 配置读取（get_chat_config/_ENV_PATH）已拆到 amta.chat_config（L28），此处仅 re-export。
 
 
 def text_chat(
