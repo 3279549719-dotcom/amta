@@ -26,6 +26,7 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 
 | 触发 | 读 |
 |---|---|
+| 改翻译策略/工位架构/技术选型之前（项目记忆检索，Stage 2-d） | `python scripts/memory.py search <关键词>`（例：改 SFX 处理前 search 拟声；命中 INDEX 条目先读原文再动手；控制台乱码时加 `$env:PYTHONIOENCODING="utf-8"`） |
 | 不确定用哪个技能/流程（技能路由器） | `.dsh/skills/ask-matt/SKILL.md` |
 | 跑 Benchmark A/B/C | `.dsh/skills/benchmark/SKILL.md` |
 | VLM 标注 crop（oracle 判真假/分类/评分） | `.dsh/skills/oracle-label/SKILL.md` |
@@ -53,4 +54,5 @@ Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读
 - **任务收尾必须走 /finish**（cycle-close skill）：复读任务 → 审查 diff → 确定性验证（`npm run fastcheck`/`finish`，动引擎则加 `smoke`）→ 修复 → 反思 → 知识晋升 → 只更新真正变化的工件 → 输出 Finish Report → git 落盘。
 - **知识晋升管线**：`观察 → 可复用?No 丢弃 / Yes → 会复发?No lesson(docs/lessons.md) / Yes → 五路分流：全局规则(CLAUDE.md) · 流程(.dsh/skills/) · 架构(docs/decisions/ADR-N) · 瞬时(docs/progress.md) · 机械(test/lint/hook)`。反复犯错应逐步变成机器约束（test/lint/hook 是唯一真强制层，rules/lesson 都是 prompt 级），CLAUDE.md 保持精简（目标 <120 行）。
 - **机械护栏三级**：编码期 `npm run fastcheck`（秒级）→ pre-commit（.githooks）→ pre-push（含可选 smoke）。安装：`npm run hooks:install`。
+- **项目记忆写回（Stage 2-d Slice 2）**：迭代结束产出可复用经验（等价 lesson/ADR 级的决策/踩坑/口径）时，`python scripts/memory.py add` 写回记忆库，`docs/INDEX.md` 条目的一句话价值由执行 agent 校准、不留空。
 - **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。
