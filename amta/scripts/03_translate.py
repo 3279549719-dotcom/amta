@@ -36,7 +36,8 @@ def _load_open_questions(state_dir: str | Path | None) -> list[dict] | None:
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None,
         trace_path: str | Path | None = None,
-        with_plan: bool = False, with_vision_plan: bool = False) -> dict:
+        with_plan: bool = False, with_vision_plan: bool = False,
+        crop_dir: str | Path | None = None) -> dict:
     canon = paths.read_json(canon_path)
     problems = validate_canon(canon)
     if problems:
@@ -44,6 +45,8 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     cfg = translate.get_chat_config()
     ws = load_state(work_id) if work_id else {}
     open_questions = _load_open_questions(state_dir)
+    # VLM API key 复用 CHAT_API_KEY（lookup_image 用同一密钥调 DeepSeek VLM）
+    vlm_api_key = cfg.get("api_key")
 
     trace: list[dict] = []
 
@@ -83,7 +86,8 @@ def run(canon_path: str | Path, out_path: str | Path, *,
                                      tools=translate.TOOLS_SCHEMA, state_dir=state_dir)
     else:
         result = translate.translate_with_retry(canon, llm, work_state=ws, open_questions=open_questions,
-                                                tools=translate.TOOLS_SCHEMA, state_dir=state_dir)
+                                                tools=translate.TOOLS_SCHEMA, state_dir=state_dir,
+                                                crop_dir=crop_dir, vlm_api_key=vlm_api_key)
     translate_elapsed = time.time() - t_translate_start
 
     # Front3 Stage 3 trace: 每区域双引擎文本 + 最终译文，供后续分析 LLM 选择了哪个引擎
@@ -164,9 +168,12 @@ def main() -> int:
                     help="开启规划阶段：翻译前 LLM 扫描全页，自动标记 invalid/duplicate 框")
     ap.add_argument("--with-vision-plan", action="store_true",
                     help="翻译前跑VLM规划阶段，带整页图，标记 invalid/duplicate 框")
+    ap.add_argument("--crop-dir", default=None,
+                    help="crop 图片目录（lookup_image 工具所需，如 artifacts/crops）")
     a = ap.parse_args()
     run(a.canon, a.out, work_id=a.work_id, state_dir=a.state_dir, trace_path=a.trace,
-        with_plan=a.with_plan, with_vision_plan=a.with_vision_plan)
+        with_plan=a.with_plan, with_vision_plan=a.with_vision_plan,
+        crop_dir=a.crop_dir)
     print(f"[03_translate] -> {a.out}")
     return 0
 
