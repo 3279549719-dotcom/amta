@@ -39,6 +39,22 @@ def _out(ws_root: Path, name: str) -> Path:
     return ws_root / "artifacts" / name
 
 
+def _step(log: PipelineLog, run_id: str, step: str, page: str, *,
+          inp: Path, out: Path, cmd: list[str]) -> None:
+    """执行单个工位步骤（ADR-018 统一抽象）：产物存在→skip；否则 timed 运行并记 span。"""
+    if out.exists():
+        log.add_span(run_id, step=step, page=page, status="skipped",
+                     input=str(inp), output=str(out))
+        print(f"[00_run_all] {page} {step} skipped (exists)")
+        return
+    t0 = time.time()
+    _run_cli(cmd)
+    log.add_span(run_id, step=step, page=page, status="ok",
+                 input=str(inp), output=str(out),
+                 duration_s=time.time() - t0)
+
+
+
 def _refresh_merged_translation(ws_root: Path) -> None:
     """刷新 artifacts/translation.json：合并所有 page_*_translation.json（get_context 前页回溯读取）。
 
@@ -88,63 +104,31 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
 
         try:
             # ---- 01 detect ----
-            if det_path.exists():
-                log.add_span(run_id, step="01_detect", page=page, status="skipped",
-                             input=str(raw), output=str(det_path))
-                print(f"[00_run_all] {page} 01_detect skipped (exists)")
-            else:
-                t0 = time.time()
-                _run_cli([str(HERE / "01_detect.py"), "--work-id", work_id,
-                          "--raw", str(raw), "--out", str(det_path)])
-                log.add_span(run_id, step="01_detect", page=page, status="ok",
-                             input=str(raw), output=str(det_path),
-                             duration_s=time.time() - t0)
+            _step(log, run_id, "01_detect", page, inp=raw, out=det_path,
+                  cmd=[str(HERE / "01_detect.py"), "--work-id", work_id,
+                       "--raw", str(raw), "--out", str(det_path)])
 
             # ---- 02 ocr ----
-            if canon_path.exists():
-                log.add_span(run_id, step="02_ocr", page=page, status="skipped",
-                             input=str(det_path), output=str(canon_path))
-                print(f"[00_run_all] {page} 02_ocr skipped (exists)")
-            else:
-                t0 = time.time()
-                _run_cli([str(HERE / "02_ocr.py"), "--work-id", work_id,
-                          "--det", str(det_path), "--raw", str(raw),
-                          "--out", str(canon_path), "--page-idx", str(page_idx),
-                          "--engine", ocr_engine])
-                log.add_span(run_id, step="02_ocr", page=page, status="ok",
-                             input=str(det_path), output=str(canon_path),
-                             duration_s=time.time() - t0)
+            _step(log, run_id, "02_ocr", page, inp=det_path, out=canon_path,
+                  cmd=[str(HERE / "02_ocr.py"), "--work-id", work_id,
+                       "--det", str(det_path), "--raw", str(raw),
+                       "--out", str(canon_path), "--page-idx", str(page_idx),
+                       "--engine", ocr_engine])
 
             # ---- 03 translate ----
-            if trans_path.exists():
-                log.add_span(run_id, step="03_translate", page=page, status="skipped",
-                             input=str(canon_path), output=str(trans_path))
-                print(f"[00_run_all] {page} 03_translate skipped (exists)")
-            else:
-                t0 = time.time()
-                _run_cli([str(HERE / "03_translate.py"), "--canon", str(canon_path),
-                          "--out", str(trans_path), "--work-id", work_id,
-                          "--state-dir", str(state_dir), "--trace", str(trace_path)])
-                log.add_span(run_id, step="03_translate", page=page, status="ok",
-                             input=str(canon_path), output=str(trans_path),
-                             duration_s=time.time() - t0)
+            _step(log, run_id, "03_translate", page, inp=canon_path, out=trans_path,
+                  cmd=[str(HERE / "03_translate.py"), "--canon", str(canon_path),
+                       "--out", str(trans_path), "--work-id", work_id,
+                       "--state-dir", str(state_dir), "--trace", str(trace_path)])
             # 每完成一页刷新合并 translation.json（get_context 前页回溯读取）
             _refresh_merged_translation(ws_root)
 
             # ---- ③ semantic review + auto-repair (optional) ----
             if with_review:
-                if sem_path.exists():
-                    log.add_span(run_id, step="semantic_check", page=page, status="skipped",
-                                 input=str(trans_path), output=str(sem_path))
-                    print(f"[00_run_all] {page} semantic skipped (exists)")
-                else:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "translate_semantic_check.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--crops", str(crops_dir), "--out", str(sem_path)])
-                    log.add_span(run_id, step="semantic_check", page=page, status="ok",
-                                 input=str(trans_path), output=str(sem_path),
-                                 duration_s=time.time() - t0)
+                _step(log, run_id, "semantic_check", page, inp=trans_path, out=sem_path,
+                      cmd=[str(HERE / "translate_semantic_check.py"),
+                           "--canon", str(canon_path), "--trans", str(trans_path),
+                           "--crops", str(crops_dir), "--out", str(sem_path)])
                 # 自动修复:有 FAILED 才跑
                 sem = read_json(sem_path) if sem_path.exists() else {}
                 if sem.get("failed"):
@@ -162,26 +146,15 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
             if with_judge:
                 # judge 依赖 semantic_check；没开 with_review 时这里补跑
                 if not sem_path.exists():
-                    t0 = time.time()
-                    _run_cli([str(HERE / "translate_semantic_check.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--crops", str(crops_dir), "--out", str(sem_path)])
-                    log.add_span(run_id, step="semantic_check", page=page, status="ok",
-                                 input=str(trans_path), output=str(sem_path),
-                                 duration_s=time.time() - t0)
+                    _step(log, run_id, "semantic_check", page, inp=trans_path, out=sem_path,
+                          cmd=[str(HERE / "translate_semantic_check.py"),
+                               "--canon", str(canon_path), "--trans", str(trans_path),
+                               "--crops", str(crops_dir), "--out", str(sem_path)])
                 judge_path = _out(ws_root, f"{page}_judge.json")
-                if judge_path.exists():
-                    log.add_span(run_id, step="ai_judge", page=page, status="skipped",
-                                 input=str(sem_path), output=str(judge_path))
-                    print(f"[00_run_all] {page} ai_judge skipped (exists)")
-                else:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "06_page_judge.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--sem", str(sem_path), "--out", str(judge_path)])
-                    log.add_span(run_id, step="ai_judge", page=page, status="ok",
-                                 input=str(sem_path), output=str(judge_path),
-                                 duration_s=time.time() - t0)
+                _step(log, run_id, "ai_judge", page, inp=sem_path, out=judge_path,
+                      cmd=[str(HERE / "06_page_judge.py"),
+                           "--canon", str(canon_path), "--trans", str(trans_path),
+                           "--sem", str(sem_path), "--out", str(judge_path)])
                 # 按 judge 决策执行
                 judge_doc = read_json(judge_path) if judge_path.exists() else {}
                 decisions = judge_doc.get("decisions", [])
@@ -223,38 +196,23 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
             # ---- 04 inpaint / 05 typeset (optional, Stage 4/5) ----
             if with_inpaint:
                 inpaint_path = _out(ws_root, f"{page}_inpaint.json")
-                if inpaint_path.exists():
-                    log.add_span(run_id, step="04_inpaint", page=page, status="skipped",
-                                 input=str(det_path), output=str(inpaint_path))
-                    print(f"[00_run_all] {page} 04_inpaint skipped (exists)")
-                else:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "04_inpaint.py"), "--work-id", work_id,
-                              "--det", str(det_path), "--raw", str(raw),
-                              "--out", str(inpaint_path),
-                              "--clean-dir", str(_out(ws_root, "clean"))])
-                    log.add_span(run_id, step="04_inpaint", page=page, status="ok",
-                                 input=str(det_path), output=str(inpaint_path),
-                                 duration_s=time.time() - t0)
+                _step(log, run_id, "04_inpaint", page, inp=det_path, out=inpaint_path,
+                      cmd=[str(HERE / "04_inpaint.py"), "--work-id", work_id,
+                           "--det", str(det_path), "--raw", str(raw),
+                           "--out", str(inpaint_path),
+                           "--clean-dir", str(_out(ws_root, "clean"))])
             if with_typeset:
                 typeset_path = _out(ws_root, f"{page}_typeset.json")
                 clean_img = _out(ws_root, "clean") / f"{page}_clean.png"
                 if not clean_img.exists():
                     print(f"[00_run_all] WARN {page} 05_typeset skipped (no clean image; need --with-inpaint)")
-                elif typeset_path.exists():
-                    log.add_span(run_id, step="05_typeset", page=page, status="skipped",
-                                 input=str(clean_img), output=str(typeset_path))
-                    print(f"[00_run_all] {page} 05_typeset skipped (exists)")
                 else:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "05_typeset.py"), "--work-id", work_id,
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--det", str(det_path), "--clean", str(clean_img),
-                              "--out", str(typeset_path),
-                              "--final", str(_out(ws_root, "final") / f"{page}_final.png")])
-                    log.add_span(run_id, step="05_typeset", page=page, status="ok",
-                                 input=str(clean_img), output=str(typeset_path),
-                                 duration_s=time.time() - t0)
+                    _step(log, run_id, "05_typeset", page, inp=clean_img, out=typeset_path,
+                          cmd=[str(HERE / "05_typeset.py"), "--work-id", work_id,
+                               "--canon", str(canon_path), "--trans", str(trans_path),
+                               "--det", str(det_path), "--clean", str(clean_img),
+                               "--out", str(typeset_path),
+                               "--final", str(_out(ws_root, "final") / f"{page}_final.png")])
 
         except Exception as e:  # noqa: BLE001
             log.fail_run(run_id, step="pipeline", page=page, reason=str(e)[:300])
