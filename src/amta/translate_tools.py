@@ -224,7 +224,7 @@ def _build_semantic_context(pages: int, work_state: dict,
     if page_blocks:
         parts.append("前页上下文：")
         for page_num, regions, _src_texts in page_blocks:
-            parts.append(f"--- 第{page_num}页（共{len(regions)}条）---")
+            parts.append(f"--- 第{page_num}页（共{min(len(regions), MAX_REGIONS_PER_PAGE)}条）---")
             for rid, label, translation in regions[:MAX_REGIONS_PER_PAGE]:
                 short_id = rid.split("_")[-1] if "_" in rid else rid
                 parts.append(f"[{label}] {short_id}: {translation}")
