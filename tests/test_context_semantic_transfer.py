@@ -209,3 +209,118 @@ def test_get_context_page_header_count_matches_rendered(tmp_path):
     header = next(line for line in out.splitlines() if line.startswith("--- 第1页"))
     assert "共15条" in header
     assert "共16条" not in header
+
+
+def test_get_context_truncates_regions_to_fifteen(tmp_path):
+    """边界：单页 region 数超过 MAX_REGIONS_PER_PAGE(15) 时只渲染前 15 条。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    canon = [
+        {"region_id": f"page_1_u{i:02d}", "text": f"原文{i}", "page": 1, "category": "dialogue_bubble"}
+        for i in range(16)
+    ]
+    translations = {f"page_1_u{i:02d}": f"译文{i}" for i in range(16)}
+    _write_page_artifacts(artifacts_dir, page=1, canon=canon, translations=translations)
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+
+    rendered = [line for line in out.splitlines() if line.startswith("[对话]")]
+    assert len(rendered) == 15
+    assert "译文0" in out
+    assert "译文14" in out
+    assert "译文15" not in out  # 第 16 条被截断
+
+
+def test_get_context_caps_terms_at_five(tmp_path):
+    """边界：相关 confirmed 术语超过 MAX_TERMS(5) 时只显示前 5 条（按插入序）。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    combined_src = "八意様 月の民 蓬莱 山の幸 玉鱗 ドカン"
+    _write_page_artifacts(
+        artifacts_dir, page=1,
+        canon=[{"region_id": "page_1_u00", "text": combined_src, "page": 1, "category": "dialogue_bubble"}],
+        translations={"page_1_u00": "译文占位"},
+    )
+    ws = {
+        "terms": {
+            "八意様": {"translation": "译一", "status": "confirmed", "source": "p1"},
+            "月の民": {"translation": "译二", "status": "confirmed", "source": "p1"},
+            "蓬莱": {"translation": "译三", "status": "confirmed", "source": "p1"},
+            "山の幸": {"translation": "译四", "status": "confirmed", "source": "p1"},
+            "玉鱗": {"translation": "译五", "status": "confirmed", "source": "p1"},
+            "ドカン": {"translation": "译六", "status": "confirmed", "source": "p1"},  # 第 6 条，应被截断
+        }
+    }
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+
+    assert "译一" in out and "译五" in out
+    assert "译六" not in out
+
+
+def test_get_context_multipage_reads_last_two_pages(tmp_path):
+    """pages=2 时读取页码最大的 2 页（translation 文件按页码排序取尾部）。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    for page, text in [(1, "甲页内容"), (2, "乙页内容"), (3, "丙页内容")]:
+        _write_page_artifacts(
+            artifacts_dir, page=page,
+            canon=[{"region_id": f"page_{page}_u00", "text": f"原文{page}", "page": page, "category": "dialogue_bubble"}],
+            translations={f"page_{page}_u00": text},
+        )
+
+    out = translate_tools.execute_tool("get_context", {"pages": 2}, {}, state_dir=state_dir)
+
+    assert "--- 第2页" in out
+    assert "--- 第3页" in out
+    assert "乙页内容" in out
+    assert "丙页内容" in out
+    assert "甲页内容" not in out
+
+
+def test_get_context_tolerates_malformed_canon(tmp_path):
+    """容错：canon 含非 dict 项 / 缺 region_id 项 / 坏 JSON 时不得崩溃，仍输出有效内容。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    canon = [
+        "不是字典",
+        {"no_region_id": True},
+        {"region_id": "page_1_u00", "text": "こんにちは", "page": 1, "category": "dialogue_bubble"},
+    ]
+    (artifacts_dir / "page_1_canon.json").write_text(json.dumps(canon, ensure_ascii=False), encoding="utf-8")
+    (artifacts_dir / "page_1_translation.json").write_text(
+        json.dumps({"work_id": "test", "translations": {"page_1_u00": "你好"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    # 另一页 canon 是坏 JSON：该页退化为无 category 标注（label=文本），但不崩溃
+    (artifacts_dir / "page_2_canon.json").write_text("{broken json", encoding="utf-8")
+    (artifacts_dir / "page_2_translation.json").write_text(
+        json.dumps({"work_id": "test", "translations": {"page_2_u00": "第二页"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    out = translate_tools.execute_tool("get_context", {"pages": 2}, {}, state_dir=state_dir)
+
+    assert "你好" in out
+    assert "第二页" in out
+    assert "[文本]" in out  # 坏 canon 页的 label 回退
