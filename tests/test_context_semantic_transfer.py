@@ -1,0 +1,163 @@
+"""Lesson 03 实践：get_context 语义化传递 — TDD 测试。
+
+Seam：execute_tool("get_context", ...) 的返回值行为。
+验证：category 标注、relationships 附加、术语筛选、边界回退、条数限制。
+"""
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+
+def _write_page_artifacts(artifacts_dir: Path, page: int, canon: list[dict], translations: dict[str, str]):
+    """辅助：写单页 canon 和 translation 文件到 artifacts 目录。"""
+    canon_path = artifacts_dir / f"page_{page}_canon.json"
+    canon_path.write_text(json.dumps(canon, ensure_ascii=False), encoding="utf-8")
+    trans_path = artifacts_dir / f"page_{page}_translation.json"
+    trans_path.write_text(json.dumps({
+        "work_id": "test",
+        "translations": translations,
+    }, ensure_ascii=False), encoding="utf-8")
+
+
+def test_get_context_reads_canon_category_and_labels(tmp_path):
+    """Red→Green：get_context 同时读 canon 和 translation，返回带 category 标注的文本。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    _write_page_artifacts(artifacts_dir, page=1, canon=[
+        {"region_id": "page_1_u00", "text": "こんにちは", "page": 1, "category": "dialogue_bubble"},
+        {"region_id": "page_1_u01", "text": "ドカン", "page": 1, "category": "sfx"},
+        {"region_id": "page_1_u02", "text": "注意書き", "page": 1, "category": "overlay_text"},
+    ], translations={
+        "page_1_u00": "你好",
+        "page_1_u01": "轰隆",
+        "page_1_u02": "注意事项",
+    })
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+
+    assert "[对话]" in out
+    assert "[拟声]" in out
+    assert "[覆盖文字]" in out
+    assert "你好" in out
+    assert "轰隆" in out
+    assert "注意事项" in out
+
+
+def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
+    """边界：canon 文件不存在时，回退到纯文本（无 category 标注），不崩溃。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    # 只写 translation，不写 canon
+    trans_path = artifacts_dir / "page_1_translation.json"
+    trans_path.write_text(json.dumps({
+        "work_id": "test",
+        "translations": {"page_1_u00": "你好"},
+    }, ensure_ascii=False), encoding="utf-8")
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+
+    assert "你好" in out
+    # 无 canon 时不应该有 category 标注，但也不应该崩溃
+    assert "[对话]" not in out
+
+
+def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
+    """Red→Green：get_context 附加 work_state 的 relationships（confirmed + inferred，标置信度）。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    _write_page_artifacts(artifacts_dir, page=1, canon=[
+        {"region_id": "page_1_u00", "text": "こんにちは", "page": 1, "category": "dialogue_bubble"},
+    ], translations={"page_1_u00": "你好"})
+
+    ws = {
+        "relationships": [
+            {"from": "八意永琳", "to": "蓬莱山辉夜", "kind": "主从", "status": "confirmed", "source": "p8"},
+            {"from": "博丽灵梦", "to": "雾雨魔理沙", "kind": "朋友", "status": "inferred", "source": "p3"},
+        ]
+    }
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+
+    assert "八意永琳" in out
+    assert "主从" in out
+    assert "蓬莱山辉夜" in out
+    assert "博丽灵梦" in out
+    assert "朋友" in out
+    # inferred 的应该标低置信度
+    assert "推断" in out or "inferred" in out
+
+
+def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
+    """Red→Green：get_context 筛选前页原文中出现的术语（norm 模糊匹配，最多 5 条）。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    _write_page_artifacts(artifacts_dir, page=1, canon=[
+        {"region_id": "page_1_u00", "text": "八意様が月の民と話す", "page": 1, "category": "dialogue_bubble"},
+    ], translations={"page_1_u00": "八意大人和月之民说话"})
+
+    ws = {
+        "terms": {
+            "八意様": {"translation": "八意大人", "status": "confirmed", "source": "p1"},
+            "月の民": {"translation": "月之民", "status": "confirmed", "source": "p2"},
+            "豊姫": {"translation": "丰姬", "status": "confirmed", "source": "p5"},  # 不相关
+        }
+    }
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+
+    assert "八意大人" in out
+    assert "月之民" in out
+    assert "丰姬" not in out  # 不相关的术语不应该出现
+
+
+def test_get_context_limits_relationships_to_three(tmp_path):
+    """条数限制：relationships 最多附加 3 条，按置信度排序（confirmed 优先）。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    _write_page_artifacts(artifacts_dir, page=1, canon=[
+        {"region_id": "page_1_u00", "text": "test", "page": 1, "category": "dialogue_bubble"},
+    ], translations={"page_1_u00": "测试"})
+
+    ws = {
+        "relationships": [
+            {"from": f"角色{i}", "to": f"对象{i}", "kind": f"关系{i}",
+             "status": "confirmed" if i < 2 else "inferred", "source": f"p{i}"}
+            for i in range(5)  # 5 条关系，只应该出现 3 条
+        ]
+    }
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+
+    # confirmed 的 2 条应该都在
+    assert "角色0" in out
+    assert "角色1" in out
+    # inferred 的 3 条里只应该有 1 条（总共 3 条）
+    inferred_count = sum(1 for i in range(2, 5) if f"角色{i}" in out)
+    assert inferred_count == 1
