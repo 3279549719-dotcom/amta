@@ -305,8 +305,9 @@ def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, l
                     for item in canon_list:
                         if isinstance(item, dict) and item.get("region_id"):
                             canon_map[item["region_id"]] = item
-                            if item.get("text"):
-                                src_texts.append(item["text"])
+                            txt = item.get("baberu_text") or item.get("text")
+                            if txt:
+                                src_texts.append(txt)
             except (json.JSONDecodeError, OSError):
                 pass
 
