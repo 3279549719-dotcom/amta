@@ -161,3 +161,28 @@ def test_get_context_limits_relationships_to_three(tmp_path):
     # inferred 的 3 条里只应该有 1 条（总共 3 条）
     inferred_count = sum(1 for i in range(2, 5) if f"角色{i}" in out)
     assert inferred_count == 1
+
+
+def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
+    """TDD：双引擎 canon（baberu_text，无 text 字段）也要能喂术语相关性筛选。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    canon = [
+        {"region_id": "page_1_u00", "baberu_text": "八意様が月の民と話す",
+         "vlm_text": None, "page": 1, "category": "dialogue_bubble"},
+    ]
+    (artifacts_dir / "page_1_canon.json").write_text(json.dumps(canon, ensure_ascii=False), encoding="utf-8")
+    (artifacts_dir / "page_1_translation.json").write_text(
+        json.dumps({"work_id": "test", "translations": {"page_1_u00": "大人和月之民说话"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    ws = {"terms": {"八意様": {"translation": "八意大人", "status": "confirmed", "source": "p1"}}}
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+
+    assert "八意大人" in out  # 术语相关性来自 canon 原文——baberu_text 格式必须被读到
