@@ -196,6 +196,34 @@
       "page": 14,
       "translation": "还有一个人——！！",
       "status": "candidate"
+    },
+    {
+      "term": "ビフン",
+      "source": "page_12_u00",
+      "page": 12,
+      "translation": "嗖",
+      "status": "candidate"
+    },
+    {
+      "term": "プチッ",
+      "source": "page_12_u08",
+      "page": 12,
+      "translation": "啵",
+      "status": "candidate"
+    },
+    {
+      "term": "キョコ",
+      "source": "page_12_u09",
+      "page": 12,
+      "translation": "骨碌碌",
+      "status": "candidate"
+    },
+    {
+      "term": "キョロ",
+      "source": "page_12_u11",
+      "page": 12,
+      "translation": "骨碌碌",
+      "status": "candidate"
     }
   ]
 }

@@ -54,3 +54,6 @@ workspace/ws-*/
 
 # SDD workspace (superpowers subagent-driven ledger, 不入库)
 .superpowers/
+
+# ---- realrun 备份 ----
+workspace/*/backup*/
