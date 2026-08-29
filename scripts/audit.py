@@ -129,7 +129,13 @@ def find_duplicate_files(root: Path, exts=(".md",)) -> list[list[Path]]:
     for p in root.rglob("*"):
         if not p.is_file() or p.suffix not in exts:
             continue
-        if ".git" in p.parts or ".venv" in p.parts or ".worktrees" in p.parts:
+        # 排除判断用相对 root 的 parts：绝对 parts 会误杀 worktree 内的合法路径
+        # （worktree 本身位于仓库 .worktrees/ 下，整个路径都含该段，见 L28）。
+        try:
+            rel = p.relative_to(root)
+        except ValueError:
+            continue
+        if ".git" in rel.parts or ".venv" in rel.parts or ".worktrees" in rel.parts:
             continue
         try:
             key = (p.stat().st_size,
