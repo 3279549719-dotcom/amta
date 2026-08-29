@@ -307,3 +307,116 @@ def test_translate_with_plan_no_plan_passes_all_through():
 
     assert result["u01"] == "译u01"
     assert result["u02"] == "译u02"
+
+
+# ─── 规划工具改进：category 枚举 / 可观测返回 / 单工具预算（TDD） ───
+
+def test_mark_invalid_stores_category():
+    """mark_invalid 支持 category 枚举（解决 12-u07 招牌无法归类）。"""
+    from amta.stage3_planner import PlanResult, execute_plan_tool
+
+    plan = PlanResult(canon=[{"region_id": "u07"}])
+    result = execute_plan_tool(plan, "mark_invalid",
+                               {"region_id": "u07", "reason": "招牌背景文字",
+                                "category": "background_text"})
+
+    assert plan.invalids["u07"] == "招牌背景文字"
+    assert plan.invalid_categories["u07"] == "background_text"
+    assert result["category"] == "background_text"
+
+
+def test_mark_invalid_category_defaults_other():
+    """category 缺省时默认 other，不破坏旧调用（向后兼容）。"""
+    from amta.stage3_planner import PlanResult, execute_plan_tool
+
+    plan = PlanResult(canon=[{"region_id": "u01"}])
+    execute_plan_tool(plan, "mark_invalid",
+                      {"region_id": "u01", "reason": "排线"})
+
+    assert plan.invalid_categories["u01"] == "other"
+
+
+def test_execute_plan_tool_returns_cumulative_state():
+    """可观测返回：每次工具调用返回累计 invalid/duplicate 数量和 id 列表。"""
+    from amta.stage3_planner import PlanResult, execute_plan_tool
+
+    canon = [{"region_id": f"u{i}"} for i in range(3)]
+    plan = PlanResult(canon=canon)
+
+    r1 = execute_plan_tool(plan, "mark_invalid",
+                           {"region_id": "u0", "reason": "噪声", "category": "noise"})
+    assert r1["n_invalid"] == 1
+    assert r1["n_duplicate"] == 0
+    assert r1["invalid_ids"] == ["u0"]
+
+    r2 = execute_plan_tool(plan, "mark_duplicate",
+                           {"region_id": "u1", "duplicate_of": "u2", "reason": "重复"})
+    assert r2["n_invalid"] == 1
+    assert r2["n_duplicate"] == 1
+    assert r2["duplicate_ids"] == ["u1"]
+
+
+def test_mark_invalid_budget_enforced():
+    """单工具预算：mark_invalid 超限后返回 budget_exhausted，不再标记。"""
+    from amta.stage3_planner import PlanResult, execute_plan_tool
+
+    plan = PlanResult(canon=[{"region_id": f"u{i}"} for i in range(5)])
+    budgets = {"mark_invalid": 1, "mark_duplicate": 5}
+
+    r1 = execute_plan_tool(plan, "mark_invalid",
+                           {"region_id": "u0", "reason": "噪声", "category": "noise"},
+                           budgets=budgets)
+    assert r1["status"] == "marked_invalid"
+    assert budgets["mark_invalid"] == 0
+
+    r2 = execute_plan_tool(plan, "mark_invalid",
+                           {"region_id": "u1", "reason": "噪声", "category": "noise"},
+                           budgets=budgets)
+    assert r2["status"] == "budget_exhausted"
+    assert "u1" not in plan.invalids  # 没被标记
+
+
+def test_run_plan_loop_respects_mark_invalid_budget():
+    """规划循环：LLM 试图把所有框标 invalid，但预算只允许标记一半。"""
+    from amta.stage3_planner import run_plan_loop
+
+    canon = [{"region_id": f"u{i}", "baberu_text": f"text{i}"} for i in range(5)]
+    # 5 框 → mark_invalid 预算 = max(2, 5//2) = 2
+    call_count = {"n": 0}
+
+    def fake_llm(messages, tools=None):
+        call_count["n"] += 1
+        if call_count["n"] <= 5:
+            rid = f"u{call_count['n'] - 1}"
+            return {"tool_calls": [{
+                "function": {"name": "mark_invalid",
+                             "arguments": f'{{"region_id": "{rid}", "reason": "噪声", "category": "noise"}}'}
+            }], "content": None}
+        return {"tool_calls": None, "content": "扫描完成"}
+
+    plan = run_plan_loop(canon, fake_llm)
+
+    assert len(plan.invalids) == 2  # 预算上限，不是 5
+    assert len(plan.valid_regions) == 3
+
+
+def test_run_plan_loop_respects_mark_duplicate_budget():
+    """规划循环：mark_duplicate 预算 = 总框数，不会超过。"""
+    from amta.stage3_planner import run_plan_loop
+
+    canon = [{"region_id": f"u{i}", "baberu_text": "同じ"} for i in range(3)]
+    call_count = {"n": 0}
+
+    def fake_llm(messages, tools=None):
+        call_count["n"] += 1
+        if call_count["n"] <= 3:
+            rid = f"u{call_count['n']}"
+            return {"tool_calls": [{
+                "function": {"name": "mark_duplicate",
+                             "arguments": f'{{"region_id": "{rid}", "duplicate_of": "u0", "reason": "重复"}}'}
+            }], "content": None}
+        return {"tool_calls": None, "content": "扫描完成"}
+
+    plan = run_plan_loop(canon, fake_llm)
+
+    assert len(plan.duplicates) <= 3  # 不超过总框数

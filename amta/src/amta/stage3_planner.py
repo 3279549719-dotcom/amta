@@ -16,6 +16,7 @@ class PlanResult:
     """规划阶段的结果：哪些框有效、哪些是重复、哪些无效。"""
     canon: list[dict] = field(default_factory=list)
     invalids: dict[str, str] = field(default_factory=dict)   # region_id -> reason
+    invalid_categories: dict[str, str] = field(default_factory=dict)  # region_id -> category 枚举
     duplicates: dict[str, str] = field(default_factory=dict)  # region_id -> duplicate_of
 
     @property
@@ -25,24 +26,73 @@ class PlanResult:
         return [r["region_id"] for r in self.canon if r["region_id"] not in marked]
 
 
-def execute_plan_tool(plan: PlanResult, tool_name: str, args: dict) -> dict:
+# mark_invalid 的 category 枚举（解决 12-u07 招牌无法归类）
+INVALID_CATEGORIES = ("noise", "page_number", "decoration", "illustration",
+                       "background_text", "other")
+
+# 单工具预算比例（真拦截，防 LLM 把所有框标 invalid）
+MARK_INVALID_BUDGET_RATIO = 0.5   # 最多标记一半框为 invalid
+MARK_DUPLICATE_BUDGET_RATIO = 1.0  # duplicate 最多不超过总框数
+
+
+def plan_budgets(canon: list[dict]) -> dict[str, int]:
+    """根据本页框数计算规划工具预算（每页一份，跨工具循环共享）。"""
+    n = max(1, len(canon))
+    return {
+        "mark_invalid": max(2, int(n * MARK_INVALID_BUDGET_RATIO)),
+        "mark_duplicate": n,
+    }
+
+
+def execute_plan_tool(plan: PlanResult, tool_name: str, args: dict,
+                      budgets: dict[str, int] | None = None) -> dict:
     """执行规划阶段的工具调用，返回工具结果（Observation）。
 
     支持的工具：
-    - mark_invalid(region_id, reason): 标记为无效框
+    - mark_invalid(region_id, reason, category): 标记为无效框
     - mark_duplicate(region_id, duplicate_of, reason): 标记为重复框
+
+    budgets：单工具调用预算（可选）。传了则超限返回 budget_exhausted 且不标记。
+    返回值含累计状态（n_invalid/n_duplicate/invalid_ids/duplicate_ids），
+    让 LLM 知道自己已经标了多少（可观测返回）。
     """
+    # 预算拦截（在标记前检查）
+    if budgets is not None and budgets.get(tool_name, 0) <= 0:
+        return {"status": "budget_exhausted", "tool": tool_name,
+                "message": f"工具 {tool_name} 本次调用预算已耗尽，请基于现有标记继续规划",
+                "n_invalid": len(plan.invalids),
+                "n_duplicate": len(plan.duplicates),
+                "invalid_ids": list(plan.invalids.keys()),
+                "duplicate_ids": list(plan.duplicates.keys())}
+
     if tool_name == "mark_invalid":
         rid = args["region_id"]
         reason = args.get("reason", "")
+        category = str(args.get("category", "other")).strip().lower()
+        if category not in INVALID_CATEGORIES:
+            category = "other"
         plan.invalids[rid] = reason
-        return {"status": "marked_invalid", "region_id": rid, "reason": reason}
+        plan.invalid_categories[rid] = category
+        if budgets is not None and tool_name in budgets:
+            budgets[tool_name] -= 1
+        return {"status": "marked_invalid", "region_id": rid, "reason": reason,
+                "category": category,
+                "n_invalid": len(plan.invalids), "n_duplicate": len(plan.duplicates),
+                "invalid_ids": list(plan.invalids.keys()),
+                "duplicate_ids": list(plan.duplicates.keys())}
 
     if tool_name == "mark_duplicate":
         rid = args["region_id"]
         dup_of = args["duplicate_of"]
+        reason = args.get("reason", "")
         plan.duplicates[rid] = dup_of
-        return {"status": "marked_duplicate", "region_id": rid, "duplicate_of": dup_of}
+        if budgets is not None and tool_name in budgets:
+            budgets[tool_name] -= 1
+        return {"status": "marked_duplicate", "region_id": rid, "duplicate_of": dup_of,
+                "reason": reason,
+                "n_invalid": len(plan.invalids), "n_duplicate": len(plan.duplicates),
+                "invalid_ids": list(plan.invalids.keys()),
+                "duplicate_ids": list(plan.duplicates.keys())}
 
     return {"status": "unknown_tool", "tool": tool_name}
 
@@ -83,8 +133,13 @@ PLAN_TOOLS_SCHEMA: list[dict] = [
                 "properties": {
                     "region_id": {"type": "string", "description": "要标记的框的 region_id，如 u01"},
                     "reason": {"type": "string", "description": "为什么判断为无效，如'排线装饰线'、'图像噪声'、'无意义符号'"},
+                    "category": {
+                        "type": "string",
+                        "enum": list(INVALID_CATEGORIES),
+                        "description": "无效框类型：noise=图像噪声/污渍；page_number=页码；decoration=排线/装饰线；illustration=插画/符号；background_text=招牌/背景文字/标题；other=其他"
+                    },
                 },
-                "required": ["region_id", "reason"],
+                "required": ["region_id", "reason", "category"],
             },
         },
     },
@@ -178,6 +233,7 @@ def run_plan_loop(canon: list[dict], llm, *, max_rounds: int = 4) -> PlanResult:
     import json
 
     plan = PlanResult(canon=canon)
+    budgets = plan_budgets(canon)  # 单工具预算（跨循环共享，防 LLM 把所有框标 invalid）
     prompt = build_plan_prompt(canon)
     messages: list[dict] = [
         {"role": "system", "content": "你是漫画翻译质量规划员，使用工具标记无效框和重复框。"},
@@ -206,7 +262,7 @@ def run_plan_loop(canon: list[dict], llm, *, max_rounds: int = 4) -> PlanResult:
                 args = json.loads(fn.get("arguments", "{}"))
             except (json.JSONDecodeError, TypeError):
                 args = {}
-            result = execute_plan_tool(plan, name, args)
+            result = execute_plan_tool(plan, name, args, budgets=budgets)
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.get("id", ""),
