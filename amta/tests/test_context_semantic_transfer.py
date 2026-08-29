@@ -186,3 +186,26 @@ def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
     out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
 
     assert "八意大人" in out  # 术语相关性来自 canon 原文——baberu_text 格式必须被读到
+
+
+def test_get_context_page_header_count_matches_rendered(tmp_path):
+    """TDD：页头「共N条」应等于实际渲染条数（截断时=15），而不是页内总数。"""
+    from amta import translate_tools
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+
+    canon = [
+        {"region_id": f"page_1_u{i:02d}", "text": f"原文{i}", "page": 1, "category": "dialogue_bubble"}
+        for i in range(16)
+    ]
+    translations = {f"page_1_u{i:02d}": f"译文{i}" for i in range(16)}
+    _write_page_artifacts(artifacts_dir, page=1, canon=canon, translations=translations)
+
+    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+
+    header = next(line for line in out.splitlines() if line.startswith("--- 第1页"))
+    assert "共15条" in header
+    assert "共16条" not in header
