@@ -18,10 +18,11 @@
 """
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
-from amta.paths import ROOT
+from amta.paths import ROOT, read_json, write_json
 
 # workspace 根目录（gitignored 大产物 + 入库的 state JSON）
 WORKSPACE = ROOT / "workspace"
@@ -79,7 +80,6 @@ def ensure_workspace(work_id: str) -> Path:
 
 def empty_state() -> dict[str, dict[str, Any]]:
     """返回三个 state 文件的空 schema（deep-copy，避免共享可变对象）。"""
-    import copy
     return {name: copy.deepcopy(TEMPLATE) for name, TEMPLATE in (
         ("touhou_knowledge.json", TEMPLATE_KNOWLEDGE),
         ("work_state.json", TEMPLATE_WORK_STATE),
@@ -101,7 +101,6 @@ def init_workspace(work_id: str) -> Path:
         p = root / "state" / name
         if not p.exists():
             doc = dict(template, work_id=work_id)
-            from amta.paths import write_json
             write_json(p, doc)
     return root
 
@@ -111,13 +110,11 @@ def load_state(work_id: str) -> dict[str, Any]:
     p = work_dir(work_id) / "state" / "work_state.json"
     if not p.exists():
         return dict(TEMPLATE_WORK_STATE, work_id=work_id)
-    from amta.paths import read_json
     return read_json(p)
 
 
 def save_state(work_id: str, state: dict[str, Any]) -> Path:
     """写回 work_state.json。"""
-    from amta.paths import write_json
     return write_json(work_dir(work_id) / "state" / "work_state.json", state)
 
 
@@ -157,7 +154,6 @@ def update_character(work_id: str, name: str, *, status: str = STATUS_CONFIRMED,
 def add_open_question(work_id: str, question: str, *, raised_page: int) -> dict[str, Any]:
     """新增一个未决问题（open_questions.json）。"""
     p = work_dir(work_id) / "state" / "open_questions.json"
-    from amta.paths import read_json, write_json
     doc = read_json(p) if p.exists() else dict(TEMPLATE_OPEN_QUESTIONS, work_id=work_id)
     qid = f"q{len(doc['questions']) + 1}"
     entry = {"id": qid, "question": question, "status": "open", "raised_page": raised_page}
