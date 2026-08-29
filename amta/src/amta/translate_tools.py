@@ -305,6 +305,8 @@ def _format_relevant_terms(terms: dict, src_texts: list[str]) -> list[str]:
     for term, info in terms.items():
         if not isinstance(info, dict):
             continue
+        if info.get("status") != "confirmed":
+            continue
         # norm 模糊匹配：和 build_tools_context 同样的逻辑
         if norm(term) and (norm(term) in norm(combined_text) or norm(combined_text) in norm(term)):
             translation = info.get("translation") or info.get("canon_translation") or "?"
