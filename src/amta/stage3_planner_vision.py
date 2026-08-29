@@ -1,4 +1,4 @@
-"""Stage 3 方案 B：VLM 整页图规划。
+r"""Stage 3 方案 B：VLM 整页图规划。
 
 用 DeepSeek 的 VLM 模型（deepseek-v4-flash-vision-exp）做规划阶段，
 翻译阶段仍用 deepseek-v4-flash（纯文本）。
@@ -21,6 +21,7 @@ from amta.stage3_planner import (
     PlanResult,
     build_plan_prompt,
     execute_plan_tool,
+    plan_budgets,
 )
 
 # 原图目录
@@ -104,7 +105,9 @@ def run_plan_loop_vision(
 
     如果 llm 为 None，自动创建 DeepSeek VLM 调用。
     """
-    plan = PlanResult(invalids={}, duplicates={})
+    # canon 必须传入 PlanResult，否则 valid_regions 属性遍历空列表恒为 []（trace n_valid=0 bug）
+    plan = PlanResult(canon=canon, invalids={}, duplicates={})
+    budgets = plan_budgets(canon)  # 单工具预算（跨循环共享）
 
     # 加载图片
     if image_data_url is None and page is not None:
@@ -140,7 +143,7 @@ def run_plan_loop_vision(
                 args = json.loads(fn.get("arguments", "{}"))
             except (json.JSONDecodeError, TypeError):
                 args = {}
-            result = execute_plan_tool(plan, name, args)
+            result = execute_plan_tool(plan, name, args, budgets=budgets)
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.get("id", ""),
