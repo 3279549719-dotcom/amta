@@ -5,7 +5,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from amta.geometry import mark_contained, union_blocks
+from amta.geometry import union_blocks
+from amta.regions import mark_contained
 from amta.runner import compact_blocks
 from eval_stage1_robust import detection_path_for
 

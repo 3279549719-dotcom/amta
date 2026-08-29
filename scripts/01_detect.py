@@ -20,8 +20,9 @@ from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import write_json  # noqa: E402
 from amta.pipeline import DETECTOR_STEPS  # noqa: E402
 from amta.runner import compact_blocks, run_all_pages  # noqa: E402
-from amta.geometry import assign_category, mark_contained, union_blocks  # noqa: E402
-# 回退用: build_regions / flatten_regions 仍在 geometry.py 中, 如需回退旧架构可重新 import
+from amta.geometry import union_blocks  # noqa: E402
+from amta.regions import assign_category, mark_contained  # noqa: E402
+# 回退用 build_regions / flatten_regions 唯一归属在 amta/regions.py
 from PIL import Image  # noqa: E402
 
 # 全部 4 个 detector 并集(评测召回 0.98 的配置),按文件内定义顺序稳定

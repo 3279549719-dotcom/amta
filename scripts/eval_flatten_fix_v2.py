@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.geometry import flatten_regions  # noqa: E402
+from amta.regions import flatten_regions  # noqa: E402
 from amta.paths import read_json, write_json  # noqa: E402
 
 HERE = Path(__file__).resolve().parent

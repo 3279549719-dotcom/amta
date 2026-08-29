@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.geometry import flatten_regions  # noqa: E402
+from amta.regions import flatten_regions  # noqa: E402
 
 ARTIFACTS = Path(r"E:\manga translator agent\amta\workspace\touhou-single-wing\artifacts")
 

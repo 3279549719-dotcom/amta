@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta import geometry, metrics  # noqa: E402
+from amta import geometry, metrics, regions  # noqa: E402
 
 
 class NormTest(unittest.TestCase):
@@ -137,7 +137,7 @@ class GeometryTest(unittest.TestCase):
             {"node_id": "frag", "bbox": [1264, 509, 1377, 616]},  # 全嵌套碎片
             {"node_id": "disjoint", "bbox": [0, 0, 100, 100]},    # 独立框保留
         ]
-        out = geometry.absorb_contained(blocks)
+        out = regions.absorb_contained(blocks)
         ids = sorted(b["node_id"] for b in out)
         self.assertEqual(ids, ["big", "disjoint"])
 
@@ -147,7 +147,7 @@ class GeometryTest(unittest.TestCase):
             {"node_id": "a", "bbox": [0, 0, 100, 100]},
             {"node_id": "b", "bbox": [50, 0, 150, 100]},  # 与 a 部分重叠
         ]
-        out = geometry.absorb_contained(blocks)
+        out = regions.absorb_contained(blocks)
         self.assertEqual(len(out), 2)
 
     def test_assign_sub_tier_primary_vs_aside(self):
@@ -156,17 +156,17 @@ class GeometryTest(unittest.TestCase):
             {"bbox": [100, 100, 500, 200]},  # 宽 400
             {"bbox": [100, 220, 160, 260]},  # 宽 60, 与最大行宽比 400/60≈6.7 → aside
         ]
-        out = geometry.assign_sub_tier(lines, ratio=1.4)
+        out = regions.assign_sub_tier(lines, ratio=1.4)
         self.assertEqual(out[0]["sub_tier"], "primary")
         self.assertEqual(out[1]["sub_tier"], "aside")
 
     def test_assign_sub_tier_all_primary_when_ratio_low(self):
         lines = [{"bbox": [0, 0, 100, 30]}, {"bbox": [0, 40, 110, 70]}]  # 宽 100/110 → 比值<1.4
-        out = geometry.assign_sub_tier(lines, ratio=1.4)
+        out = regions.assign_sub_tier(lines, ratio=1.4)
         self.assertEqual([line["sub_tier"] for line in out], ["primary", "primary"])
 
     def test_assign_sub_tier_empty(self):
-        self.assertEqual(geometry.assign_sub_tier([]), [])
+        self.assertEqual(regions.assign_sub_tier([]), [])
 
     def test_build_regions_nests_child_lines(self):
         # 容器大框 + 内部碎片子框 → 子框挂 child_lines, 独立框自成 region
@@ -175,9 +175,9 @@ class GeometryTest(unittest.TestCase):
             {"node_id": "inner", "bbox": [10, 10, 190, 60], "bubble_type": "dialogue"},  # 全嵌套
             {"node_id": "separate", "bbox": [300, 300, 400, 400], "bubble_type": "sfx"},   # 独立
         ]
-        regions = geometry.build_regions(blocks)
-        self.assertEqual(len(regions), 2)
-        cont = next(r for r in regions if r["node_id"] == "container")
+        grouped = regions.build_regions(blocks)
+        self.assertEqual(len(grouped), 2)
+        cont = next(r for r in grouped if r["node_id"] == "container")
         self.assertEqual(len(cont["child_lines"]), 1)
         self.assertEqual(cont["child_lines"][0]["node_id"], "inner")
         # child_lines 被赋予 sub_tier
@@ -191,8 +191,8 @@ class GeometryTest(unittest.TestCase):
             {"node_id": "frag", "bbox": [1749, 2119, 1814, 2762], "bubble_type": "dialogue"},  # 完全重叠
             {"node_id": "aside2", "bbox": [1629, 2643, 1698, 2915], "bubble_type": "dialogue"},  # 独立段
         ]
-        regions = geometry.build_regions(blocks)
-        cont = next(r for r in regions if r["node_id"] == "container")
+        grouped = regions.build_regions(blocks)
+        cont = next(r for r in grouped if r["node_id"] == "container")
         ids = [line["node_id"] for line in cont["child_lines"]]
         # frag 与 primary 重叠被去重, 保留 primary + aside2
         self.assertEqual(sorted(ids), ["aside2", "primary"])
@@ -201,9 +201,9 @@ class GeometryTest(unittest.TestCase):
     def test_build_regions_no_nesting(self):
         blocks = [{"node_id": "a", "bbox": [0, 0, 50, 50]},
                   {"node_id": "b", "bbox": [100, 100, 150, 150]}]
-        regions = geometry.build_regions(blocks)
-        self.assertEqual(len(regions), 2)
-        self.assertTrue(all(r["child_lines"] == [] for r in regions))
+        grouped = regions.build_regions(blocks)
+        self.assertEqual(len(grouped), 2)
+        self.assertTrue(all(r["child_lines"] == [] for r in grouped))
 
     # ---- flatten_regions 残差保底律（Residual Container Fallback）----
     # 根因：flatten_regions 旧规则"容器自身不输出，只输出 child_lines"
@@ -227,7 +227,7 @@ class GeometryTest(unittest.TestCase):
                 }
             ],
         }
-        result = geometry.flatten_regions([container])
+        result = regions.flatten_regions([container])
         # 必须输出 1 个框，且是宽 160px 的母体容器，绝不能是 52px 窄条
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["bbox"], [50, 2395, 210, 2698])
@@ -250,7 +250,7 @@ class GeometryTest(unittest.TestCase):
                 }
             ],
         }
-        result = geometry.flatten_regions([container])
+        result = regions.flatten_regions([container])
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["bbox"], [1600, 2630, 1870, 3150])
         self.assertTrue(result[0].get("fallback_triggered"))
@@ -265,7 +265,7 @@ class GeometryTest(unittest.TestCase):
                 {"node_id": "l2", "bbox": [110, 300, 290, 490]},  # 宽 180px
             ],
         }
-        result = geometry.flatten_regions([container])
+        result = regions.flatten_regions([container])
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["node_id"], "l1")
         self.assertEqual(result[1]["node_id"], "l2")
@@ -280,7 +280,7 @@ class GeometryTest(unittest.TestCase):
                 {"node_id": "l1", "bbox": [105, 105, 195, 395]},  # 宽 90px，覆盖率高
             ],
         }
-        result = geometry.flatten_regions([container])
+        result = regions.flatten_regions([container])
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["node_id"], "l1")
         self.assertFalse(result[0].get("fallback_triggered", False))
@@ -292,7 +292,7 @@ class GeometryTest(unittest.TestCase):
             "bbox": [100, 100, 200, 300],
             "child_lines": [],
         }
-        result = geometry.flatten_regions([container])
+        result = regions.flatten_regions([container])
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["node_id"], "c_005")
 
@@ -305,7 +305,7 @@ class GeometryTest(unittest.TestCase):
                 {"node_id": "l1", "bbox": [145, 2395, 197, 2698]},
             ],
         }
-        result = geometry.flatten_regions([container])
+        result = regions.flatten_regions([container])
         self.assertEqual(result[0]["child_lines"], [])
 
 
@@ -321,24 +321,24 @@ class CategoryTest(unittest.TestCase):
             ({}, "dialogue_bubble"),  # 缺失默认保守归气泡
         ]
         for block, expect in cases:
-            out = geometry.assign_category([dict(block)])[0]
+            out = regions.assign_category([dict(block)])[0]
             self.assertEqual(out["category"], expect)
 
     def test_preserves_original_fields(self):
         b = {"node_id": "n1", "bbox": [0, 0, 10, 10], "text": None,
              "bubble_type": "sfx"}
-        out = geometry.assign_category([b])[0]
+        out = regions.assign_category([b])[0]
         self.assertEqual(out["node_id"], "n1")
         self.assertEqual(out["bubble_type"], "sfx")  # 原字段保留(兼容下游)
         self.assertEqual(out["category"], "sfx")
 
     def test_overlay_text_passthrough(self):
         # koharu 若已给出 overlay 类则透传，不误改
-        self.assertEqual(geometry.assign_category(
+        self.assertEqual(regions.assign_category(
             [{"bubble_type": "overlay_text"}])[0]["category"], "overlay_text")
 
     def test_empty(self):
-        self.assertEqual(geometry.assign_category([]), [])
+        self.assertEqual(regions.assign_category([]), [])
 
 
 if __name__ == "__main__":
