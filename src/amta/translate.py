@@ -238,7 +238,10 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          open_questions: list[dict] | None = None,
                          tools_ctx: str | None = None,
                          tools: list[dict] | None = None,
-                         state_dir: Path | str | None = None) -> dict[str, str]:
+                         state_dir: Path | str | None = None,
+                         crop_dir: Path | str | None = None,
+                         vlm_api_key: str | None = None,
+                         vision_budget: int = VISION_BUDGET) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
@@ -248,23 +251,28 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
     tools_ctx：ADR-016 旧预取上下文（build_tools_context 产出），向后兼容保留，新代码不再使用。
     tools：真 function calling 工具声明（TOOLS_SCHEMA）。传了则启用工具循环：
     模型请求工具 → execute_tool 执行 → 结果回传 → 继续，直到纯文本输出；
-    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET/VISION_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    crop_dir / vlm_api_key：lookup_image 工具所需（crop 图片目录 + VLM API 密钥），未传则 lookup_image 返回未配置错误。
     llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools=None) -> dict（chat_with_tools）。
     """
     ws = work_state or {}
+    # 注入 canon 索引供 lookup_image 查询（内部键，下划线前缀）
+    ws["_canon_items"] = {r["region_id"]: r for r in canon}
     system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
     if tools_ctx:
         system = f"{system}\n\n{tools_ctx}"
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET}
+        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET,
+                   "lookup_image": vision_budget}
         for _ in range(max_retries):
             content = _build_current_content(prefix, batch)
             messages: list[dict[str, Any]] = [{"role": "system", "content": system},
                                         {"role": "user", "content": content}]
             raw = run_tool_loop(llm, messages, budgets, work_state=ws,
-                                prev_pages=prev_pages, state_dir=state_dir, tools=tools)
+                                prev_pages=prev_pages, state_dir=state_dir, tools=tools,
+                                crop_dir=crop_dir, vlm_api_key=vlm_api_key)
             parsed = parse_translation_response(raw, region_ids)
             if not mechanical_guardrails(batch, parsed):
                 return parsed

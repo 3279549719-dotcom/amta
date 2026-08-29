@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import re
 import time
 from typing import Optional
@@ -246,4 +247,164 @@ def vlm_verify_batch(
         "raw_output": "unreachable",
         "elapsed": 0.0,
         "retries": max_retries,
+    }
+
+
+def vlm_verify_ocr_single(
+    crop_image: Image.Image,
+    baberu_text: str,
+    api_key: str,
+    model: str = "deepseek-v4-flash-vision-exp",
+    base_url: str = "https://api.deepseek.com/chat/completions",
+    max_retries: int = 1,
+    timeout: int = 30,
+) -> dict:
+    """单图 OCR 验证：VLM 看 crop 图 + baberu_text，判断 OCR 是否正确，返回视觉信息。
+
+    与 vlm_verify_batch（contact sheet 批量转写）的关键区别：
+    - 单图高清（detail=high），VLM 能看清小字
+    - 任务是"验证 + 分类"，不是"重新转写"——VLM 不需要从零转写，只需判断 baberu 结果是否正确
+    - 输出结构化 JSON，不是纯文本列表
+    - 看不清时允许返回 uncertain，不强迫编造（这是与批量转写的核心差异）
+
+    Args:
+        crop_image: 单个 crop 的 PIL Image
+        baberu_text: Baberu OCR 出的文本（待验证）
+        api_key: DeepSeek API key
+        model: VLM 模型名
+        base_url: API 端点
+        max_retries: 最大重试次数
+        timeout: 单次调用超时（秒）
+
+    Returns:
+        {
+            "ocr_correct": "correct" | "incorrect" | "partial" | "uncertain",
+            "corrected_text": str,          # OCR 不对时的修正，正确/不确定时为空
+            "visual_type": "dialogue_bubble" | "narration" | "sign" | "illustration" | "noise" | "other",
+            "speaker_hint": str,            # 能判断说话人时给出，否则空
+            "description": str,              # 视觉描述
+            "status": "ok" | "failed",
+            "raw_output": str,
+            "elapsed": float,
+        }
+    """
+    buf = io.BytesIO()
+    crop_image.save(buf, format="PNG")
+    img_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    prompt = f"""你是一个漫画文字验证助手。请查看这张裁剪图，验证以下 OCR 文本是否正确。
+
+OCR 文本：「{baberu_text if baberu_text else '(空)'}」
+
+请输出严格 JSON（不要输出 markdown 代码块，不要输出任何其他文字）：
+{{
+  "ocr_correct": "correct" | "incorrect" | "partial" | "uncertain",
+  "corrected_text": "如果 OCR 不正确且你确信正确文字，填在这里；否则留空字符串",
+  "visual_type": "dialogue_bubble" | "narration" | "sign" | "illustration" | "noise" | "other",
+  "speaker_hint": "如果能判断说话人，给出角色名或简短描述；否则留空字符串",
+  "description": "简短描述图片内容（文字方向、字体大小、背景等，不超过 50 字）"
+}}
+
+重要规则：
+- 如果你看不清文字，ocr_correct 必须设为 "uncertain"，corrected_text 留空，不要编造
+- corrected_text 只在你确信 OCR 错误时才填写，不确定就留空
+- "illustration" 表示这不是文字，是插画/装饰/符号
+- "noise" 表示这是噪点/污渍/页码/线条，不是有效文字
+- "sign" 表示招牌/标题/背景文字（非对话气泡）
+"""
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{img_b64}",
+                            "detail": "high",
+                        },
+                    },
+                ],
+            }
+        ],
+        "max_tokens": 1000,
+        "temperature": 0.1,
+        "thinking": {"type": "disabled"},
+        "response_format": {"type": "json_object"},
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    for attempt in range(max_retries + 1):
+        t0 = time.time()
+        try:
+            resp = requests.post(base_url, json=payload, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"]
+            elapsed = time.time() - t0
+            # 解析 JSON
+            text = (raw or "").strip()
+            text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                if attempt < max_retries:
+                    time.sleep(1)
+                    continue
+                return {
+                    "ocr_correct": "uncertain",
+                    "corrected_text": "",
+                    "visual_type": "other",
+                    "speaker_hint": "",
+                    "description": "",
+                    "status": "failed",
+                    "raw_output": raw,
+                    "elapsed": elapsed,
+                }
+            # 字段归一化
+            ocr_correct = str(data.get("ocr_correct", "uncertain")).lower()
+            if ocr_correct not in ("correct", "incorrect", "partial", "uncertain"):
+                ocr_correct = "uncertain"
+            visual_type = str(data.get("visual_type", "other")).lower()
+            if visual_type not in ("dialogue_bubble", "narration", "sign", "illustration", "noise", "other"):
+                visual_type = "other"
+            return {
+                "ocr_correct": ocr_correct,
+                "corrected_text": str(data.get("corrected_text", "") or "").strip(),
+                "visual_type": visual_type,
+                "speaker_hint": str(data.get("speaker_hint", "") or "").strip(),
+                "description": str(data.get("description", "") or "").strip(),
+                "status": "ok",
+                "raw_output": raw,
+                "elapsed": elapsed,
+            }
+        except Exception as e:
+            elapsed = time.time() - t0
+            if attempt < max_retries:
+                time.sleep(1)
+                continue
+            return {
+                "ocr_correct": "uncertain",
+                "corrected_text": "",
+                "visual_type": "other",
+                "speaker_hint": "",
+                "description": "",
+                "status": "failed",
+                "raw_output": str(e),
+                "elapsed": elapsed,
+            }
+    return {
+        "ocr_correct": "uncertain",
+        "corrected_text": "",
+        "visual_type": "other",
+        "speaker_hint": "",
+        "description": "",
+        "status": "failed",
+        "raw_output": "unreachable",
+        "elapsed": 0.0,
     }
