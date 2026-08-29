@@ -108,34 +108,211 @@ def execute_tool(name: str, args: dict, work_state: dict,
         return f"{hit['kind']}「{hit['key']}」= {trans}（status={status}，来源 {src}）"
     if name == "get_context":
         pages = max(1, min(int(args.get("pages") or 3), 3))
-        # 优先读前页产物:state_dir/../artifacts/translation.json(00_run_all 断点续跑布局),
-        # 回退 state_dir/translation.json / prev_pages 参数
-        candidates: list[Path] = []
-        if state_dir is not None:
-            sdir = Path(state_dir)
-            candidates = [sdir.parent / "artifacts" / "translation.json",
-                          sdir / "translation.json"]
-        for p in candidates:
-            if p.exists():
-                try:
-                    doc = json.loads(p.read_text(encoding="utf-8"))
-                    trans = doc.get("translations", {})
-                    by_page: dict[str, list[str]] = {}
-                    for rid, t in trans.items():
-                        m = re.match(r"page_(\d+)", str(rid))
-                        pg = m.group(1) if m else "?"
-                        by_page.setdefault(pg, []).append(f"[{rid}] {t}")
-                    ordered = sorted(by_page.items(), key=lambda kv: kv[0])
-                    selected = ordered[-pages:]
-                    if selected:
-                        return "前页译文：\n" + "\n\n".join("\n".join(v) for _, v in selected)
-                except (json.JSONDecodeError, OSError):
-                    pass
-        if prev_pages:
-            lines = [f"[{h.get('page', '?')}] {h.get('translated', '')}" for h in prev_pages[-pages:]]
-            return "前页译文：\n" + "\n".join(lines)
-        return "暂无前页译文"
+        return _build_semantic_context(pages, work_state or {}, prev_pages, state_dir)
     return f"未知工具：{name}"
+
+
+# Lesson 03 实践：get_context 语义化传递的常量
+CATEGORY_LABELS = {
+    "dialogue_bubble": "对话",
+    "overlay_text": "覆盖文字",
+    "sfx": "拟声",
+}
+MAX_REGIONS_PER_PAGE = 15
+MAX_RELATIONSHIPS = 3
+MAX_TERMS = 5
+
+
+def _build_semantic_context(pages: int, work_state: dict,
+                             prev_pages: list[dict] | None,
+                             state_dir: Path | str | None) -> str:
+    """构建带语义标注的前页上下文（Lesson 03 实践）。
+
+    优先读 artifacts/ 下的单页 canon+translation（带 category 标注），
+    回退到汇总 translation.json / prev_pages 参数。
+    附加 work_state 的 relationships（最多3条，confirmed优先）和相关术语（最多5条）。
+    """
+    parts: list[str] = []
+
+    # 1. 尝试读单页 canon+translation（带 category 标注）
+    page_blocks = _read_page_blocks_from_artifacts(state_dir, pages)
+    if page_blocks:
+        parts.append("前页上下文：")
+        for page_num, regions, _src_texts in page_blocks:
+            parts.append(f"--- 第{page_num}页（共{len(regions)}条）---")
+            for rid, label, translation in regions[:MAX_REGIONS_PER_PAGE]:
+                short_id = rid.split("_")[-1] if "_" in rid else rid
+                parts.append(f"[{label}] {short_id}: {translation}")
+    else:
+        # 回退：旧的汇总 translation.json / prev_pages 方式
+        fallback = _read_fallback_context(state_dir, prev_pages, pages)
+        if fallback:
+            parts.append(fallback)
+
+    if not parts:
+        return "暂无前页译文"
+
+    # 2. 附加 relationships（最多3条，confirmed优先，inferred标低置信度）
+    rel_lines = _format_relationships(work_state.get("relationships", []))
+    if rel_lines:
+        parts.append("\n已确认角色关系：")
+        parts.extend(rel_lines)
+
+    # 3. 附加前页相关术语（最多5条，norm模糊匹配）
+    all_src_texts = []
+    for _, _, src_texts in page_blocks:
+        all_src_texts.extend(src_texts)
+    term_lines = _format_relevant_terms(work_state.get("terms", {}), all_src_texts)
+    if term_lines:
+        parts.append("\n前页相关术语：")
+        parts.extend(term_lines)
+
+    return "\n".join(parts)
+
+
+def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, list[tuple[str, str, str]], list[str]]]:
+    """从 artifacts/ 目录读单页 canon+translation，返回 [(page_num, [(rid, label, translation)], src_texts)]。
+
+    空列表表示没有找到任何单页文件（调用方应回退）。
+    canon 不存在但 translation 存在时，用默认 label "文本"。
+    """
+    if state_dir is None:
+        return []
+    artifacts_dir = Path(state_dir).parent / "artifacts"
+    if not artifacts_dir.exists():
+        return []
+
+    # 找所有 page_N_translation.json 文件（canon 可能不存在，但 translation 一定有）
+    trans_files = sorted(
+        artifacts_dir.glob("page_*_translation.json"),
+        key=lambda p: int(p.stem.split("_")[1]) if p.stem.split("_")[1].isdigit() else 0,
+    )
+    if not trans_files:
+        return []
+
+    # 取最后 N 页
+    selected = trans_files[-pages:]
+    blocks = []
+    for trans_path in selected:
+        # 解析页码
+        m = re.match(r"page_(\d+)_translation", trans_path.name)
+        if not m:
+            continue
+        page_num = int(m.group(1))
+
+        # 读 translation
+        try:
+            trans_doc = json.loads(trans_path.read_text(encoding="utf-8"))
+            translations = trans_doc.get("translations", {})
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not translations:
+            continue
+
+        # 读 canon（可能不存在）
+        canon_path = artifacts_dir / f"page_{page_num}_canon.json"
+        canon_map: dict[str, dict] = {}
+        src_texts = []
+        if canon_path.exists():
+            try:
+                canon_list = json.loads(canon_path.read_text(encoding="utf-8"))
+                if isinstance(canon_list, list):
+                    for item in canon_list:
+                        if isinstance(item, dict) and item.get("region_id"):
+                            canon_map[item["region_id"]] = item
+                            if item.get("text"):
+                                src_texts.append(item["text"])
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # 按 translation 的 key 顺序组装 region（canon 可能没有所有 region）
+        regions = []
+        for rid, translation in translations.items():
+            if not translation:
+                continue
+            canon_item = canon_map.get(rid, {})
+            category = canon_item.get("category", "")
+            label = CATEGORY_LABELS.get(category, "文本")
+            regions.append((rid, label, translation))
+
+        if regions:
+            blocks.append((page_num, regions, src_texts))
+
+    return blocks
+
+
+def _read_fallback_context(state_dir, prev_pages, pages: int) -> str:
+    """回退：旧的汇总 translation.json / prev_pages 方式（无 category 标注）。"""
+    candidates: list[Path] = []
+    if state_dir is not None:
+        sdir = Path(state_dir)
+        candidates = [sdir.parent / "artifacts" / "translation.json",
+                      sdir / "translation.json"]
+    for p in candidates:
+        if p.exists():
+            try:
+                doc = json.loads(p.read_text(encoding="utf-8"))
+                trans = doc.get("translations", {})
+                by_page: dict[str, list[str]] = {}
+                for rid, t in trans.items():
+                    m = re.match(r"page_(\d+)", str(rid))
+                    pg = m.group(1) if m else "?"
+                    by_page.setdefault(pg, []).append(f"[{rid}] {t}")
+                ordered = sorted(by_page.items(), key=lambda kv: kv[0])
+                selected = ordered[-pages:]
+                if selected:
+                    return "前页译文：\n" + "\n\n".join("\n".join(v) for _, v in selected)
+            except (json.JSONDecodeError, OSError):
+                pass
+    if prev_pages:
+        lines = [f"[{h.get('page', '?')}] {h.get('translated', '')}" for h in prev_pages[-pages:]]
+        return "前页译文：\n" + "\n".join(lines)
+    return ""
+
+
+def _format_relationships(relationships: list[dict]) -> list[str]:
+    """格式化 relationships，最多 MAX_RELATIONSHIPS 条，confirmed 优先，inferred 标低置信度。"""
+    if not relationships:
+        return []
+
+    # 按 status 排序：confirmed 优先，然后 inferred，然后其他
+    status_order = {"confirmed": 0, "inferred": 1, "candidate": 2, "observed": 3}
+    sorted_rels = sorted(
+        relationships,
+        key=lambda r: status_order.get(r.get("status", ""), 99),
+    )
+    selected = sorted_rels[:MAX_RELATIONSHIPS]
+
+    lines = []
+    for rel in selected:
+        frm = rel.get("from", "?")
+        to = rel.get("to", "?")
+        kind = rel.get("kind", "?")
+        status = rel.get("status", "?")
+        source = rel.get("source", "?")
+        confidence_tag = "" if status == "confirmed" else "（推断，低置信度）"
+        lines.append(f"- {frm} → {to}：{kind}（来源：{source}）{confidence_tag}")
+    return lines
+
+
+def _format_relevant_terms(terms: dict, src_texts: list[str]) -> list[str]:
+    """筛选前页原文中出现的术语（norm 模糊匹配），最多 MAX_TERMS 条。"""
+    if not terms or not src_texts:
+        return []
+
+    combined_text = " ".join(src_texts)
+    relevant = []
+    for term, info in terms.items():
+        if not isinstance(info, dict):
+            continue
+        # norm 模糊匹配：和 build_tools_context 同样的逻辑
+        if norm(term) and (norm(term) in norm(combined_text) or norm(combined_text) in norm(term)):
+            translation = info.get("translation") or info.get("canon_translation") or "?"
+            status = info.get("status", "?")
+            relevant.append(f"- {term} = {translation}（status={status}）")
+            if len(relevant) >= MAX_TERMS:
+                break
+    return relevant
 
 
 def run_tool_loop(llm, messages, budgets, *, work_state: dict | None = None,
