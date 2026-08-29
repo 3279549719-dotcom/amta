@@ -225,3 +225,25 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 8. **handoff 2026-08-26（下一 AI 接手）**：① 1-10 页评测产物转正为流水线布局（artifacts/translation.json + state 配套），从 11 页起 00_run_all 续翻——验证 state 跨页累积 + get_context 前页回溯（这是上一轮拍板的方案 B）；② 工单微信通知；③ 02 OCR 提速（单页 156s CPU，41 页约 2h+）；④ vision 工具接线（VISION_BUDGET 已留，千问 3.5 omni 备选）；⑤ 角色 lookup 返回 aliases 小修补；⑥ 04_inpaint/05_typeset 工位。
 9. **修 tickets.py 判例回写字段错标**（`src/amta/tickets.py` `_append_case_law` L129 `"ticket_id": region_id`）：case-law 条目的 `ticket_id` 字段实际存 region_id，真实工单 id 从未传入（resolve/reject 只传 region_id，`_append_case_law` 签名也没有 ticket_id 参数）→ 要么签名加 ticket_id 传入真实值，要么删该字段（region_id 已冗余）；修后加测试锁「ticket_id 与真实工单一致」，防将来按 ticket_id 追溯判例时静默取到 region_id。
 10. **修 recall_score.py 输出字段语义错标**（`scripts/recall_score.py` L52-53 `"best_det": best`）：字段名暗示"最佳检出文本"，实际存数值 match_score（同行另有 `match_score` 字段）→ 改名 `best_match_score` 或改存匹配到的 det 文本；改前核对 recall_result.json 下游消费方（报告生成）避免静默断链。
+
+## 2026-08-28 进展快照（front3 + 分支治理）
+
+**Stage 3 五页验证（11-15，eval_stage3.py）**
+- 69/69 框全部有译文，日文残留 0、术语违例 0；双引擎差异大 36 处由 LLM 一次性裁决；耗时 31-72s/页（14 页 292s，重试/拆分机制触发）。
+- 核心 case 全命中：14 页「では豊ちゃん、輝夜様にこの羽根を見せに行ってきます」（VLM 误读サダメ，LLM 正确选 baberu）；15 页「弟子だからね＋落ち着きなさい」大小字合并自然；12 页 baberu 误读「落菜」被 VLM「蓬莱」纠正。报告：`artifacts/eval_stage3_report.html`（已发邮箱）。
+- **Stage 3 链路缺口修复（0852d20）**：`validate_canon` 接受双引擎格式（baberu_text/vlm_text）、`check_glossary`/`SuggestionsExtractor` 回退 baberu_text；5 个 TDD 测试，52 项全绿。
+- **暴露问题**：14 页 5 对重复检测框（两组 detector 各一组）未被合并——IoA<0.75 无嵌套标，LLM 逐框直译。「去重」是当前 Stage 3 最大短板。
+
+**Stage 3 去重实验（方案A/B，当晚 Patrick 建）**
+- `feat/stage3-dedup-tools`（0fba562）：方案A 纯文本规划去重——`stage3_planner.py`（plan 阶段 mark_invalid/mark_duplicate）+ 翻译过滤继承，测试 309 行。
+- `feat/stage3-dedup-tools-vision`（27e29fb）：方案B VLM 整页图规划——`stage3_planner_vision.py`（deepseek-v4-flash-vision-exp 判重复/无效，非区域转写）。worktree 已切到此分支。
+- 两分支均已推 origin。两方案对比验证待跑。
+
+**整页 VLM 残骸清理（Patrick 确认死路）**
+- ADR-022 探针遗留：主 checkout `scripts/probe_audit.py`（未跟踪一次性探针）已删；`.worktrees/feat-audit-v2/`（17MB 残留目录，非 git worktree）已核验无独有内容（调研报告在 git 历史 0ab552e 可恢复）后送回收站。
+- 现行 Stage 2 的 VLM = contact sheet 逐格转写（每框裁剪图），与整页读取无关，验证有效（蓬莱纠正），保留。
+
+**分支治理（Patrick 指令执行）**
+- 方案B（含方案A commit）推 origin ✓；agent-loop-stage1 主 checkout WIP 全量 commit（06_page_judge 页级质检工具等）✓；删除已合并分支 translate-harness / translate-tools-fc / refactor-ocr-speed ✓。
+- 遗留：`contained_in` 保留决策已定（保留）；但 Stage 3 prompt 实际未传 bbox（ADR-023 规格与实现不符，待补）；main 落后 50+ commit，front3 定稿后合并。
+

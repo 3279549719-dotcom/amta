@@ -19,6 +19,15 @@ from typing import Any
 
 from amta.metrics import norm
 
+# lookup_image 延迟导入（PIL + vlm_verify），避免纯文本翻译路径加载视觉依赖
+def _lookup_image_available() -> bool:
+    try:
+        from PIL import Image  # noqa: F401
+        from amta.vlm_verify import vlm_verify_ocr_single  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
 # ADR-016 Tools Contract：预算常量（真拦截——超限拒绝服务，非死常量）
 TERM_BUDGET = 10          # 每页 lookup_term 调用预算
 GET_CONTEXT_BUDGET = 3    # 每页 get_context 调用预算
@@ -55,6 +64,20 @@ TOOLS_SCHEMA = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_image",
+            "description": "查看指定区域的原图，验证 OCR 文本是否正确，并返回视觉信息（区域类型、说话人提示、视觉描述）。当 OCR 文本看起来不对、是空、乱码、或需要确认是否为有效文字（插画/噪声/招牌）时调用。每页调用次数有限，请只在真正不确定时使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region_id": {"type": "string", "description": "要查看的区域 ID（如 u00、u01），必须与输入中的 region_id 完全一致"}
+                },
+                "required": ["region_id"],
+            },
+        },
+    },
 ]
 
 
@@ -82,10 +105,14 @@ def build_tools_context(canon: list[dict], work_state: dict,
 
 def execute_tool(name: str, args: dict, work_state: dict,
                  prev_pages: list[dict] | None = None,
-                 state_dir: Path | str | None = None) -> str:
-    """真工具执行器：lookup_term 查 work_state 术语/角色；get_context 读前页译文。
+                 state_dir: Path | str | None = None,
+                 crop_dir: Path | str | None = None,
+                 vlm_api_key: str | None = None) -> str:
+    """真工具执行器：lookup_term 查术语/角色；get_context 读前页译文；lookup_image 看图验证 OCR。
 
-    返回给模型的文本结果（本地文件读，免费）；预算拦截由调用方（工具循环）负责。
+    返回给模型的文本结果；预算拦截由调用方（工具循环）负责。
+    lookup_image 需要 crop_dir（crop 图片目录）和 vlm_api_key（VLM API 密钥），
+    未配置时返回明确错误信息，不静默降级。
     """
     ws = work_state or {}
     if name == "lookup_term":
@@ -108,7 +135,65 @@ def execute_tool(name: str, args: dict, work_state: dict,
         return f"{hit['kind']}「{hit['key']}」= {trans}（status={status}，来源 {src}）"
     if name == "get_context":
         pages = max(1, min(int(args.get("pages") or 3), 3))
+        # Lesson 03 语义化传递：category标注 + relationships + confirmed术语筛选 + 回退兼容
         return _build_semantic_context(pages, work_state or {}, prev_pages, state_dir)
+    if name == "lookup_image":
+        region_id = str(args.get("region_id", "")).strip()
+        if not region_id:
+            return "参数缺失：请提供 region_id（如 u00）"
+        # 配置检查
+        if crop_dir is None or vlm_api_key is None:
+            return f"[lookup_image] {region_id}: 视觉工具未配置（缺少 crop_dir 或 vlm_api_key），请基于 OCR 文本继续翻译"
+        if not _lookup_image_available():
+            return f"[lookup_image] {region_id}: 视觉依赖未安装（PIL/vlm_verify），请基于 OCR 文本继续翻译"
+        # 从 work_state 查 canon 数据（_canon_items 由调用方在调用前注入）
+        canon_items = ws.get("_canon_items", {})
+        item = canon_items.get(region_id)
+        baberu_text = ""
+        if item:
+            baberu_text = item.get("baberu_text") or item.get("text") or ""
+        # 检查 crop 图片
+        crop_path = Path(crop_dir) / f"{region_id}.png"
+        if not crop_path.exists():
+            return f"[lookup_image] {region_id}: 未找到裁剪图 {crop_path.name}，请基于 OCR 文本继续翻译"
+        # 调用 VLM 验证
+        try:
+            from PIL import Image
+            from amta.vlm_verify import vlm_verify_ocr_single
+            crop_img = Image.open(crop_path)
+            result = vlm_verify_ocr_single(crop_img, baberu_text, api_key=vlm_api_key)
+        except Exception as e:
+            return f"[lookup_image] {region_id}: 视觉验证调用失败（{type(e).__name__}），请基于 OCR 文本继续翻译"
+        # 格式化返回给 LLM
+        ocr_correct = result.get("ocr_correct", "uncertain")
+        corrected = result.get("corrected_text", "")
+        vtype = result.get("visual_type", "other")
+        speaker = result.get("speaker_hint", "")
+        desc = result.get("description", "")
+        status = result.get("status", "failed")
+        if status != "ok":
+            return f"[lookup_image] {region_id}: 视觉验证返回失败（{result.get('raw_output', '')[:80]}），请基于 OCR 文本继续翻译"
+        lines = [f"[lookup_image] {region_id}"]
+        # OCR 验证结果
+        if ocr_correct == "correct":
+            lines.append(f"OCR 验证：correct（Baberu 文本「{baberu_text}」正确）")
+        elif ocr_correct == "incorrect":
+            lines.append(f"OCR 验证：incorrect（Baberu 文本「{baberu_text}」有误）")
+            if corrected:
+                lines.append(f"修正建议：「{corrected}」")
+        elif ocr_correct == "partial":
+            lines.append(f"OCR 验证：partial（Baberu 文本「{baberu_text}」部分正确）")
+            if corrected:
+                lines.append(f"修正建议：「{corrected}」")
+        else:
+            lines.append("OCR 验证：uncertain（无法确认，请自行判断）")
+        # 视觉信息
+        lines.append(f"区域类型：{vtype}")
+        if speaker:
+            lines.append(f"说话人提示：{speaker}")
+        if desc:
+            lines.append(f"视觉描述：{desc}")
+        return "\n".join(lines)
     return f"未知工具：{name}"
 
 
@@ -320,12 +405,15 @@ def _format_relevant_terms(terms: dict, src_texts: list[str]) -> list[str]:
 def run_tool_loop(llm, messages, budgets, *, work_state: dict | None = None,
                   prev_pages: list[dict] | None = None,
                   state_dir: Path | str | None = None,
-                  tools: list[dict] | None = None) -> str:
+                  tools: list[dict] | None = None,
+                  crop_dir: Path | str | None = None,
+                  vlm_api_key: str | None = None) -> str:
     """真工具循环：模型请求工具 → execute_tool 执行 → 结果回传，直到纯文本输出。
 
     预算（budgets: {工具名: 剩余次数}）超限拒绝服务；轮次超 MAX_TOOL_ROUNDS 强制终止。
     llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools) -> dict（chat_with_tools）。
     translate_with_retry 与 scripts/repair_failed.py 共用（原为两处重复实现）。
+    crop_dir / vlm_api_key：lookup_image 工具所需，未传则 lookup_image 返回未配置错误。
     """
     raw = ""
     for _round in range(MAX_TOOL_ROUNDS):
@@ -352,7 +440,8 @@ def run_tool_loop(llm, messages, budgets, *, work_state: dict | None = None,
                 result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
             else:
                 budgets[name] -= 1
-                result = execute_tool(name, args, work_state or {}, prev_pages, state_dir)
+                result = execute_tool(name, args, work_state or {}, prev_pages, state_dir,
+                                      crop_dir=crop_dir, vlm_api_key=vlm_api_key)
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
                              "content": result})
     return raw

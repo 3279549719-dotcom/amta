@@ -163,6 +163,7 @@
       "status": "candidate"
     },
     {
+<<<<<<< HEAD
       "term": "ーー",
       "source": "page_13_u02",
       "page": 13,
@@ -188,13 +189,102 @@
       "source": "page_13_u12",
       "page": 13,
       "translation": "萨古姐！？",
+=======
+      "term": "アイテム",
+      "source": "u07",
+      "page": 11,
+      "translation": "就差一点，就进展到能做出利用谣言篡改过去的道具的阶段了，可是……",
+      "status": "candidate"
+    },
+    {
+      "term": "アイテム",
+      "source": "u08",
+      "page": 11,
+      "translation": "就差一点，就进展到能做出利用谣言篡改过去的道具的阶段了，可是……",
+      "status": "candidate"
+    },
+    {
+      "term": "プチッ",
+      "source": "u06",
+      "page": 13,
+      "translation": "噗嗤",
+      "status": "candidate"
+    },
+    {
+      "term": "キョコ",
+      "source": "u07",
+      "page": 13,
+      "translation": "东张",
+      "status": "candidate"
+    },
+    {
+      "term": "キョロ",
+      "source": "u08",
+      "page": 13,
+      "translation": "西望",
+      "status": "candidate"
+    },
+    {
+      "term": "ビフン",
+      "source": "u09",
+      "page": 13,
+      "translation": "扑簌",
+>>>>>>> 1c856b6
       "status": "candidate"
     },
     {
       "term": "ーーー",
+<<<<<<< HEAD
       "source": "page_14_u05",
       "page": 14,
       "translation": "还有一个人——！！",
+=======
+      "source": "u01",
+      "page": 14,
+      "translation": "你在干什么——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "u08",
+      "page": 14,
+      "translation": "探女姐，谢谢你！",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "u09",
+      "page": 14,
+      "translation": "探女姐！？",
+      "status": "candidate"
+    },
+    {
+      "term": "エーマン",
+      "source": "u18",
+      "page": 14,
+      "translation": "「艾曼」",
+      "status": "candidate"
+    },
+    {
+      "term": "ーー",
+      "source": "u19",
+      "page": 14,
+      "translation": "你在干什么——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "ーーー",
+      "source": "u03",
+      "page": 15,
+      "translation": "居然还有一个人——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "ーーー",
+      "source": "u11",
+      "page": 15,
+      "translation": "居然还有一个人——！！",
+>>>>>>> 1c856b6
       "status": "candidate"
     }
   ]

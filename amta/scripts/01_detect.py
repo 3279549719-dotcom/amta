@@ -20,7 +20,8 @@ from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import write_json  # noqa: E402
 from amta.pipeline import DETECTOR_STEPS  # noqa: E402
 from amta.runner import compact_blocks, run_all_pages  # noqa: E402
-from amta.geometry import assign_category, build_regions, flatten_regions, union_blocks  # noqa: E402
+from amta.geometry import assign_category, mark_contained, union_blocks  # noqa: E402
+# 回退用: build_regions / flatten_regions 仍在 geometry.py 中, 如需回退旧架构可重新 import
 from PIL import Image  # noqa: E402
 
 # 全部 4 个 detector 并集(评测召回 0.98 的配置),按文件内定义顺序稳定
@@ -41,8 +42,9 @@ def run(work_id: str, raw_page: Path, out_path: Path,
     results = run_all_pages(client, pages, DETECTOR_STEPS,
                             prefix="amta-det", timeout=1200, label="01_detect")
     per_engine = next(iter(results.values()))["engines"]
-    # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)
-    comp = {eng: compact_blocks(blks, _FIELDS) for eng, blks in per_engine.items()}
+    # 每引擎 compact 成 {node_id, bubble_type, text} + bbox(下游依赖)，并注入引擎名溯源(ADR-023)
+    comp = {eng: compact_blocks(blks, _FIELDS, source_engine=eng)
+            for eng, blks in per_engine.items()}
 
     # Tracing: 并集前落盘 4-detector 原始框（未去重），杜绝黑盒缺口
     # 修复"展平吞噬"bug 后，需要 per-engine 原始数据来定位根因（上游漏检 vs 后处理误杀）
@@ -56,26 +58,45 @@ def run(work_id: str, raw_page: Path, out_path: Path,
     }
     raw_dump_path = out_path.parent / f"{raw_page.stem}_detect_raw_engines.json"
     write_json(raw_dump_path, raw_dump)
-
     blocks = union_blocks(comp)
-    blocks = assign_category(blocks)  # Phase 1/ADR-019: bubble_type to 3-level category  # IoU 去重并保留首个命中框元数据
-    # 契约升级: 重组为 regions[].child_lines[].sub_tier(嵌套子框挂容器, 不丢弃)
-    regions = build_regions(blocks)
-    flat_blocks = flatten_regions(regions)  # 展平供 02_ocr 裁框(每 child_line 一框)
+    blocks = assign_category(blocks)  # Phase 1/ADR-019: bubble_type to 3-level category
+    # Front3 Stage 1 (ADR-023): source_engines = 检出该框的 detector 引擎名列表(union 已注入)
+    # 仅当 union 未注入时兜底空列表（不应再出现 node_id 伪引擎名）
+    for b in blocks:
+        if not isinstance(b.get("source_engines"), list):
+            b["source_engines"] = []
+    # Front3 Stage 1: 替代 absorb_contained — 标记嵌套但不丢弃, 所有框平级独立 OCR
+    blocks = mark_contained(blocks)
 
     img = Image.open(raw_page)
+
+    # Tracing: Stage 1 处理过程
+    trace = {
+        "page": raw_page.stem,
+        "per_engine_raw": {eng: len(blks) for eng, blks in comp.items()},
+        "after_union": len(union_blocks(comp)),
+        "after_mark_contained": len(blocks),
+        "contained_boxes": [b["region_id"] for b in blocks if b.get("contained_in")],
+        "contained_pairs": [
+            (b["region_id"], b["contained_in"]) for b in blocks if b.get("contained_in")
+        ],
+        "detect_steps": DETECT_STEPS,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    trace_path = out_path.parent / f"{raw_page.stem}_01_detect_trace.json"
+    write_json(trace_path, trace)
+
     doc = {
         "work_id": work_id,
         "page": raw_page.stem,
         "source": str(raw_page),
         "image_meta": {"width": img.width, "height": img.height,
                        "channels": len(img.getbands())},
-        "regions": regions,
-        "blocks": flat_blocks,
-        "n_boxes": len(flat_blocks),
-        "n_regions": len(regions),
+        "blocks": blocks,
+        "n_boxes": len(blocks),
         "detect_steps": DETECT_STEPS,
         "per_engine_boxes": {eng: len(blks) for eng, blks in comp.items()},
+        "front3_version": "2.0",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     write_json(out_path, doc)
