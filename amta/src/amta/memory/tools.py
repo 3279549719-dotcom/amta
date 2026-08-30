@@ -129,8 +129,9 @@ def do_recent(root: Path) -> str:
         g = subprocess.run(
             ["git", "log", "-3", "--oneline", "--", "docs", ".remember", "research", "CLAUDE.md"],
             cwd=str(root), capture_output=True, text=True, timeout=10,
+            encoding="utf-8", errors="replace",  # Windows 默认 locale(gbk) 解码中文提交会炸
         )
-        if g.returncode == 0 and g.stdout.strip():
+        if g.returncode == 0 and g.stdout and g.stdout.strip():
             out.append("## estate 最近提交")
             out += g.stdout.strip().splitlines()[:3]
     except (OSError, subprocess.TimeoutExpired):
