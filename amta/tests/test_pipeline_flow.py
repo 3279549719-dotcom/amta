@@ -74,7 +74,7 @@ def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
     monkeypatch.setattr(impl, "ocr_batch", fake_ocr)  # 打实现模块已绑定引用
     out = tmp_path / "canon.json"
     doc = impl.run("w", det_path, raw, out, page_idx=0)
-    canon = json.loads(out.read_text(encoding="utf-8"))
+    canon = json.loads(out.read_text(encoding="utf-8"))["items"]  # 盘上已 doc 化（修 F2）
 
     assert doc["n_regions"] == 2  # 双引擎契约：空 OCR 不跳过（vlm_text 可兜底）
     assert canon[0]["region_id"] == "page_0_u00"
@@ -170,7 +170,7 @@ def test_02_canon_passthrough_subtier_category_and_items_rename(tmp_path, monkey
     monkeypatch.setattr(impl, "ocr_batch", fake_ocr)
     out = tmp_path / "canon.json"
     doc = impl.run("w", det_path, raw, out, page_idx=0)
-    canon = json.loads(out.read_text(encoding="utf-8"))
+    canon = json.loads(out.read_text(encoding="utf-8"))["items"]  # 盘上已 doc 化（修 F2）
 
     assert "regions" not in doc          # 撞名消除(01_detect 的 regions 是层级结构)
     assert doc["items"][0]["region_id"] == "page_0_u00"
