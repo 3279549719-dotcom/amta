@@ -264,6 +264,22 @@
 - **Prevention**：客户端封装 run_inpaint/fetch_inpainted（已测）；ADR-020 固化。
 - **Regression**：tests/test_koharu_inpaint.py 4 测。
 
+## L32 — Windows subprocess text=True 用 locale 解码，中文输出必炸
+
+- **Problem**：memory_recent 真仓库冒烟崩溃：git log 中文提交 → UnicodeDecodeError（reader thread）→ stdout=None → AttributeError。
+- **Root cause**：subprocess.run(capture_output=True, text=True) 在 Windows 按 locale（gbk）解码子进程输出，而 git/Python 子进程输出是 utf-8。
+- **Durable lesson**：Windows 下捕获含中文的子进程输出必须显式 `encoding="utf-8", errors="replace"`，并对 stdout 做 None 防护；CLI 面向 agent 管道消费时 stdout reconfigure(utf-8)（与 L27 同族）。
+- **Prevention**：tools.do_recent 已修；新脚本照此模板（scripts/memory_*.py 四个均带 reconfigure）。
+- **Regression**：tests/test_memory_inject.py 4 测（真子进程链路，含坏 JSON/空输入）。
+
+## L33 — pytest 跨文件复用 fixture 勿 import，放 tests/conftest.py
+
+- **Problem**：按计划在 test_memory_tools.py 里 `from tests.test_memory_estate import estate` 复用 fixture，ruff 报 F401/F811 共 9 错，pre-commit lint 门禁拦截提交。
+- **Root cause**：ruff 把测试函数的同名参数视为对 import 名的 redefinition；跨文件 import fixture 本就是非常规用法。
+- **Durable lesson**：跨测试文件共享 fixture 一律放 tests/conftest.py（pytest 自动发现，无需 import）；项目已配 pytest pythonpath=["src","."]。
+- **Prevention**：estate fixture 已入 tests/conftest.py；新增 memory 测试直接声明 `estate: Path` 参数。
+- **Regression**：fastcheck lint 步全绿（357 测试 + ruff）。
+
 ## 模板（新增时复制）
 
 ```

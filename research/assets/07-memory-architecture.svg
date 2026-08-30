@@ -17,7 +17,7 @@
   <rect x="70" y="88" width="640" height="18" fill="#475569"/>
   <text x="390" y="95" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">第0层 · 自动加载基线（prompt 级）</text>
   <text x="95" y="135" font-size="15" fill="#334155">CLAUDE.md / AGENTS.md — 问题域启发式表</text>
-  <text x="95" y="163" font-size="15" fill="#64748b">『遇到 X 症状 → memory_search Y』（任务名枚举已废）</text>
+  <text x="95" y="163" font-size="15" fill="#64748b">『遇到 X 症状 → memory_grep Y』（任务名枚举已废）</text>
   <text x="95" y="191" font-size="14" fill="#94a3b8">软约束：靠启发式 + 工具兜底</text>
 
   <!-- 推送层 -->
@@ -54,18 +54,20 @@
   <rect x="1030" y="658" width="500" height="18" fill="#0f766e"/>
   <text x="1280" y="665" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">拉取层 · just-in-grep（按需打捞）</text>
   <rect x="1055" y="695" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
-  <text x="1070" y="721" font-size="15" fill="#334155">memory_search → 路径+行号+命中行</text>
+  <text x="1070" y="721" font-size="15" fill="#334155">memory_grep → 条目级命中（路径+行号）</text>
   <rect x="1055" y="745" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
-  <text x="1070" y="771" font-size="15" fill="#334155">memory_recent → 最近增量</text>
+  <text x="1070" y="771" font-size="15" fill="#334155">memory_read / index → 深读原文 / 全清单</text>
   <rect x="1055" y="795" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
-  <text x="1070" y="821" font-size="15" fill="#334155">memory_status → 活性自查</text>
+  <text x="1070" y="821" font-size="15" fill="#334155">memory_recent → 最近增量</text>
+  <rect x="1055" y="845" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
+  <text x="1070" y="871" font-size="15" fill="#334155">memory_status → 活性自查（与 lint 同引擎）</text>
 
   <!-- 护栏层 -->
   <rect x="70" y="895" width="1460" height="75" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
   <rect x="70" y="895" width="1460" height="32" rx="10" fill="#b91c1c"/>
   <rect x="70" y="911" width="1460" height="16" fill="#b91c1c"/>
   <text x="800" y="917" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">护栏层 · test / lint（机械强制，TDD 先行）</text>
-  <text x="95" y="952" font-size="14" fill="#334155">pytest：hook 自测（stdin JSON → stdout，3 用例）　·　memory_lint 并入 fastcheck（staleness&gt;7天 FAIL / 悬空 WARN / 幽灵路径 FAIL / 注入包&gt;10K FAIL）　·　冷启动探针挂 audit</text>
+  <text x="95" y="952" font-size="14" fill="#334155">pytest：hook 自测（stdin JSON → stdout，4 用例）　·　memory_lint 五规则并入 fastcheck（staleness FAIL / 悬空 WARN / 幽灵路径 FAIL / 体量 WARN / ADR 索引 WARN）　·　冷启动探针挂 audit</text>
 
   <!-- 箭头 -->
   <path d="M390 220 C 460 300, 640 330, 722 366" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
