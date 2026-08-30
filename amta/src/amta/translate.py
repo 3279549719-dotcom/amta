@@ -22,6 +22,7 @@ from amta.guardrails import (_run_guardrails_for_test,  # noqa: F401  # 测试�
                              mechanical_guardrails)
 from amta.metrics import levenshtein, norm
 from amta.paths import ROOT
+from amta.suggestions import SuggestionsExtractor  # noqa: F401  # 兼容 re-export（唯一实现 → amta.suggestions）
 from amta.translate_tools import (GET_CONTEXT_BUDGET, MAX_TOOL_ROUNDS,  # noqa: F401
                                   TERM_BUDGET, TOOLS_SCHEMA, VISION_BUDGET,  # noqa: F401
                                   build_tools_context,  # noqa: F401
@@ -269,45 +270,6 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
         return {r["region_id"]: "" for r in batch}
 
     return _one(list(canon))
-
-
-# 片假名词段 = 专有名词/外来语特征最强（サグメ）；汉字人名难自动判别，留导演批（ADR-016）
-_KATAKANA_TERM = re.compile(r"[\u30a0-\u30ff]{2,}")
-# 过滤常见语法片假名（>=2 字仍会误抓），黑名单
-_KATAKANA_STOP = {
-    "カラ", "デス", "マス", "タリ", "シテ", "トモ", "ノニ", "コト",
-    "トキ", "ヒト", "モノ", "コレ", "ソレ", "アレ", "コノ", "ソノ",
-    "アイテ", "シテ", "カラ", "デモ", "ナノ", "ノデ", "トイウ", "トシテ",
-}
-
-
-class SuggestionsExtractor:
-    """从译文里发现疑似新角色/专有名词 → suggestions（导演自动合并）。
-
-    借鉴自 comic-translate 的 extra_context/术语演进设计 + ADR-014 suggestions 机制。
-    ADR-016 收紧：只提片假名专有名词段，不整段日文，防污染 work_state 术语表。
-    """
-
-    def __init__(self, existing: set[str] | None = None) -> None:
-        self.existing = existing or set()
-
-    def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
-        suggestions = []
-        for r in canon:
-            # Front3 双引擎格式（ADR-023）：text 缺失时回退 baberu_text
-            text = r.get("text") or r.get("baberu_text") or ""
-            for m in _KATAKANA_TERM.finditer(text):
-                term = m.group(0)
-                if term in self.existing or term in _KATAKANA_STOP:
-                    continue
-                suggestions.append({
-                    "term": term,
-                    "source": r.get("region_id", ""),
-                    "page": r.get("page", 0),
-                    "translation": translations.get(r["region_id"], ""),
-                    "status": "candidate",
-                })
-        return suggestions
 
 
 def record_failure(log_path: Path, entry: dict) -> None:
