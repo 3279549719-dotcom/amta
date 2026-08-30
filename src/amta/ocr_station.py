@@ -44,7 +44,8 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              page_idx: int, engine: str = "auto", vlm_enabled: bool = True,
-             ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None) -> dict:
+             ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
+             crop_dir: Path | str | None = None) -> dict:
     from amta.ocr_engines import ocr_batch as _default_ocr
     from amta.vlm_verify import vlm_verify_batch as _default_vlm
     ocr_fn = ocr_fn or _default_ocr
@@ -53,7 +54,9 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     artifacts_dir = Path(artifacts_dir)
 
     blocks = det.get("blocks", [])
-    pairs = _crop_by_region(raw_page, blocks, page_idx, artifacts_dir / "crops")
+    # crop_dir 缺省落 artifacts/crops；显式传入（eval_stage2 per-page 目录）则尊重（避免静默回归）
+    crop_dir = Path(crop_dir) if crop_dir else artifacts_dir / "crops"
+    pairs = _crop_by_region(raw_page, blocks, page_idx, crop_dir)
     if not pairs:
         raise RuntimeError(f"02_ocr: no valid bbox on {page} (source {det.get('page', '?')})")
 
