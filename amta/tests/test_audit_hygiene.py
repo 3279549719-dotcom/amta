@@ -51,6 +51,22 @@ class TestDupDetection:
         dups = find_duplicate_files(tmp_path)
         assert len(dups) == 0  # git/venv 被跳过，z.md 独一份
 
+    def test_duplicate_files_inside_worktree(self, tmp_path):
+        """扫描根本身位于 .worktrees 内时不应被排除规则误杀（worktree 开发回归）。
+
+        旧实现用绝对路径组件判 ".worktrees in p.parts"，当仓库根本身在
+        .worktrees 下（git worktree 开发）时整个扫描为空。排除只应看相对
+        扫描根的路径组件。
+        """
+        from audit import find_duplicate_files
+        root = tmp_path / ".worktrees" / "wt" / "repo"
+        root.mkdir(parents=True)
+        (root / "a.md").write_text("same content", encoding="utf-8")
+        (root / "b.md").write_text("same content", encoding="utf-8")
+        dups = find_duplicate_files(root)
+        assert len(dups) == 1
+        assert {p.name for p in dups[0]} == {"a.md", "b.md"}
+
 
 class TestTopLevelClutter:
     def test_unexpected_top_files_detected(self, tmp_path):

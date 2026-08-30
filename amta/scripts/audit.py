@@ -126,10 +126,12 @@ def find_duplicate_files(root: Path, exts=(".md",)) -> list[list[Path]]:
     from collections import defaultdict
 
     groups: dict[tuple, list[Path]] = defaultdict(list)
+    # 排除只看相对扫描根的路径组件：根自身位于 .worktrees 下（git worktree
+    # 开发）时，绝对路径组件判定会把整个扫描误杀为空（2026-08-30 修）。
     for p in root.rglob("*"):
         if not p.is_file() or p.suffix not in exts:
             continue
-        if ".git" in p.parts or ".venv" in p.parts or ".worktrees" in p.parts:
+        if any(name in p.relative_to(root).parts for name in (".git", ".venv", ".worktrees")):
             continue
         try:
             key = (p.stat().st_size,

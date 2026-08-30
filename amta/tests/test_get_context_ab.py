@@ -15,9 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STATE_DIR = REPO_ROOT / "workspace" / "touhou-single-wing" / "state"
+# 真实数据完整性：state 目录虽入库，但汇总 translation.json（gitignored）缺失时
+# get_context 拿不到前页译文，用例必然失败——按「真实数据缺失显式SKIP」惯例跳过。
+_REAL_AGG = STATE_DIR.parent / "artifacts" / "translation.json"
 
 
-@pytest.mark.skipif(not STATE_DIR.exists(), reason="真实项目数据仅存在于本机 workspace/（gitignored）")
+@pytest.mark.skipif(not STATE_DIR.exists() or not _REAL_AGG.exists(),
+                    reason="真实项目数据仅存在于本机 workspace/（gitignored）")
 def test_ab_comparison_real_data():
     """真实数据 A/B：新实现（结构化）对比旧实现（裸读汇总 translation.json）。"""
     from amta import translate_tools
