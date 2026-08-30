@@ -30,3 +30,4 @@
 - [019 - Stage 4-6 契约裁剪:category/sub_tier 契约 + 字段卫生](./019-contract-triage.md)
 - [021 - Stage 5 排版工位:自研 Pillow 引擎 + node_id 关联契约](./021-stage5-typeset-station.md)
 - [020 - Stage 4 inpaint 工位:koharu lama-manga 链路 + 探针定案](./020-stage4-inpaint-station.md)
+- [024 - Stage 1-3 深接口改造:产物契约单一事实源 + 三深工位](./024-deep-interface-refactor.md)

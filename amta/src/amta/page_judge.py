@@ -175,3 +175,25 @@ def judge_page(canon_path: Path | str, trans_path: Path | str,
 def save_decision(out_path: Path | str, decision: dict[str, Any]) -> Path:
     """把判断结果落盘。"""
     return write_json(out_path, decision)
+
+
+def apply_decisions(judge_doc: dict, sem_doc: dict) -> dict:
+    """judge 决策 → 可执行动作（纯函数；语义自 00_run_all 内联段收编，修 F6）。
+
+    - repair_region 仅当 semantic 已标 fail 才可执行（repair_failed 限制）
+    - open_ticket 原样转工单；judge 建议修但 semantic 未标 fail 的 → hard_case 工单
+    """
+    decisions = judge_doc.get("decisions", [])
+    repair_ids = [d["args"]["region_id"] for d in decisions
+                  if d["tool"] == "repair_region" and d.get("args", {}).get("region_id")]
+    ticket_args = [d["args"] for d in decisions
+                   if d["tool"] == "open_ticket" and d.get("args", {}).get("region_id")]
+    sem_failed_ids = {f["region_id"] for f in sem_doc.get("failed", [])}
+    repairable = [rid for rid in repair_ids if rid in sem_failed_ids]
+    unrepairable = [rid for rid in repair_ids if rid not in sem_failed_ids]
+    tickets = [{"region_id": t["region_id"], "reason": t.get("reason", ""),
+                "kind": t.get("kind", "unknown")} for t in ticket_args]
+    tickets += [{"region_id": rid,
+                 "reason": "judge 建议修复但 semantic 未标记 fail，需人工确认",
+                 "kind": "hard_case"} for rid in unrepairable]
+    return {"repair": repairable, "tickets": tickets}

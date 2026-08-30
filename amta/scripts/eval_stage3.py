@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PIL import Image  # noqa: E402
+from amta.artifacts import load_canon  # noqa: E402
 
 WORKTREE = Path(__file__).resolve().parent.parent
 ARTIFACTS = WORKTREE / "workspace" / "touhou-single-wing" / "artifacts"
@@ -79,7 +80,7 @@ def run_page(page: int) -> dict | None:
         )
         print(f"  [OK] page {page}: {time.time() - t0:.0f}s")
 
-    canon = json.loads(canon_path.read_text(encoding="utf-8"))
+    canon = load_canon(canon_path)["items"]  # 契约层读取（兼容旧裸 list / doc）
     trans_doc = json.loads(out_path.read_text(encoding="utf-8"))
     translations = trans_doc.get("translations", {})
     trace_path = ARTIFACTS / f"{page}_03_translate_trace.json"

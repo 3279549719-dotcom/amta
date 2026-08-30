@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta import translate  # noqa: E402
+from amta.artifacts import load_canon, load_translation  # noqa: E402
 
 REPAIR_SYSTEM = (
     "你是专业日文→中文漫画翻译专家。以下是评审对你上次译文的意见，"
@@ -82,8 +83,8 @@ def run(canon_path: Path, trans_path: Path, semantic_path: Path, crops: Path,
         tickets_path: Path | None = None) -> dict:
     """自动修复主流程。返回 {repaired: [...], needs_review: [...], rounds: {...}}"""
     cfg = translate.get_chat_config()
-    canon = json.loads(canon_path.read_text(encoding="utf-8"))
-    trans_doc = json.loads(trans_path.read_text(encoding="utf-8"))
+    canon = load_canon(canon_path)["items"]  # 契约层读取（兼容旧裸 list / doc）
+    trans_doc = load_translation(trans_path)
     trans = trans_doc.setdefault("translations", {})
     sem = json.loads(semantic_path.read_text(encoding="utf-8"))
     failed = sem.get("failed", [])

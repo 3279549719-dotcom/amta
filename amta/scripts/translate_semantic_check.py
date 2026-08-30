@@ -25,6 +25,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta import translate  # noqa: E402
 from amta.ocr_engines import image_data_uri  # noqa: E402
+from amta.artifacts import load_canon  # noqa: E402
 
 JUDGE_PROMPT = """你是漫画翻译质量评审。请阅读图中日文原文，并判断给出的译文是否合格。
 图中原文(OCR): {text}
@@ -99,7 +100,7 @@ def _avg_scores(rows: list[dict]) -> dict:
 def run(canon_path: Path, trans_path: Path, crops_dir: Path, out_path: Path,
         *, model: str = "deepseek-v4-flash-vision-exp", limit: int | None = None,
         only: list[str] | None = None) -> dict:
-    canon = json.loads(Path(canon_path).read_text(encoding="utf-8"))
+    canon = load_canon(canon_path)["items"]  # 契约层读取（兼容旧裸 list / doc）
     trans = json.loads(Path(trans_path).read_text(encoding="utf-8")).get("translations", {})
     cfg = translate.get_chat_config()
 

@@ -8,31 +8,15 @@
 from __future__ import annotations
 import argparse
 import sys
-from collections import defaultdict
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta import paths, workstate  # noqa: E402
+from amta.suggestions import merge_into_state as _merge_impl  # noqa: E402
 
 
 def merge(state: dict, suggestions: list[dict]) -> dict:
-    grouped: dict[str, list[dict]] = defaultdict(list)
-    for s in suggestions:
-        grouped[s["term"]].append(s)
-    terms = state.setdefault("terms", {})
-    for term, items in grouped.items():
-        if term in terms and terms[term].get("status") == "confirmed":
-            continue  # 已确认不降级
-        translations = {it.get("translation", "").strip() for it in items if it.get("translation")}
-        pages = sorted({it["page"] for it in items if "page" in it})
-        consistent = len(pages) >= 2 and len(translations) == 1
-        status = "confirmed" if consistent else "candidate"
-        terms[term] = {
-            "translation": next(iter(translations), ""),
-            "status": status,
-            "source": f"page_{pages[0]}" if pages else "",
-            "pages": pages,
-        }
-    return state
+    """薄壳 → amta.suggestions.merge_into_state（唯一实现）。"""
+    return _merge_impl(state, suggestions)
 
 
 def main() -> int:

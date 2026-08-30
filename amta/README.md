@@ -34,6 +34,12 @@ amta/
 │   ├── images.py           # 图片工具：crop_with_pad
 │   ├── evalkit.py          # 评测聚合：TEXT_CLASSES / eval_rows / summarize_rows
 │   ├── workstate.py        # per-work workspace + work_state（ADR-013 产物结构）
+│   ├── artifacts.py        # 产物契约单一事实源（信封/schema/load-save/region_id，ADR-024）
+│   ├── config.py           # 密钥 env/.env 唯一归属（CHAT/VLM/DASHSCOPE）
+│   ├── suggestions.py      # 片假名术语提取+追加+跨页合并
+│   ├── detect_station.py   # Stage 1 深工位（raw → DetectionArtifact）
+│   ├── ocr_station.py      # Stage 2 深工位（det → CanonArtifact）
+│   ├── translate_station.py# Stage 3 深工位（canon → TranslationArtifact）
 │   └── paths.py            # ROOT/OUTPUT/DATA 常量 + read_json/write_json/ensure_utf8_stdio
 ├── scripts/                # 可执行入口（薄 CLI，只做参数解析与落盘，逻辑在 src/amta）
 │   ├── benchmark.py        # Benchmark A/B/C（两阶段：emit crops → ingest 标注）
