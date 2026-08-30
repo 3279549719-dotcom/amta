@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMTA Agent 记忆机制 · 改造全景图解</title>
+<style>
+  :root { --ink:#0f172a; --body:#334155; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc;
+          --blue:#1d4ed8; --teal:#0f766e; --amber:#b45309; --red:#b91c1c; --slate:#475569; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Microsoft YaHei","PingFang SC",sans-serif; color:var(--body); background:var(--bg); line-height:1.7; }
+  .wrap { max-width:1080px; margin:0 auto; padding:40px 28px 80px; }
+  h1 { color:var(--ink); font-size:30px; margin:0 0 6px; }
+  .verdict { color:var(--muted); font-size:15px; margin-bottom:36px; }
+  h2 { color:var(--ink); font-size:21px; margin:48px 0 14px; padding-left:12px; border-left:4px solid var(--blue); }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:760px){ .cards { grid-template-columns:1fr; } }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  .card h3 { margin:0 0 10px; font-size:16px; color:var(--ink); }
+  .tag { display:inline-block; font-size:12px; font-weight:700; color:#fff; border-radius:6px; padding:2px 8px; margin-bottom:8px; }
+  .tag.bad { background:var(--red); } .tag.good { background:var(--teal); }
+  .card ul { margin:0; padding-left:20px; font-size:14.5px; }
+  .card li { margin:4px 0; }
+  figure { margin:20px 0 0; background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; }
+  figure img { width:100%; height:auto; display:block; border-radius:8px; }
+  figcaption { text-align:center; color:var(--muted); font-size:13.5px; margin-top:10px; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden; font-size:14.5px; }
+  th { background:var(--slate); color:#fff; text-align:left; padding:10px 14px; font-weight:700; }
+  td { padding:10px 14px; border-top:1px solid var(--line); vertical-align:top; }
+  tr:nth-child(even) td { background:#f8fafc; }
+  .k { color:var(--ink); font-weight:700; }
+  .vs { display:grid; grid-template-columns:1fr 56px 1fr; gap:0; align-items:stretch; margin:18px 0; }
+  @media (max-width:760px){ .vs { grid-template-columns:1fr; } .vs .mid { transform:rotate(90deg); margin:8px auto; } }
+  .vs .side { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  .vs .mid { display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; color:var(--muted); }
+  .merge { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:18px 22px; margin-top:16px; font-size:15px; }
+  .merge b { color:var(--blue); }
+  pre { background:#0f172a; color:#e2e8f0; border-radius:12px; padding:20px; overflow-x:auto; font-size:13px; line-height:1.55; font-family:Consolas,"Courier New",monospace; }
+  .note { color:var(--muted); font-size:13.5px; margin-top:8px; }
+  .pill { display:inline-block; background:#fff; border:1px solid var(--line); border-radius:999px; padding:4px 14px; font-size:13.5px; margin:4px 6px 4px 0; }
+  .pill b { color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AMTA Agent 记忆机制 · 改造全景图解</h1>
+  <div class="verdict">2026-08-30 · 基于 research/07 详报 + grill-me 三轮共识（Q7–Q11 已定案）· 四层机制 = 基线自动加载 + hook 注入 + just-in-grep 打捞 + test/lint 护栏</div>
+
+  <h2>一、改造前后：从坟场到闭环</h2>
+  <div class="cards">
+    <div class="card">
+      <span class="tag bad">改造前 · 三处断裂</span>
+      <h3>写入自动化，读取零机械化</h3>
+      <ul>
+        <li>`.remember` 由 claude-remember 插件 hook 自动写入，但 <b>lessons / ADR / progress 从未被注入</b></li>
+        <li>注入只在会话开头发生一次，长会话中被稀释；压缩（compaction）后记忆彻底蒸发</li>
+        <li>CLAUDE.md 加载表按任务名枚举，踩坑场景对不上触发词；4 行指向不存在的 research/ 幽灵路径</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="tag good">改造后 · 推 + 拉 + 护</span>
+      <h3>每个接手 agent 必然带着记忆开工</h3>
+      <ul>
+        <li><b>startup 注入</b>记忆包 ≤1.5KB（handoff + lessons 标题行 + 启发式）——不靠自觉</li>
+        <li><b>compact 重注入</b>——上下文被压缩的瞬间，记忆包自动回来</li>
+        <li><b>just-in-grep 打捞</b>——遇到症状才查，memory_grep 返回条目级命中（路径+行号），memory_read 展开全文</li>
+        <li><b>linter 进 fastcheck</b>——记忆腐坏（过期/悬空/幽灵路径/超预算）在提交前被拦截</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>二、机制全景（跨运行时：Claude Code 原生 · DSH/Codex 经桥）</h2>
+  <figure>
+    <img src="assets/07-memory-architecture.svg" alt="AMTA Agent 记忆机制改造后全景：基线层、推送层、拉取层、护栏层与知识地产的关系">
+    <figcaption>图 1 · 四层机制与知识地产：蓝色箭头 = hook 推送（机械），墨绿箭头 = 按需打捞（拉取），红虚线 = test/lint 护栏</figcaption>
+  </figure>
+
+  <h2>三、每层在什么时刻生效</h2>
+  <table>
+    <tr><th style="width:22%">时机</th><th style="width:20%">层</th><th>发生什么</th><th style="width:15%">强制等级</th></tr>
+    <tr><td>会话启动 / resume</td><td class="k">第0层 基线</td><td>CLAUDE.md、AGENTS.md 自动加载：核心事实 + 问题域启发式表（"遇到 X → 先 memory_grep Y"）</td><td>prompt 级（软）</td></tr>
+    <tr><td>会话启动（startup）</td><td class="k">推送层</td><td>hook 注入记忆包 ≤1.5KB：handoff（now/recent）+ lessons 最近 5 条标题行 + 启发式一行。agent 零动作即见</td><td><b>hook 级（机械）</b></td></tr>
+    <tr><td>上下文压缩（compact）</td><td class="k">推送层</td><td>瘦版记忆包 ≤0.5KB 自动重注入——长会话"看两眼就忘"的机制性解药：压缩 = 记忆丢失点 = 重注入点</td><td><b>hook 级（机械）</b></td></tr>
+    <tr><td>工作中遇到症状 / 决策前</td><td class="k">拉取层</td><td>just-in-grep：memory_grep（条目级正则检索，命中即给路径+行号）→ memory_read / index（深读 / 全清单）→ memory_recent（最近增量）→ memory_status（活性自查）</td><td>工具级（半机械）</td></tr>
+    <tr><td>编码期 / 提交前</td><td class="k">护栏层</td><td>pytest 锁死 hook 脚本行为（stdin JSON → stdout）；memory_lint 并入 fastcheck：recent&gt;7 天 FAIL · today 悬空 WARN · 索引幽灵路径 FAIL · 注入包&gt;10K FAIL</td><td><b>test/lint 级（机械）</b></td></tr>
+    <tr><td>审计期（每 2-4 周）</td><td class="k">护栏层</td><td>冷启动探针挂 audit：新会话问"上次停在哪 / 某坑怎么解"，命中即 PASS——记忆活性的定期体检</td><td>流程级</td></tr>
+  </table>
+
+  <h2>四、Progressive Disclosure vs Just-in-Grep：区别与共存</h2>
+  <div class="vs">
+    <div class="side">
+      <span class="tag" style="background:var(--blue)">Progressive Disclosure</span>
+      <p style="margin:6px 0;font-size:14.5px"><b>管"给多少"——token 粒度策略。</b>信息按层级展开：索引 → 摘要 → 全文，每层只暴露让 agent 决定"要不要往下看"的最小量。</p>
+      <ul style="font-size:14px">
+        <li>CLAUDE.md 索引行是第一层</li>
+        <li>memory_grep 命中行是第二层</li>
+        <li>read 全文是第三层</li>
+        <li>claude-mem 的 search→timeline→read 是同款范式</li>
+      </ul>
+    </div>
+    <div class="mid">vs</div>
+    <div class="side">
+      <span class="tag" style="background:var(--teal)">Just-in-Grep</span>
+      <p style="margin:6px 0;font-size:14.5px"><b>管"何时给"——时机策略。</b>不预塞任何内容；等 agent 实际遇到问题（报错、决策、陌生流程）才现场检索。</p>
+      <ul style="font-size:14px">
+        <li>对应 Claude Code 原生 grep/glob 哲学</li>
+        <li>前提：agent 得<b>知道有东西可搜</b>（否则就是坟场）</li>
+        <li>前提：检索工具得<b>返回可行动的结果</b>（路径+行号，而非全文）</li>
+      </ul>
+    </div>
+  </div>
+  <div class="merge">
+    <b>结论：正交，天然共存，且必须组合。</b>Progressive Disclosure 回答"每一步暴露多少"，Just-in-Grep 回答"什么时候触发暴露"——一个粒度轴、一个时机轴，在同一条检索路径上叠加：<b>注入层 push 索引（agent 零动作知道有这张牌）→ 遇到症状时 just-in-grep 拉命中行 → read 展开全文</b>。单用 PD 没有 JIT 触发就是现在这座坟场（索引躺着没人展开）；单用 JIT 没有 PD 就是 token 灾难（要么预塞全文要么无从搜起）。
+  </div>
+
+  <h2>五、Mermaid 源码（贴到 GitHub / Obsidian / mermaid.live 可渲染）</h2>
+<pre>flowchart TB
+  subgraph BASE["第0层 · 自动加载基线（prompt级）"]
+    CLAUDEMD["CLAUDE.md / AGENTS.md<br/>问题域启发式表<br/>『遇到X症状 → memory_grep Y』"]
+  end
+  subgraph PUSH["推送层 · hook 注入（机械强制）"]
+    HOOK["SessionStart hook<br/>matcher: startup / compact"]
+    PACK["记忆包 ≤1.5KB<br/>handoff + lessons最近5条标题行 + 启发式一行"]
+    HOOK --> PACK
+  end
+  subgraph PULL["拉取层 · just-in-grep（按需打捞）"]
+    SEARCH["memory_grep query<br/>→ 条目级命中（路径+行号）"]
+    RECENT["memory_recent<br/>→ 最近增量"]
+    STATUS["memory_status<br/>→ 活性自查"]
+  end
+  subgraph ESTATE["知识地产 · 唯一事实源"]
+    LESSONS["docs/lessons.md 27+坑"]
+    ADRS["docs/decisions/ 23 ADR"]
+    PROGRESS["docs/progress.md"]
+    REMEMBER[".remember/ now·recent·today"]
+  end
+  subgraph GUARD["护栏层 · test/lint（机械强制）"]
+    PYTEST["pytest: hook 自测<br/>stdin JSON → stdout"]
+    LINT["memory_lint 并入 fastcheck<br/>staleness / 悬空 / 幽灵路径 / 预算"]
+    PROBE["冷启动探针挂 audit"]
+  end
+  CTX(("Agent 上下文"))
+  CLAUDEMD --> CTX
+  PACK --> CTX
+  CTX -- "遇到症状/决策前 才查" --> SEARCH
+  SEARCH -- "索引行" --> CTX
+  SEARCH --> ESTATE
+  RECENT --> REMEMBER
+  STATUS --> LINT
+  CTX -- "read 路径+行号 展开全文" --> ESTATE
+  PYTEST -.-> HOOK
+  LINT -.-> ESTATE
+  PROBE -.-> CTX</pre>
+  <p class="note">与 <b>research/07-agent记忆机制详报.md</b>（一手调研与引用）配套阅读。</p>
+
+  <h2>六、已定决策（grill-me 三轮收敛）</h2>
+  <p>
+    <span class="pill"><b>Q7</b> 注入包 ≤1.5KB / compact 瘦版 ≤0.5KB</span>
+    <span class="pill"><b>Q8</b> 五工具：memory_grep / read / index / recent / status（纯脚本，不建 MCP）</span>
+    <span class="pill"><b>Q9</b> CLAUDE.md 改问题域启发式表 + 清幽灵路径</span>
+    <span class="pill"><b>Q10</b> TDD：pytest 3 用例 + linter FAIL/WARN 分级进 fastcheck</span>
+    <span class="pill"><b>Q11</b> .remember 维持 gitignore，多机协作再翻案</span>
+  </p>
+  <p class="note">下一步：superpowers writing-plans → 新分支（自 feature/context-semantic-transfer 切出）→ 按护栏层先行的 TDD 顺序实施。</p>
+
+</div>
+</body>
+</html>

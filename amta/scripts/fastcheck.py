@@ -82,13 +82,19 @@ def _depguard() -> int:
     return _run([sys.executable, str(ROOT / "scripts" / "depguard.py")], "depguard (依赖膨胀守卫)")
 
 
+def _memory_lint() -> int:
+    """记忆机制活性门（ADR-025）：staleness/幽灵路径/注入预算。strict：FAIL → 1。"""
+    return _run([sys.executable, str(ROOT / "scripts" / "memory_lint.py"), "--strict"], "memory lint (ADR-025)")
+
+
 def main() -> int:
     c = _compile()
     lint_rc = _lint()
     t = _typecheck()
     u = _test()
     d = _depguard()
-    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u), ("depguard", d)) if rc]
+    m = _memory_lint()
+    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u), ("depguard", d), ("memory lint", m)) if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
         return 1
