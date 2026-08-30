@@ -110,6 +110,236 @@ class GeometryTest(unittest.TestCase):
         out = geometry.union_boxes(detections)
         self.assertEqual(len(out), 2)
 
+    def test_union_blocks_keeps_metadata_and_dedupes(self):
+        detections = {
+            "ctd": [
+                {"node_id": "a", "bubble_type": "dialogue", "text": None,
+                 "transform": {"x": 0, "y": 0, "w": 10, "h": 10}},
+            ],
+            "anime": [
+                {"node_id": "b", "bubble_type": "sfx", "text": None,
+                 "transform": {"x": 0, "y": 0, "w": 10, "h": 10}},  # 与 a 重复
+                {"node_id": "c", "bubble_type": "dialogue", "text": None,
+                 "transform": {"x": 100, "y": 100, "w": 5, "h": 5}},
+            ],
+        }
+        out = geometry.union_blocks(detections)
+        self.assertEqual(len(out), 2)
+        # 保留首个命中框元数据 + bbox 字段
+        self.assertEqual(out[0]["node_id"], "a")
+        self.assertEqual(out[0]["bbox"], [0.0, 0.0, 10.0, 10.0])
+        self.assertEqual(out[1]["node_id"], "c")
+
+    def test_absorb_contained_drops_nested_fragment(self):
+        # u04「ぽ」全嵌套于 u05「ぽっらん」,IoU≈0 但 IoA=1.0 → 丢弃子框
+        blocks = [
+            {"node_id": "big", "bbox": [1256, 497, 1643, 799]},   # 容器
+            {"node_id": "frag", "bbox": [1264, 509, 1377, 616]},  # 全嵌套碎片
+            {"node_id": "disjoint", "bbox": [0, 0, 100, 100]},    # 独立框保留
+        ]
+        out = geometry.absorb_contained(blocks)
+        ids = sorted(b["node_id"] for b in out)
+        self.assertEqual(ids, ["big", "disjoint"])
+
+    def test_absorb_contained_keeps_partial_overlap(self):
+        # 仅部分重叠(IoA<0.75)不吸收
+        blocks = [
+            {"node_id": "a", "bbox": [0, 0, 100, 100]},
+            {"node_id": "b", "bbox": [50, 0, 150, 100]},  # 与 a 部分重叠
+        ]
+        out = geometry.absorb_contained(blocks)
+        self.assertEqual(len(out), 2)
+
+    def test_assign_sub_tier_primary_vs_aside(self):
+        # 容器内两行: 与最大行宽比 >= 1.4 → 判定为 aside(碎碎念), 否则 primary
+        lines = [
+            {"bbox": [100, 100, 500, 200]},  # 宽 400
+            {"bbox": [100, 220, 160, 260]},  # 宽 60, 与最大行宽比 400/60≈6.7 → aside
+        ]
+        out = geometry.assign_sub_tier(lines, ratio=1.4)
+        self.assertEqual(out[0]["sub_tier"], "primary")
+        self.assertEqual(out[1]["sub_tier"], "aside")
+
+    def test_assign_sub_tier_all_primary_when_ratio_low(self):
+        lines = [{"bbox": [0, 0, 100, 30]}, {"bbox": [0, 40, 110, 70]}]  # 宽 100/110 → 比值<1.4
+        out = geometry.assign_sub_tier(lines, ratio=1.4)
+        self.assertEqual([line["sub_tier"] for line in out], ["primary", "primary"])
+
+    def test_assign_sub_tier_empty(self):
+        self.assertEqual(geometry.assign_sub_tier([]), [])
+
+    def test_build_regions_nests_child_lines(self):
+        # 容器大框 + 内部碎片子框 → 子框挂 child_lines, 独立框自成 region
+        blocks = [
+            {"node_id": "container", "bbox": [0, 0, 200, 200], "bubble_type": "dialogue"},
+            {"node_id": "inner", "bbox": [10, 10, 190, 60], "bubble_type": "dialogue"},  # 全嵌套
+            {"node_id": "separate", "bbox": [300, 300, 400, 400], "bubble_type": "sfx"},   # 独立
+        ]
+        regions = geometry.build_regions(blocks)
+        self.assertEqual(len(regions), 2)
+        cont = next(r for r in regions if r["node_id"] == "container")
+        self.assertEqual(len(cont["child_lines"]), 1)
+        self.assertEqual(cont["child_lines"][0]["node_id"], "inner")
+        # child_lines 被赋予 sub_tier
+        self.assertIn(cont["child_lines"][0]["sub_tier"], ("primary", "aside"))
+
+    def test_build_regions_dedup_overlapping_fragment(self):
+        # p17 案例: primary 与嵌套 aside 几乎完全重合(IoA≈1.0) → 碎片去重只留一个
+        blocks = [
+            {"node_id": "container", "bbox": [1615, 2100, 1840, 2921], "bubble_type": "dialogue"},
+            {"node_id": "primary", "bbox": [1720, 2094, 1843, 2778], "bubble_type": "dialogue"},
+            {"node_id": "frag", "bbox": [1749, 2119, 1814, 2762], "bubble_type": "dialogue"},  # 完全重叠
+            {"node_id": "aside2", "bbox": [1629, 2643, 1698, 2915], "bubble_type": "dialogue"},  # 独立段
+        ]
+        regions = geometry.build_regions(blocks)
+        cont = next(r for r in regions if r["node_id"] == "container")
+        ids = [line["node_id"] for line in cont["child_lines"]]
+        # frag 与 primary 重叠被去重, 保留 primary + aside2
+        self.assertEqual(sorted(ids), ["aside2", "primary"])
+        self.assertNotIn("frag", ids)
+
+    def test_build_regions_no_nesting(self):
+        blocks = [{"node_id": "a", "bbox": [0, 0, 50, 50]},
+                  {"node_id": "b", "bbox": [100, 100, 150, 150]}]
+        regions = geometry.build_regions(blocks)
+        self.assertEqual(len(regions), 2)
+        self.assertTrue(all(r["child_lines"] == [] for r in regions))
+
+    # ---- flatten_regions 残差保底律（Residual Container Fallback）----
+    # 根因：flatten_regions 旧规则"容器自身不输出，只输出 child_lines"
+    # 会在"容器很宽但只检出一根极窄子行"时丢弃母体容器，
+    # 导致容器内未被独立检出的大字主台词被吞噬（15.jpg「弟子だからね」案）。
+
+    def test_flatten_single_narrow_child_triggers_container_fallback(self):
+        """探针测试：15.jpg 案发现场 — 160px 容器 + 52px 单子行 → 必须输出母体容器。"""
+        container = {
+            "node_id": "c_001",
+            "bbox": [50, 2395, 210, 2698],  # 宽 160px 大气泡（含大字「弟子だからね」）
+            "bubble_type": "dialogue",
+            "category": "dialogue_bubble",
+            "child_lines": [
+                {
+                    "node_id": "l_001",
+                    "bbox": [145, 2395, 197, 2698],  # 宽 52px 小字「落ち着きなさい」
+                    "bubble_type": "dialogue",
+                    "category": "dialogue_bubble",
+                    "sub_tier": "primary",
+                }
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        # 必须输出 1 个框，且是宽 160px 的母体容器，绝不能是 52px 窄条
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["bbox"], [50, 2395, 210, 2698])
+        self.assertTrue(result[0].get("fallback_triggered"))
+
+    def test_flatten_14jpg_long_bubble_narrow_child_fallback(self):
+        """14.jpg 案发现场 — 大气泡容器 + 46px 窄子行 → 触发保底输出容器。"""
+        container = {
+            "node_id": "c_002",
+            "bbox": [1600, 2630, 1870, 3150],  # 宽 270px 长气泡（含大字长句）
+            "bubble_type": "dialogue",
+            "category": "dialogue_bubble",
+            "child_lines": [
+                {
+                    "node_id": "l_002",
+                    "bbox": [1607, 2783, 1653, 3113],  # 宽 46px 窄条
+                    "bubble_type": "dialogue",
+                    "category": "dialogue_bubble",
+                    "sub_tier": "primary",
+                }
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["bbox"], [1600, 2630, 1870, 3150])
+        self.assertTrue(result[0].get("fallback_triggered"))
+
+    def test_flatten_multi_line_full_coverage_outputs_children(self):
+        """正常多行全覆盖 → 不触发保底，输出各子行（原有行为不变）。"""
+        container = {
+            "node_id": "c_003",
+            "bbox": [100, 100, 300, 500],  # 宽 200px
+            "child_lines": [
+                {"node_id": "l1", "bbox": [110, 110, 290, 290]},  # 宽 180px
+                {"node_id": "l2", "bbox": [110, 300, 290, 490]},  # 宽 180px
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["node_id"], "l1")
+        self.assertEqual(result[1]["node_id"], "l2")
+        self.assertFalse(result[0].get("fallback_triggered", False))
+
+    def test_flatten_single_child_full_coverage_outputs_child(self):
+        """单子行但覆盖率高（子行几乎填满容器）→ 不触发保底，输出子行。"""
+        container = {
+            "node_id": "c_004",
+            "bbox": [100, 100, 200, 400],  # 宽 100px
+            "child_lines": [
+                {"node_id": "l1", "bbox": [105, 105, 195, 395]},  # 宽 90px，覆盖率高
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["node_id"], "l1")
+        self.assertFalse(result[0].get("fallback_triggered", False))
+
+    def test_flatten_no_child_outputs_container(self):
+        """无子行 → 输出容器自身（原有行为不变）。"""
+        container = {
+            "node_id": "c_005",
+            "bbox": [100, 100, 200, 300],
+            "child_lines": [],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["node_id"], "c_005")
+
+    def test_flatten_fallback_clears_child_lines(self):
+        """触发保底时，输出的容器 child_lines 必须为空（作为完整气泡送 OCR）。"""
+        container = {
+            "node_id": "c_006",
+            "bbox": [50, 2395, 210, 2698],
+            "child_lines": [
+                {"node_id": "l1", "bbox": [145, 2395, 197, 2698]},
+            ],
+        }
+        result = geometry.flatten_regions([container])
+        self.assertEqual(result[0]["child_lines"], [])
+
+
+class CategoryTest(unittest.TestCase):
+    """Phase 1: bubble_type 值域统一映射到 3 级 category（ADR-019）。"""
+
+    def test_maps_koharu_types_to_three_level(self):
+        cases = [
+            ({"bubble_type": "dialogue"}, "dialogue_bubble"),
+            ({"bubble_type": "narration"}, "dialogue_bubble"),
+            ({"bubble_type": "sfx"}, "sfx"),
+            ({"bubble_type": "unknown"}, "dialogue_bubble"),
+            ({}, "dialogue_bubble"),  # 缺失默认保守归气泡
+        ]
+        for block, expect in cases:
+            out = geometry.assign_category([dict(block)])[0]
+            self.assertEqual(out["category"], expect)
+
+    def test_preserves_original_fields(self):
+        b = {"node_id": "n1", "bbox": [0, 0, 10, 10], "text": None,
+             "bubble_type": "sfx"}
+        out = geometry.assign_category([b])[0]
+        self.assertEqual(out["node_id"], "n1")
+        self.assertEqual(out["bubble_type"], "sfx")  # 原字段保留(兼容下游)
+        self.assertEqual(out["category"], "sfx")
+
+    def test_overlay_text_passthrough(self):
+        # koharu 若已给出 overlay 类则透传，不误改
+        self.assertEqual(geometry.assign_category(
+            [{"bubble_type": "overlay_text"}])[0]["category"], "overlay_text")
+
+    def test_empty(self):
+        self.assertEqual(geometry.assign_category([]), [])
+
 
 if __name__ == "__main__":
     unittest.main()

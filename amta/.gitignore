@@ -1,4 +1,4 @@
-# ---- Node（npm 仅作脚本入口容器）----
+# ---- Node锛坣pm 浠呬綔鑴氭湰鍏ュ彛瀹瑰櫒锛�----
 node_modules/
 
 # ---- Python ----
@@ -8,19 +8,19 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# ---- 环境与密钥 ----
+# ---- 鐜�澧冧笌瀵嗛挜 ----
 .env
 .env.local
 *.local
 
-# ---- 运行产物 ----
+# ---- 杩愯�屼骇鐗� ----
 output/*
 !output/.gitkeep
 !output/data/benchmark_a.json
 !output/data/benchmark_b.json
 !output/data/benchmark_c.json
 
-# ---- 模型权重（大文件/第三方 license，不入库）----
+# ---- 妯″瀷鏉冮噸锛堝ぇ鏂囦欢/绗�涓夋柟 license锛屼笉鍏ュ簱锛�----
 models/
 !output/data/labels_a.json
 !output/data/label_manifest.json
@@ -31,23 +31,29 @@ models/
 !output/data/benchmark_b_sfx.json
 !output/data/benchmark_b_paddle_manga.json
 
-# ---- 测试集原图（不入库；testsets/README.md 等文本照常入库）----
+# ---- 娴嬭瘯闆嗗師鍥撅紙涓嶅叆搴擄紱testsets/README.md 绛夋枃鏈�鐓у父鍏ュ簱锛�----
 testsets/pages/
 
-# ---- 会话记忆 / 工具 ----
+# ---- 浼氳瘽璁板繂 / 宸ュ叿 ----
 .remember/
 
 # ---- VCS ----
 .git/
 
-# ---- ���빤���� (git worktree) ----
+# ---- 隔离工作区 (git worktree) ----
 .worktrees/
 
-# ---- per-work 工作区（ADR-013）：raw/artifacts 大产物不入库，state JSON 入库 ----
+# ---- per-work 宸ヤ綔鍖猴紙ADR-013锛夛細raw/artifacts 澶т骇鐗╀笉鍏ュ簱锛宻tate JSON 鍏ュ簱 ----
 workspace/*/raw/
 workspace/*/artifacts/
 
 
-# ---- workstate 测试残留（init_workspace 在真实 workspace/ 建目录）----
+# ---- workstate 娴嬭瘯娈嬬暀锛坕nit_workspace 鍦ㄧ湡瀹� workspace/ 寤虹洰褰曪級----
 workspace/ws-*/
 
+
+# SDD workspace (superpowers subagent-driven ledger, 不入库)
+.superpowers/
+
+# ---- realrun 备份 ----
+workspace/*/backup*/

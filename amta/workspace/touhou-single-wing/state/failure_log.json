@@ -1,0 +1,89 @@
+{
+ "failures": [
+  {
+   "work_id": "touhou-single-wing",
+   "problems": [
+    {
+     "region_id": "page_10_u01",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_10_u04",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_10_u06",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
+  },
+  {
+   "work_id": "touhou-single-wing",
+   "problems": [
+    {
+     "region_id": "page_12_u01",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_12_u04",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_12_u05",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_12_u06",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
+  },
+  {
+   "work_id": "touhou-single-wing",
+   "problems": [
+    {
+     "region_id": "page_16_u06",
+     "kind": "residue",
+     "text": "悠久的时光全部用于自我研究・自我磨炼"
+    }
+   ]
+  },
+  {
+   "work_id": "touhou-single-wing",
+   "problems": [
+    {
+     "region_id": "page_17_u01",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_17_u02",
+     "kind": "residue",
+     "text": ""
+    },
+    {
+     "region_id": "page_17_u03",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
+  },
+  {
+   "work_id": "touhou-single-wing",
+   "problems": [
+    {
+     "region_id": "page_14_u01",
+     "kind": "residue",
+     "text": ""
+    }
+   ]
+  }
+ ]
+}

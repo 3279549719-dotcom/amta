@@ -174,13 +174,15 @@ class OcrEnginesTest(unittest.TestCase):
         import tempfile
         import unittest.mock as mock
 
+        from amta import chat_client
+
         with tempfile.TemporaryDirectory() as td:
             crop = Path(td) / "a.png"
             crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
             fake = mock.Mock()
             fake.return_value.status_code = 200
             fake.return_value.json.return_value = {"choices": [{"message": {"content": "月の都"}}]}
-            with mock.patch.object(ocr_engines.requests, "post", fake):
+            with mock.patch.object(chat_client.requests, "post", fake):
                 out = ocr_engines.send_chat("http://127.0.0.1:8118/v1", "paddle", crop, api_key="k")
         self.assertEqual(out, "月の都")
         self.assertEqual(fake.call_args.args[0], "http://127.0.0.1:8118/v1/chat/completions")
@@ -190,13 +192,15 @@ class OcrEnginesTest(unittest.TestCase):
         import tempfile
         import unittest.mock as mock
 
+        from amta import chat_client
+
         with tempfile.TemporaryDirectory() as td:
             crop = Path(td) / "a.png"
             crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
             fake = mock.Mock()
             fake.return_value.status_code = 200
             fake.return_value.json.return_value = {"unexpected": True}
-            with mock.patch.object(ocr_engines.requests, "post", fake):
+            with mock.patch.object(chat_client.requests, "post", fake):
                 out = ocr_engines.send_chat("http://x/v1", "m", crop)
         self.assertEqual(out, "")
     def test_local_payload_disables_prompt_cache(self):
@@ -204,13 +208,15 @@ class OcrEnginesTest(unittest.TestCase):
         import tempfile
         import unittest.mock as mock
 
+        from amta import chat_client
+
         with tempfile.TemporaryDirectory() as td:
             crop = Path(td) / "a.png"
             crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
             fake = mock.Mock()
             fake.return_value.status_code = 200
             fake.return_value.json.return_value = {"choices": [{"message": {"content": "x"}}]}
-            with mock.patch.object(ocr_engines.requests, "post", fake):
+            with mock.patch.object(chat_client.requests, "post", fake):
                 ocr_engines.local_ocr_batch([str(crop)])
         self.assertIs(fake.call_args.kwargs["json"]["cache_prompt"], False)
 
@@ -219,13 +225,15 @@ class OcrEnginesTest(unittest.TestCase):
         import tempfile
         import unittest.mock as mock
 
+        from amta import chat_client
+
         with tempfile.TemporaryDirectory() as td:
             crop = Path(td) / "a.png"
             crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
             fake = mock.Mock()
             fake.return_value.status_code = 200
             fake.return_value.json.return_value = {"choices": [{"message": {"content": "x"}}]}
-            with mock.patch.object(ocr_engines.requests, "post", fake):
+            with mock.patch.object(chat_client.requests, "post", fake):
                 with mock.patch.dict("os.environ", {"DASHSCOPE_API_KEY": "sk"}):
                     ocr_engines.dashscope_ocr_batch([str(crop)])
         self.assertNotIn("cache_prompt", fake.call_args.kwargs["json"])

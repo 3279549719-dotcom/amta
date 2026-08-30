@@ -43,16 +43,32 @@ def run_pipeline_once(
         client.close_current_project()
 
 
-def compact_blocks(blocks: list[dict], fields: tuple[str, ...]) -> list[dict]:
-    """collect_blocks 行 → 只保留指定字段 + 计算好的 bbox（评测旧输出形状，消费方依赖 bbox）。"""
-    return [{**{f: b.get(f) for f in fields}, "bbox": bbox_from_block(b)} for b in blocks]
+def compact_blocks(blocks: list[dict], fields: tuple[str, ...],
+                   source_engine: str | None = None) -> list[dict]:
+    """collect_blocks 行 → 只保留指定字段 + 计算好的 bbox（评测旧输出形状，消费方依赖 bbox）。
+
+    source_engine 非 None 时注入内部溯源字段 source_engines=[引擎名]（ADR-023），
+    供 union_blocks 合并出每个框的检出引擎列表；不传则输出与旧版完全一致。
+    """
+    out = []
+    for b in blocks:
+        item = {**{f: b.get(f) for f in fields}, "bbox": bbox_from_block(b)}
+        if source_engine is not None:
+            item["source_engines"] = [source_engine]
+        out.append(item)
+    return out
+
+
+def page_key(page: Path, idx: int) -> str:
+    """默认页键：page_{idx}（0 基，与评测 canon 对齐）。"""
+    return f"page_{idx}"
 
 
 def run_all_pages(
     client: KoharuClient,
     pages: list[Path],
     steps_by_engine: dict[str, list[str]],
-    key_fn: Callable[[Path, int], str],
+    key_fn: Callable[[Path, int], str] = page_key,
     *,
     prefix: str = "amta",
     timeout: int = 1200,

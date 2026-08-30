@@ -1,0 +1,229 @@
+{
+  "work_id": "touhou-single-wing",
+  "suggestions": [
+    {
+      "term": "アイテム",
+      "source": "page_10_u07",
+      "page": 10,
+      "translation": "只差一点，利用传闻改写过去的道具就能完成了，可是……",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_13_u05",
+      "page": 13,
+      "translation": "探女姐姐，谢谢你！",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_16_u02",
+      "page": 16,
+      "translation": "八意大人、探女姐姐，发生什么事了吗？比如肚子疼之类的？",
+      "status": "candidate"
+    },
+    {
+      "term": "サボ",
+      "source": "page_17_u03",
+      "page": 17,
+      "translation": "偷懒，是吧",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_18_u02",
+      "page": 18,
+      "translation": "探女姐姐，这边请",
+      "status": "candidate"
+    },
+    {
+      "term": "ゼロ",
+      "source": "page_19_u07",
+      "page": 19,
+      "translation": "正如之前所说，从量子的观点来看，只要可能性不为零，一切事象就都存在",
+      "status": "candidate"
+    },
+    {
+      "term": "アイテム",
+      "source": "page_10_u00",
+      "page": 10,
+      "translation": "明明只差一点，就能进展到利用流言进行过去改写道具的制作阶段了……",
+      "status": "candidate"
+    },
+    {
+      "term": "ビフン",
+      "source": "page_12_u00",
+      "page": 12,
+      "translation": "哼！",
+      "status": "candidate"
+    },
+    {
+      "term": "プチッ",
+      "source": "page_12_u08",
+      "page": 12,
+      "translation": "啪",
+      "status": "candidate"
+    },
+    {
+      "term": "キョコ",
+      "source": "page_12_u09",
+      "page": 12,
+      "translation": "京子",
+      "status": "candidate"
+    },
+    {
+      "term": "キョロ",
+      "source": "page_12_u11",
+      "page": 12,
+      "translation": "东张西望",
+      "status": "candidate"
+    },
+    {
+      "term": "ーーー",
+      "source": "page_13_u02",
+      "page": 13,
+      "translation": "你在干什么啊——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_13_u06",
+      "page": 13,
+      "translation": "谢谢探女姐姐！",
+      "status": "candidate"
+    },
+    {
+      "term": "エーマン",
+      "source": "page_13_u09",
+      "page": 13,
+      "translation": "「艾曼」",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_13_u12",
+      "page": 13,
+      "translation": "探女姐姐！？",
+      "status": "candidate"
+    },
+    {
+      "term": "ーーー",
+      "source": "page_14_u05",
+      "page": 14,
+      "translation": "还有一个人！？——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "エーシー",
+      "source": "page_15_u08",
+      "page": 15,
+      "translation": "诶、诶……",
+      "status": "candidate"
+    },
+    {
+      "term": "ガラッ",
+      "source": "page_17_u02",
+      "page": 17,
+      "translation": "",
+      "status": "candidate"
+    },
+    {
+      "term": "サボ",
+      "source": "page_17_u09",
+      "page": 17,
+      "translation": "是在偷懒呢",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_18_u02",
+      "page": 18,
+      "translation": "萨格姐姐，请到这边来",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_18_u05",
+      "page": 18,
+      "translation": "探女姐",
+      "status": "candidate"
+    },
+    {
+      "term": "ゼロ",
+      "source": "page_19_u05",
+      "page": 19,
+      "translation": "正如之前说过的，从量子的观点来看，只要可能性不为零，一切现象都是存在的。",
+      "status": "candidate"
+    },
+    {
+      "term": "カッカッ",
+      "source": "page_19_u06",
+      "page": 19,
+      "translation": "咔咔",
+      "status": "candidate"
+    },
+    {
+      "term": "ーー",
+      "source": "page_13_u02",
+      "page": 13,
+      "translation": "你们在干什么啊——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_13_u06",
+      "page": 13,
+      "translation": "探女姐姐，谢谢你！",
+      "status": "candidate"
+    },
+    {
+      "term": "エーマン",
+      "source": "page_13_u09",
+      "page": 13,
+      "translation": "「艾曼」",
+      "status": "candidate"
+    },
+    {
+      "term": "サグ",
+      "source": "page_13_u12",
+      "page": 13,
+      "translation": "萨古姐！？",
+      "status": "candidate"
+    },
+    {
+      "term": "ーーー",
+      "source": "page_14_u05",
+      "page": 14,
+      "translation": "还有一个人——！！",
+      "status": "candidate"
+    },
+    {
+      "term": "ビフン",
+      "source": "page_12_u00",
+      "page": 12,
+      "translation": "嗖",
+      "status": "candidate"
+    },
+    {
+      "term": "プチッ",
+      "source": "page_12_u08",
+      "page": 12,
+      "translation": "啵",
+      "status": "candidate"
+    },
+    {
+      "term": "キョコ",
+      "source": "page_12_u09",
+      "page": 12,
+      "translation": "骨碌碌",
+      "status": "candidate"
+    },
+    {
+      "term": "キョロ",
+      "source": "page_12_u11",
+      "page": 12,
+      "translation": "骨碌碌",
+      "status": "candidate"
+    }
+  ]
+}

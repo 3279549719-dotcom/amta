@@ -100,6 +100,57 @@ def audit_gitignore_leak() -> list[str]:
     return bad
 
 
+# ---- 文档卫生检查（2026-08-27，仓库卫生整改后加入）----
+
+
+def check_workspace_empties(ws_root: Path) -> tuple[int, list[str]]:
+    """workspace/ 下 artifacts 为空的 ws-* 空壳目录（work_dir() 每次调用残留的 state 骨架）。
+
+    判据：ws-* 目录存在但其 artifacts/ 内无任何文件 → 无真实产物，可清理。
+    """
+    if not ws_root.is_dir():
+        return 0, []
+    empties: list[str] = []
+    for p in ws_root.glob("ws-*"):
+        if not p.is_dir():
+            continue
+        art = p / "artifacts"
+        has_files = any(art.rglob("*")) if art.is_dir() else False
+        if not has_files:
+            empties.append(str(p))
+    return len(empties), empties
+
+
+def find_duplicate_files(root: Path, exts=(".md",)) -> list[list[Path]]:
+    """按 (文件名, 大小, 内容前 500 字) 找重复文件（跨 research/docs 等目录）。"""
+    from collections import defaultdict
+
+    groups: dict[tuple, list[Path]] = defaultdict(list)
+    for p in root.rglob("*"):
+        if not p.is_file() or p.suffix not in exts:
+            continue
+        if ".git" in p.parts or ".venv" in p.parts or ".worktrees" in p.parts:
+            continue
+        try:
+            key = (p.stat().st_size,
+                   p.read_text(encoding="utf-8", errors="ignore")[:500])
+        except OSError:
+            continue
+        groups[key].append(p)
+    return [ps for ps in groups.values() if len(ps) > 1]
+
+
+def check_top_level_clutter(root: Path,
+                           allowed=("amta", "research", "reference", ".firecrawl",
+                                    ".remember", ".agent-teams", ".dsh")) -> list[str]:
+    """顶层不应有的散落文件（白名单外且不是目录的条目）。"""
+    if not root.is_dir():
+        return []
+    stray = [str(p) for p in root.iterdir()
+             if p.is_file() and p.name not in allowed and not p.name.startswith(".env")]
+    return stray
+
+
 def main() -> int:
     findings: list[str] = []
     findings += audit_claude()
@@ -107,6 +158,23 @@ def main() -> int:
     findings += audit_decisions()
     findings += audit_output_json()
     findings += audit_gitignore_leak()
+
+    # 文档卫生（2026-08-27）
+    n_ws, ws_paths = check_workspace_empties(ROOT / "workspace")
+    if n_ws:
+        findings.append(f"workspace/ 空壳 ws-* 目录: {n_ws} 个（artifacts 无文件，建议清理）")
+        for p in ws_paths[:5]:
+            findings.append(f"    {Path(p).name}")
+    dups = find_duplicate_files(ROOT)
+    if dups:
+        findings.append(f"重复文件: {len(dups)} 组（同名同内容，建议只留单一事实源）")
+        for g in dups[:5]:
+            findings.append(f"    {' / '.join(Path(x).name for x in g)}")
+    stray = check_top_level_clutter(ROOT.parent)
+    if stray:
+        findings.append(f"顶层散落文件: {len(stray)} 个（应归位 research/reference/amta）")
+        for s in stray[:5]:
+            findings.append(f"    {Path(s).name}")
 
     if findings:
         print("== [audit] 发现（建议项，非门禁）==")

@@ -2,7 +2,7 @@
 
 对 semantic_check 的 failed 列表逐条：
   1. 构造修复 prompt：原文 + 旧译文 + 评审意见(reason) + 请重译
-  2. 调 DeepSeek（deepseek-v4-pro，可带 lookup_term/get_context 工具）重译
+  2. 调 DeepSeek（deepseek-v4-flash，可带 lookup_term/get_context 工具）重译
   3. 机械护栏（结构/残留/glossary）检查，不过则下一轮
   4. 通过 → 写 revisions（复用 apply_revisions 语义：写回 translation + 历史）→ --only 重评审
   5. 重评审未过 → 带新评审意见下一轮（max_rounds 上限，蓝图 bounded retry）
@@ -53,33 +53,8 @@ def repair_one(cfg: dict, rid: str, source: str, old: str, reason: str,
             return translate.chat_with_tools(cfg["base_url"], cfg["model"], msgs,
                                              tools=tools, api_key=cfg["api_key"])
     budgets = {"lookup_term": 3, "get_context": 1}
-    for _round in range(translate.MAX_TOOL_ROUNDS):
-        resp = llm(messages, tools=translate.TOOLS_SCHEMA)
-        if isinstance(resp, str):
-            raw = resp
-            break
-        calls = resp.get("tool_calls") or []
-        if not calls:
-            raw = resp.get("content") or ""
-            break
-        messages.append({"role": "assistant", "content": resp.get("content") or None,
-                         "tool_calls": calls})
-        for call in calls:
-            fn = call.get("function", {})
-            name = fn.get("name", "")
-            try:
-                args = json.loads(fn.get("arguments") or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            if budgets.get(name, 0) <= 0:
-                result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
-            else:
-                budgets[name] -= 1
-                result = translate.execute_tool(name, args, work_state, None, state_dir)
-            messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
-                             "content": result})
-    else:
-        raw = ""
+    raw = translate.run_tool_loop(llm, messages, budgets, work_state=work_state,
+                                  state_dir=state_dir, tools=translate.TOOLS_SCHEMA)
     parsed = translate.parse_translation_response(raw, [rid])
     return parsed.get(rid, "")
 
@@ -182,6 +157,17 @@ def run(canon_path: Path, trans_path: Path, semantic_path: Path, crops: Path,
     if out_review is not None:
         out_review.write_text(json.dumps({"needs_review": needs_review},
                                          ensure_ascii=False, indent=1), encoding="utf-8")
+    # 修复成功后回写 semantic.json：把 repaired 区域从 failed 移除（否则语义评审残留旧快照误报）
+    if repaired:
+        repaired_ids = {r["region_id"] for r in repaired}
+        before = len(sem.get("failed", []))
+        sem["failed"] = [f for f in sem.get("failed", []) if f.get("region_id") not in repaired_ids]
+        if len(sem["failed"]) != before:
+            sem["passed"] = sem.get("passed", 0) + (before - len(sem["failed"]))
+            n = sem.get("passed", 0) + len(sem.get("failed", [])) + len(sem.get("inconclusive", []))
+            sem["pass_rate"] = round(sem["passed"] / n, 4) if n else 0.0
+            semantic_path.write_text(json.dumps(sem, ensure_ascii=False, indent=1),
+                                     encoding="utf-8")
     return {"repaired": repaired, "needs_review": needs_review, "rounds": rounds}
 
 

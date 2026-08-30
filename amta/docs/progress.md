@@ -14,6 +14,51 @@
   - **分工修正**：导演角色归位——机制设计/needs_review 终审/误报驳回/术语表校准，不再手动写译文（此前 ADR-016 把导演当修订工属错位，已纠正）
   - 测试 +6（134 全绿）
 
+## 当前状态（2026-08-27，仓库卫生整改 + C4 架构文档 + audit 机器化）
+
+- **仓库卫生整改（commit 8fb5364/0ab552e，feat/contract-hygiene）**：
+  - **调研单一事实源**：research/ 归位（01-07 详报 + AGENTS.md + README 索引 + koharu-upstream/ 素材归档 52 文件）；docs/ 移除重复的 01-04（CLAUDE.md 渐进式加载表改指 research/）
+  - **reference/ 整理**：第三方源码 clone → `_vendor/`；设计文档 → `design-docs/`；散落 misc/ 归档
+  - **workspace/ 清理**：删 595 个 ws-* 空壳（work_dir() 每次调用残留）+ 27 个临时调试脚本；根因=init_workspace 随机 id
+  - **v2 计划归位**：`docs/superpowers/plans/2026-08-27-front3-stages-v2.md`
+- **audit 机器化卫生检查（scripts/audit.py + tests/test_audit_hygiene.py）**：workspace 空壳 ws-* 计数 / 跨目录重复文件检测 / 顶层散落检测，3 函数 6 测试
+- **c4-codebase-architecture skill 钉版**：`.dsh/skills/c4-codebase-architecture/`（npx skills 安装 → 项目钉版）
+- **AMTA C4 架构文档**：`docs/architecture/README.md`（Context/Container/Component 三视图 + Mermaid，c4 skill 生成）
+- **vision 微探针（worktree 产物，未入库）**：`thinking:disabled` 被 vision-exp 接受且生效——B 组整页全量 1 次调用 2-3s（原 3 图/次 33-65s），零螺旋，转写质量 ≥ baberu；对照 HTML `probe_vision_report.html`
+- **fastcheck 198 全绿**（+6 卫生检查测试）
+- **深接口重构（codebase-design，commit 7ab8bc1/1fd92ef，feat/contract-hygiene）**：按深模块（小接口+大实现）拆解——
+  - `chat_client.py` 新深模块：合并 `translate.text_chat`/`chat_with_tools` + `ocr_engines.send_chat` 的 OpenAI 兼容 HTTP/解析接缝，translate/ocr_engines 退化为薄适配器
+  - `translate.py`（461→~254 行）拆出 `translate_tools.py`（工具机：TOOLS_SCHEMA/预算/execute/loop，repair_failed 独立复用）+ `guardrails.py`（机械护栏）；`_JAPANESE` 私有正则收敛为 `metrics.contains_japanese`（修 glossary→translate 泄漏耦合）
+  - `koharu_client.py` 拆出 `koharu_blocks.py`（scene 节点→blocks 纯整形），KoharuClient 退化为纯 REST 适配器
+  - 行为零变化：ruff/pyright/depguard 全绿，全套 204 passed
+- **OCR VLM 审计（ADR-022 + 探针证据）**：ADR-022 两趟式 audit 定稿（Pass1 crop 批量存在性确认 + Pass2 整页枚举）从 feat/audit-v2 cherry-pick 进主树（commit f8a44d4/eb48456）；探针脚本/结果/HTML 证据归档 `research/08-ocr-vlm-audit-probe/`（原 worktree workspace，gitignore 产物已捞回）；**用户复核结论——全页通用 VLM 转写不可当真值源，仅作差异提示器，判定以本地 For-Manga 重 OCR + 机械规则为准**（详见 handoff-OCR-vlm-audit-顾问简报）
+
+## 下一步
+
+- **11-20 全量重跑完成（新 detector + ADR-019 契约 + deepseek-v4-flash）**：10 页零失败（run 043db62d2c5c），canon **108 条**（手工真值 97，宁多勿漏 +11），**category 覆盖 108/108（100%）**，sub_tier 41 条；语义评审 8/10 页 pass_rate 1.0（页 14 0.889 自动修复、页 13 有 2 inconclusive 待导演复核）；对比旧跑检出翻倍（页 11 3→9、页 14 3→17）。旧产物备份 `output/backup/2026-08-27-pre-rerun-11-20/`。
+- **Stage 4 inpaint 完成（ADR-020 + 探针定案）**：`inpaint_strategy`（category→fill_white/inpaint/skip）+ `04_inpaint` 工位 + `KoharuClient.run_inpaint/fetch_inpainted`；探针结论——lama-manga 需 **segment+bubble 双 mask（PNG 编码）**，~20s（400×600 CPU），结果经 scene 节点 blob 取回为 **WEBP**（export 走不通）。
+- **Stage 5 typeset 完成（ADR-021）**：自研 Pillow 引擎（`fonts` 4 级映射 / `typeset_engine` 方向+折行+避头尾+字号二分 / `typeset_render` 横排居中+竖排单列+白描边）+ `05_typeset` 工位（coverage/overflow 机械检查）；**overlay_text 强制竖排漏洞修复落地**；bbox 经 `node_id` 关联 detection（零契约改动）。
+- **页 11 端到端冒烟通过**：04 fill_white 9 + 05 rendered 9/9 coverage_complete，竖排 2 条（u06 52px/u07 27px）、感叹号→粗体映射、字号 20-52 自适应全生效；`final/page_10_final.png` 已出。
+- **fastcheck 192 全绿**（+28 测试）；lessons L28-L31 新增。
+- ⚠️ **渲染质量待修**（Patrick 初审）：字号跨框不一致、部分框内译文绘制/擦除观感问题——下一轮先修 renderer 再全量渲染。
+
+## 下一步
+
+0. **渲染质量修复**（字号一致性、译文绘制观感、overlay 竖排锚点）——Patrick 已指出的问题
+1. **11-20 全量 `--with-inpaint --with-typeset`**（lama 整页 1-3min/页，~30-50min），验证 sfx/overlay 真实擦除路径 + 产出全彩成品
+2. **Stage 6 QA 工位**（coverage 反压闭环 + VLM 终审，蓝图 Phase 4）
+3. **合并 main + push**（feat/contract-hygiene 14 commits；push 前 fetch→rebase 铁律）
+4. **工单微信通知**（handoff 遗留）
+5. 翻译结果对照报告已发邮箱：`output/reports/translation_check_11_20.zip`
+
+## 当前状态（2026-08-26，/simplify 化简重构：分支 refactor/simplify 未合并未推送）
+
+- **/simplify 式化简重构（独立 worktree，分支 refactor/simplify，commit f819cd8，17 文件 +102/-151，fastcheck ALL PASS / 121 passed，零依赖不变，未 push）**：
+  - 去重：translate/glossary 的 norm/levenshtein 收敛到 `amta.metrics`；工具循环提取 `translate.run_tool_loop()` 供 repair_failed 共用；`_page_key` 提升为 `runner.page_key` 默认值；base64 data-URI / stdio 样板 / read_json 收敛到 `amta.paths`/`amta.*`
+  - 死代码删除：`geometry.fit_block`、`pipeline.OCR_STEPS`（全仓零引用）
+  - CLI 接口与行为语义全部保持；评估过但跳过（PLAUSIBLE，理由见 ADR-012 修订注）：02_ocr crop 合并、`_judge_vision` 与 `build_payload` 合并；`_NN_xxx.py` 桥按 L20 保留
+  - ⚠️ 未合并回 main、未 push——合并前需重跑 fastcheck；交接 correctness 线索两条（见「下一步」9/10）
+
 ## 当前状态（2026-08-26 三笔：工单机制落地 + /finish 收尾，feat/translate-tools-fc 合并 master）
 
 - **工单机制（ADR-017，借鉴 CMMS）**：src/amta/tickets.py TicketStore——状态机 open→in_progress→resolved/rejected，JSON 文件即状态（state_dir/tickets.json）；repair_failed 达上限自动开单（classify_kind 关键词分类 term_conflict/false_positive/hard_case）；**归档闭环**：resolve/reject 时处理结论自动回写判例库（维修手册逻辑，导演处置即沉淀判例）。测试 +5。
@@ -171,9 +216,34 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 
 0. ~~重生成 benchmark_b json（GT 对齐 + 去重 + norm 重算）~~ → **已由 86 框 OCR 评测替代完成**（ADR-011）
 1. ~~实现 03_translate.py + 接线 Context 分层~~ → **已完成（2026-08-25）**：`translate_with_retry` 接入 `build_translation_prompt`（Knowledge/History/Uncertainty/Current 真进 LLM 消息），`03_translate.py` 传 work_state + open_questions。
-2. **00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约**：文件存在=跳过断点续跑；detection.json/canon_text.json 落 workspace/<work_id>/artifacts/。
+2. ~~00_run_all.py 编排器 + 01_detect/02_ocr 接入 per-work 契约~~ → **已完成（2026-08-26，ADR-018）**：00_run_all + 01_detect + 02_ocr + pipeline_log + 03 --trace，1 页冒烟通过（断点续跑/step tracing/LLM 观测全部验证）。
 3. **04_inpaint / 05_typeset 工位**（koharu lama-manga + renderer 验证）+ 各自 mechanical check（mask 区域像素变化/译文区渲染）。
-4. ~~VLM 语义护栏脚本~~ + ~~导演语义 loop~~ + ~~术语演进~~ + ~~验收阈值~~ → **已完成（2026-08-26，ADR-016）**：③ 四维评分 + 判例库 `testsets/case_law.json`；`scripts/apply_revisions.py`（导演修订+重评审闭环）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并，跨页一致自动升）；验收阈值 = ③ ≥90% + 导演清 FAILED。剩余：**导演人工终审 4 条样本**（判例库已记录 verdict，需跑 03+③ 真数据闭环验证）。
+4. ~~VLM 语义护栏脚本~~ + ~~导演语义 loop~~ + ~~术语演进~~ + ~~验收阈值~~ → **已完成（2026-08-26，ADR-016）**：③ 四维评分 + 判例库 `testsets/case_law.json`；`scripts/apply_revisions.py`（导演修订+重评审闭环）+ `scripts/merge_suggestions.py`（suggestions→work_state 合并，跨页一致自动升）；验收阈值 = ③ ≥90% + 导演清 FAILED。**导演终审闭环已端到端验证（2026-08-26）**：5 FAILED 修订→5/5 过→86/86 清；自动修复层 + 工单机制（ADR-017）落地。
 5. **最终验收**：final.png 整体 VLM/导演检查（日文残留/溢出/可读性）。
 6. Benchmark C（mask + inpainting 评分）与 Benchmark A 框外漏检抽查（15 个未检出 GT 框，检测覆盖缺口）随工位推进穿插。
 7. 结果回填本节「当前状态」并推送。
+8. **handoff 2026-08-26（下一 AI 接手）**：① 1-10 页评测产物转正为流水线布局（artifacts/translation.json + state 配套），从 11 页起 00_run_all 续翻——验证 state 跨页累积 + get_context 前页回溯（这是上一轮拍板的方案 B）；② 工单微信通知；③ 02 OCR 提速（单页 156s CPU，41 页约 2h+）；④ vision 工具接线（VISION_BUDGET 已留，千问 3.5 omni 备选）；⑤ 角色 lookup 返回 aliases 小修补；⑥ 04_inpaint/05_typeset 工位。
+9. **修 tickets.py 判例回写字段错标**（`src/amta/tickets.py` `_append_case_law` L129 `"ticket_id": region_id`）：case-law 条目的 `ticket_id` 字段实际存 region_id，真实工单 id 从未传入（resolve/reject 只传 region_id，`_append_case_law` 签名也没有 ticket_id 参数）→ 要么签名加 ticket_id 传入真实值，要么删该字段（region_id 已冗余）；修后加测试锁「ticket_id 与真实工单一致」，防将来按 ticket_id 追溯判例时静默取到 region_id。
+10. **修 recall_score.py 输出字段语义错标**（`scripts/recall_score.py` L52-53 `"best_det": best`）：字段名暗示"最佳检出文本"，实际存数值 match_score（同行另有 `match_score` 字段）→ 改名 `best_match_score` 或改存匹配到的 det 文本；改前核对 recall_result.json 下游消费方（报告生成）避免静默断链。
+
+## 2026-08-28 进展快照（front3 + 分支治理）
+
+**Stage 3 五页验证（11-15，eval_stage3.py）**
+- 69/69 框全部有译文，日文残留 0、术语违例 0；双引擎差异大 36 处由 LLM 一次性裁决；耗时 31-72s/页（14 页 292s，重试/拆分机制触发）。
+- 核心 case 全命中：14 页「では豊ちゃん、輝夜様にこの羽根を見せに行ってきます」（VLM 误读サダメ，LLM 正确选 baberu）；15 页「弟子だからね＋落ち着きなさい」大小字合并自然；12 页 baberu 误读「落菜」被 VLM「蓬莱」纠正。报告：`artifacts/eval_stage3_report.html`（已发邮箱）。
+- **Stage 3 链路缺口修复（0852d20）**：`validate_canon` 接受双引擎格式（baberu_text/vlm_text）、`check_glossary`/`SuggestionsExtractor` 回退 baberu_text；5 个 TDD 测试，52 项全绿。
+- **暴露问题**：14 页 5 对重复检测框（两组 detector 各一组）未被合并——IoA<0.75 无嵌套标，LLM 逐框直译。「去重」是当前 Stage 3 最大短板。
+
+**Stage 3 去重实验（方案A/B，当晚 Patrick 建）**
+- `feat/stage3-dedup-tools`（0fba562）：方案A 纯文本规划去重——`stage3_planner.py`（plan 阶段 mark_invalid/mark_duplicate）+ 翻译过滤继承，测试 309 行。
+- `feat/stage3-dedup-tools-vision`（27e29fb）：方案B VLM 整页图规划——`stage3_planner_vision.py`（deepseek-v4-flash-vision-exp 判重复/无效，非区域转写）。worktree 已切到此分支。
+- 两分支均已推 origin。两方案对比验证待跑。
+
+**整页 VLM 残骸清理（Patrick 确认死路）**
+- ADR-022 探针遗留：主 checkout `scripts/probe_audit.py`（未跟踪一次性探针）已删；`.worktrees/feat-audit-v2/`（17MB 残留目录，非 git worktree）已核验无独有内容（调研报告在 git 历史 0ab552e 可恢复）后送回收站。
+- 现行 Stage 2 的 VLM = contact sheet 逐格转写（每框裁剪图），与整页读取无关，验证有效（蓬莱纠正），保留。
+
+**分支治理（Patrick 指令执行）**
+- 方案B（含方案A commit）推 origin ✓；agent-loop-stage1 主 checkout WIP 全量 commit（06_page_judge 页级质检工具等）✓；删除已合并分支 translate-harness / translate-tools-fc / refactor-ocr-speed ✓。
+- 遗留：`contained_in` 保留决策已定（保留）；但 Stage 3 prompt 实际未传 bbox（ADR-023 规格与实现不符，待补）；main 落后 50+ commit，front3 定稿后合并。
+

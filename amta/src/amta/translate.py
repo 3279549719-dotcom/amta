@@ -16,34 +16,23 @@ import re
 from pathlib import Path
 from typing import Any
 
-import requests
-
+from amta.chat_client import chat, chat_text
+from amta.guardrails import (_run_guardrails_for_test,  # noqa: F401  # 测试桥回导出
+                             japanese_residue_check,  # noqa: F401
+                             mechanical_guardrails)
+from amta.metrics import levenshtein, norm
 from amta.paths import ROOT
+from amta.translate_tools import (GET_CONTEXT_BUDGET, MAX_TOOL_ROUNDS,  # noqa: F401
+                                  TERM_BUDGET, TOOLS_SCHEMA, VISION_BUDGET,  # noqa: F401
+                                  build_tools_context,  # noqa: F401
+                                  execute_tool,  # noqa: F401
+                                  run_tool_loop)
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
-_JAPANESE = re.compile(r"[\u3040-\u30ff]")  # 假名即日文残留的判别特征；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
-_NORM_STRIP = re.compile(r"[^\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9]")
-
-
-def _norm(text: str) -> str:
-    """与 metrics.norm 同口径：去空白+去标点，保留假名/汉字/字母数字。"""
-    return _NORM_STRIP.sub("", text or "")
-
-
-def _levenshtein(a: str, b: str) -> int:
-    """编辑距离（供术语相关度匹配）。"""
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a):
-        cur = [i + 1]
-        for j, cb in enumerate(b):
-            cur.append(min(prev[j + 1] + 1, cur[j] + 1, prev[j] + (ca != cb)))
-        prev = cur
-    return prev[-1]
+# 日文残留判别特征唯一归属 metrics.contains_japanese；汉字与中文共用 U+4E00-U+9FFF 不可作残留依据
+# 工具机（TOOLS_SCHEMA/预算/execute_tool/run_tool_loop）与机械护栏（mechanical/japanese_residue）
+# 均已拆到 amta.translate_tools / amta.guardrails 深模块，此处仅 re-export 保持向后兼容。
 
 
 def get_chat_config() -> dict[str, str]:
@@ -75,19 +64,11 @@ def text_chat(
     api_key: str | None = None,
     timeout: int = 120,
 ) -> str:
-    """发一次 OpenAI 兼容纯文本 chat 请求（base_url 为 API 根，自动拼 /chat/completions），返回回复文本；解析失败返回空串。"""
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=headers,
-        json={"model": model, "messages": messages},
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"]["content"] or ""
-    except (KeyError, IndexError, TypeError):
-        return ""
+    """发一次 OpenAI 兼容纯文本 chat 请求，返回回复文本；解析失败返回空串。
+
+    深模块代理：HTTP/解析逻辑唯一归属 chat_client.chat_text（translate/ocr_engines 共用接缝）。
+    """
+    return chat_text(base_url, model, messages, api_key=api_key, timeout=timeout)
 
 
 def chat_with_tools(
@@ -101,24 +82,9 @@ def chat_with_tools(
 ) -> dict:
     """发一次 OpenAI 兼容 chat 请求（支持 tools/function calling），返回完整 message 结构。
 
-    响应 message 可能含 tool_calls（模型请求调用工具）或纯 content（最终回答）；
-    解析失败返回 {"content": ""}。
+    深模块代理：请求构造/响应解析唯一归属 chat_client.chat。
     """
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    payload: dict[str, Any] = {"model": model, "messages": messages}
-    if tools:
-        payload["tools"] = tools
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=headers,
-        json=payload,
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"] or {}
-    except (KeyError, IndexError, TypeError):
-        return {"content": ""}
+    return chat(base_url, model, messages, tools=tools, api_key=api_key, timeout=timeout)
 
 
 def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
@@ -128,15 +94,15 @@ def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
     """
     if not glossary:
         return {}
-    norm_text = _norm(text)
+    norm_text = norm(text)
     relevant: dict[str, Any] = {}
     for term, meta in glossary.items():
-        norm_term = _norm(term)
+        norm_term = norm(term)
         if not norm_term:
             continue
         if norm_term in norm_text or norm_text in norm_term:
             relevant[term] = meta
-        elif _levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
+        elif levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
             relevant[term] = meta
     return relevant
 
@@ -181,123 +147,65 @@ def _prompt_parts(canon: list[dict], work_state: dict,
     return "\n".join(system_lines), "\n\n".join(user_blocks)
 
 
-# ADR-016 Tools Contract：预算常量（真拦截——超限拒绝服务，非死常量）
-TERM_BUDGET = 10          # 每页 lookup_term 调用预算
-GET_CONTEXT_BUDGET = 3    # 每页 get_context 调用预算
-VISION_BUDGET = 2         # 每页 vision 调用预算（第一版未接线，预留）
-MAX_TOOL_ROUNDS = 6       # 单批工具循环轮次上限（防死循环）
-
-# 真 function calling 工具声明（DeepSeek OpenAI 兼容 tools 格式）
-TOOLS_SCHEMA = [
-    {
-        "type": "function",
-        "function": {
-            "name": "lookup_term",
-            "description": "查询本子已确认的术语/角色译名（如 豊姫→丰姬）。翻译中遇到专有名词、角色名、作品术语不确定译法时调用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "term": {"type": "string", "description": "要查询的日文术语或角色名原文"}
-                },
-                "required": ["term"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_context",
-            "description": "获取前几页的译文（保持风格/术语一致）。翻译当前页前可调用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pages": {"type": "integer", "description": "回溯页数，最多 3"}
-                },
-                "required": [],
-            },
-        },
-    },
-]
+# ADR-016 Tools Contract（TOOLS_SCHEMA/预算/execute_tool/run_tool_loop）→ amta.translate_tools
+# （见文件头 re-export）
 
 
-def build_tools_context(canon: list[dict], work_state: dict,
-                        prev_pages: list[dict] | None = None,
-                        open_questions: list[dict] | None = None) -> str:
-    """预取式 Tools 上下文（ADR-016）：当前页相关术语 + 前页译文显式注入。
+def _format_region_text(r: dict) -> str:
+    """格式化单个区域的文本，支持双引擎（Front3）和旧格式（text）。
 
-    lookup_term/get_context 为本地文件读（免费），按 TERM_BUDGET 限条防 prompt 膨胀。
+    Front3 格式: baberu_text + vlm_text + contained_in
+    旧格式: text
     """
-    parts = []
-    terms = work_state.get("terms", {})
-    cur_text = " ".join(r["text"] for r in canon)
-    rel = {k: v for k, v in terms.items()
-           if _norm(k) and (_norm(k) in _norm(cur_text) or _norm(cur_text) in _norm(k))}
-    if rel:
-        parts.append(f"工具查得·本页相关术语(最多{TERM_BUDGET}条):")
-        for k, v in list(rel.items())[:TERM_BUDGET]:
-            parts.append(f"- {k} = {v.get('translation', '?')} (status={v.get('status', '?')})")
-    if prev_pages:
-        parts.append("工具查得·前页译文:")
-        parts.extend(f"[{p.get('page', '?')}] {p.get('translated', '')}" for p in prev_pages[-3:])
-    return "\n".join(parts)
+    rid = r["region_id"]
+    # 旧格式向后兼容
+    if "text" in r and "baberu_text" not in r:
+        return f'{rid}|{r["text"]}'
 
+    # Front3 双引擎格式
+    baberu = r.get("baberu_text", "") or ""
+    vlm = r.get("vlm_text")
+    vlm_status = r.get("vlm_status", "ok")
+    contained = r.get("contained_in")
 
-def execute_tool(name: str, args: dict, work_state: dict,
-                 prev_pages: list[dict] | None = None,
-                 state_dir: Path | str | None = None) -> str:
-    """真工具执行器：lookup_term 查 work_state 术语/角色；get_context 读前页译文。
+    parts = [f"[Baberu] {baberu if baberu else '(空)'}"]
+    if vlm is not None:
+        parts.append(f"[VLM] {vlm}")
+    elif vlm_status and vlm_status != "ok":
+        parts.append(f"[VLM: {vlm_status}]")
 
-    返回给模型的文本结果（本地文件读，免费）；预算拦截由调用方（工具循环）负责。
-    """
-    ws = work_state or {}
-    if name == "lookup_term":
-        term = str(args.get("term", "")).strip()
-        if not term:
-            return "参数缺失：请提供 term"
-        hit: dict[str, Any] | None = None
-        for pool, kind in ((ws.get("terms", {}), "术语"), (ws.get("characters", {}), "角色")):
-            for k, v in pool.items():
-                if k == term or _norm(k) == _norm(term):
-                    hit = {**v, "kind": kind, "key": k}
-                    break
-            if hit:
-                break
-        if not hit:
-            return f"未找到术语「{term}」的已确认译名（可基于上下文自行判断）"
-        trans = hit.get("translation") or hit.get("canon_translation") or "?"
-        status = hit.get("status", "?")
-        src = hit.get("source", "?")
-        return f"{hit['kind']}「{hit['key']}」= {trans}（status={status}，来源 {src}）"
-    if name == "get_context":
-        pages = max(1, min(int(args.get("pages") or 3), 3))
-        # 优先读 state_dir/translation.json（断点续跑时已有产物），回退 prev_pages 参数
-        if state_dir is not None:
-            p = Path(state_dir) / "translation.json"
-            if p.exists():
-                try:
-                    doc = json.loads(p.read_text(encoding="utf-8"))
-                    trans = doc.get("translations", {})
-                    by_page: dict[str, list[str]] = {}
-                    for rid, t in trans.items():
-                        m = re.match(r"page_(\d+)", str(rid))
-                        pg = m.group(1) if m else "?"
-                        by_page.setdefault(pg, []).append(f"[{rid}] {t}")
-                    ordered = sorted(by_page.items(), key=lambda kv: kv[0])
-                    selected = ordered[-pages:]
-                    if selected:
-                        return "前页译文：\n" + "\n\n".join("\n".join(v) for _, v in selected)
-                except (json.JSONDecodeError, OSError):
-                    pass
-        if prev_pages:
-            lines = [f"[{h.get('page', '?')}] {h.get('translated', '')}" for h in prev_pages[-pages:]]
-            return "前页译文：\n" + "\n".join(lines)
-        return "暂无前页译文"
-    return f"未知工具：{name}"
+    if contained:
+        parts.append(f"[嵌套于 {contained}]")
+
+    return f'{rid}|{" ".join(parts)}'
 
 
 def _current_block(canon: list[dict]) -> str:
-    """当前批的 region_id|text 块（分批时每批单独拼）。"""
-    return "\n".join(f'{r["region_id"]}|{r["text"]}' for r in canon)
+    """当前批的 region_id|text 块（分批时每批单独拼）。
+
+    支持 Front3 双引擎格式（baberu_text + vlm_text + contained_in）
+    和旧格式（text）。
+    """
+    return "\n".join(_format_region_text(r) for r in canon)
+
+
+def _build_current_content(prefix: str, batch: list[dict]) -> str:
+    """组装当前批 user 内容（Current 层）：region_id|text 块 + Uncertainty 前缀。
+
+    Front3 双引擎格式下，每个区域包含 [Baberu] 和 [VLM] 两个 OCR 结果，
+    LLM 应自行判断哪个更准确后翻译。
+    """
+    has_dual_engine = any("baberu_text" in r for r in batch)
+    if has_dual_engine:
+        instr = (
+            "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致。\n"
+            "每个区域有 [Baberu] 和 [VLM] 两个 OCR 结果，请结合上下文判断哪个更准确后翻译。\n"
+            "[嵌套于 X] 表示该区域嵌套在区域 X 中，可能是同一气泡的大小字，请结合父区域文本判断。\n"
+        )
+    else:
+        instr = '请翻译当前页，输出 JSON：{"r01": "译文", ...}，region_id 必须与输入完全一致：\n'
+    cur = instr + _current_block(batch)
+    return f"{prefix}\n\n{cur}" if prefix else cur
 
 
 def build_translation_prompt(canon: list[dict], work_state: dict, *,
@@ -308,9 +216,7 @@ def build_translation_prompt(canon: list[dict], work_state: dict, *,
     借鉴自 manga-image-translator 的 prev_context 独立 system message 设计（ADR-014 History 层）。
     """
     system, prefix = _prompt_parts(canon, work_state, prev_pages, open_questions)
-    cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(canon)
-    current = f"{prefix}\n\n{cur}" if prefix else cur
-    return {"system": system, "current": current}
+    return {"system": system, "current": _build_current_content(prefix, canon)}
 
 
 def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str]:
@@ -326,41 +232,16 @@ def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str
     return {k: str(v).strip() for k, v in data.items() if k in region_ids and str(v).strip()}
 
 
-def mechanical_guardrails(canon: list[dict], translation: dict[str, str]) -> list[str]:
-    """护栏①结构错：region_id 与输入一一对应（无漏无重）、字段齐全。"""
-    problems = []
-    ids = {r["region_id"] for r in canon}
-    for r in canon:
-        rid = r["region_id"]
-        if rid not in translation:
-            problems.append(f"missing region_id {rid}")
-        elif not translation[rid].strip():
-            problems.append(f"empty translation for {rid}")
-    extra = set(translation) - ids
-    if extra:
-        problems.append(f"extra region_ids: {sorted(extra)}")
-    return problems
-
-
-def japanese_residue_check(texts: list[str]) -> list[str]:
-    """护栏②残留错：日文残留/空译文检测。返回有问题文本列表。"""
-    bad = []
-    for t in texts:
-        t = t or ""
-        if not t.strip():
-            bad.append("")
-        elif _JAPANESE.search(t):
-            bad.append(t)
-    return bad
-
-
 def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          split: bool = True, work_state: dict | None = None,
                          prev_pages: list[dict] | None = None,
                          open_questions: list[dict] | None = None,
                          tools_ctx: str | None = None,
                          tools: list[dict] | None = None,
-                         state_dir: Path | str | None = None) -> dict[str, str]:
+                         state_dir: Path | str | None = None,
+                         crop_dir: Path | str | None = None,
+                         vlm_api_key: str | None = None,
+                         vision_budget: int = VISION_BUDGET) -> dict[str, str]:
     """机制②分层 Loop：数量校验 → 重试 → 二分拆分 → 保留原文。
 
     借鉴自 manga-image-translator 的数量校验+二分拆分重试设计（ADR-014 机械 loop）。
@@ -370,52 +251,28 @@ def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
     tools_ctx：ADR-016 旧预取上下文（build_tools_context 产出），向后兼容保留，新代码不再使用。
     tools：真 function calling 工具声明（TOOLS_SCHEMA）。传了则启用工具循环：
     模型请求工具 → execute_tool 执行 → 结果回传 → 继续，直到纯文本输出；
-    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    每工具预算（TERM_BUDGET/GET_CONTEXT_BUDGET/VISION_BUDGET）超限拒绝服务，轮次超 MAX_TOOL_ROUNDS 强制终止。
+    crop_dir / vlm_api_key：lookup_image 工具所需（crop 图片目录 + VLM API 密钥），未传则 lookup_image 返回未配置错误。
     llm 兼容两种签名：(messages) -> str（旧测试）或 (messages, tools=None) -> dict（chat_with_tools）。
     """
     ws = work_state or {}
+    # 注入 canon 索引供 lookup_image 查询（内部键，下划线前缀）
+    ws["_canon_items"] = {r["region_id"]: r for r in canon}
     system, prefix = _prompt_parts(canon, ws, prev_pages, open_questions)
     if tools_ctx:
         system = f"{system}\n\n{tools_ctx}"
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET}
+        budgets = {"lookup_term": TERM_BUDGET, "get_context": GET_CONTEXT_BUDGET,
+                   "lookup_image": vision_budget}
         for _ in range(max_retries):
-            cur = "请翻译当前页，输出 JSON：{\"r01\": \"译文\", ...}，region_id 必须与输入完全一致：\n" + _current_block(batch)
-            content = f"{prefix}\n\n{cur}" if prefix else cur
+            content = _build_current_content(prefix, batch)
             messages: list[dict[str, Any]] = [{"role": "system", "content": system},
                                         {"role": "user", "content": content}]
-            raw = ""
-            for _round in range(MAX_TOOL_ROUNDS):
-                if tools:
-                    resp = llm(messages, tools=tools)
-                else:
-                    resp = llm(messages)
-                if isinstance(resp, str):
-                    raw = resp
-                    break
-                calls = resp.get("tool_calls") or []
-                content_text = resp.get("content") or ""
-                if not calls:
-                    raw = content_text
-                    break
-                messages.append({"role": "assistant", "content": content_text or None,
-                                 "tool_calls": calls})
-                for call in calls:
-                    fn = call.get("function", {})
-                    name = fn.get("name", "")
-                    try:
-                        args = json.loads(fn.get("arguments") or "{}")
-                    except json.JSONDecodeError:
-                        args = {}
-                    if budgets.get(name, 0) <= 0:
-                        result = f"工具「{name}」本次调用预算已耗尽，请基于现有信息继续翻译"
-                    else:
-                        budgets[name] -= 1
-                        result = execute_tool(name, args, ws, prev_pages, state_dir)
-                    messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
-                                     "content": result})
+            raw = run_tool_loop(llm, messages, budgets, work_state=ws,
+                                prev_pages=prev_pages, state_dir=state_dir, tools=tools,
+                                crop_dir=crop_dir, vlm_api_key=vlm_api_key)
             parsed = parse_translation_response(raw, region_ids)
             if not mechanical_guardrails(batch, parsed):
                 return parsed
@@ -453,7 +310,8 @@ class SuggestionsExtractor:
     def extract(self, canon: list[dict], translations: dict[str, str]) -> list[dict]:
         suggestions = []
         for r in canon:
-            text = r["text"] or ""
+            # Front3 双引擎格式（ADR-023）：text 缺失时回退 baberu_text
+            text = r.get("text") or r.get("baberu_text") or ""
             for m in _KATAKANA_TERM.finditer(text):
                 term = m.group(0)
                 if term in self.existing or term in _KATAKANA_STOP:
@@ -466,13 +324,6 @@ class SuggestionsExtractor:
                     "status": "candidate",
                 })
         return suggestions
-
-
-def _run_guardrails_for_test(canon: list[dict], translation: dict[str, str],
-                             work_state: dict) -> list[str]:
-    """测试桥：机械护栏 + Glossary Validator 合并（ADR-016 双层机械硬约束）。"""
-    from amta.glossary import check_glossary
-    return mechanical_guardrails(canon, translation) + check_glossary(canon, translation, work_state)
 
 
 def record_failure(log_path: Path, entry: dict) -> None:

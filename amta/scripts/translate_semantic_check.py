@@ -16,13 +16,15 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import sys
 from pathlib import Path
 
+import requests
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta import translate  # noqa: E402
+from amta.ocr_engines import image_data_uri  # noqa: E402
 
 JUDGE_PROMPT = """你是漫画翻译质量评审。请阅读图中日文原文，并判断给出的译文是否合格。
 图中原文(OCR): {text}
@@ -41,13 +43,11 @@ readability:1-5
 def _judge_vision(cfg: dict, crop_path: Path, text: str, translation: str,
                   model: str, retries: int = 2) -> str:
     """调 DeepSeek vision 模型评审单 region，返回评审原文；空内容重试。"""
-    import requests
-    b64 = base64.b64encode(crop_path.read_bytes()).decode()
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": [
             {"type": "text", "text": JUDGE_PROMPT.format(text=text, translation=translation)},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            {"type": "image_url", "image_url": {"url": image_data_uri(crop_path)}},
         ]}],
         "max_tokens": 1200,
     }

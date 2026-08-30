@@ -10,8 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-import requests
-
+from amta.chat_client import chat_text
 from amta.paths import ROOT
 
 DASHSCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -55,19 +54,14 @@ def send_chat(
     prompt: str = DEFAULT_PROMPT,
     cache_prompt: bool | None = None,
 ) -> str:
-    """发一次 OpenAI 兼容 OCR 请求（base_url 为 API 根，自动拼 /chat/completions），返回识别文本；解析失败返回空串。"""
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=headers,
-        json=build_payload(model, img_path, prompt, cache_prompt),
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"]["content"] or ""
-    except (KeyError, IndexError, TypeError):
-        return ""
+    """发一次 OpenAI 兼容 OCR 请求（base_url 为 API 根），返回识别文本；解析失败返回空串。
+
+    HTTP/解析接缝唯一归属 chat_client.chat_text；本函数只负责构多模态 message（image_url+OCR）。
+    cache_prompt=False 时禁用 llama-server 的 prompt cache（L17：多模态 cache 误命中不同图像）。
+    """
+    payload = build_payload(model, img_path, prompt, cache_prompt)
+    extra = {"cache_prompt": cache_prompt} if cache_prompt is not None else {}
+    return chat_text(base_url, model, payload["messages"], api_key=api_key, timeout=timeout, **extra)
 
 
 def send_one(base_url: str, model: str, img_path: str | Path, prompt: str = DEFAULT_PROMPT, timeout: int = 120) -> str:
@@ -111,3 +105,67 @@ def dashscope_ocr_batch(crops, model: str = "qwen-vl-ocr-latest", concurrency: i
             print(f"[ocr_run] WARN dashscope 空响应: {Path(p).name}", file=sys.stderr)
         out.append({"crop": p, "ocr": text})
     return out
+
+
+# ---- 可插拔 OCR 接口（ADR-018 编排器 + v2 引擎对比策略：baberu fast path + 回退）----
+
+# 引擎分发名（给 02_ocr --engine 与 ocr_run --engine 共用，避免硬编码）
+ENGINES = ("auto", "baberu", "local", "dashscope")
+# 长文本回退阈值：baberu 对长文本/背景文字偏弱（v2 评测），超长转 local
+BABERU_LONG_TEXT_FALLBACK = 80
+
+
+def _baberu_batch(crops) -> list[dict]:
+    """懒加载 baberu-OCR（models/baberu-ocr/ 内嵌 onnx，depguard 白名单）。"""
+    from PIL import Image
+
+    from amta.paths import ROOT
+
+    model_root = ROOT / "models" / "baberu-ocr"
+    if not (model_root / "onnx").exists():
+        raise RuntimeError("baberu-OCR 模型缺失（models/baberu-ocr/onnx）——请先下载模型")
+    sys.path.insert(0, str(model_root))
+    from onnx_infer import BaberuOnnxOCR  # noqa: PLC0415  # type: ignore[import-not-found]  # 运行时动态 import（depguard 白名单）
+
+    ocr = BaberuOnnxOCR(model_root / "onnx", model_root / "tokenizer", vision="vision_int4.onnx")
+    out = []
+    for p in crops:
+        try:
+            text = ocr(Image.open(p))
+        except Exception as e:  # noqa: BLE001
+            text = f"__ERROR__ {e}"
+        out.append({"crop": p, "ocr": text or ""})
+    return out
+
+
+def ocr_batch(crops, engine: str = "auto", *,
+              base_url: str = LOCAL_DEFAULT_URL, model: str = "paddle",
+              dashscope_model: str = "qwen-vl-ocr-latest") -> list[dict]:
+    """统一 OCR 分发器（02_ocr / 调用方共用，按 engine 名路由，不硬编码）。
+
+    engine ∈ ENGINES：
+      - "local"    : llama-server For-Manga（OCR 引擎抽象，send_chat）
+      - "baberu"   : 纯 onnx 轻量引擎（快 ~22 倍，v2 评测 ALL CER 0.1135）
+      - "dashscope": 云端 qwen-vl-ocr
+      - "auto"（默认）: baberu fast path，空输出/长文本自动回退 local（v2 评测策略）
+    """
+    if engine == "local":
+        return local_ocr_batch(crops, base_url=base_url, model=model)
+    if engine == "dashscope":
+        return dashscope_ocr_batch(crops, model=dashscope_model)
+    if engine == "baberu":
+        return _baberu_batch(crops)
+    # auto：baberu 优先，空/长文本回退 local
+    try:
+        fast = _baberu_batch(crops)
+    except Exception as e:  # noqa: BLE001
+        print(f"[ocr_engines] baberu 不可用({e})，回退 local", file=sys.stderr)
+        return local_ocr_batch(crops, base_url=base_url, model=model)
+    fast_map = {r["crop"]: r["ocr"] for r in fast}
+    # 空输出或超长文本（baberu 对长文本/背景文字偏弱）→ 回退 local
+    needs_fallback = [p for p in crops
+                      if not fast_map.get(p, "") or len(fast_map.get(p, "")) > BABERU_LONG_TEXT_FALLBACK]
+    if needs_fallback:
+        fall = local_ocr_batch(needs_fallback, base_url=base_url, model=model)
+        fast_map.update({r["crop"]: r["ocr"] for r in fall})
+    return [{"crop": p, "ocr": fast_map.get(p, "")} for p in crops]

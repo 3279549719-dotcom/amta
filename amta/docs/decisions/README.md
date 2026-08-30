@@ -23,6 +23,10 @@
 - [012 — 代码结构重构：逻辑收敛进 src/amta 共享库，scripts 只留薄 CLI](./012-clean-architecture-refactor.md)
 - [013 — 产物结构 rebaseline：per-work workspace + work_state（Touhou 同人志缩域）](./013-per-work-workspace-rebaseline.md)
 - [014 — 翻译工位架构定稿：DeepSeek API 直调 + 双层护栏 + 分层 Loop](./014-translate-station-architecture.md)
-- [015 — 依赖膨胀治理：vibe-check 式拦截 + uv 最小化解析](./015-dependency-bloat-governance.md
+- [015 — 依赖膨胀治理：vibe-check 式拦截 + uv 最小化解析](./015-dependency-bloat-governance.md)
 - [016 — Translate Harness 对齐 GPT 设计：Guardrails 补全 / Eval 四维 / Tools / State 四层 / 验收阈值](./016-translate-harness-alignment.md)
-- [017 — needs_review 工单机制：TicketStore 状态机 + 判例库回写（维修手册逻辑）](./017-needs-review-ticket-store.md))
+- [017 — needs_review 工单机制：TicketStore 状态机 + 判例库回写（维修手册逻辑）](./017-needs-review-ticket-store.md)
+- [018 — 流水线编排器：00_run_all + step tracing + LLM 观测（零依赖自造）](./018-pipeline-orchestrator.md)
+- [019 - Stage 4-6 契约裁剪:category/sub_tier 契约 + 字段卫生](./019-contract-triage.md)
+- [021 - Stage 5 排版工位:自研 Pillow 引擎 + node_id 关联契约](./021-stage5-typeset-station.md)
+- [020 - Stage 4 inpaint 工位:koharu lama-manga 链路 + 探针定案](./020-stage4-inpaint-station.md)

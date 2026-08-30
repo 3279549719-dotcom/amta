@@ -190,6 +190,30 @@ class KoharuClient:
         resp.raise_for_status()
         return resp.json()
 
+    def run_inpaint(self, page_id: str, masks: dict[str, bytes],
+                    engine: str = "lama-manga", steps: list[str] | None = None,
+                    timeout: int = 1800) -> dict:
+        """上传 masks(segment+bubble,PNG 字节)并跑 inpaint pipeline,等待终态。
+
+        探针 2026-08-27 定案: lama-manga 需 SegmentMask+BubbleMask 双 mask,
+        payload 必须 PNG 编码字节;结果经 fetch_inpainted 取回。
+        """
+        for role, png in masks.items():
+            self.put_mask(page_id, role, png, engine=engine)
+        steps = steps or [engine]
+        op_id = self.run_pipeline([page_id], steps)
+        return self.wait_operation(op_id, timeout=timeout)
+
+    def fetch_inpainted(self, page_id: str) -> bytes | None:
+        """取回 inpaint 结果(WEBP 字节): 找 kind.image.role == 'inpainted' 节点 → get_blob。"""
+        for node in self.get_page_nodes(page_id).values():
+            kind = node.get("kind")
+            if isinstance(kind, dict):
+                img = kind.get("image")
+                if isinstance(img, dict) and img.get("role") == "inpainted":
+                    return self.get_blob(img["blob"])
+        return None
+
     # ---------- 导出 ----------
 
     def export_page(self, page_id: str, fmt: str, dest: Path, timeout: int = 300) -> Path:
@@ -215,54 +239,15 @@ class KoharuClient:
 
     @staticmethod
     def collect_blocks(nodes: dict[str, dict]) -> list[dict]:
-        """从 scene 节点提取文字块（含 bubble_type 推断），与轮子逻辑一致。"""
-        blocks = []
-        for node_id, node in nodes.items():
-            kind = node.get("kind", {})
-            if not (isinstance(kind, dict) and "text" in kind):
-                continue
-            text_data = kind["text"]
-            raw_type = ""
-            if isinstance(kind, dict):
-                raw_type = kind.get("type", "")
-            if not raw_type:
-                kind_keys = set(kind.keys()) - {"text"}
-                if "speech_bubble" in kind_keys:
-                    raw_type = "speech_bubble"
-                elif "narration" in kind_keys:
-                    raw_type = "narration"
-                elif "sfx" in kind_keys:
-                    raw_type = "sfx"
-                else:
-                    raw_type = "dialogue"
-            rt = raw_type.lower()
-            if "narration" in rt:
-                bubble_type = "narration"
-            elif "sfx" in rt:
-                bubble_type = "sfx"
-            elif any(k in rt for k in ("speech", "bubble", "dialogue", "text")):
-                bubble_type = "dialogue"
-            else:
-                bubble_type = "unknown"
-
-            blocks.append({
-                "node_id": node_id,
-                "ocr": (text_data.get("text") or "").strip(),
-                "translation": (text_data.get("translation") or "").strip(),
-                "confidence": text_data.get("confidence"),
-                "alternatives": text_data.get("alternatives"),
-                "transform": node.get("transform") or {},
-                "bubble_type": bubble_type,
-            })
-        return blocks
+        """节点→blocks 纯整形唯一归属 amta.koharu_blocks（兼容别名，见 koharu_blocks.py）。"""
+        from amta.koharu_blocks import collect_blocks as _cb
+        return _cb(nodes)
 
     @staticmethod
     def sort_by_reading_order(blocks: list[dict]) -> list[dict]:
-        """y 升序、同行 x 降序（日漫阅读序）。"""
-        def key(b: dict) -> tuple[float, float]:
-            t = b.get("transform", {})
-            return (t.get("y", 0), -t.get("x", 0))
-        return sorted(blocks, key=key)
+        """日漫阅读序排序唯一归属 amta.koharu_blocks（兼容别名，见 koharu_blocks.py）。"""
+        from amta.koharu_blocks import sort_by_reading_order as _sbo
+        return _sbo(blocks)
 
 
 # 便捷单例
