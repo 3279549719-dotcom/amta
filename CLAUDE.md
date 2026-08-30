@@ -22,11 +22,20 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 
 NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘 · llama.cpp 版本必须 ≥b10582（旧版 MTMD 投影初始化失败） · 通用 VLM 竖排日语系统性差（需漫画微调模型） · 并集框去重漏竖排碎片框（IoU>0.5 不够） · 评测派生指标口径漂移（cer/em 随代码重算） · VLM per-crop GT 不可靠（正式 GT 用整页枚举） · 报告叠加框来源误标 · OCR 评测坐标须用 detector 对齐框（GT bbox 缩略不可靠、勿用单引擎框，页码注意 0/1 基偏移） · llama-server 多模态 cache 误命中不同图（必须 cache_prompt:false，见 L17） · 本地 OCR 默认 Q8_0（BF16 慢 ~30%，参数见 start_llama_ocr.ps1，见 L18） · baberu-OCR 快 28 倍（1s/张，对白 CER 相当，可作 fast path） · pytest Windows 尾部 PermissionError=teardown 噪音（fastcheck 已用 --basetemp 根治；手工跑看 N passed 别信 exit 1，见 L19） · 数字前缀脚本 import 需 `_NN_name.py` 桥（见 L20） · 日文残留判据只用假名（汉字 CJK 共用，见 L21） · `tests/` 一律 pytest 风格，fastcheck 用 pytest 收集（unittest discover 只收 TestCase 会漏，见 L19/L20） · prompt 模板含字面花括号禁 .format()（{{ }} 或 .replace()，见 L24） · 声称全量验证必须有当前 HEAD 可复现基线（未提交旧版跑的数不算，见 L25） · fastcheck/pre-commit 必须用 Python 3.13 全局解释器（PATH 默认 python 是 AutoClaw 的无 pytest/ruff，hook 会拦截 commit，见 L26） · OpenClaw 工具输出对 api_key= 赋值脱敏为 ***，写/读代码后须校验实际内容（见 L27）
 
-## 渐进式加载
+## 渐进式加载（问题域启发式：遇到 X → 先做 Y）
 
-| 触发 | 读 |
+> 记忆读取三通道：hook 注入（自动）· memory_* 工具（按需）· 下表（启发式提示）。完整清单 `python scripts/memory_index.py`。
+
+| 症状 / 场景 | 先做 |
 |---|---|
-| 改翻译策略/工位架构/技术选型之前（项目记忆检索，Stage 2-d） | `python scripts/memory.py search <关键词>`（例：改 SFX 处理前 search 拟声；命中 INDEX 条目先读原文再动手；控制台乱码时加 `$env:PYTHONIOENCODING="utf-8"`） |
+| 任何报错 / 测试失败 / 行为异常 | `python scripts/memory_grep.py --query "<关键词>"`（先搜 lessons，别重踩） |
+| 接手任务 / 不知道停在哪 | `python scripts/memory_recent.py` |
+| 架构 / 选型决策前 | `python scripts/memory_grep.py --scope decisions --query "<主题>"` |
+| 改 prompt 模板 / 翻译护栏前 | `python scripts/memory_read.py --entry L24`（L21-L23 同查） |
+| 写评测 / 基准数字前 | `python scripts/memory_grep.py --query "评测 坐标 GT" --scope lessons` |
+| 新增技能 / 改 SKILL.md | `python scripts/memory_read.py --entry L11` |
+| 记忆可疑 / 机制自检 | `python scripts/memory_status.py` |
+| 记忆机制设计依据 | `research/07-agent记忆机制详报.md` + `docs/decisions/025-agent-memory-mechanism.md` |
 | 不确定用哪个技能/流程（技能路由器） | `.dsh/skills/ask-matt/SKILL.md` |
 | 跑 Benchmark A/B/C | `.dsh/skills/benchmark/SKILL.md` |
 | VLM 标注 crop（oracle 判真假/分类/评分） | `.dsh/skills/oracle-label/SKILL.md` |
@@ -41,10 +50,6 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 | docs 导航（分工/目录） | `docs/README.md` |
 | 可复用经验库（坑的唯一归属） | `docs/lessons.md` |
 | 架构决策（为什么这样选） | `docs/decisions/README.md` |
-| 调研报告（唯一事实源） | `research/README.md`（01-06 详报索引 + koharu-upstream 素材） |
-| 架构决策背景 | `research/01-调研报告与集成编排方案.md` |
-| 可复用轮子资产 | `research/02-本地轮子-manga-localization-详报.md` |
-| 上游能力/迁移权衡 | `research/03-koharu-上游深度调研-详报.md` |
 | 引擎 DAG / 目录结构 | `README.md` |
 
 Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读全文。
