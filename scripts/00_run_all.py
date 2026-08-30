@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.paths import read_json, write_json  # noqa: E402
 from amta.pipeline_log import PipelineLog  # noqa: E402
 from amta.workstate import ensure_workspace  # noqa: E402
+from amta import artifacts  # noqa: E402
+from amta.page_judge import apply_decisions  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 PY = sys.executable
@@ -79,12 +81,13 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
             print(f"[00_run_all] WARN {raw} not found, skip")
             continue
         page = f"page_{page_idx}"
-        det_path = _out(ws_root, f"{page}_detection.json")
-        canon_path = _out(ws_root, f"{page}_canon.json")
-        trans_path = _out(ws_root, f"{page}_translation.json")
-        trace_path = _out(ws_root, f"{page}_trace.json")
-        crops_dir = _out(ws_root, "crops")
-        sem_path = _out(ws_root, f"{page}_semantic.json")
+        paths_d = artifacts.artifact_paths(ws_root / "artifacts", page)
+        det_path = paths_d["detection"]
+        canon_path = paths_d["canon"]
+        trans_path = paths_d["translation"]
+        trace_path = _out(ws_root, f"{page}_trace.json")  # --trace 观测文件（03 LLM trace），非工位产物
+        crops_dir = paths_d["crops"]
+        sem_path = paths_d["semantic"]
 
         try:
             # ---- 01 detect ----
@@ -153,7 +156,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                               "--canon", str(canon_path), "--trans", str(trans_path),
                               "--semantic", str(sem_path), "--crops", str(crops_dir),
                               "--state-dir", str(state_dir),
-                              "--out-review", str(_out(ws_root, f"{page}_needs_review.json"))])
+                              "--out-review", str(paths_d["needs_review"])])
                     log.add_span(run_id, step="auto_repair", page=page, status="ok",
                                  input=str(sem_path), output=str(trans_path),
                                  duration_s=time.time() - t0)
@@ -169,7 +172,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                     log.add_span(run_id, step="semantic_check", page=page, status="ok",
                                  input=str(trans_path), output=str(sem_path),
                                  duration_s=time.time() - t0)
-                judge_path = _out(ws_root, f"{page}_judge.json")
+                judge_path = paths_d["judge"]
                 if judge_path.exists():
                     log.add_span(run_id, step="ai_judge", page=page, status="skipped",
                                  input=str(sem_path), output=str(judge_path))
@@ -182,18 +185,11 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                     log.add_span(run_id, step="ai_judge", page=page, status="ok",
                                  input=str(sem_path), output=str(judge_path),
                                  duration_s=time.time() - t0)
-                # 按 judge 决策执行
+                # 按 judge 决策执行（语义唯一归属 page_judge.apply_decisions，修 F6）
                 judge_doc = read_json(judge_path) if judge_path.exists() else {}
-                decisions = judge_doc.get("decisions", [])
-                repair_ids = [d["args"]["region_id"] for d in decisions
-                              if d["tool"] == "repair_region" and d.get("args", {}).get("region_id")]
-                ticket_decisions = [d["args"] for d in decisions
-                                    if d["tool"] == "open_ticket" and d.get("args", {}).get("region_id")]
-                # repair: 只修 semantic 已标记 fail 的（repair_failed 限制）
                 sem = read_json(sem_path) if sem_path.exists() else {}
-                sem_failed_ids = {f["region_id"] for f in sem.get("failed", [])}
-                repairable = [rid for rid in repair_ids if rid in sem_failed_ids]
-                unrepairable = [rid for rid in repair_ids if rid not in sem_failed_ids]
+                actions = apply_decisions(judge_doc, sem)
+                repairable = actions["repair"]
                 if repairable:
                     t0 = time.time()
                     _run_cli([str(HERE / "repair_failed.py"),
@@ -201,28 +197,23 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                               "--semantic", str(sem_path), "--crops", str(crops_dir),
                               "--state-dir", str(state_dir),
                               "--only", ",".join(repairable),
-                              "--out-review", str(_out(ws_root, f"{page}_needs_review.json"))])
+                              "--out-review", str(paths_d["needs_review"])])
                     log.add_span(run_id, step="judge_repair", page=page, status="ok",
                                  input=",".join(repairable), output=str(trans_path),
                                  duration_s=time.time() - t0)
                     print(f"[00_run_all] {page} judge_repair: {repairable}")
-                # ticket: judge 开的工单 + semantic 未标记但 judge 建议修的
-                if ticket_decisions or unrepairable:
+                # ticket: judge 开的工单 + unrepairable → hard_case（语义在 apply_decisions 内）
+                if actions["tickets"]:
                     from amta.tickets import TicketStore
                     ts = TicketStore(state_dir / "tickets.json")
-                    for t in ticket_decisions:
+                    for t in actions["tickets"]:
                         ts.create(work_id=work_id, region_id=t["region_id"],
-                                  reason=t.get("reason", ""), auto_rounds=0,
-                                  kind=t.get("kind", "unknown"))
-                    for rid in unrepairable:
-                        ts.create(work_id=work_id, region_id=rid,
-                                  reason="judge 建议修复但 semantic 未标记 fail，需人工确认",
-                                  auto_rounds=0, kind="hard_case")
-                    print(f"[00_run_all] {page} judge_tickets: {[t['region_id'] for t in ticket_decisions] + unrepairable}")
+                                  reason=t["reason"], auto_rounds=0, kind=t["kind"])
+                    print(f"[00_run_all] {page} judge_tickets: {[t['region_id'] for t in actions['tickets']]}")
 
             # ---- 04 inpaint / 05 typeset (optional, Stage 4/5) ----
             if with_inpaint:
-                inpaint_path = _out(ws_root, f"{page}_inpaint.json")
+                inpaint_path = paths_d["inpaint"]
                 if inpaint_path.exists():
                     log.add_span(run_id, step="04_inpaint", page=page, status="skipped",
                                  input=str(det_path), output=str(inpaint_path))
@@ -237,7 +228,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                                  input=str(det_path), output=str(inpaint_path),
                                  duration_s=time.time() - t0)
             if with_typeset:
-                typeset_path = _out(ws_root, f"{page}_typeset.json")
+                typeset_path = paths_d["typeset"]
                 clean_img = _out(ws_root, "clean") / f"{page}_clean.png"
                 if not clean_img.exists():
                     print(f"[00_run_all] WARN {page} 05_typeset skipped (no clean image; need --with-inpaint)")
