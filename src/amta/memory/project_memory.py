@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]  # src/amta/memory/project_memory.py → 仓库根（原 memory.py 在 src/amta/ 下为 parents[2]）
 INDEX_PATH = ROOT / "docs" / "INDEX.md"
 CORPUS_GLOBS = [
     "docs/decisions/*.md",
