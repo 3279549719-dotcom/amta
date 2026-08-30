@@ -6,12 +6,11 @@
 from __future__ import annotations
 
 import base64
-import os
 import sys
 from pathlib import Path
 
 from amta.chat_client import chat_text
-from amta.paths import ROOT
+from amta.config import get_dashscope_key  # noqa: F401  # 唯一实现 → amta.config
 
 DASHSCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DASHSCOPE_URL = f"{DASHSCOPE_BASE}/chat/completions"  # 兼容旧名（完整端点）
@@ -70,21 +69,6 @@ def send_one(base_url: str, model: str, img_path: str | Path, prompt: str = DEFA
     默认关闭 prompt cache（L17：多模态 cache 误命中不同图像）。
     """
     return send_chat(base_url, model, img_path, prompt=prompt, cache_prompt=False, timeout=timeout)
-
-
-def get_dashscope_key() -> str:
-    """取 DASHSCOPE_API_KEY：环境变量优先，回退 .env（兼容旧名 DASHSCOPE_KEY）。绝不打印 key。"""
-    for name in ("DASHSCOPE_API_KEY", "DASHSCOPE_KEY"):
-        v = os.environ.get(name)
-        if v:
-            return v
-    for env_path in (ROOT / ".env", ROOT.parent / ".env"):
-        if env_path.exists():
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith("DASHSCOPE_API_KEY=") or line.startswith("DASHSCOPE_KEY="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
-    raise RuntimeError("缺少 DASHSCOPE_API_KEY：请在 .env 配置或设置环境变量")
 
 
 def local_ocr_batch(crops, base_url: str = LOCAL_DEFAULT_URL, model: str = "paddle", concurrency: int = 1) -> list[dict]:
