@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 from amta.chat_client import chat, chat_text
+from amta.config import get_chat_config as _config_get_chat_config
 from amta.guardrails import (_run_guardrails_for_test,  # noqa: F401  # 测试桥回导出
                              japanese_residue_check,  # noqa: F401
                              mechanical_guardrails)
@@ -36,24 +36,8 @@ _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
 
 def get_chat_config() -> dict[str, str]:
-    """读 CHAT_* 配置：环境变量优先，回退 .env；任一缺失 raise RuntimeError。返回 {base_url, model, api_key}。"""
-    values: dict[str, str] = {}
-    for key in ("CHAT_BASE_URL", "CHAT_MODEL", "CHAT_API_KEY"):
-        v = os.environ.get(key)
-        if not v and _ENV_PATH.exists():
-            for line in _ENV_PATH.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith(f"{key}="):
-                    v = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-        if not v:
-            raise RuntimeError(f"缺少 {key}：请在 .env 配置或设置环境变量")
-        values[key] = v
-    return {
-        "base_url": values["CHAT_BASE_URL"],
-        "model": values["CHAT_MODEL"],
-        "api_key": values["CHAT_API_KEY"],
-    }
+    """薄壳 → amta.config（唯一实现）；_ENV_PATH 保留供旧测试 monkeypatch。"""
+    return _config_get_chat_config(env_path=_ENV_PATH)
 
 
 def text_chat(
