@@ -115,11 +115,12 @@ def parse_remember(root: Path) -> list[Entry]:
     return out
 
 
-def build_pack(root: Path, source: str = "startup") -> str:
+def build_pack(root: Path, source: str = "startup", budget: int | None = None) -> str:
     """构造注入包。优先级（超预算时从后往前丢）：标题行 > lessons 尾部 > 启发式 > now > recent。
+    budget=None 按 source 取默认（startup 1536 / compact 512）；显式传 budget 供 lint 量地产体量。
     恒 ≤ HARD_CAP；超预算被丢弃的内容附「截断」标记（防地产膨胀静默吞信息）；
     极端情况下超 HARD_CAP 硬截断（CC 官方上限 10K 字符）。"""
-    budget = SLIM_BUDGET if source == "compact" else FULL_BUDGET
+    budget = budget if budget is not None else (SLIM_BUDGET if source == "compact" else FULL_BUDGET)
     slim = source == "compact"
     lessons = parse_lessons(root)
     blocks: list[str] = []
