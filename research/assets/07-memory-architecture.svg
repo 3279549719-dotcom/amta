@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" font-family="'Microsoft YaHei','PingFang SC',sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrdash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1000" fill="#f1f5f9"/>
+  <text x="800" y="40" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">AMTA Agent 记忆机制 · 改造后全景（四层 + 一地产）</text>
+
+  <!-- 第0层 基线 -->
+  <rect x="70" y="70" width="640" height="150" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="70" y="70" width="640" height="36" rx="10" fill="#475569"/>
+  <rect x="70" y="88" width="640" height="18" fill="#475569"/>
+  <text x="390" y="95" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">第0层 · 自动加载基线（prompt 级）</text>
+  <text x="95" y="135" font-size="15" fill="#334155">CLAUDE.md / AGENTS.md — 问题域启发式表</text>
+  <text x="95" y="163" font-size="15" fill="#64748b">『遇到 X 症状 → memory_search Y』（任务名枚举已废）</text>
+  <text x="95" y="191" font-size="14" fill="#94a3b8">软约束：靠启发式 + 工具兜底</text>
+
+  <!-- 推送层 -->
+  <rect x="890" y="70" width="640" height="150" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="890" y="70" width="640" height="36" rx="10" fill="#1d4ed8"/>
+  <rect x="890" y="88" width="640" height="18" fill="#1d4ed8"/>
+  <text x="1210" y="95" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">推送层 · hook 注入（机械强制）</text>
+  <text x="915" y="135" font-size="15" fill="#334155">SessionStart hook · matcher: startup / compact</text>
+  <text x="915" y="163" font-size="15" fill="#64748b">记忆包 ≤1.5KB：handoff + lessons 最近5条标题行 + 启发式一行</text>
+  <text x="915" y="191" font-size="14" fill="#94a3b8">压缩瞬间自动重注入 — 长会话遗忘的机制性解药</text>
+
+  <!-- 中心：Agent 上下文 -->
+  <circle cx="800" cy="430" r="100" fill="#f8fafc" stroke="#334155" stroke-width="3"/>
+  <text x="800" y="420" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">Agent</text>
+  <text x="800" y="448" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">上下文</text>
+
+  <!-- 知识地产 -->
+  <rect x="70" y="640" width="880" height="210" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="70" y="640" width="880" height="36" rx="10" fill="#b45309"/>
+  <rect x="70" y="658" width="880" height="18" fill="#b45309"/>
+  <text x="510" y="665" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">知识地产 · 唯一事实源</text>
+  <rect x="95" y="695" width="400" height="52" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="110" y="727" font-size="15" fill="#334155">docs/lessons.md — 27+ 坑（五段格式）</text>
+  <rect x="535" y="695" width="390" height="52" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="550" y="727" font-size="15" fill="#334155">docs/decisions/ — 23 个 ADR</text>
+  <rect x="95" y="762" width="400" height="52" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="110" y="794" font-size="15" fill="#334155">docs/progress.md — 进度流水</text>
+  <rect x="535" y="762" width="390" height="52" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="550" y="794" font-size="15" fill="#334155">.remember/ — now · recent · today</text>
+
+  <!-- 拉取层 -->
+  <rect x="1030" y="640" width="500" height="210" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="1030" y="640" width="500" height="36" rx="10" fill="#0f766e"/>
+  <rect x="1030" y="658" width="500" height="18" fill="#0f766e"/>
+  <text x="1280" y="665" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">拉取层 · just-in-grep（按需打捞）</text>
+  <rect x="1055" y="695" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
+  <text x="1070" y="721" font-size="15" fill="#334155">memory_search → 路径+行号+命中行</text>
+  <rect x="1055" y="745" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
+  <text x="1070" y="771" font-size="15" fill="#334155">memory_recent → 最近增量</text>
+  <rect x="1055" y="795" width="450" height="40" rx="8" fill="#f0fdfa" stroke="#5eead4"/>
+  <text x="1070" y="821" font-size="15" fill="#334155">memory_status → 活性自查</text>
+
+  <!-- 护栏层 -->
+  <rect x="70" y="895" width="1460" height="75" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="70" y="895" width="1460" height="32" rx="10" fill="#b91c1c"/>
+  <rect x="70" y="911" width="1460" height="16" fill="#b91c1c"/>
+  <text x="800" y="917" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">护栏层 · test / lint（机械强制，TDD 先行）</text>
+  <text x="95" y="952" font-size="14" fill="#334155">pytest：hook 自测（stdin JSON → stdout，3 用例）　·　memory_lint 并入 fastcheck（staleness&gt;7天 FAIL / 悬空 WARN / 幽灵路径 FAIL / 注入包&gt;10K FAIL）　·　冷启动探针挂 audit</text>
+
+  <!-- 箭头 -->
+  <path d="M390 220 C 460 300, 640 330, 722 366" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="470" y="285" font-size="14" fill="#475569" style="paint-order:stroke" stroke="#f1f5f9" stroke-width="6">自动加载</text>
+
+  <path d="M1210 220 C 1140 300, 960 330, 878 366" fill="none" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="1040" y="285" font-size="14" fill="#1d4ed8" style="paint-order:stroke" stroke="#f1f5f9" stroke-width="6">startup + compact 注入</text>
+
+  <path d="M880 505 C 990 560, 1100 590, 1215 638" fill="none" stroke="#0f766e" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="1030" y="565" font-size="14" fill="#0f766e" style="paint-order:stroke" stroke="#f1f5f9" stroke-width="6">遇到症状/决策前才查</text>
+
+  <path d="M1030 745 L 952 745" fill="none" stroke="#0f766e" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="991" y="732" text-anchor="middle" font-size="13" fill="#0f766e" style="paint-order:stroke" stroke="#f1f5f9" stroke-width="6">返回索引行</text>
+
+  <path d="M735 522 C 660 560, 590 590, 535 638" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="545" y="572" font-size="14" fill="#b45309" style="paint-order:stroke" stroke="#f1f5f9" stroke-width="6">read 路径+行号 → 展开全文</text>
+
+  <path d="M400 895 L 400 852" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrdash)"/>
+  <path d="M1250 895 L 1250 852" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrdash)"/>
+  <text x="800" y="986" text-anchor="middle" font-size="13" fill="#b91c1c">护栏对全部层生效：注入脚本被 pytest 锁死 · 记忆文件被 lint 巡检 · 索引路径存在性被校验</text>
+</svg>
