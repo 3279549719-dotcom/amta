@@ -64,7 +64,7 @@
       <ul>
         <li><b>startup 注入</b>记忆包 ≤1.5KB（handoff + lessons 标题行 + 启发式）——不靠自觉</li>
         <li><b>compact 重注入</b>——上下文被压缩的瞬间，记忆包自动回来</li>
-        <li><b>just-in-grep 打捞</b>——遇到症状才查，memory_search 返回路径+行号，read 展开全文</li>
+        <li><b>just-in-grep 打捞</b>——遇到症状才查，memory_grep 返回条目级命中（路径+行号），memory_read 展开全文</li>
         <li><b>linter 进 fastcheck</b>——记忆腐坏（过期/悬空/幽灵路径/超预算）在提交前被拦截</li>
       </ul>
     </div>
@@ -79,10 +79,10 @@
   <h2>三、每层在什么时刻生效</h2>
   <table>
     <tr><th style="width:22%">时机</th><th style="width:20%">层</th><th>发生什么</th><th style="width:15%">强制等级</th></tr>
-    <tr><td>会话启动 / resume</td><td class="k">第0层 基线</td><td>CLAUDE.md、AGENTS.md 自动加载：核心事实 + 问题域启发式表（"遇到 X → 先 memory_search Y"）</td><td>prompt 级（软）</td></tr>
+    <tr><td>会话启动 / resume</td><td class="k">第0层 基线</td><td>CLAUDE.md、AGENTS.md 自动加载：核心事实 + 问题域启发式表（"遇到 X → 先 memory_grep Y"）</td><td>prompt 级（软）</td></tr>
     <tr><td>会话启动（startup）</td><td class="k">推送层</td><td>hook 注入记忆包 ≤1.5KB：handoff（now/recent）+ lessons 最近 5 条标题行 + 启发式一行。agent 零动作即见</td><td><b>hook 级（机械）</b></td></tr>
     <tr><td>上下文压缩（compact）</td><td class="k">推送层</td><td>瘦版记忆包 ≤0.5KB 自动重注入——长会话"看两眼就忘"的机制性解药：压缩 = 记忆丢失点 = 重注入点</td><td><b>hook 级（机械）</b></td></tr>
-    <tr><td>工作中遇到症状 / 决策前</td><td class="k">拉取层</td><td>just-in-grep：memory_search（全知识地产正则检索，返回路径+行号+命中行）→ memory_recent（最近增量）→ 内置 read 展开全文</td><td>工具级（半机械）</td></tr>
+    <tr><td>工作中遇到症状 / 决策前</td><td class="k">拉取层</td><td>just-in-grep：memory_grep（条目级正则检索，命中即给路径+行号）→ memory_read / index（深读 / 全清单）→ memory_recent（最近增量）→ memory_status（活性自查）</td><td>工具级（半机械）</td></tr>
     <tr><td>编码期 / 提交前</td><td class="k">护栏层</td><td>pytest 锁死 hook 脚本行为（stdin JSON → stdout）；memory_lint 并入 fastcheck：recent&gt;7 天 FAIL · today 悬空 WARN · 索引幽灵路径 FAIL · 注入包&gt;10K FAIL</td><td><b>test/lint 级（机械）</b></td></tr>
     <tr><td>审计期（每 2-4 周）</td><td class="k">护栏层</td><td>冷启动探针挂 audit：新会话问"上次停在哪 / 某坑怎么解"，命中即 PASS——记忆活性的定期体检</td><td>流程级</td></tr>
   </table>
@@ -94,7 +94,7 @@
       <p style="margin:6px 0;font-size:14.5px"><b>管"给多少"——token 粒度策略。</b>信息按层级展开：索引 → 摘要 → 全文，每层只暴露让 agent 决定"要不要往下看"的最小量。</p>
       <ul style="font-size:14px">
         <li>CLAUDE.md 索引行是第一层</li>
-        <li>memory_search 命中行是第二层</li>
+        <li>memory_grep 命中行是第二层</li>
         <li>read 全文是第三层</li>
         <li>claude-mem 的 search→timeline→read 是同款范式</li>
       </ul>
@@ -117,7 +117,7 @@
   <h2>五、Mermaid 源码（贴到 GitHub / Obsidian / mermaid.live 可渲染）</h2>
 <pre>flowchart TB
   subgraph BASE["第0层 · 自动加载基线（prompt级）"]
-    CLAUDEMD["CLAUDE.md / AGENTS.md<br/>问题域启发式表<br/>『遇到X症状 → memory_search Y』"]
+    CLAUDEMD["CLAUDE.md / AGENTS.md<br/>问题域启发式表<br/>『遇到X症状 → memory_grep Y』"]
   end
   subgraph PUSH["推送层 · hook 注入（机械强制）"]
     HOOK["SessionStart hook<br/>matcher: startup / compact"]
@@ -125,7 +125,7 @@
     HOOK --> PACK
   end
   subgraph PULL["拉取层 · just-in-grep（按需打捞）"]
-    SEARCH["memory_search query<br/>→ 路径+行号+命中行"]
+    SEARCH["memory_grep query<br/>→ 条目级命中（路径+行号）"]
     RECENT["memory_recent<br/>→ 最近增量"]
     STATUS["memory_status<br/>→ 活性自查"]
   end
@@ -157,7 +157,7 @@
   <h2>六、已定决策（grill-me 三轮收敛）</h2>
   <p>
     <span class="pill"><b>Q7</b> 注入包 ≤1.5KB / compact 瘦版 ≤0.5KB</span>
-    <span class="pill"><b>Q8</b> 三脚本：memory_search / memory_recent / memory_status（纯脚本，不建 MCP）</span>
+    <span class="pill"><b>Q8</b> 五工具：memory_grep / read / index / recent / status（纯脚本，不建 MCP）</span>
     <span class="pill"><b>Q9</b> CLAUDE.md 改问题域启发式表 + 清幽灵路径</span>
     <span class="pill"><b>Q10</b> TDD：pytest 3 用例 + linter FAIL/WARN 分级进 fastcheck</span>
     <span class="pill"><b>Q11</b> .remember 维持 gitignore，多机协作再翻案</span>

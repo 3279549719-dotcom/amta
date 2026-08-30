@@ -247,3 +247,8 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 - 方案B（含方案A commit）推 origin ✓；agent-loop-stage1 主 checkout WIP 全量 commit（06_page_judge 页级质检工具等）✓；删除已合并分支 translate-harness / translate-tools-fc / refactor-ocr-speed ✓。
 - 遗留：`contained_in` 保留决策已定（保留）；但 Stage 3 prompt 实际未传 bbox（ADR-023 规格与实现不符，待补）；main 落后 50+ commit，front3 定稿后合并。
 
+
+**Agent 记忆机制四层闭环（feature/agent-memory，2026-08-30，ADR-025）**
+- 读取端机械化：CLAUDE.md 问题域启发式表 + SessionStart hook 注入（startup ≤1.5KB / compact ≤0.5KB，恒 exit 0）+ memory_grep/read/index/recent/status 五工具（条目级语义返回）+ memory_lint 五规则进 fastcheck；冷启动探针协议 docs/memory-probe.md（真实 CC 会话探针留 audit 期执行）。
+- 结构：src/amta/memory/ 包 = estate（解析）/ tools（检索）/ lint（检查）+ project_memory（旧 memory.py 并入，re-export 兼容）；scripts/memory_*.py 六薄 CLI；tests 新增 23 测。
+- 收尾：research 幽灵路径清零；decisions 索引补 022/023/025 并归一化 019-021/024；图解资产对齐五工具族；fastcheck 357 全绿（基线 334）。分支待整合。
