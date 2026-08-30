@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import base64
 import io
-import json
 import sys
 import time
 from pathlib import Path
@@ -21,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PIL import Image  # noqa: E402
+from amta.artifacts import load_canon  # noqa: E402
 
 WORKTREE = Path(__file__).resolve().parent.parent
 ARTIFACTS = WORKTREE / "workspace" / "touhou-single-wing" / "artifacts"
@@ -75,8 +75,7 @@ def run_page(page: int, engine: str) -> dict | None:
             vlm_enabled=True,
         )
         print(f"  [OK] page {page}: {time.time() - t0:.0f}s")
-    canon = json.loads(out_path.read_text(encoding="utf-8"))
-    items = canon if isinstance(canon, list) else canon.get("items", [])
+    items = load_canon(out_path)["items"]  # 契约层读取（doc 化，修 F2）；删除双形状防御
 
     import difflib
 

@@ -19,7 +19,8 @@ from amta.paths import write_json  # noqa: E402
 
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
-        page_idx: int = 0, engine: str = "auto", vlm_enabled: bool = True) -> dict:
+        page_idx: int = 0, engine: str = "auto", vlm_enabled: bool = True,
+        crop_dir: Path | None = None) -> dict:
     det = load_detection(det_path)
     doc = ocr_page(work_id, det, raw_page, out_path.parent, page_idx=page_idx,
                    engine=engine, vlm_enabled=vlm_enabled, ocr_fn=ocr_batch)
