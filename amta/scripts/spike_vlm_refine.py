@@ -1,6 +1,12 @@
 """Spike: VLM full-page OCR refine + scene extraction A/B test.
 
-v2 re-run on the corrected page-11 input canon (real 7-region OCR texts).
+v3 re-run on the CORRECT image: pipeline page_11 (0-based) = file 12.jpg.
+v1/v2 ran against 11.jpg (off-by-one from detect_contract's source field),
+which explains their ungrounded "re-read" outputs — the image simply did not
+contain the canon texts. Controller forensics + VLM transcription verified:
+12.jpg contains the exact canon lines (またしても八意様は研究室へ来なくなった,
+輝夜様のお世話以外にも…, いずれにせよ私には関係ないことだ).
+
 Tests one VLM model on page_11:
   A: qwen3.5-omni-plus (DashScope, .env VISION_MODEL)
 
@@ -42,7 +48,8 @@ from amta.chat_client import chat  # noqa: E402
 # Brief path output/data/detect_contract/p11.json is the detection contract
 # (blocks only, no region_id/text) — the actual canon for page 11:
 PAGE_11_CANON = Path("output/data/run_11_20/canon_contract_p11.json")
-RAW_IMAGE = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地\11.jpg")
+# NOTE: pipeline page_11 (0-based) = file 12.jpg — verified 2026-08-31 by VLM transcription; the old source field "11.jpg" in detect_contract is off-by-one (see SDD ledger).
+RAW_IMAGE = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地\12.jpg")
 OUTPUT_REPORT = Path("output/reports/spike-vlm-refine-page11.md")
 
 MODELS = [
