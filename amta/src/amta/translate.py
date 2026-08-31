@@ -217,6 +217,57 @@ def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str
     return {k: str(v).strip() for k, v in data.items() if k in region_ids and str(v).strip()}
 
 
+def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
+                    context_prefix: str = "", max_retries: int = 1) -> dict[str, str]:
+    """Plain-text batch translate — zero tools, zero loops, one call per batch.
+
+    Copies mit's _assemble_prompts pattern: all regions in one prompt with
+    region_id tags, JSON response, 1 retry on guardrail failure, then binary split.
+
+    Args:
+        canon: list of region dicts (must have region_id and baberu_text or text)
+        llm: (messages) -> str (plain text response, NO tools)
+        system_extra: extra system content (glossary terms, scene description)
+        context_prefix: extra user prefix (prior-page context)
+        max_retries: retries before binary split (default 1, vs legacy's 3)
+
+    Returns:
+        {region_id: translation}; failed regions get "" (preserve-original is caller's choice)
+    """
+    def _build_content(batch: list[dict]) -> str:
+        instr = 'Translate the following Japanese text to Chinese. Output STRICT JSON: {"r01": "译文", ...}. region_id must match input exactly.\n'
+        blocks = []
+        for r in batch:
+            rid = r["region_id"]
+            text = r.get("baberu_text") or r.get("text") or ""
+            blocks.append(f"{rid}|{text}")
+        cur = instr + "\n".join(blocks)
+        return f"{context_prefix}\n\n{cur}" if context_prefix else cur
+
+    def _one(batch: list[dict]) -> dict[str, str]:
+        region_ids = [r["region_id"] for r in batch]
+        system = f"你是专业日文→中文漫画翻译专家，输出严格 JSON，不要输出任何额外文字。\n{system_extra}".strip()
+        for _ in range(max_retries + 1):
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": _build_content(batch)},
+            ]
+            raw = llm(messages)
+            parsed = parse_translation_response(raw, region_ids)
+            if not mechanical_guardrails(batch, parsed):
+                return parsed
+        # binary split on persistent failure (mit pattern)
+        if len(batch) > 1:
+            mid = len(batch) // 2
+            merged = {}
+            merged.update(_one(batch[:mid]))
+            merged.update(_one(batch[mid:]))
+            return merged
+        return {r["region_id"]: "" for r in batch}
+
+    return _one(list(canon))
+
+
 def translate_with_retry(canon: list[dict], llm, *, max_retries: int = 3,
                          split: bool = True, work_state: dict | None = None,
                          prev_pages: list[dict] | None = None,

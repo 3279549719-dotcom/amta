@@ -1,0 +1,19 @@
+"""Stage 3 minimal translation — tests for zero-tools batch translate (translate_plain)."""
+import json
+
+
+def test_translate_plain_batch():
+    """translate_plain sends all regions in ONE call, no tools, parses by region_id."""
+    from amta.translate import translate_plain
+    canon = [
+        {"region_id": "r01", "baberu_text": "こんにちは"},
+        {"region_id": "r02", "baberu_text": "ありがとう"},
+    ]
+    calls = []
+    def fake_llm(messages, tools=None):
+        calls.append(messages)
+        return json.dumps({"r01": "你好", "r02": "谢谢"})
+    result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
+    assert result == {"r01": "你好", "r02": "谢谢"}
+    assert len(calls) == 1, "should make exactly one LLM call"
+    assert "r01" in calls[0][1]["content"] and "r02" in calls[0][1]["content"]
