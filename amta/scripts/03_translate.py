@@ -21,7 +21,7 @@ def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None,
         trace_path: str | Path | None = None, with_plan: bool = False,
         with_vision_plan: bool = False, crop_dir: str | Path | None = None,
-        mode: str = "legacy") -> dict:
+        mode: str = "minimal", raw_image_path: str | Path | None = None) -> dict:
     """读 canon → 翻译 → 落盘 translation.json（兼容旧 run 签名）。"""
     try:
         canon = load_canon(canon_path)  # normalize + validate（旧裸 list 兼容）
@@ -31,7 +31,7 @@ def run(canon_path: str | Path, out_path: str | Path, *,
                          state_dir=state_dir, page=canon.get("page") or None,
                          with_plan=with_plan, with_vision_plan=with_vision_plan,
                          trace_enabled=bool(trace_path), crop_dir=crop_dir,
-                         mode=mode)
+                         mode=mode, raw_image_path=raw_image_path)
     trace, out2 = out.pop("_trace", None), out
     write_json(out_path, out2)
     if trace_path and trace:
@@ -51,9 +51,14 @@ def main() -> int:
     ap.add_argument("--with-vision-plan", action="store_true",
                     help="VLM 规划阶段（带整页图）")
     ap.add_argument("--crop-dir", default=None, help="lookup_image 工具所需 crop 目录")
+    ap.add_argument("--mode", choices=["minimal", "legacy"], default="minimal",
+                    help="minimal: 2 LLM calls/page, zero tools (default); legacy: old tool-loop path")
+    ap.add_argument("--raw-image", default=None,
+                    help="Raw page image path for VLM refine (minimal mode only; optional, falls back to detection artifact source)")
     a = ap.parse_args()
     run(a.canon, a.out, work_id=a.work_id, state_dir=a.state_dir, trace_path=a.trace,
-        with_plan=a.with_plan, with_vision_plan=a.with_vision_plan, crop_dir=a.crop_dir)
+        with_plan=a.with_plan, with_vision_plan=a.with_vision_plan, crop_dir=a.crop_dir,
+        mode=a.mode, raw_image_path=a.raw_image)
     print(f"[03_translate] -> {a.out}")
     return 0
 
