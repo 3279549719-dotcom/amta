@@ -13,6 +13,8 @@
       --semantic semantic_check.json --crops crops_dir [--state-dir state_dir] \
       [--max-rounds 3] [--only r1,r2] [--out-review needs_review.json]
 """
+# LEGACY: preserved for --mode legacy fallback. Stable after 3 works, delete in cleanup commit.
+# Minimal path (stage3_minimal.py) is default; these files are no longer called in minimal mode.
 from __future__ import annotations
 
 import argparse

@@ -10,6 +10,9 @@
 translate_with_retry 与 scripts/repair_failed.py 共用的 function-calling 层；
 从 translate 拆出后，repair_failed 不再依赖整个 translate 模块（Leverage：一个实现喂两个调用方）。
 """
+# LEGACY: preserved for --mode legacy fallback. Stable after 3 works, delete in cleanup commit.
+# Minimal path (stage3_minimal.py) is default; these files are no longer called in minimal mode.
+# build_semantic_context() is PUBLIC and used by stage3_minimal; rest is legacy.
 from __future__ import annotations
 
 import json

@@ -6,6 +6,8 @@
 
 ADR-023 延伸：不硬编码去重/过滤规则，给 LLM 完整上下文（全页文本+bbox+嵌套+整页图）让它裁决。
 """
+# LEGACY: preserved for --mode legacy fallback. Stable after 3 works, delete in cleanup commit.
+# Minimal path (stage3_minimal.py) is default; these files are no longer called in minimal mode.
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -43,7 +43,7 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 
 
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
-             page_idx: int, engine: str = "auto", vlm_enabled: bool = True,
+             page_idx: int, engine: str = "auto", vlm_enabled: bool = False,
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
              crop_dir: Path | str | None = None) -> dict:
     from amta.ocr_engines import ocr_batch as _default_ocr
