@@ -26,3 +26,9 @@ def test_prompt_parts_terms_injected():
     work_state = {"terms": {"豊姫": {"translation": "丰姬", "status": "confirmed"}}}
     system, prefix = _prompt_parts(canon, work_state, prev_pages=None, open_questions=None)
     assert "丰姬" in system, "relevant glossary term must be in system message"
+
+
+def test_build_semantic_context_public():
+    """build_semantic_context must be importable from translate_tools (public, not _private)."""
+    from amta.translate_tools import build_semantic_context
+    assert callable(build_semantic_context)

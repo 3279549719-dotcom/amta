@@ -136,7 +136,7 @@ def execute_tool(name: str, args: dict, work_state: dict,
     if name == "get_context":
         pages = max(1, min(int(args.get("pages") or 3), 3))
         # Lesson 03 语义化传递：category标注 + relationships + confirmed术语筛选 + 回退兼容
-        return _build_semantic_context(pages, work_state or {}, prev_pages, state_dir)
+        return build_semantic_context(pages, work_state or {}, prev_pages, state_dir)
     if name == "lookup_image":
         region_id = str(args.get("region_id", "")).strip()
         if not region_id:
@@ -208,9 +208,9 @@ MAX_RELATIONSHIPS = 3
 MAX_TERMS = 5
 
 
-def _build_semantic_context(pages: int, work_state: dict,
-                             prev_pages: list[dict] | None,
-                             state_dir: Path | str | None) -> str:
+def build_semantic_context(pages: int, work_state: dict,
+                           prev_pages: list[dict] | None,
+                           state_dir: Path | str | None) -> str:
     """构建带语义标注的前页上下文（Lesson 03 实践）。
 
     优先读 artifacts/ 下的单页 canon+translation（带 category 标注），
