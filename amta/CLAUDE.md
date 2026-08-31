@@ -4,6 +4,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 
 ## 核心事实
 - **原图目录**：`D:\我的汉化\汉化作品\东方\单翼停留之地\`（jpg 格式，`1.jpg`~`41.jpg`，页码即文件名；Stage 3 方案 B VLM 规划需整页图时从此目录读取，不复制进 workspace）
+本机是Windows环境，不是Linux或者Mac环境。键入命令行时要注意这点
 
 
 - **钉 koharu v0.59.1**（server 世代，REST /api/v1 + MCP /mcp + 像素 mask 机制）；上游 0.77.5 起已删 headless/HTTP/MCP，升级即失去全部自动化面。
@@ -60,4 +61,7 @@ Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读
 - **知识晋升管线**：`观察 → 可复用?No 丢弃 / Yes → 会复发?No lesson(docs/lessons.md) / Yes → 五路分流：全局规则(CLAUDE.md) · 流程(.dsh/skills/) · 架构(docs/decisions/ADR-N) · 瞬时(docs/progress.md) · 机械(test/lint/hook)`。反复犯错应逐步变成机器约束（test/lint/hook 是唯一真强制层，rules/lesson 都是 prompt 级），CLAUDE.md 保持精简（目标 <120 行）。
 - **机械护栏三级**：编码期 `npm run fastcheck`（秒级）→ pre-commit（.githooks）→ pre-push（含可选 smoke）。安装：`npm run hooks:install`。
 - **项目记忆写回（Stage 2-d Slice 2）**：迭代结束产出可复用经验（等价 lesson/ADR 级的决策/踩坑/口径）时，`python scripts/memory.py add` 写回记忆库，`docs/INDEX.md` 条目的一句话价值由执行 agent 校准、不留空。
+- **记忆推送（DSH 原生注入，自动）**：DSH 的 `agent-instructions` 插件把 workspace 根的 `CLAUDE.local.md` 随每个会话自动注入（本地 overlay 默认候选，无需改 profile）。本文件由 `python scripts/memory_inject.py` 生成=当前记忆包（now/recent/近期 lessons）；刷新命令已并入 fastcheck（memory inject 步骤）。已实证：改文件后会话内即动态重注入。
+- **记忆自举（JIT 触发纪律，补充全量）**：记忆包已自动注入近况/经验摘要，但**完整 lessons/ADR 仍按需读**——每轮任务按关键词 `python scripts/memory_grep.py --query <主题> --scope all` 查相关 lessons/ADR（压缩后必读 now.md 全量 `python scripts/memory_recent.py`），先查记忆再动手，避免重踩已有坑。记忆机制自检：`python scripts/memory_status.py`。
+- **记忆 GC（腐坏自动清理）**：`python scripts/memory_gc.py` 归档未归档 today→recent、刷新 now.md（压缩恢复现场）、清空一次性临时目录；已并入 fastcheck 机械护栏。收尾前跑一次确认记忆地产干净。
 - **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。

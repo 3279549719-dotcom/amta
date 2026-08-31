@@ -52,3 +52,4 @@
 | L-012 | 检测合并 / 去重时 | docs/lessons.md#L12 | IoU>0.5 去重漏合并竖排碎片框 |
 | L-013 | 构造 GT 标注时 | docs/lessons.md#L13 | VLM per-crop GT 不可靠，正式 GT 用整页枚举 |
 | L-014 | 怀疑指标算错时 | docs/lessons.md#L14 | 缓存派生指标不重算 → 假 bug（GT=OCR 却 EM=0） |
+| L34 | 预算 工具循环 轮次 API | docs/lessons.md | L34|工具循环预算分批内+整页两层，缺整页硬顶会API失控 |

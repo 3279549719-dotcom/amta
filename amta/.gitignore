@@ -12,6 +12,9 @@ __pycache__/
 .env
 .env.local
 *.local
+# DSH agent-instructions 自动注入的本地 overlay（记忆包，生成物，勿入库）
+AGENTS.local.md
+CLAUDE.local.md
 
 # ---- 杩愯�屼骇鐗� ----
 output/*
@@ -57,3 +60,6 @@ workspace/ws-*/
 
 # ---- realrun 备份 ----
 workspace/*/backup*/
+
+# DSH agent-teams ����ʱ״̬(�����)
+.agent-teams/

@@ -4,8 +4,8 @@
 用途：定位"大小字混合气泡漏检"的根因——是上游 detector 根本没检出，还是后处理误杀。
 
 用法:
-  python scripts/diag_detector_miss.py --raw "D:\...\15.jpg" --out output/tmp/diag_p15.json
-  python scripts/diag_detector_miss.py --raw "D:\...\14.jpg" --out output/tmp/diag_p14.json
+  python scripts/diag_detector_miss.py --raw "D:\\...\\15.jpg" --out output/tmp/diag_p15.json
+  python scripts/diag_detector_miss.py --raw "D:\\...\\14.jpg" --out output/tmp/diag_p14.json
 
 输出:
   {
