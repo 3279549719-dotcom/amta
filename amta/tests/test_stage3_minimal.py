@@ -267,3 +267,47 @@ def test_translate_station_minimal_mode():
         return json.dumps({"r01": "你好"})
     result = translate_page("test", canon, mode="minimal", llm_text=fake_text, vlm_enabled=False)
     assert result["translations"] == {"r01": "你好"}
+
+
+# ---------- Task 9: edge-case completeness ----------
+
+
+def test_translate_plain_binary_split():
+    """translate_plain splits batch on persistent guardrail failure."""
+    from amta.translate import translate_plain
+    canon = [{"region_id": f"r{i:02d}", "baberu_text": f"テキスト{i}"} for i in range(4)]
+    call_count = [0]
+    def fake_llm(messages, tools=None):
+        call_count[0] += 1
+        # Return only first half to trigger guardrail failure on full batch
+        if call_count[0] <= 2:
+            return json.dumps({f"r{i:02d}": f"訳{i}" for i in range(2)})
+        return json.dumps({f"r{i:02d}": f"訳{i}" for i in range(4)})
+    result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
+    assert len(result) == 4
+    assert all(v for v in result.values())
+
+
+def test_translate_plain_empty_canon():
+    """translate_plain with empty canon returns empty dict."""
+    from amta.translate import translate_plain
+    result = translate_plain([], lambda m: "{}", system_extra="", context_prefix="")
+    assert result == {}
+
+
+def test_vlm_refine_missing_image_returns_none():
+    """vlm_refine_page with nonexistent image returns None."""
+    from amta.stage3_minimal import vlm_refine_page
+    from pathlib import Path
+    result = vlm_refine_page([], Path("/nonexistent.jpg"), lambda m: "{}")
+    assert result is None
+
+
+def test_build_prefetch_context_no_vlm():
+    """build_prefetch_context with vlm_refine=None passes canon through unchanged."""
+    from amta.stage3_minimal import build_prefetch_context
+    canon = [{"region_id": "r01", "baberu_text": "テスト"}]
+    ctx = build_prefetch_context(canon, {}, None, None)
+    assert ctx["refined_canon"] == canon
+    assert ctx["duplicate_map"] == {}
+    assert ctx["invalid_ids"] == set()
