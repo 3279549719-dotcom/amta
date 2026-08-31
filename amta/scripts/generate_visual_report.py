@@ -1,27 +1,35 @@
-"""Generate a self-contained HTML report with original images, OCR text, and translations."""
+"""Generate a self-contained HTML report with original images, OCR text, and translations.
+Uses full pipeline output (stage3_full_canon + stage3_full_translation).
+"""
 import base64
 import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BACKUP_DIR = ROOT / "output/backup/2026-08-27-pre-rerun-11-20"
-BATCH_DIR = ROOT / "output/data/stage3_minimal_batch"
+CANON_DIR = ROOT / "output/data/stage3_full_canon"
+TRANS_DIR = ROOT / "output/data/stage3_full_translation"
 RAW_IMAGE_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
-OUT_HTML = ROOT / "output/reports/stage3-minimal-10pages-visual.html"
+OUT_HTML = ROOT / "output/reports/stage3-full-10pages-visual.html"
 
 
 def img_to_base64(path: Path) -> str:
-    data = path.read_bytes()
-    return base64.b64encode(data).decode("ascii")
+    return base64.b64encode(path.read_bytes()).decode("ascii")
 
 
 def load_canon(page_idx: int) -> list[dict]:
-    p = BACKUP_DIR / f"page_{page_idx}_canon.json"
-    return json.loads(p.read_text(encoding="utf-8"))
+    p = CANON_DIR / f"page_{page_idx}_canon.json"
+    d = json.loads(p.read_text(encoding="utf-8"))
+    # canon is a doc envelope with 'items' list
+    items = d.get("items", [])
+    # Normalize: ensure each item has a 'text' field (use baberu_text or vlm_text)
+    for item in items:
+        if "text" not in item:
+            item["text"] = item.get("baberu_text") or item.get("vlm_text") or ""
+    return items
 
 
 def load_translation(page_idx: int) -> dict:
-    p = BATCH_DIR / f"page_{page_idx}_translation.json"
+    p = TRANS_DIR / f"page_{page_idx}_translation.json"
     return json.loads(p.read_text(encoding="utf-8"))
 
 
@@ -40,11 +48,12 @@ def build_page_section(page_idx: int) -> str:
         rid = item["region_id"]
         ocr_text = item.get("text", "")
         translation = translations.get(rid, "")
+        is_hole = "hole" if not translation.strip() else ""
         rows.append(f"""
-        <tr>
+        <tr class="{is_hole}">
           <td class="rid">{rid}</td>
           <td class="ocr">{ocr_text}</td>
-          <td class="trans">{translation}</td>
+          <td class="trans">{translation if translation else '<span class="empty">(空)</span>'}</td>
         </tr>""")
 
     vlm_info = ""
@@ -52,15 +61,20 @@ def build_page_section(page_idx: int) -> str:
         vlm_info = f"""
         <div class="vlm-info">
           <span class="vlm-tag">VLM refine</span>
-          scene: {vlm.get('scene', 'N/A')} |
+          scene: {vlm.get('scene', 'N/A')[:80]} |
           {vlm.get('refinement_count', 0)} corrections |
           {vlm.get('invalid_count', 0)} invalid |
           {vlm.get('duplicate_count', 0)} duplicates
         </div>"""
 
+    n_holes = sum(1 for v in translations.values() if not v.strip())
+
     return f"""
     <section class="page" id="page-{page_idx}">
-      <h2>Page {page_idx} <span class="jpg-name">({jpg_num}.jpg)</span></h2>
+      <h2>Page {page_idx} <span class="jpg-name">({jpg_num}.jpg)</span>
+        <span class="region-count">{len(canon)} regions</span>
+        {f'<span class="hole-count">{n_holes} holes</span>' if n_holes else ''}
+      </h2>
       {vlm_info}
       <div class="page-content">
         <div class="image-col">
@@ -84,7 +98,6 @@ def main():
     pages = list(range(10, 20))
     sections = [build_page_section(p) for p in pages]
 
-    # Summary stats
     total_regions = 0
     total_holes = 0
     for p in pages:
@@ -98,7 +111,7 @@ def main():
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stage 3 Minimal Translation — 10 Pages Visual Report</title>
+<title>Stage 3 Full Pipeline — 10 Pages Visual Report</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -130,6 +143,7 @@ def main():
     font-size: 13px;
   }}
   .stat strong {{ font-size: 20px; display: block; }}
+  .stat.warn strong {{ color: #ff9f43; }}
   nav {{
     background: white;
     padding: 12px 20px;
@@ -160,8 +174,27 @@ def main():
     font-size: 20px;
     margin-bottom: 6px;
     color: #1a1a2e;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }}
   .jpg-name {{ color: #86868b; font-size: 14px; font-weight: normal; }}
+  .region-count {{
+    background: #e8f0fe;
+    color: #0066cc;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: normal;
+  }}
+  .hole-count {{
+    background: #fff3e0;
+    color: #e65100;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: normal;
+  }}
   .vlm-info {{
     font-size: 12px;
     color: #6e6e73;
@@ -196,6 +229,8 @@ def main():
   .text-col {{
     flex: 1;
     overflow-x: auto;
+    max-height: 80vh;
+    overflow-y: auto;
   }}
   table {{
     width: 100%;
@@ -218,6 +253,8 @@ def main():
     vertical-align: top;
   }}
   tr:hover {{ background: #fafafa; }}
+  tr.hole {{ background: #fff8e1; }}
+  tr.hole:hover {{ background: #fff3e0; }}
   .rid {{
     font-family: monospace;
     font-size: 11px;
@@ -226,6 +263,7 @@ def main():
   }}
   .ocr {{ color: #1d1d1f; }}
   .trans {{ color: #0066cc; font-weight: 500; }}
+  .empty {{ color: #e65100; font-style: italic; }}
   @media (max-width: 900px) {{
     .page-content {{ flex-direction: column; }}
     .image-col {{ flex: none; max-width: 100%; }}
@@ -235,14 +273,14 @@ def main():
 <body>
 <div class="container">
   <header>
-    <h1>Stage 3 Minimal Translation — 10 Pages Visual Report</h1>
-    <div class="subtitle">原图 + OCR 原文 + 翻译结果对照 | mode=minimal | 2 LLM calls/page, zero tools</div>
+    <h1>Stage 3 Full Pipeline — 10 Pages Visual Report</h1>
+    <div class="subtitle">完整检测框 → OCR → minimal 翻译 | detect_contract 108 regions (vs 之前丢框版 62)</div>
     <div class="stats">
       <div class="stat"><strong>{len(pages)}</strong>Pages (JPG 11-20)</div>
       <div class="stat"><strong>{total_regions}</strong>Text regions</div>
-      <div class="stat"><strong>{total_holes}</strong>Empty translations</div>
+      <div class="stat warn"><strong>{total_holes}</strong>Empty translations</div>
       <div class="stat"><strong>0</strong>402 errors</div>
-      <div class="stat"><strong>0</strong>Japanese residue</div>
+      <div class="stat"><strong>dashscope</strong>OCR engine</div>
     </div>
   </header>
 
