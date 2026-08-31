@@ -48,12 +48,16 @@ def text_chat(
     *,
     api_key: str | None = None,
     timeout: int = 120,
+    temperature: float | None = None,
 ) -> str:
     """发一次 OpenAI 兼容纯文本 chat 请求，返回回复文本；解析失败返回空串。
 
     深模块代理：HTTP/解析逻辑唯一归属 chat_client.chat_text（translate/ocr_engines 共用接缝）。
     """
-    return chat_text(base_url, model, messages, api_key=api_key, timeout=timeout)
+    kwargs: dict[str, Any] = {}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    return chat_text(base_url, model, messages, api_key=api_key, timeout=timeout, **kwargs)
 
 
 def chat_with_tools(

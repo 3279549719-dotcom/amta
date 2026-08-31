@@ -167,3 +167,90 @@ def test_translate_page_minimal_empty_canon_no_llm_call():
                                     llm_text=fake_text, vlm_enabled=False)
     assert result["translations"] == {}
     assert result["residue"] == []
+
+
+def test_translate_page_minimal_empty_canon_with_image_no_vlm_call(tmp_path):
+    """Review Finding B (Ruling 5 gap): empty canon must not fire the VLM call even
+    with an image + vlm_enabled (pre-fix: vision call fired once)."""
+    from amta.stage3_minimal import translate_page_minimal
+
+    vlm_calls = []
+
+    def fake_vlm(messages):
+        vlm_calls.append(messages)
+        raise RuntimeError("VLM must not be called on empty canon")
+
+    def fake_text(messages, tools=None):
+        raise AssertionError("LLM must not be called on empty canon")
+
+    img = _write_fake_jpg(tmp_path)
+    result = translate_page_minimal("test-work", {"items": []},
+                                    raw_image_path=img, llm_text=fake_text,
+                                    llm_vlm=fake_vlm, vlm_enabled=True)
+    assert vlm_calls == [], "empty canon must not fire the VLM call (Ruling 5)"
+    assert result["translations"] == {}  # blank-safe result
+
+
+def test_text_chat_temperature_forwarding(monkeypatch):
+    """Review Finding A: text_chat must accept temperature — forwarded into the
+    request payload when set, absent when None (legacy callers keep provider default)."""
+    import amta.chat_client as chat_client
+    from amta.translate import text_chat
+
+    payloads = []
+
+    class _FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        payloads.append(json)
+        return _FakeResp()
+
+    monkeypatch.setattr(chat_client.requests, "post", fake_post)
+    text_chat("http://fake", "fake-model", [{"role": "user", "content": "hi"}],
+              temperature=0.3)
+    assert payloads[0]["temperature"] == 0.3
+
+    text_chat("http://fake", "fake-model", [{"role": "user", "content": "hi"}])
+    assert "temperature" not in payloads[1], \
+        "temperature must stay absent when not passed (provider default)"
+
+
+def test_vlm_default_closure_temperature_zero(monkeypatch, tmp_path):
+    """Review Finding A: the default VLM closure must send temperature=0 (docstring claim)."""
+    import amta.chat_client as chat_client
+    from amta.stage3_minimal import translate_page_minimal
+
+    payloads = []
+
+    class _FakeResp:
+        def __init__(self, content):
+            self._content = content
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": self._content}}]}
+
+    vlm_json = json.dumps({"ocr_refinements": {}, "bubble_types": {},
+                           "scene": "", "invalid_regions": [], "duplicate_regions": {}})
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        payloads.append(json)
+        return _FakeResp(vlm_json)
+
+    monkeypatch.setattr(chat_client.requests, "post", fake_post)
+    canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
+
+    def fake_text(messages, tools=None):
+        return json.dumps({"r01": "你好"})
+
+    translate_page_minimal("test-work", canon, raw_image_path=_write_fake_jpg(tmp_path),
+                           llm_text=fake_text, vlm_enabled=True)
+    assert len(payloads) == 1, "only the VLM call should hit the HTTP layer"
+    assert payloads[0]["temperature"] == 0

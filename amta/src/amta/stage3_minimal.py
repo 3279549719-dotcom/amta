@@ -242,12 +242,13 @@ def translate_page_minimal(work_id: str, canon, *,
         cfg = get_chat_config()
 
         def _default_text(messages, tools=None):
-            return text_chat(cfg["base_url"], cfg["model"], messages, api_key=cfg["api_key"])
+            return text_chat(cfg["base_url"], cfg["model"], messages,
+                             api_key=cfg["api_key"], temperature=0.3)
         llm_text = _default_text
 
     # Call 1: VLM refine
     vlm_result = None
-    if vlm_enabled and raw_image_path:
+    if vlm_enabled and raw_image_path and canon_items:
         if llm_vlm is None:
             vision_model = _resolve("VISION_MODEL", None) or _VISION_MODEL_DEFAULT
             vision_base = _resolve("DASHSCOPE_BASE_URL", None) or _DASHSCOPE_BASE_DEFAULT
@@ -261,7 +262,8 @@ def translate_page_minimal(work_id: str, canon, *,
                     vision_key = ""
 
             def _default_vlm(messages):
-                resp = chat(vision_base, vision_model, messages, api_key=vision_key, timeout=120)
+                resp = chat(vision_base, vision_model, messages,
+                            api_key=vision_key, timeout=120, temperature=0)
                 return resp.get("content") or ""
             llm_vlm = _default_vlm
         vlm_result = vlm_refine_page(canon_items, Path(raw_image_path), llm_vlm)
