@@ -1,8 +1,12 @@
 """Spike: VLM full-page OCR refine + scene extraction A/B test.
 
-Tests two VLM models on page_11:
+v2 re-run on the corrected page-11 input canon (real 7-region OCR texts).
+Tests one VLM model on page_11:
   A: qwen3.5-omni-plus (DashScope, .env VISION_MODEL)
-  B: deepseek-v4-flash-vision-exp (DeepSeek)
+
+  B: deepseek-v4-flash-vision-exp — dropped in v2 (see MODELS comment):
+     S5 failed input-independently in the v1 run (latency is a provider
+     property, not an input-canon property).
 
 Each model runs 3 times. Measures: JSON parseability, OCR refine quality,
 invalid/duplicate marking accuracy, scene description relevance, latency.
@@ -16,6 +20,9 @@ Deviations from the brief (minimal, required to run at all):
 - call_vlm catches requests.RequestException so a provider HTTP error (e.g.
   DeepSeek 402 out-of-balance, pre-ruled risk) is recorded as that run's
   result instead of aborting the whole A/B before the report is written.
+- The parent-dir .env defines DASHSCOPE_KEY (no DASHSCOPE_API_KEY); the
+  runner maps DASHSCOPE_KEY -> DASHSCOPE_API_KEY in-process before invoking
+  this script (model name in .env VISION_MODEL matches the hardcoded one).
 """
 from __future__ import annotations
 
@@ -41,8 +48,12 @@ OUTPUT_REPORT = Path("output/reports/spike-vlm-refine-page11.md")
 MODELS = [
     {"name": "qwen3.5-omni-plus", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
      "env_key": "DASHSCOPE_API_KEY"},
-    {"name": "deepseek-v4-flash-vision-exp", "base_url": "https://api.deepseek.com",
-     "env_key": "CHAT_API_KEY"},
+    # v2 re-run is qwen-only. deepseek-v4-flash-vision-exp dropped: its S5
+    # failure (106.2s avg vs <=30s limit in the v1 run) is input-independent
+    # (latency is a provider property), so re-testing it on the corrected
+    # canon would spend time/money without changing the verdict.
+    # {"name": "deepseek-v4-flash-vision-exp", "base_url": "https://api.deepseek.com",
+    #  "env_key": "CHAT_API_KEY"},
 ]
 
 SYSTEM_PROMPT = """You are a manga OCR refinement engine. Given a full manga page image and a list of OCR text regions, output STRICT JSON with these keys:
