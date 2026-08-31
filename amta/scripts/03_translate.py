@@ -20,7 +20,8 @@ from amta.translate_station import translate_page  # noqa: E402
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None,
         trace_path: str | Path | None = None, with_plan: bool = False,
-        with_vision_plan: bool = False, crop_dir: str | Path | None = None) -> dict:
+        with_vision_plan: bool = False, crop_dir: str | Path | None = None,
+        mode: str = "legacy") -> dict:
     """读 canon → 翻译 → 落盘 translation.json（兼容旧 run 签名）。"""
     try:
         canon = load_canon(canon_path)  # normalize + validate（旧裸 list 兼容）
@@ -29,7 +30,8 @@ def run(canon_path: str | Path, out_path: str | Path, *,
     out = translate_page(work_id, canon,
                          state_dir=state_dir, page=canon.get("page") or None,
                          with_plan=with_plan, with_vision_plan=with_vision_plan,
-                         trace_enabled=bool(trace_path), crop_dir=crop_dir)
+                         trace_enabled=bool(trace_path), crop_dir=crop_dir,
+                         mode=mode)
     trace, out2 = out.pop("_trace", None), out
     write_json(out_path, out2)
     if trace_path and trace:

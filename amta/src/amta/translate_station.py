@@ -33,8 +33,19 @@ def _load_open_questions(state_dir: Path | None) -> list[dict] | None:
 def translate_page(work_id: str, canon, *, state_dir: Path | str | None = None,
                    page: str | None = None, with_plan: bool = False,
                    with_vision_plan: bool = False, trace_enabled: bool = False,
-                   crop_dir: Path | str | None = None, llm=None) -> dict:
-    """一页 canon → 翻译产物（含护栏/失败记录/suggestions）。返回信封 doc。"""
+                   crop_dir: Path | str | None = None, llm=None,
+                   mode: str = "minimal",
+                   raw_image_path: Path | str | None = None,
+                   llm_text=None, llm_vlm=None, vlm_enabled: bool = True) -> dict:
+    """一页 canon → 翻译产物。mode='minimal' (default) → 2 calls/page, zero tools.
+    mode='legacy' → old tool-loop path (with_plan/with_vision_plan only apply in legacy)."""
+    if mode == "minimal":
+        from amta.stage3_minimal import translate_page_minimal
+        return translate_page_minimal(
+            work_id, canon, raw_image_path=raw_image_path,
+            state_dir=state_dir, page=page,
+            llm_text=llm_text, llm_vlm=llm_vlm, vlm_enabled=vlm_enabled)
+    # --- legacy path below (unchanged) ---
     if isinstance(canon, dict):  # 接受 CanonArtifact 或裸 items list
         canon = canon.get("items", [])
     problems = validate_canon(canon)

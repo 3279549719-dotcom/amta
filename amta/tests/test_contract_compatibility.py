@@ -48,6 +48,6 @@ def test_stage123_chain_ids_consistent(tmp_path, monkeypatch):
     assert on_disk["items"] and on_disk["schema_version"] == artifacts.SCHEMA_VERSION
 
     # 护栏 4：翻译 keys ⊇ canon region_ids
-    trans = translate_page("w1", canon, page="page_0",
+    trans = translate_page("w1", canon, page="page_0", mode="legacy",
                            llm=lambda m, tools=None: {"content": '{"page_0_u00": "你好", "page_0_u01": "好"}'})
     assert set(trans["translations"]) >= set(canon_ids)

@@ -254,3 +254,16 @@ def test_vlm_default_closure_temperature_zero(monkeypatch, tmp_path):
                            llm_text=fake_text, vlm_enabled=True)
     assert len(payloads) == 1, "only the VLM call should hit the HTTP layer"
     assert payloads[0]["temperature"] == 0
+
+
+# ---------- Task 6: translate_station mode='minimal' delegation ----------
+
+
+def test_translate_station_minimal_mode():
+    """translate_page with mode='minimal' delegates to stage3_minimal."""
+    from amta.translate_station import translate_page
+    canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
+    def fake_text(messages, tools=None):
+        return json.dumps({"r01": "你好"})
+    result = translate_page("test", canon, mode="minimal", llm_text=fake_text, vlm_enabled=False)
+    assert result["translations"] == {"r01": "你好"}
