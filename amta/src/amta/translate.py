@@ -118,13 +118,23 @@ class TranslationCache:
 
 def _prompt_parts(canon: list[dict], work_state: dict,
                   prev_pages: list[dict] | None, open_questions: list[dict] | None) -> tuple[str, str]:
-    """拆出 System 层 + 上下文前缀（Uncertainty，不含当前页块）。
+    """System layer + context prefix — code-side prefetch (ADR-026 minimal refactor).
 
-    最小披露原则（Patrick 裁决，2026-08-26）：角色/术语/前页译文不再预塞进 Prompt，
-    由模型通过 lookup_term / get_context 工具按需获取；仅保留量小的待确认事项披露。
-    两者对单页分批（二分拆分）只算一次。
+    Restores mit-style extract_relevant_terms injection and prior-page context.
+    Previously (2026-08-26) these were disabled in favor of model FC tools;
+    that caused 70-round loops. Now restored: code knows what model needs.
     """
     system_lines = ["你是专业日文→中文漫画翻译专家，输出严格 JSON，不要输出任何额外文字。"]
+    # Code-side term prefetch (mit extract_relevant_terms pattern)
+    cur_text = " ".join(r.get("baberu_text") or r.get("text") or "" for r in canon)
+    relevant = extract_relevant_terms(cur_text, work_state.get("terms", {}))
+    if relevant:
+        term_lines = ["相关术语（必须使用以下译名）："]
+        for term, meta in relevant.items():
+            trans = meta.get("translation") or meta.get("canon_translation") or "?"
+            term_lines.append(f"- {term} → {trans}")
+        system_lines.append("\n".join(term_lines))
+    # User prefix: open questions + prior-page context
     user_blocks = []
     if open_questions:
         qs = "\n".join(f"- {q['question']}（{q.get('status', 'open')}）" for q in open_questions)
