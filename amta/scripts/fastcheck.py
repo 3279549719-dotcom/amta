@@ -87,6 +87,19 @@ def _memory_lint() -> int:
     return _run([sys.executable, str(ROOT / "scripts" / "memory_lint.py"), "--strict"], "memory lint (ADR-025)")
 
 
+def _memory_gc() -> int:
+    """记忆地产 GC 活性检查：dry-run 验证 GC 可用、不真改文件（腐坏由 CLAUDE.md 协议在收尾时真跑清理）。"""
+    return _run([sys.executable, str(ROOT / "scripts" / "memory_gc.py"), "--dry-run"], "memory gc (dry-run)")
+
+
+def _memory_inject() -> int:
+    """DSH 记忆推送层活性：重新生成 amta/CLAUDE.local.md（agent-instructions 自动注入的本地 overlay）。
+
+    写模式：幂等重跑，只刷新 .gitignore 已覆盖（*.local）的生成文件，不碰 docs/ 权威源。
+    既验证记忆包可构建，又保证每轮验证后注入包保持新鲜。"""
+    return _run([sys.executable, str(ROOT / "scripts" / "memory_inject.py")], "memory inject (CLAUDE.local.md)")
+
+
 def main() -> int:
     c = _compile()
     lint_rc = _lint()
@@ -94,7 +107,9 @@ def main() -> int:
     u = _test()
     d = _depguard()
     m = _memory_lint()
-    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u), ("depguard", d), ("memory lint", m)) if rc]
+    g = _memory_gc()
+    inj = _memory_inject()
+    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u), ("depguard", d), ("memory lint", m), ("memory gc", g), ("memory inject", inj)) if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
         return 1

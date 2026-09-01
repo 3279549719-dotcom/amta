@@ -31,6 +31,18 @@ LOCAL_TOP = {"amta", "scripts", "tests"}  # 本仓顶层模块，不是第三方
 IMPORT_TO_PKG = {"PIL": "pillow"}
 # 运行时动态 import / 开发工具链白名单（不入 [project].dependencies）
 ALLOWLIST = {"onnx_infer", "pytest"}
+# 实验脚本排除（A/B 测试 / 调研用，等正式集成主流水线再补依赖声明）
+EXCLUDE_FILES = {
+    "scripts/detect_rtdetr.py",
+    "scripts/run_detect_ab.py",
+    "scripts/gen_detect_ab_report.py",
+    "tests/test_detect_rtdetr.py",
+    "scripts/ctd_detector.py",
+    "scripts/detectors.py",
+    "scripts/run_detect_multi.py",
+    "scripts/gen_detect_multi_report.py",
+    "tests/test_detect_ctd.py",
+}
 
 
 def _is_local_module(top: str) -> bool:
@@ -64,6 +76,9 @@ def _scan_third_party() -> dict[str, set[str]]:
         if not base.is_dir():
             continue
         for p in base.rglob("*.py"):
+            rel = str(p.relative_to(ROOT)).replace("\\", "/")
+            if rel in EXCLUDE_FILES:
+                continue
             try:
                 tree = ast.parse(p.read_text(encoding="utf-8"))
             except SyntaxError:

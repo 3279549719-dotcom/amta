@@ -252,3 +252,28 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 - 读取端机械化：CLAUDE.md 问题域启发式表 + SessionStart hook 注入（startup ≤1.5KB / compact ≤0.5KB，恒 exit 0）+ memory_grep/read/index/recent/status 五工具（条目级语义返回）+ memory_lint 五规则进 fastcheck；冷启动探针协议 docs/memory-probe.md（真实 CC 会话探针留 audit 期执行）。
 - 结构：src/amta/memory/ 包 = estate（解析）/ tools（检索）/ lint（检查）+ project_memory（旧 memory.py 并入，re-export 兼容）；scripts/memory_*.py 六薄 CLI；tests 新增 23 测。
 - 收尾：research 幽灵路径清零；decisions 索引补 022/023/025 并归一化 019-021/024；图解资产对齐五工具族；fastcheck 357 全绿（基线 334）。分支待整合。
+
+
+## 2026-09-01 仓库清理（chore/cleanup-legacy-code，worktree 执行）
+
+**LEGACY 工具循环路径整体移除**（5 个源文件自带 "delete in cleanup commit" 标记）：
+- 删除：stage3_planner.py / stage3_planner_vision.py / page_judge.py / translate_tools.py / repair_failed.py / 06_page_judge.py
+- 保留并内联：build_semantic_context() + 辅助函数移入 stage3_minimal.py（唯一消费者）
+- translate_station.py 简化为 minimal-only（移除 mode='legacy' 分支 ~100 行）
+- translate.py 移除 translate_with_retry / chat_with_tools / TranslationCache / build_translation_prompt / record_failure 等 legacy 函数
+- 03_translate.py 移除 --mode/--with-plan/--with-vision-plan/--trace/--crop-dir 等 legacy 参数
+- 00_run_all.py 移除 with_judge 整块（06_page_judge + apply_decisions + repair_failed）和 with_review 中的 auto_repair
+
+**死模块 / 死函数**：
+- 删除 gt_alignment.py（0 生产引用）
+- geometry.py 删除 absorb_contained / build_regions / flatten_regions / assign_sub_tier（0 生产调用，仅测试 + 已归档的 verify_flatten_fix.py）
+
+**旧 OCR/eval/recall 体系**：删除 13 个脚本 + 2 个测试 + 7 个 benchmark/recall 数据 JSON；package.json 移除 recall:detect / recall:score 悬空命令。
+
+**一次性脚本归档**：33 个实验/诊断/报告脚本移入 scripts/archive/（exp_guardrails_*, gen_*_report, run_detect_*, eval_stage*, verify_flatten_fix, spike_vlm_refine, measure_dod, diag_detector_miss, check_detect_report, full_pipeline_11_20, batch_translate_10_19, backfill_1_10 + 对应 _ 桥接脚本）。pyproject.toml ruff/pyright exclude 增加 scripts/archive/**。
+
+**其他**：删除 plan_full.md（42KB 临时拼接）；.gitignore 重写（移除已删文件的 stale !output/data/ 例外，保留 labels_a/label_manifest/ocr_result 三个产物）；reference/repos/manga-image-translator 重复克隆删除（150MB，保留 research/reference-repos/ 下的副本）。
+
+**测试**：删除 10 个 legacy 测试文件；test_shared_lib.py 移除 15 个死函数测试方法（345→166 行）；test_context_semantic_transfer.py 11 处 execute_tool('get_context') 改为 build_semantic_context 直接调用。compileall 全绿。
+
+**统计**：6 commits，源码净减 ~6000 行，scripts/ 从 72 文件减至 39 文件（+33 archive）。

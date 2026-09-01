@@ -1,4 +1,5 @@
-# 014 — 翻译工位架构定稿：DeepSeek API 直调 + 双层护栏 + 分层 Loop
+﻿# 014 — 翻译工位架构定稿：DeepSeek API 直调 + 双层护栏 + 分层 Loop
+> ⚠️ 2026-09-01 更新：本文描述的 legacy 翻译通道（translate_tools/repair_failed/stage3_planner/page_judge/translate_semantic_check）已清理，现行架构见 stage3_minimal.py。本文保留作历史决策参考。
 
 ## Context
 
