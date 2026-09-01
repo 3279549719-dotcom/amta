@@ -53,3 +53,6 @@ workspace/*/backup*/
 
 # DSH agent-teams 运行时状态(不入库)
 .agent-teams/
+
+# workspace 大产物
+workspace/
