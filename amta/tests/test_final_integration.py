@@ -97,20 +97,19 @@ class TestOCREngines:
 class TestOCRStation:
     """验证 ocr_station.py 去掉 VLM 校验，只保留 baberu。"""
 
-    def test_ocr_page_no_vlm_params(self):
-        """ocr_page 不再接受 vlm_enabled/vlm_fn/vlm_api_key 参数。"""
+    def test_ocr_page_has_vlm_params(self):
+        """ocr_page 保留 vlm_enabled 参数（VLM 校验是质检环节，默认启用）。"""
         import inspect
         from amta.ocr_station import ocr_page
         sig = inspect.signature(ocr_page)
         param_names = list(sig.parameters.keys())
-        assert "vlm_enabled" not in param_names
-        assert "vlm_fn" not in param_names
-        assert "vlm_api_key" not in param_names
-        assert "engine" not in param_names
+        assert "vlm_enabled" in param_names
+        assert "vlm_fn" in param_names
+        assert "engine" not in param_names  # engine 已删除（只保留 baberu）
 
-    def test_vlm_verify_deleted(self):
-        """vlm_verify.py 已删除。"""
-        assert not (ROOT / "src" / "amta" / "vlm_verify.py").exists()
+    def test_vlm_verify_exists(self):
+        """vlm_verify.py 存在（VLM contact sheet 校验，质检环节）。"""
+        assert (ROOT / "src" / "amta" / "vlm_verify.py").exists()
 
     def test_canon_item_has_text_and_baberu_text(self):
         """canon items 同时有 text 和 baberu_text 字段（向后兼容）。"""
@@ -182,7 +181,6 @@ class TestDeprecatedCodeRemoved:
     @pytest.mark.parametrize("path", [
         "src/amta/detect_station.py",      # koharu 4-detector 并集
         "src/amta/pipeline.py",             # DETECTOR_STEPS 常量
-        "src/amta/vlm_verify.py",           # VLM contact sheet 校验
         "scripts/ctd_detector.py",          # CTD 检测器（方案B实验）
         "scripts/ocr_detect.py",            # 旧 OCR 检测脚本
         "scripts/translate_semantic_check.py",  # 语义护栏（已废弃）
@@ -196,11 +194,16 @@ class TestDeprecatedCodeRemoved:
             content = (ROOT / "scripts" / script).read_text(encoding="utf-8")
             assert "koharu" not in content.lower(), f"{script} still references koharu"
 
-    def test_no_vlm_in_02_ocr(self):
-        """02_ocr.py 不再有 --no-vlm 选项。"""
+    def test_02_ocr_has_no_vlm_option(self):
+        """02_ocr.py 有 --no-vlm 选项（默认启用 VLM 校验）。"""
         content = (ROOT / "scripts" / "02_ocr.py").read_text(encoding="utf-8")
-        assert "--no-vlm" not in content
-        assert "vlm_enabled" not in content
+        assert "--no-vlm" in content
+        assert "vlm_enabled" in content
+
+    def test_02_ocr_no_engine_option(self):
+        """02_ocr.py 不再有 --engine 选项（只保留 baberu）。"""
+        content = (ROOT / "scripts" / "02_ocr.py").read_text(encoding="utf-8")
+        assert "--engine" not in content
 
     def test_no_ocr_engine_in_00_run_all(self):
         """00_run_all.py 不再有 --ocr-engine 选项。"""

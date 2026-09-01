@@ -1,9 +1,10 @@
 """Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
 
-最终选型：baberu-OCR（本地 ONNX）。VLM contact sheet 校验已废弃。
+最终选型: baberu-OCR（主引擎） + VLM contact sheet 批量校验（质检，过滤假框/修正错误）。
 藏匿：裁框（region_id 与 detect 输出顺序一一对应）、baberu 批量 OCR、
+VLM contact sheet 校验、VLM key 解析（amta.config）、双引擎输出（baberu_text + vlm_text）、
 trace、save_canon（doc 化）。
-接缝：ocr_fn 函数注入（内部接缝，测试用 fake）。
+接缝：ocr_fn / vlm_fn 函数注入（内部接缝，测试用 fake）。
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from pathlib import Path
 from PIL import Image
 
 from amta import artifacts
+from amta.config import get_vlm_api_key
 from amta.paths import write_json
 
 
@@ -40,11 +42,14 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 
 
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
-             page_idx: int, ocr_fn=None,
+             page_idx: int, vlm_enabled: bool = True,
+             ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
              crop_dir: Path | str | None = None) -> dict:
-    """单页 OCR：裁框 → baberu 批量识别 → CanonArtifact（doc 信封）。"""
+    """单页 OCR：裁框 → baberu 批量识别 → VLM 校验 → CanonArtifact（doc 信封）。"""
     from amta.ocr_engines import ocr_batch as _default_ocr
+    from amta.vlm_verify import vlm_verify_batch as _default_vlm
     ocr_fn = ocr_fn or _default_ocr
+    vlm_fn = vlm_fn or _default_vlm
     page = artifacts.page_key(page_idx)
     artifacts_dir = Path(artifacts_dir)
 
@@ -57,18 +62,35 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     t0 = time.time()
     ocr_rows = ocr_fn([str(c) for _, _, c, _ in pairs])
     ocr_by_crop = {r["crop"]: (r.get("ocr") or "").strip() for r in ocr_rows}
-    elapsed = time.time() - t0
+    baberu_elapsed = time.time() - t0
+
+    vlm_result = {"texts": None, "status": "skipped", "raw_output": "", "elapsed": 0.0, "retries": 0}
+    if vlm_enabled:
+        key = vlm_api_key or get_vlm_api_key()
+        if key:
+            t1 = time.time()
+            try:
+                vlm_result = vlm_fn([pil for _, _, _, pil in pairs], api_key=key)
+            except Exception as e:  # noqa: BLE001 — VLM 失败不拖垮 OCR 工位
+                vlm_result = {"texts": None, "status": "failed", "raw_output": str(e),
+                              "elapsed": time.time() - t1, "retries": 0}
+        else:
+            vlm_result["raw_output"] = "No VLM_API_KEY or CHAT_API_KEY configured"
 
     items = []
-    for rid, b, crop, _pil in pairs:
-        ocr_text = ocr_by_crop.get(str(crop), "")
+    vlm_texts = vlm_result.get("texts")
+    for i, (rid, b, crop, _pil) in enumerate(pairs):
+        vlm_text = vlm_texts[i] if (vlm_texts and i < len(vlm_texts)) else None
+        baberu_text = ocr_by_crop.get(str(crop), "")
         item = {
             "region_id": rid,
             "bbox": b.get("bbox"),
-            "text": ocr_text,
-            "baberu_text": ocr_text,  # 向后兼容（下游同时支持 text/baberu_text）
+            "text": baberu_text,  # 主文本 = baberu（VLM 仅作校验参考）
+            "baberu_text": baberu_text,
+            "vlm_text": vlm_text,
             "contained_in": b.get("contained_in"),
             "source_engines": b.get("source_engines", []),
+            "vlm_status": vlm_result["status"],
             "page": page_idx,
         }
         for k in ("category", "bubble_type", "node_id", "sub_tier", "det_label", "confidence"):
@@ -78,9 +100,19 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
 
     artifacts.write_trace(artifacts_dir, page, "02_ocr", {
         "n_blocks": len(pairs),
-        "elapsed": round(elapsed, 2),
+        "baberu_elapsed": round(baberu_elapsed, 2),
+        "vlm_status": vlm_result["status"],
+        "vlm_elapsed": round(vlm_result.get("elapsed", 0.0), 2),
+        "vlm_retries": vlm_result.get("retries", 0),
+        "baberu_vs_vlm_diff": [
+            {"region_id": it["region_id"], "baberu": it["baberu_text"],
+             "vlm": it["vlm_text"],
+             "match": it["baberu_text"] == (it["vlm_text"] or "")}
+            for it in items if it["vlm_text"] is not None
+        ],
     })
 
-    doc = artifacts.stamp({"items": items, "n_regions": len(items)}, work_id, page)
+    doc = artifacts.stamp({"items": items, "n_regions": len(items),
+                           "vlm_status": vlm_result["status"]}, work_id, page)
     write_json(artifacts_dir / f"{page}_canon.json", doc)
     return doc

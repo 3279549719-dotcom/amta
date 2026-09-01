@@ -18,7 +18,7 @@ from amta.paths import write_json  # noqa: E402
 
 
 def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
-                page_idx: int | None = None, conf_threshold: float = 0.3,
+                page_idx: int | None = None, conf_threshold: float = 0.5,
                 out_path: Path | None = None) -> dict:
     """单页检测：RT-DETR-v2 → detection.json（doc 信封格式）。"""
     if page_idx is None:
@@ -52,7 +52,7 @@ def main() -> int:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--page-idx", type=int, default=None,
                     help="0 基页号（默认从文件名 N.jpg 推导 N-1）")
-    ap.add_argument("--conf", type=float, default=0.3, help="置信度阈值（默认 0.3）")
+    ap.add_argument("--conf", type=float, default=0.5, help="置信度阈值（默认 0.5，过滤低置信度假框）")
     a = ap.parse_args()
     doc = detect_page(a.work_id, a.raw, a.out.parent, page_idx=a.page_idx,
                       conf_threshold=a.conf, out_path=a.out)
