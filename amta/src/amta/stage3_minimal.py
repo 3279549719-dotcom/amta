@@ -1,4 +1,4 @@
-"""Stage 3 Minimal Translation — 2 LLM calls per page, zero tools, zero loops.
+﻿"""Stage 3 Minimal Translation — 2 LLM calls per page, zero tools, zero loops.
 
 Architecture (copied from mit 2stage + koharu TranslationRequest):
   1. VLM full-page refine (temp=0): OCR correction + bubble types + scene + invalid/duplicate
@@ -298,10 +298,22 @@ def vlm_refine_page(canon: list[dict], raw_image_path: Path | str | None,
         region_lines.append(f"{rid}: {text} [bbox: {bbox}]")
 
     system = (
-        "You are a manga OCR refinement engine. Given a full manga page image and OCR regions, "
-        "output STRICT JSON: {\"ocr_refinements\": {rid: corrected}, \"bubble_types\": {rid: dialogue|narration|sfx}, "
-        "\"scene\": \"one sentence\", \"invalid_regions\": [rid], \"duplicate_regions\": {rid: original_rid}}. "
-        "Only include ocr_refinements for regions you CORRECT. Output ONLY valid JSON."
+        "You are a manga text VALIDATION and correction engine. "
+        "Given a full manga page image and OCR regions, FIRST verify whether each region "
+        "actually contains readable text. Regions that are blank background, decorative patterns, "
+        "clothing textures, or partial/incomplete text with no meaningful content MUST be added to invalid_regions. "
+        "Then output STRICT JSON: {\"ocr_refinements\": {rid: corrected_text}, "
+        "\"bubble_types\": {rid: dialogue|narration|sfx}, "
+        "\"scene\": \"one sentence\", "
+        "\"invalid_regions\": [rid], "
+        "\"duplicate_regions\": {rid: original_rid}}. "
+        "Rules: (1) Add to invalid_regions any region with no real text, obvious hallucination, "
+        "or incomplete fragment like single particle/connector word (e.g. それでも、 そういうことで、 しま。 この) "
+        "that appears to be a false detection. "
+        "(2) Only include ocr_refinements for regions where you are confident the OCR is wrong "
+        "and you know the correct text. Do NOT over-correct valid text. "
+        "(3) Add to duplicate_regions if two regions show the same text. "
+        "Output ONLY valid JSON, no markdown, no explanation."
     )
     messages = [
         {"role": "system", "content": system},
