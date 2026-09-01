@@ -37,6 +37,11 @@ EXCLUDE_FILES = {
     "scripts/run_detect_ab.py",
     "scripts/gen_detect_ab_report.py",
     "tests/test_detect_rtdetr.py",
+    "scripts/ctd_detector.py",
+    "scripts/detectors.py",
+    "scripts/run_detect_multi.py",
+    "scripts/gen_detect_multi_report.py",
+    "tests/test_detect_ctd.py",
 }
 
 

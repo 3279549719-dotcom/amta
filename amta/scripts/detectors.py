@@ -112,89 +112,21 @@ class KoharuSingleDetector(Detector):
 
 
 class CtdDetector(Detector):
-    """CTD (ComicTextDetector) ONNX 检测器（方案 B）。
+    """CTD + DB 后处理检测器（方案 B）。
 
-    manga-image-translator 的核心检测器，1024 输入，DB 后处理。
-    简化版：单尺度推理 + 轮廓检测提取框。
+    包装 ctd_detector.CtdDetector，输出四边形框（精确）+ 外接矩形。
+    模型: comictextdetector.pt.onnx (YOLOv5 + UNet + DBNet)
     """
-    name = "ctd-onnx"
+    name = "ctd-db"
 
     def __init__(self, model_path: Path | str | None = None, input_size: int = 1024,
-                 box_threshold: float = 0.6, text_threshold: float = 0.3):
-        self.model_path = Path(model_path) if model_path else ROOT / "models" / "CTD" / "comictextdetector.pt.onnx"
-        self.input_size = input_size
-        self.box_threshold = box_threshold
-        self.text_threshold = text_threshold
-        self._net = None
-        self._load()
+                 box_thresh: float = 0.6, **kwargs):
+        from ctd_detector import CtdDetector as _Impl
+        self._impl = _Impl(model_path=model_path, input_size=input_size, box_thresh=box_thresh)
 
-    def _load(self):
-        if not self.model_path.exists():
-            raise FileNotFoundError(f"CTD model not found: {self.model_path}")
-        self._net = cv2.dnn.readNetFromONNX(str(self.model_path))
-        self._net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-        self._net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+    def detect(self, img_bgr: np.ndarray) -> tuple[list[dict], float]:
+        return self._impl.detect(img_bgr)
 
-    def _preprocess(self, img_bgr: np.ndarray) -> tuple[np.ndarray, float, float]:
-        """letterbox 到 input_size，返回 (input_tensor, ratio_w, ratio_h)。"""
-        h, w = img_bgr.shape[:2]
-        scale = min(self.input_size / h, self.input_size / w)
-        new_h, new_w = int(h * scale), int(w * scale)
-        resized = cv2.resize(img_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        # pad to square
-        pad_h = self.input_size - new_h
-        pad_w = self.input_size - new_w
-        padded = cv2.copyMakeBorder(resized, 0, pad_h, 0, pad_w, cv2.BORDER_CONSTANT, value=(114, 114, 114))
-        # BGR -> RGB, normalize
-        rgb = cv2.cvtColor(padded, cv2.COLOR_BGR2RGB)
-        blob = cv2.dnn.blobFromImage(rgb, 1.0 / 255.0, (self.input_size, self.input_size), swapRB=False)
-        ratio_w = w / new_w if new_w > 0 else 1.0
-        ratio_h = h / new_h if new_h > 0 else 1.0
-        return blob, ratio_w, ratio_h
 
-    def _detect(self, img_bgr: np.ndarray) -> list[list[float]]:
-        h_orig, w_orig = img_bgr.shape[:2]
-        blob, ratio_w, ratio_h = self._preprocess(img_bgr)
-        self._net.setInput(blob)
-        # CTD ONNX 输出: [mask, lines] 或类似
-        outputs = self._net.forward(self._net.getUnconnectedOutLayersNames())
-        # 找到 mask 输出（概率图）
-        mask = None
-        for out in outputs:
-            if out.ndim == 4 and out.shape[1] in (1, 2):
-                mask = out[0, 0] if out.shape[1] == 1 else out[0, 0]
-                break
-        if mask is None:
-            # 尝试第二个输出
-            for out in outputs:
-                if out.ndim == 4:
-                    mask = out[0, 0]
-                    break
-        if mask is None:
-            return []
-        # 裁剪掉 padding 区域
-        h, w = mask.shape
-        scale = min(self.input_size / h_orig, self.input_size / w_orig)
-        new_h = int(h_orig * scale)
-        new_w = int(w_orig * scale)
-        mask_cropped = mask[:new_h, :new_w]
-        # 阈值化
-        binary = (mask_cropped > self.text_threshold).astype(np.uint8) * 255
-        # 形态学操作
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        binary = cv2.dilate(binary, kernel, iterations=1)
-        # 轮廓检测
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        boxes = []
-        for cnt in contours:
-            x, y, bw, bh = cv2.boundingRect(cnt)
-            area = bw * bh
-            if area < 50:  # 过滤噪点
-                continue
-            # 映射回原图坐标
-            x1 = x / new_w * w_orig
-            y1 = y / new_h * h_orig
-            x2 = (x + bw) / new_w * w_orig
-            y2 = (y + bh) / new_h * h_orig
-            boxes.append([x1, y1, x2, y2])
-        return boxes
+# 导出工具函数供测试使用
+from ctd_detector import seg_rep_extract_boxes as _seg_rep_extract_boxes, quad_to_bbox as _quad_to_bbox  # noqa: E402
