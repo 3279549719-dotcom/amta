@@ -28,8 +28,8 @@ MODEL_PATH = ROOT / "models" / "CTBD" / "detector.onnx"
 # ---- 几何工具 ----
 
 def _iou(a: list[float], b: list[float]) -> float:
-    ax0, ay0, ax1, ay1 = a
-    bx0, by0, bx1, by1 = b
+    ax0, ay0, ax1, ay1 = a[:4]
+    bx0, by0, bx1, by1 = b[:4]
     ix = max(0, min(ax1, bx1) - max(ax0, bx0))
     iy = max(0, min(ay1, by1) - max(ay0, by0))
     inter = ix * iy
@@ -41,10 +41,18 @@ def _area(b: list[float]) -> float:
     return max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
 
 
+def _best_label_score(group: np.ndarray) -> tuple[int, float]:
+    """从一组检测中取最高 score 对应的 label 和 score。"""
+    if group.shape[1] > 5:
+        best_idx = int(np.argmax(group[:, 5]))
+        return int(group[best_idx, 4]), float(group[best_idx, 5])
+    return 1, 0.0
+
+
 def merge_duplicate_boxes(boxes: np.ndarray, iou_thresh: float = 0.7) -> np.ndarray:
-    """IoU >= thresh 的框合并为并集框（取最大外接矩形）。"""
+    """IoU >= thresh 的框合并为并集框（取最大外接矩形），保留最高 score 的 label/score。"""
     if boxes is None or len(boxes) < 2:
-        return boxes if boxes is not None else np.array([])
+        return boxes if boxes is not None else np.array([]).reshape(0, 6)
     n = len(boxes)
     adj = {i: [] for i in range(n)}
     for i in range(n):
@@ -70,26 +78,27 @@ def merge_duplicate_boxes(boxes: np.ndarray, iou_thresh: float = 0.7) -> np.ndar
     merged = []
     for comp in components:
         cb = boxes[comp]
-        merged.append([cb[:, 0].min(), cb[:, 1].min(), cb[:, 2].max(), cb[:, 3].max()])
+        label, score = _best_label_score(cb)
+        merged.append([cb[:, 0].min(), cb[:, 1].min(), cb[:, 2].max(), cb[:, 3].max(), label, score])
     return np.array(merged)
 
 
 def remove_contained_boxes(boxes: np.ndarray, threshold: float = 0.8) -> np.ndarray:
-    """移除被更大框包含（IoA >= threshold）的小框。"""
+    """移除被更大框包含（IoA >= threshold）的小框，保留 label/score。"""
     if boxes is None or len(boxes) < 2:
-        return boxes if boxes is not None else np.array([])
+        return boxes if boxes is not None else np.array([]).reshape(0, 6)
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
     idxs = np.argsort(areas)[::-1]
     sorted_boxes = boxes[idxs]
     keep = []
     for box in sorted_boxes:
-        x1, y1, x2, y2 = box
+        x1, y1, x2, y2 = box[:4]
         area = (x2 - x1) * (y2 - y1)
         if area <= 0:
             continue
         is_contained = False
         for kept in keep:
-            kx1, ky1, kx2, ky2 = kept
+            kx1, ky1, kx2, ky2 = kept[:4]
             ix1 = max(x1, kx1)
             iy1 = max(y1, ky1)
             ix2 = min(x2, kx2)
@@ -101,7 +110,7 @@ def remove_contained_boxes(boxes: np.ndarray, threshold: float = 0.8) -> np.ndar
                 break
         if not is_contained:
             keep.append(box)
-    return np.array(keep)
+    return np.array(keep) if keep else np.array([]).reshape(0, 6)
 
 
 # ---- 图像切片器（高瘦漫画页自动切片） ----
@@ -198,6 +207,10 @@ class ImageSlicer:
                 if y_dist < y_dist_thresh and x_ratio > 0.2 and size_ratio > 0.3:
                     merged_box = [min(b1[0], b2[0]), min(b1[1], b2[1]),
                                   max(b1[2], b2[2]), max(b1[3], b2[3])]
+                    # 保留 score 更高的 label/score
+                    if len(b1) > 5 and len(b2) > 5:
+                        best = b1 if b1[5] >= b2[5] else b2
+                        merged_box.extend([best[4], best[5]])
                     m_area = (merged_box[2] - merged_box[0]) * (merged_box[3] - merged_box[1])
                     if m_area <= 3 * max(a1, a2):
                         bl[i] = merged_box
@@ -207,7 +220,7 @@ class ImageSlicer:
                 j += 1
             if not merged:
                 i += 1
-        return np.array(bl) if bl else np.array([])
+        return np.array(bl) if bl else np.array([]).reshape(0, 6)
 
 
 # ---- 主检测器 ----
@@ -237,7 +250,7 @@ class RTDetrDetector:
         self._session = ort.InferenceSession(str(self.model_path), providers=providers)
 
     def _detect_single(self, image: np.ndarray) -> np.ndarray:
-        """单张图推理，返回 text_boxes [N,4]。"""
+        """单张图推理，返回 detections [N,6]：x1,y1,x2,y2,label,score。"""
         self._load()
         assert self._session is not None
         h_orig, w_orig = image.shape[:2]
@@ -253,15 +266,15 @@ class RTDetrDetector:
             "orig_target_sizes": orig_sizes,
         })
         labels, boxes, scores = outputs
-        text_boxes = []
+        text_dets = []
         for box, score, label in zip(boxes[0], scores[0], labels[0]):
             if score < self.conf_threshold:
                 continue
             # label 0=bubble, 1=text_bubble, 2=text_free → 只取文本框
             if label in (1, 2):
                 x1, y1, x2, y2 = map(int, box)
-                text_boxes.append([x1, y1, x2, y2])
-        return np.array(text_boxes) if text_boxes else np.array([])
+                text_dets.append([x1, y1, x2, y2, int(label), float(score)])
+        return np.array(text_dets) if text_dets else np.array([]).reshape(0, 6)
 
     def detect(self, image: str | Path | np.ndarray,
                conf_threshold: float | None = None) -> list[dict]:
@@ -294,19 +307,26 @@ class RTDetrDetector:
             boxes = remove_contained_boxes(boxes, threshold=0.8)
         elapsed = time.perf_counter() - t0
 
+        _LABEL_TO_TYPE = {1: "text_bubble", 2: "text_free"}
+
         blocks = []
-        for i, box in enumerate(boxes):
-            x1, y1, x2, y2 = [int(v) for v in box]
+        rid_counter = 0
+        for box in boxes:
+            x1, y1, x2, y2 = [int(v) for v in box[:4]]
             # 过滤极小框
             if (x2 - x1) < 5 or (y2 - y1) < 5:
                 continue
+            label = int(box[4]) if len(box) > 4 else 1
+            score = float(box[5]) if len(box) > 5 else 0.0
             blocks.append({
                 "bbox": [float(x1), float(y1), float(x2), float(y2)],
                 "source_engines": ["rtdetr-v2"],
-                "bubble_type": "unknown",
-                "region_id": f"r{i:02d}",
-                "confidence": 0.0,  # ONNX 输出未保留 per-box score
+                "bubble_type": _LABEL_TO_TYPE.get(label, "text_bubble"),
+                "det_label": label,
+                "region_id": f"r{rid_counter:02d}",
+                "confidence": round(score, 4),
             })
+            rid_counter += 1
         self._last_time = elapsed
         self._last_n = len(blocks)
         return blocks
