@@ -1,4 +1,4 @@
-"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
+﻿"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
 
 用法:
   python scripts/00_run_all.py --work-id touhou-single-wing \
@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.paths import read_json, write_json  # noqa: E402
+from amta.paths import write_json  # noqa: E402
 from amta.pipeline_log import PipelineLog  # noqa: E402
 from amta.workstate import ensure_workspace  # noqa: E402
 from amta import artifacts  # noqa: E402
