@@ -1,4 +1,4 @@
-"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(借鉴 Metaflow resume / Prefect task 思想,零依赖,ADR-018)。
+"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
 
 用法:
   python scripts/00_run_all.py --work-id touhou-single-wing \
@@ -8,7 +8,7 @@
 页面映射: src-dir/N.jpg → page_idx = N-1(0 基,与评测 canon 对齐)
 断点:     artifacts 产物存在 → skipped(文件存在=跳过,失败修复后重跑自动续)
 追溯:     state/pipeline_log.json 每步 span;失败写 failed_step 锚点 + reason
-阶段:     01_detect → 02_ocr → 03_translate → [③ 语义评审 → 自动修复](--with-review)
+阶段:     01_detect → 02_ocr → 03_translate → [③ 语义评审](--with-review)
 """
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from amta.paths import read_json, write_json  # noqa: E402
 from amta.pipeline_log import PipelineLog  # noqa: E402
 from amta.workstate import ensure_workspace  # noqa: E402
 from amta import artifacts  # noqa: E402
-from amta.page_judge import apply_decisions  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 PY = sys.executable
@@ -42,10 +41,7 @@ def _out(ws_root: Path, name: str) -> Path:
 
 
 def _refresh_merged_translation(ws_root: Path) -> None:
-    """刷新 artifacts/translation.json：合并所有 page_*_translation.json（get_context 前页回溯读取）。
-
-    get_context（translate.py）只读合并单文件，故每完成一页都要并进去。
-    """
+    """刷新 artifacts/translation.json：合并所有 page_*_translation.json（前页回溯读取）。"""
     import re as _re
 
     artifacts = ws_root / "artifacts"
@@ -66,8 +62,7 @@ def _refresh_merged_translation(ws_root: Path) -> None:
 
 def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
         with_review: bool = False, ocr_engine: str = "auto",
-        with_inpaint: bool = False, with_typeset: bool = False,
-        with_judge: bool = False) -> int:
+        with_inpaint: bool = False, with_typeset: bool = False) -> int:
     ws_root = ensure_workspace(work_id)
     state_dir = ws_root / "state"
     log = PipelineLog(state_dir / "pipeline_log.json")
@@ -85,7 +80,6 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
         det_path = paths_d["detection"]
         canon_path = paths_d["canon"]
         trans_path = paths_d["translation"]
-        trace_path = _out(ws_root, f"{page}_trace.json")  # --trace 观测文件（03 LLM trace），非工位产物
         crops_dir = paths_d["crops"]
         sem_path = paths_d["semantic"]
 
@@ -127,14 +121,14 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 t0 = time.time()
                 _run_cli([str(HERE / "03_translate.py"), "--canon", str(canon_path),
                           "--out", str(trans_path), "--work-id", work_id,
-                          "--state-dir", str(state_dir), "--trace", str(trace_path)])
+                          "--state-dir", str(state_dir)])
                 log.add_span(run_id, step="03_translate", page=page, status="ok",
                              input=str(canon_path), output=str(trans_path),
                              duration_s=time.time() - t0)
-            # 每完成一页刷新合并 translation.json（get_context 前页回溯读取）
+            # 每完成一页刷新合并 translation.json（前页回溯读取）
             _refresh_merged_translation(ws_root)
 
-            # ---- ③ semantic review + auto-repair (optional) ----
+            # ---- ③ semantic review (optional) ----
             if with_review:
                 if sem_path.exists():
                     log.add_span(run_id, step="semantic_check", page=page, status="skipped",
@@ -148,68 +142,6 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                     log.add_span(run_id, step="semantic_check", page=page, status="ok",
                                  input=str(trans_path), output=str(sem_path),
                                  duration_s=time.time() - t0)
-                # 自动修复:有 FAILED 才跑
-                sem = read_json(sem_path) if sem_path.exists() else {}
-                if sem.get("failed"):
-                    t0 = time.time()
-                    _run_cli([str(HERE / "repair_failed.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--semantic", str(sem_path), "--crops", str(crops_dir),
-                              "--state-dir", str(state_dir),
-                              "--out-review", str(paths_d["needs_review"])])
-                    log.add_span(run_id, step="auto_repair", page=page, status="ok",
-                                 input=str(sem_path), output=str(trans_path),
-                                 duration_s=time.time() - t0)
-
-            # ---- ④ AI judge (Stage 1 半自主循环：AI 决策 repair/ticket/pass) ----
-            if with_judge:
-                # judge 依赖 semantic_check；没开 with_review 时这里补跑
-                if not sem_path.exists():
-                    t0 = time.time()
-                    _run_cli([str(HERE / "translate_semantic_check.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--crops", str(crops_dir), "--out", str(sem_path)])
-                    log.add_span(run_id, step="semantic_check", page=page, status="ok",
-                                 input=str(trans_path), output=str(sem_path),
-                                 duration_s=time.time() - t0)
-                judge_path = paths_d["judge"]
-                if judge_path.exists():
-                    log.add_span(run_id, step="ai_judge", page=page, status="skipped",
-                                 input=str(sem_path), output=str(judge_path))
-                    print(f"[00_run_all] {page} ai_judge skipped (exists)")
-                else:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "06_page_judge.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--sem", str(sem_path), "--out", str(judge_path)])
-                    log.add_span(run_id, step="ai_judge", page=page, status="ok",
-                                 input=str(sem_path), output=str(judge_path),
-                                 duration_s=time.time() - t0)
-                # 按 judge 决策执行（语义唯一归属 page_judge.apply_decisions，修 F6）
-                judge_doc = read_json(judge_path) if judge_path.exists() else {}
-                sem = read_json(sem_path) if sem_path.exists() else {}
-                actions = apply_decisions(judge_doc, sem)
-                repairable = actions["repair"]
-                if repairable:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "repair_failed.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--semantic", str(sem_path), "--crops", str(crops_dir),
-                              "--state-dir", str(state_dir),
-                              "--only", ",".join(repairable),
-                              "--out-review", str(paths_d["needs_review"])])
-                    log.add_span(run_id, step="judge_repair", page=page, status="ok",
-                                 input=",".join(repairable), output=str(trans_path),
-                                 duration_s=time.time() - t0)
-                    print(f"[00_run_all] {page} judge_repair: {repairable}")
-                # ticket: judge 开的工单 + unrepairable → hard_case（语义在 apply_decisions 内）
-                if actions["tickets"]:
-                    from amta.tickets import TicketStore
-                    ts = TicketStore(state_dir / "tickets.json")
-                    for t in actions["tickets"]:
-                        ts.create(work_id=work_id, region_id=t["region_id"],
-                                  reason=t["reason"], auto_rounds=0, kind=t["kind"])
-                    print(f"[00_run_all] {page} judge_tickets: {[t['region_id'] for t in actions['tickets']]}")
 
             # ---- 04 inpaint / 05 typeset (optional, Stage 4/5) ----
             if with_inpaint:
@@ -269,15 +201,13 @@ def main() -> int:
     ap.add_argument("--with-review", action="store_true", help="semantic review")
     ap.add_argument("--with-inpaint", action="store_true", help="04_inpaint station")
     ap.add_argument("--with-typeset", action="store_true", help="05_typeset station")
-    ap.add_argument("--with-judge", action="store_true", help="Stage 1: AI judge 自动决策 repair/ticket/pass")
     ap.add_argument("--ocr-engine", default="auto",
                     choices=["auto", "baberu", "local", "dashscope"],
                     help="OCR 引擎(auto=baberu fast path+回退; 默认 auto)")
     a = ap.parse_args()
     return run(a.work_id, a.src_dir, a.start_page, a.end_page,
                with_review=a.with_review, ocr_engine=a.ocr_engine,
-               with_inpaint=a.with_inpaint, with_typeset=a.with_typeset,
-               with_judge=a.with_judge)
+               with_inpaint=a.with_inpaint, with_typeset=a.with_typeset)
 
 
 if __name__ == "__main__":
