@@ -1,4 +1,4 @@
-# Lessons（可复用经验库 = 坑的唯一归属）
+﻿# Lessons（可复用经验库 = 坑的唯一归属）
 
 > 回答："我们从问题中学到了什么？"
 > **本文件是「坑/经验」的唯一事实来源**。CLAUDE.md 只保留最精简的关键规则与指针，**不重复贴坑**。
@@ -14,7 +14,7 @@
 - **Root cause**：VLM 对整页大图的空间定位不稳定，坐标不是其可靠输出。
 - **Durable lesson**：任何需要像素级对齐的判定，VLM 只适合"识别内容/判类别"，不适合"报坐标"。
 - **Prevention**：recall 改用**内容级匹配**（GT 内容清单 vs detector 并集框识别内容，字符重合度≥0.6 判定检出）；需要位置时用确定性 detector 的 bbox，不用 VLM 坐标。
-- **Regression**：内容级匹配逻辑已在 `scripts/recall_score.py`（复用 `src/amta/metrics.py`）；纯函数单测在 `tests/test_shared_lib.py` 锁定。
+- **Regression**：内容级匹配逻辑见已归档 `scripts/archive/recall_score.py`（复用 `src/amta/metrics.py`）；纯函数单测在 `tests/test_shared_lib.py` 锁定。
 
 ## L2 — 假数据落盘（最致命）
 
@@ -194,7 +194,7 @@
 
 - **Problem**：`deepseek-v4-pro` 的 `reasoning_content` 吃光 max_tokens 后 `content` 为空（finish_reason=length，答案没出来）；`deepseek-v4-flash-vision-exp` 约 14% 概率返回空 content。
 - **Root cause**：推理模型先输出 CoT（reasoning_content）再输出正式答案，max_tokens 给不足则答案出不来；vision-exp 偶发无输出。
-- **Durable lesson**：调这两个模型都要：(a) max_tokens 给足（评审类 ≥1200）；(b) 空 content 自动重试（`translate_semantic_check._judge_vision` 已内置 retries=2）。
+- **Durable lesson**：调这两个模型都要：(a) max_tokens 给足（评审类 ≥1200）；(b) 空 content 自动重试（评审脚本空 content 自动重试（retries=2））。
 - **Prevention**：写任何调 CHAT_* 的脚本先看本条；解析响应前检查 content 非空，空响应按"无输出/重试"处理，勿当"评审不通过"。
 - **Regression**：`tests/test_semantic_check.py::test_parse_verdict_inconclusive_on_empty` 锁定空响应归类 inconclusive（不误计 fail）。
 
@@ -202,7 +202,7 @@
 
 ## L24 — prompt 模板含字面花括号会被 .format() 当占位符
 
-- **Problem**：`translate_semantic_check.py` JUDGE_PROMPT 里写 `accuracy:{1-5}` 等字面花括号，`.format(text=…, translation=…)` 直接抛 `KeyError('1-5')`——全量评审必崩。
+- **Problem**：评审 prompt 模板里写 `accuracy:{1-5}` 等字面花括号，`.format(text=…, translation=…)` 直接抛 `KeyError('1-5')`——全量评审必崩。
 - **Root cause**：str.format() 把 `{}` 当占位符；模板里想表达"评分范围/JSON 示例"的字面花括号未转义。
 - **Durable lesson**：prompt 模板含字面花括号时禁止直接 .format()——双写 `{{ }}` 或改用 .replace()/命名占位符；任何"模板+format"组合，format 调用本身必须可测。
 - **Prevention**：新增含 `{` 的 prompt 后先跑一次 format 冒烟（test_judge_prompt_format_safe 已锁定）。
@@ -226,7 +226,7 @@
 
 ## L27 — OpenClaw 工具输出对 api_key= 赋值脱敏：写代码后必须校验实际内容
 
-- **Problem**：本环境 read/exec/write 对 api_key= 相关赋值片段会显示/写入 `api_key=***`（如 repair_failed.py 曾被写入 `api_key=***` 导致 SyntaxError）。
+- **Problem**：本环境 read/exec/write 对 api_key= 相关赋值片段会显示/写入 `api_key=***`（含 API key 引用的代码曾被写入 `api_key=***` 导致 SyntaxError）。
 - **Root cause**：OpenClaw 主机对 api_key= 模式做脱敏（防密钥泄漏）；脱敏可能发生在显示层，也可能真实写入文件。
 - **Durable lesson**：在本环境写含 API key 引用的代码后，必须用 compile/import/git diff 校验文件实际内容，不能以工具显示为准。
 - **Prevention**：落盘后立即 compile 校验 + git diff 核对。

@@ -1,4 +1,4 @@
-"""工位产物契约 — 单一事实源（Stage 1-3 深接口改造）。
+﻿"""工位产物契约 — 单一事实源（Stage 1-3 深接口改造）。
 
 唯一归属：产物信封与 schema、页键与 region_id 规则（全链单空间
 page_{idx}_u{i:02d}）、产物/trace 文件命名、load_*(normalize+validate) /
@@ -118,8 +118,6 @@ def artifact_paths(artifacts_dir: Path, page: str) -> dict[str, Path]:
         "detection": art / f"{page}_detection.json",
         "canon": art / f"{page}_canon.json",
         "translation": art / f"{page}_translation.json",
-        "semantic": art / f"{page}_semantic.json",
-        "judge": art / f"{page}_judge.json",
         "needs_review": art / f"{page}_needs_review.json",
         "inpaint": art / f"{page}_inpaint.json",
         "typeset": art / f"{page}_typeset.json",

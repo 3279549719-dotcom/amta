@@ -3,12 +3,12 @@
 用法:
   python scripts/00_run_all.py --work-id touhou-single-wing \
       --src-dir "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地" \
-      --start-page 11 --end-page 11 [--with-review]
+      --start-page 11 --end-page 11
 
 页面映射: src-dir/N.jpg → page_idx = N-1(0 基,与评测 canon 对齐)
 断点:     artifacts 产物存在 → skipped(文件存在=跳过,失败修复后重跑自动续)
 追溯:     state/pipeline_log.json 每步 span;失败写 failed_step 锚点 + reason
-阶段:     01_detect → 02_ocr → 03_translate → [③ 语义评审](--with-review)
+阶段:     01_detect → 02_ocr → 03_translate → [04_inpaint → 05_typeset]
 """
 from __future__ import annotations
 
@@ -61,12 +61,12 @@ def _refresh_merged_translation(ws_root: Path) -> None:
 
 
 def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
-        with_review: bool = False, ocr_engine: str = "auto",
+        ocr_engine: str = "auto",
         with_inpaint: bool = False, with_typeset: bool = False) -> int:
     ws_root = ensure_workspace(work_id)
     state_dir = ws_root / "state"
     log = PipelineLog(state_dir / "pipeline_log.json")
-    run_id = log.start_run(trigger=f"pages {start_page}-{end_page}{' +review' if with_review else ''}")
+    run_id = log.start_run(trigger=f"pages {start_page}-{end_page}")
     failed = None
 
     for n in range(start_page, end_page + 1):
@@ -80,8 +80,6 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
         det_path = paths_d["detection"]
         canon_path = paths_d["canon"]
         trans_path = paths_d["translation"]
-        crops_dir = paths_d["crops"]
-        sem_path = paths_d["semantic"]
 
         try:
             # ---- 01 detect ----
@@ -127,21 +125,6 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                              duration_s=time.time() - t0)
             # 每完成一页刷新合并 translation.json（前页回溯读取）
             _refresh_merged_translation(ws_root)
-
-            # ---- ③ semantic review (optional) ----
-            if with_review:
-                if sem_path.exists():
-                    log.add_span(run_id, step="semantic_check", page=page, status="skipped",
-                                 input=str(trans_path), output=str(sem_path))
-                    print(f"[00_run_all] {page} semantic skipped (exists)")
-                else:
-                    t0 = time.time()
-                    _run_cli([str(HERE / "translate_semantic_check.py"),
-                              "--canon", str(canon_path), "--trans", str(trans_path),
-                              "--crops", str(crops_dir), "--out", str(sem_path)])
-                    log.add_span(run_id, step="semantic_check", page=page, status="ok",
-                                 input=str(trans_path), output=str(sem_path),
-                                 duration_s=time.time() - t0)
 
             # ---- 04 inpaint / 05 typeset (optional, Stage 4/5) ----
             if with_inpaint:
@@ -198,7 +181,6 @@ def main() -> int:
     ap.add_argument("--src-dir", required=True, type=Path, help="源图目录(N.jpg)")
     ap.add_argument("--start-page", type=int, default=1)
     ap.add_argument("--end-page", type=int, required=True)
-    ap.add_argument("--with-review", action="store_true", help="semantic review")
     ap.add_argument("--with-inpaint", action="store_true", help="04_inpaint station")
     ap.add_argument("--with-typeset", action="store_true", help="05_typeset station")
     ap.add_argument("--ocr-engine", default="auto",
@@ -206,7 +188,7 @@ def main() -> int:
                     help="OCR 引擎(auto=baberu fast path+回退; 默认 auto)")
     a = ap.parse_args()
     return run(a.work_id, a.src_dir, a.start_page, a.end_page,
-               with_review=a.with_review, ocr_engine=a.ocr_engine,
+               ocr_engine=a.ocr_engine,
                with_inpaint=a.with_inpaint, with_typeset=a.with_typeset)
 
 

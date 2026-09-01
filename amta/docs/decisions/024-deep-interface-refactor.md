@@ -1,4 +1,5 @@
-# 024 — Stage 1-3 深接口改造：产物契约单一事实源 + 三深工位
+﻿# 024 — Stage 1-3 深接口改造：产物契约单一事实源 + 三深工位
+> ⚠️ 2026-09-01 更新：本文描述的 legacy 翻译通道（translate_tools/repair_failed/stage3_planner/page_judge/translate_semantic_check）已清理，现行架构见 stage3_minimal.py。本文保留作历史决策参考。
 
 > 2026-08-30 · Patrick 批准 B 案 · 前置 brainstorming 审计（AutoClaw workspace deliver/2026-08-30-amta-stage123-interface-audit.html）
 
