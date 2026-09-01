@@ -24,8 +24,6 @@
     "bench:c": "python scripts/benchmark.py --bench c --pages",
     "ingest:a": "python scripts/benchmark.py --bench a --ingest",
     "prescreen": "python scripts/benchmark.py --bench a --prescreen --pages",
-    "recall:detect": "python scripts/recall_detect.py",
-    "recall:score": "python scripts/recall_score.py",
     "ctx7:search": "python scripts/context7.py search",
     "ctx7:ctx": "python scripts/context7.py ctx"
   },
