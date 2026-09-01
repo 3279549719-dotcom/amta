@@ -19,11 +19,11 @@ FULL_BUDGET = 1536   # Q7：startup 全量包 ≤1.5KB
 SLIM_BUDGET = 512    # Q7：compact 瘦包 ≤0.5KB
 HARD_CAP = 10000     # CC hook 输出硬上限（官方文档），超出会被落盘替换
 
-HEURISTIC_FULL = (
-    "遇到报错/异常/陌生流程 → memory_grep --query <关键词>；"
-    "接手任务 → memory_recent；架构决策前 → memory_grep --scope decisions"
+DICTIONARY_FULL = (
+    "知识字典：坑库 docs/lessons.md（L##）+ 决策 docs/decisions/（ADR-N）+ 会话档案 .remember/。"
+    "遇错/决策前先查（memory_search / memory_read，或 CLI memory_grep / memory_read），别硬扛。"
 )
-HEURISTIC_SLIM = "异常先 memory_grep 再动手"
+DICTIONARY_SLIM = "遇错/决策前先 memory_search 查知识字典"
 
 TRUNCATED_MARK = "\n[记忆包截断：地产超预算 — memory_recent/memory_grep 打捞全量]"
 
@@ -116,24 +116,25 @@ def parse_remember(root: Path) -> list[Entry]:
 
 
 def build_pack(root: Path, source: str = "startup", budget: int | None = None) -> str:
-    """构造注入包。优先级（超预算时从后往前丢）：标题行 > lessons 尾部 > 启发式 > now > recent。
+    """构造注入包。优先级（超预算时从后往前丢）：标题行 > loop_state 摘要 > 字典规则。
     budget=None 按 source 取默认（startup 1536 / compact 512）；显式传 budget 供 lint 量地产体量。
     恒 ≤ HARD_CAP；超预算被丢弃的内容附「截断」标记（防地产膨胀静默吞信息）；
-    极端情况下超 HARD_CAP 硬截断（CC 官方上限 10K 字符）。"""
+    极端情况下超 HARD_CAP 硬截断（CC 官方上限 10K 字符）。
+    内容契约（ADR-027）：只装接续状态 + 字典规则，不采样 lessons/会话摘要（字典按需查）。"""
     budget = budget if budget is not None else (SLIM_BUDGET if source == "compact" else FULL_BUDGET)
     slim = source == "compact"
-    lessons = parse_lessons(root)
     blocks: list[str] = []
-    if lessons:
-        blocks.append("\n".join(f"{e.entry_id}|{e.title}" for e in lessons[-5:]))
-    blocks.append(HEURISTIC_SLIM if slim else HEURISTIC_FULL)
-    if not slim:
-        now = root / ".remember" / "now.md"
-        if now.exists() and now.stat().st_size > 2:
-            blocks.append("## 上次状态\n" + "\n".join(read_lines(now)[:15]))
-        rec = root / ".remember" / "recent.md"
-        if rec.exists():
-            blocks.append("## 最近摘要 (memory_recent 看全量)\n" + "\n".join(read_lines(rec)[:12]))
+    ls = root / "loop_state.json"
+    if ls.exists() and ls.stat().st_size > 2:
+        try:
+            from amta.memory.loop_state import load as ls_load, summarize as ls_summarize
+
+            summary = ls_summarize(ls_load(root))
+            if summary:
+                blocks.append("## 接续状态\n" + summary)
+        except Exception:  # noqa: BLE001 — 注入纪律：状态损坏降级为无状态，不阻塞
+            pass
+    blocks.append(DICTIONARY_SLIM if slim else DICTIONARY_FULL)
     header = f"=== AMTA 记忆包 ({source}) ==="
     pack = header
     dropped = False

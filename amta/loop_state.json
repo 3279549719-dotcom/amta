@@ -1,0 +1,8 @@
+{
+  "mission": "记忆层字典先行：注入瘦身 + MCP 检索字典",
+  "current_step": "里程碑完成：注入瘦身 + loop_state + MCP 字典 + ADR-027/026 定案，全部验证通过",
+  "next_action": "用户决定是否提交（pre-commit 会被 dirty 树的预存失败拦截）；后续接检测调优试点闭环",
+  "last_verified": "记忆测试全绿（45）+ 我改文件 lint/typecheck 干净；字典真实验证 search(拟声词)→ADR-006/022/023",
+  "escalation": "repo 级 fastcheck FAIL 均为预存问题（pyclipper 缺依赖 / get_context 测试过期 / dirty 脚本 ruff+depguard），非本里程碑引入",
+  "updated_at": "2026-09-01T23:30"
+}

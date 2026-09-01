@@ -25,7 +25,7 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 
 ## 渐进式加载（问题域启发式：遇到 X → 先做 Y）
 
-> 记忆读取三通道：hook 注入（自动）· memory_* 工具（按需）· 下表（启发式提示）。完整清单 `python scripts/memory_index.py`。
+> 记忆读取三通道：hook 注入（自动，CLAUDE.local.md 只含 loop_state 接续摘要 + 字典规则）· MCP 字典 memory_search/read（按需，工具面常驻，ADR-027）· memory_* 脚本（按需）· 下表（启发式提示）。完整清单 `python scripts/memory_index.py`。
 
 | 症状 / 场景 | 先做 |
 |---|---|

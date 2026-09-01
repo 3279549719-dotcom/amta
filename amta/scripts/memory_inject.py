@@ -50,7 +50,7 @@ def build_local_md(root: Path, source: str, budget: int) -> str:
         "# 本地记忆注入包 — 自动生成，勿手改\n\n"
         "> 由 `python scripts/memory_inject.py` 生成。DSH 的 `agent-instructions` 插件"
         "把本文件（CLAUDE.local.md）随每个会话自动注入上下文（记忆推送层，无需自触发）。\n"
-        "> 刷新：`python scripts/memory_inject.py`；完整记忆读取：`memory_recent` / `memory_grep`。\n\n"
+        "> 刷新：`python scripts/memory_inject.py`；完整记忆读取：memory_search / memory_grep。\n\n"
         + pack
     )
 

@@ -19,7 +19,8 @@ def test_fresh_estate_all_ok(estate: Path):
 
 def test_staleness_fail_over_7_days(estate: Path):
     _age_file(estate / ".remember" / "recent.md", 9)
-    findings = run_checks(estate, today=datetime.date(2026, 8, 30))
+    # today 用真实日期（_age_file 按真实时钟回拨），避免固定日期随日历漂移
+    findings = run_checks(estate, today=datetime.date.today())
     assert any(f.rule == "staleness" and f.level == "FAIL" for f in findings)
 
 
@@ -46,6 +47,7 @@ def test_adr_index_gap_warn(estate: Path):
 
 
 def test_budget_warn_on_fat_pack(estate: Path):
-    (estate / ".remember" / "now.md").write_text("n" * 2000 + "\n", encoding="utf-8")
+    # 内容契约（ADR-027）：会话摘要不再进包，胖包只能由巨大 loop_state 摘要触发
+    estate.joinpath("loop_state.json").write_text('{"mission": "' + "n" * 2000 + '"}', encoding="utf-8")
     findings = run_checks(estate, today=datetime.date(2026, 8, 30))
     assert any(f.rule == "budget" and f.level in ("WARN", "FAIL") for f in findings)

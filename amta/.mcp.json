@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "amta-memory": {
+      "command": "python",
+      "args": ["scripts/mcp_memory.py"]
+    }
+  }
+}

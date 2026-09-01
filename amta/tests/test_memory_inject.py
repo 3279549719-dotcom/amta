@@ -20,11 +20,24 @@ def test_build_local_md_has_header_and_pack_marker(estate):
     assert "memory_inject.py" in text  # 说明头带刷新命令
 
 
-def test_build_local_md_includes_latest_remember(estate):
-    # build_pack 在预算内带上 .remember 最近摘要
+def test_build_local_md_has_dictionary_rule_not_session_summaries(estate):
+    # 内容契约（ADR-027）：只装字典规则，不带会话摘要/lessons 采样
     text = memory_inject.build_local_md(estate, "startup", 4096)
-    assert "## 最近摘要" in text
-    assert "2026-08-30" in text
+    assert "知识字典" in text
+    assert "memory_search" in text
+    assert "## 最近摘要" not in text
+    assert "2026-08-30" not in text
+
+
+def test_build_local_md_includes_loop_state_summary(estate):
+    # loop_state.json 存在时，注入包带接续状态摘要
+    estate.joinpath("loop_state.json").write_text(
+        '{"mission": "检测调优", "next_action": "调 conf", "updated_at": "2026-09-01T22:00"}',
+        encoding="utf-8",
+    )
+    text = memory_inject.build_local_md(estate, "startup", 4096)
+    assert "## 接续状态" in text
+    assert "检测调优" in text
 
 
 def test_main_writes_utf8_local_file(estate, tmp_path):
