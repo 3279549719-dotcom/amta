@@ -2,16 +2,19 @@
 
 最终选型三阶段：
 - 检测: RT-DETR-v2（scripts/detect_rtdetr.py，ONNX）
-- OCR: baberu-OCR（src/amta/ocr_engines.py + ocr_station.py，本地 ONNX）
-- 翻译: v2 三态（stage3_minimal.py：qwen VLM + deepseek flash LLM + keep/fix/drop + 上下文 + 术语）
+- OCR: baberu-OCR（src/amta/ocr_engines.py + ocr_station.py，本地 ONNX）+ 规则过滤
+- VLM 三态过滤: vlm_filter.py（keep/fix/drop，照抄 exp_guardrails_v2）
+- 翻译: stage3_minimal.py（deepseek flash LLM + 上下文 + 术语，无内部 VLM 裁决）
 
 对外稳定接口：
 - chat_client.* — OpenAI 兼容 chat/completions 深模块（翻译共用接缝）
 - translate.* — minimal 纯文本翻译（LLM 调用）
-- stage3_minimal.* — Stage 3 minimal 翻译实现（VLM 三态 + LLM + 上下文 + 术语）
+- stage3_minimal.* — Stage 3 minimal 翻译实现（LLM + 上下文 + 术语）
+- vlm_filter.* — VLM 三态过滤（keep/fix/drop）
 - translate_station.* — 翻译工位薄封装
 - ocr_engines.* — baberu-OCR 引擎（本地 ONNX）
-- ocr_station.* — OCR 工位（裁框 → baberu → canon）
+- ocr_station.* — OCR 工位（裁框 → baberu → 规则过滤 → canon）
+- rule_filter.* — 规则过滤（pure_punct/pure_number/extreme_aspect/edge_box）
 - guardrails.* — 翻译机械护栏（结构错/日文残留）
 - metrics.* — CER/EM/归一化/匹配/日文残留判据
 - geometry.* — bbox/iou/并集
@@ -40,6 +43,7 @@ from amta import (  # noqa: F401
     stage3_minimal,
     translate,
     translate_station,
+    vlm_filter,
     workstate,
 )
 
@@ -60,5 +64,6 @@ __all__ = [
     "stage3_minimal",
     "translate",
     "translate_station",
+    "vlm_filter",
     "workstate",
 ]

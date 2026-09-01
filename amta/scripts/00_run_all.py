@@ -94,7 +94,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                              input=str(raw), output=str(det_path),
                              duration_s=time.time() - t0)
 
-            # ---- 02 ocr (baberu) ----
+            # ---- 02 ocr (baberu + 规则过滤, 无 VLM 校验) ----
             if canon_path.exists():
                 log.add_span(run_id, step="02_ocr", page=page, status="skipped",
                              input=str(det_path), output=str(canon_path))
@@ -103,24 +103,40 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 t0 = time.time()
                 _run_cli([str(HERE / "02_ocr.py"), "--work-id", work_id,
                           "--det", str(det_path), "--raw", str(raw),
-                          "--out", str(canon_path), "--page-idx", str(page_idx)])
+                          "--out", str(canon_path), "--page-idx", str(page_idx),
+                          "--no-vlm"])
                 log.add_span(run_id, step="02_ocr", page=page, status="ok",
                              input=str(det_path), output=str(canon_path),
                              duration_s=time.time() - t0)
 
-            # ---- 03 translate (v2 三态: qwen VLM + deepseek flash LLM) ----
+            # ---- 02b VLM 三态过滤 (keep/fix/drop, 照抄 exp_guardrails_v2) ----
+            filtered_canon_path = canon_path.parent / f"{page}_canon_filtered.json"
+            if filtered_canon_path.exists():
+                log.add_span(run_id, step="02b_vlm_filter", page=page, status="skipped",
+                             input=str(canon_path), output=str(filtered_canon_path))
+                print(f"[00_run_all] {page} 02b_vlm_filter skipped (exists)")
+            else:
+                t0 = time.time()
+                _run_cli([str(HERE / "02b_vlm_filter.py"), "--canon", str(canon_path),
+                          "--raw", str(raw), "--out", str(filtered_canon_path),
+                          "--work-id", work_id])
+                log.add_span(run_id, step="02b_vlm_filter", page=page, status="ok",
+                             input=str(canon_path), output=str(filtered_canon_path),
+                             duration_s=time.time() - t0)
+
+            # ---- 03 translate (deepseek flash LLM, 无内部 VLM 裁决) ----
             if trans_path.exists():
                 log.add_span(run_id, step="03_translate", page=page, status="skipped",
-                             input=str(canon_path), output=str(trans_path))
+                             input=str(filtered_canon_path), output=str(trans_path))
                 print(f"[00_run_all] {page} 03_translate skipped (exists)")
             else:
                 t0 = time.time()
-                _run_cli([str(HERE / "03_translate.py"), "--canon", str(canon_path),
+                _run_cli([str(HERE / "03_translate.py"), "--canon", str(filtered_canon_path),
                           "--out", str(trans_path), "--work-id", work_id,
                           "--state-dir", str(state_dir),
-                          "--raw-image", str(raw)])
+                          "--no-vlm"])
                 log.add_span(run_id, step="03_translate", page=page, status="ok",
-                             input=str(canon_path), output=str(trans_path),
+                             input=str(filtered_canon_path), output=str(trans_path),
                              duration_s=time.time() - t0)
             # 每完成一页刷新合并 translation.json（前页回溯读取）
             _refresh_merged_translation(ws_root)

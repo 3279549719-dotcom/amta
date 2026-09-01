@@ -1,7 +1,7 @@
 """03_translate 工位 — 读 canon → DeepSeek 翻译 → translation.json（薄 CLI）。
 
 用法: python scripts/03_translate.py --canon <canon.json> --out <translation.json>
-      [--work-id ID] [--state-dir DIR] [--raw-image PATH]
+      [--work-id ID] [--state-dir DIR] [--raw-image PATH] [--no-vlm]
 实现: amta.translate_station.translate_page（护栏/失败记录/suggestions 全在实现内）。
 run() 保留作兼容入口（test_translate / eval_stage3 仍 import run）。
 """
@@ -19,7 +19,8 @@ from amta.translate_station import translate_page  # noqa: E402
 
 def run(canon_path: str | Path, out_path: str | Path, *,
         work_id: str | None = None, state_dir: str | Path | None = None,
-        raw_image_path: str | Path | None = None) -> dict:
+        raw_image_path: str | Path | None = None,
+        vlm_enabled: bool = True) -> dict:
     """读 canon → 翻译 → 落盘 translation.json。"""
     try:
         canon = load_canon(canon_path)  # normalize + validate（旧裸 list 兼容）
@@ -27,7 +28,7 @@ def run(canon_path: str | Path, out_path: str | Path, *,
         raise ValueError(f"canon input schema failed: {e}") from e
     out = translate_page(work_id, canon,
                          state_dir=state_dir, page=canon.get("page") or None,
-                         raw_image_path=raw_image_path)
+                         raw_image_path=raw_image_path, vlm_enabled=vlm_enabled)
     write_json(out_path, out)
     print(f"[03_translate] -> {out_path}")
     return out
@@ -41,9 +42,11 @@ def main() -> int:
     ap.add_argument("--state-dir", default=None)
     ap.add_argument("--raw-image", default=None,
                     help="Raw page image path for VLM refine (optional, falls back to detection artifact source)")
+    ap.add_argument("--no-vlm", action="store_true",
+                    help="禁用翻译阶段内部的 VLM 裁决（VLM 三态过滤已在 02b 阶段完成）")
     a = ap.parse_args()
     run(a.canon, a.out, work_id=a.work_id, state_dir=a.state_dir,
-        raw_image_path=a.raw_image)
+        raw_image_path=a.raw_image, vlm_enabled=not a.no_vlm)
     return 0
 
 
