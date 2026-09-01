@@ -15,11 +15,14 @@ from pathlib import Path
 from amta.chat_client import chat
 from amta.config import get_dashscope_key
 
-# === API 配置（照抄）===
-VLM_BASE = os.environ.get("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+# === API 配置 ===
+# 支持通过 VLM_BASE_URL / VLM_API_KEY 切换视觉模型后端（如 deepseek 视觉模型），
+# 未设置时回退到原 dashscope 配置，默认行为不变。
+VLM_BASE = os.environ.get("VLM_BASE_URL",
+           os.environ.get("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"))
 VLM_MODEL = os.environ.get("VISION_MODEL", "qwen3.5-omni-plus")
 try:
-    VLM_KEY = get_dashscope_key()
+    VLM_KEY = os.environ.get("VLM_API_KEY") or get_dashscope_key()
 except RuntimeError:
     VLM_KEY = ""
 
