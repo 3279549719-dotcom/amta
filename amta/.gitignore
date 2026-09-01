@@ -1,4 +1,4 @@
-# ---- Node锛坣pm 浠呬綔鑴氭湰鍏ュ彛瀹瑰櫒锛�----
+# ---- Node / npm ----
 node_modules/
 
 # ---- Python ----
@@ -8,52 +8,42 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# ---- 鐜�澧冧笌瀵嗛挜 ----
+# ---- 本地密钥 / 配置 ----
 .env
 .env.local
 *.local
-# DSH agent-instructions 自动注入的本地 overlay（记忆包，生成物，勿入库）
+# DSH agent-instructions 自动注入的本地 overlay（记忆包，生成物，不入库）
 AGENTS.local.md
 CLAUDE.local.md
 
-# ---- 杩愯�屼骇鐗� ----
+# ---- 产物目录（默认忽略，特定数据文件例外）----
 output/*
 !output/.gitkeep
-!output/data/benchmark_a.json
-!output/data/benchmark_b.json
-!output/data/benchmark_c.json
-
-# ---- 妯″瀷鏉冮噸锛堝ぇ鏂囦欢/绗�涓夋柟 license锛屼笉鍏ュ簱锛�----
-models/
 !output/data/labels_a.json
 !output/data/label_manifest.json
-!output/data/recall_gt.json
-!output/data/recall_result.json
-!output/data/recall_ocr.json
 !output/data/ocr_result.json
-!output/data/benchmark_b_sfx.json
-!output/data/benchmark_b_paddle_manga.json
 
-# ---- 娴嬭瘯闆嗗師鍥撅紙涓嶅叆搴擄紱testsets/README.md 绛夋枃鏈�鐓у父鍏ュ簱锛�----
+# ---- 模型权重 / 参考克隆（大文件，不入库）----
+models/
+
+# ---- 测试集页面（大图片，不入库，见 testsets/README.md）----
 testsets/pages/
 
-# ---- 浼氳瘽璁板繂 / 宸ュ叿 ----
+# ---- 记忆包 / 缓存 ----
 .remember/
 
 # ---- VCS ----
 .git/
 
-# ---- 隔离工作区 (git worktree) ----
+# ---- git worktree 隔离目录 ----
 .worktrees/
 
-# ---- per-work 宸ヤ綔鍖猴紙ADR-013锛夛細raw/artifacts 澶т骇鐗╀笉鍏ュ簱锛宻tate JSON 鍏ュ簱 ----
+# ---- per-work 产物（ADR-013：raw/artifacts/state JSON 不入库）----
 workspace/*/raw/
 workspace/*/artifacts/
 
-
-# ---- workstate 娴嬭瘯娈嬬暀锛坕nit_workspace 鍦ㄧ湡瀹� workspace/ 寤虹洰褰曪級----
+# ---- workstate 动态目录（init_workspace 创建，不入库）----
 workspace/ws-*/
-
 
 # SDD workspace (superpowers subagent-driven ledger, 不入库)
 .superpowers/
@@ -61,5 +51,5 @@ workspace/ws-*/
 # ---- realrun 备份 ----
 workspace/*/backup*/
 
-# DSH agent-teams ����ʱ״̬(�����)
+# DSH agent-teams 运行时状态(不入库)
 .agent-teams/
