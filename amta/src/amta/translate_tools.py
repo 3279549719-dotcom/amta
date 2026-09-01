@@ -266,7 +266,7 @@ def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, l
     """
     if state_dir is None:
         return []
-    artifacts_dir = Path(state_dir).parent / "artifacts"
+    artifacts_dir = Path(state_dir) / "artifacts"
     if not artifacts_dir.exists():
         return []
 
@@ -335,7 +335,7 @@ def _read_fallback_context(state_dir, prev_pages, pages: int) -> str:
     candidates: list[Path] = []
     if state_dir is not None:
         sdir = Path(state_dir)
-        candidates = [sdir.parent / "artifacts" / "translation.json",
+        candidates = [sdir / "artifacts" / "translation.json",
                       sdir / "translation.json"]
     for p in candidates:
         if p.exists():
