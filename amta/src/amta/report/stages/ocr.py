@@ -17,8 +17,9 @@ def render_cell(data: Any) -> str:
 
 
 def from_canon(canon: dict) -> StageOutput:
-    """canon.json → StageOutput（OCR 文本）。"""
+    """canon.json → StageOutput（OCR 文本）。引擎名从 canon 动态读取。"""
     cells: dict[str, Any] = {}
+    engine = canon.get("ocr_engine", "baberu")
     for item in canon.get("items", []):
         rid = item.get("region_id", "")
         if rid:
@@ -27,9 +28,14 @@ def from_canon(canon: dict) -> StageOutput:
                 "bbox": item.get("bbox", []),
                 "category": item.get("category", ""),
             }
+    label_map = {
+        "baberu": "OCR (baberu)",
+        "hayai": "OCR (HayaiOCR-v2.1)",
+        "manga_ocr": "OCR (manga-ocr)",
+    }
     return StageOutput(
         key="ocr",
-        label="OCR (baberu)",
+        label=label_map.get(engine, f"OCR ({engine})"),
         cells=cells,
         render_cell=render_cell,
     )
