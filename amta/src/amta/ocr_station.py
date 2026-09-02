@@ -1,9 +1,8 @@
 """Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
 
 流程: 裁框 → OCR(engine可插拔: baberu/hayai/manga_ocr) → [规则过滤] → [VLM校验] → canon。
-藏匿：裁框（region_id 与 detect 输出顺序一一对应）、ocr_batch 分发、双引擎兜底
-（空串用第二引擎补，宁滥勿缺）、VLM contact sheet 批量校验、trace、save_canon。
-接缝：ocr_fn / vlm_fn / fallback_ocr_fn 函数注入（内部接缝，测试用 fake）。
+藏匿：裁框（region_id 与 detect 输出顺序一一对应）、ocr_batch 分发、VLM contact sheet 批量校验、trace、save_canon。
+接缝：ocr_fn / vlm_fn 函数注入（内部接缝，测试用 fake）。
 rule_filter_enabled=True 时开启硬规则过滤；默认关闭（无过滤，所有框直接交翻译）。
 """
 from __future__ import annotations
@@ -47,19 +46,16 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              page_idx: int, engine: str = "hayai", vlm_enabled: bool = False,
              rule_filter_enabled: bool = False,
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
-             crop_dir: Path | str | None = None,
-             fallback_ocr_fn=None) -> dict:
+             crop_dir: Path | str | None = None) -> dict:
     """Stage 2 OCR 工位。裁框 → OCR → [规则过滤] → [VLM校验] → CanonArtifact。
 
     engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快) / manga_ocr(kha-white)。
-    fallback_ocr_fn: 可选第二引擎兜底（空串补译，宁滥勿缺）。缺省同主引擎。
     rule_filter_enabled=False 时跳过硬规则过滤，全部检测框直接保留。
     """
     from amta.ocr_engines import ocr_batch as _default_ocr
     from amta.vlm_verify import vlm_verify_batch as _default_vlm
     ocr_fn = ocr_fn or _default_ocr
     vlm_fn = vlm_fn or _default_vlm
-    fallback_ocr_fn = fallback_ocr_fn or _default_ocr
     page = artifacts.page_key(page_idx)
     artifacts_dir = Path(artifacts_dir)
 
@@ -74,21 +70,6 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     ocr_rows = ocr_fn([str(c) for _, _, c, _ in pairs], engine=engine)
     ocr_by_crop = {r["crop"]: (r.get("ocr") or "").strip() for r in ocr_rows}
 
-    # 双引擎兜底（宁滥勿缺）：主引擎吐空的 region，用另一引擎逐个补；
-    # 仍空则保留空串交下游 needs_review，绝不静默丢框。
-    empty_crops = [str(c) for _, _, c, _ in pairs if not ocr_by_crop.get(str(c))]
-    if empty_crops:
-        # 备选引擎：主引擎非 baberu 时副=baberu(免费快)；主=baberu 时副=hayai。
-        fallback_engine = "hayai" if engine != "hayai" else "baberu"
-        print(f"[ocr_station] 空串回退 {fallback_engine}: {len(empty_crops)} crops", file=sys.stderr)
-        try:
-            fb = fallback_ocr_fn(empty_crops, engine=fallback_engine)
-            for r in fb:
-                t = (r.get("ocr") or "").strip()
-                if t:
-                    ocr_by_crop[r["crop"]] = t
-        except Exception as e:  # noqa: BLE001
-            print(f"[ocr_station] {fallback_engine} 兜底失败: {e}", file=sys.stderr)
     ocr_elapsed = time.time() - t0
 
     # ---- 规则过滤（可跳过）----
