@@ -76,7 +76,7 @@ def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
 
     monkeypatch.setattr(impl, "ocr_batch", fake_ocr)  # 打实现模块已绑定引用
     out = tmp_path / "canon.json"
-    doc = impl.run("w", det_path, raw, out, page_idx=0, fallback_ocr_fn=fake_fallback)
+    doc = impl.run("w", det_path, raw, out, page_idx=0)
     canon = json.loads(out.read_text(encoding="utf-8"))["items"]  # 盘上已 doc 化（修 F2）
 
     assert doc["n_regions"] == 2  # 双引擎契约：空 OCR 不跳过（vlm_text 可兜底）

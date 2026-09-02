@@ -120,8 +120,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 t0 = time.time()
                 _run_cli([str(HERE / "03_translate.py"), "--canon", str(canon_path),
                           "--out", str(trans_path), "--work-id", work_id,
-                          "--state-dir", str(state_dir),
-                          "--engine", "hayai"])
+                          "--state-dir", str(state_dir)])
                 log.add_span(run_id, step="03_translate", page=page, status="ok",
                              input=str(canon_path), output=str(trans_path),
                              duration_s=time.time() - t0)
