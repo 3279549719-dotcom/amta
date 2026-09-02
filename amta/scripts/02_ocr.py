@@ -20,11 +20,11 @@ from amta.paths import write_json  # noqa: E402
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         page_idx: int = 0, engine: str = "auto", vlm_enabled: bool = True,
-        crop_dir: Path | None = None) -> dict:
+        crop_dir: Path | None = None, fallback_ocr_fn=None) -> dict:
     det = load_detection(det_path)
     doc = ocr_page(work_id, det, raw_page, out_path.parent, page_idx=page_idx,
                    engine=engine, vlm_enabled=vlm_enabled, ocr_fn=ocr_batch,
-                   crop_dir=crop_dir)
+                   crop_dir=crop_dir, fallback_ocr_fn=fallback_ocr_fn)
     write_json(out_path, doc)  # --out 与契约命名一致（00 传入），尊重显式 out
     return doc
 

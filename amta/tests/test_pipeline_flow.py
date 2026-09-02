@@ -71,16 +71,19 @@ def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
     def fake_ocr(crops, engine="auto", **kw):
         return [{"crop": c, "ocr": "月の都" if "u00" in c else ""} for c in crops]
 
+    def fake_fallback(crops, engine="auto", **kw):
+        return [{"crop": c, "ocr": ""} for c in crops]  # 兜底也空 → 空保留（宁滥勿缺：补不到才保留）
+
     monkeypatch.setattr(impl, "ocr_batch", fake_ocr)  # 打实现模块已绑定引用
     out = tmp_path / "canon.json"
-    doc = impl.run("w", det_path, raw, out, page_idx=0)
+    doc = impl.run("w", det_path, raw, out, page_idx=0, fallback_ocr_fn=fake_fallback)
     canon = json.loads(out.read_text(encoding="utf-8"))["items"]  # 盘上已 doc 化（修 F2）
 
     assert doc["n_regions"] == 2  # 双引擎契约：空 OCR 不跳过（vlm_text 可兜底）
     assert canon[0]["region_id"] == "page_0_u00"
     assert canon[0]["baberu_text"] == "月の都"
     assert canon[1]["region_id"] == "page_0_u01"
-    assert canon[1]["baberu_text"] == ""
+    assert canon[1]["baberu_text"] == ""  # 主+兜底都空 → 保留空（宁滥勿缺）
     assert (tmp_path / "crops" / "page_0_u00.png").exists()  # region_id 命名
     assert (tmp_path / "crops" / "page_0_u01.png").exists()
 

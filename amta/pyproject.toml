@@ -20,6 +20,8 @@ dependencies = [
 [tool.ruff]
 target-version = "py311"
 line-length = 120
+# 外部参考仓库源码（research/reference-repos/ 开源漫画项目克隆）不属本项目代码，排除
+exclude = ["research/reference-repos/**", "models/**", "output/**"]
 
 [tool.ruff.lint]
 # E701/E702（单行多条语句）是项目既有紧凑风格，忽略；其余规则保留。

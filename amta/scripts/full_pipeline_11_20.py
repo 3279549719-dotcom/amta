@@ -25,8 +25,8 @@ TRANS_DIR.mkdir(parents=True, exist_ok=True)
 
 results = []
 
-for det_page in range(11, 21):  # p11 to p20 → JPG 11-20 → canon page 10-19
-    canon_page = det_page - 1
+for det_page in range(11, 21):  # p11 to p20 → JPG N → canon page N (page_N = N.jpg, 对齐)
+    canon_page = det_page  # page_N = N.jpg (修正 off-by-one)
     det_path = DETECT_DIR / f"p{det_page}.json"
     raw_path = RAW_IMAGE_DIR / f"{det_page}.jpg"
     canon_path = CANON_DIR / f"page_{canon_page}_canon.json"
@@ -50,7 +50,7 @@ for det_page in range(11, 21):  # p11 to p20 → JPG 11-20 → canon page 10-19
             out_path=canon_path,
             page_idx=canon_page,
             engine="dashscope",
-            vlm_enabled=True,
+            vlm_enabled=False,
         )
         ocr_time = time.perf_counter() - t0
         n_regions = doc.get("n_regions", 0)

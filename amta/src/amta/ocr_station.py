@@ -7,6 +7,7 @@ ocr_batch 分发（baberu fast path）、VLM contact sheet 批量校验、VLM ke
 """
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -45,11 +46,19 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              page_idx: int, engine: str = "auto", vlm_enabled: bool = False,
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
-             crop_dir: Path | str | None = None) -> dict:
+             crop_dir: Path | str | None = None,
+             fallback_ocr_fn=None) -> dict:
+    """Stage 2 OCR 工位。
+
+    fallback_ocr_fn: 可选第二引擎（宁滥勿缺兜底）。缺省按 engine 反向选择：
+    engine=dashscope → auto(baberu fast path, 免费)；其余 → dashscope。测试传 fake。
+    """
     from amta.ocr_engines import ocr_batch as _default_ocr
+    from amta.ocr_engines import ocr_batch as _fallback_ocr
     from amta.vlm_verify import vlm_verify_batch as _default_vlm
     ocr_fn = ocr_fn or _default_ocr
     vlm_fn = vlm_fn or _default_vlm
+    fallback_ocr_fn = fallback_ocr_fn or _fallback_ocr
     page = artifacts.page_key(page_idx)
     artifacts_dir = Path(artifacts_dir)
 
@@ -63,6 +72,21 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     t0 = time.time()
     ocr_rows = ocr_fn([str(c) for _, _, c, _ in pairs], engine=engine)
     ocr_by_crop = {r["crop"]: (r.get("ocr") or "").strip() for r in ocr_rows}
+    # 双引擎兜底（抄 manga-image-translator mocr，宁滥勿缺）：主引擎吐空的 region，
+    # 用另一引擎逐个补；仍空则保留空串交下游 needs_review，绝不静默丢框。
+    # 备选引擎：主引擎非 dashscope 时副=dashscope；主=dashscope 时副=auto(baberu, 免费)。
+    empty_crops = [str(c) for _, _, c, _ in pairs if not ocr_by_crop.get(str(c))]
+    if empty_crops:
+        fallback_engine = "dashscope" if engine != "dashscope" else "auto"  # auto=baberu fast path
+        print(f"[ocr_station] 空串回退 {fallback_engine}: {len(empty_crops)} crops", file=sys.stderr)
+        try:
+            fb = fallback_ocr_fn(empty_crops, engine=fallback_engine)
+            for r in fb:
+                t = (r.get("ocr") or "").strip()
+                if t:
+                    ocr_by_crop[r["crop"]] = t
+        except Exception as e:  # noqa: BLE001
+            print(f"[ocr_station] {fallback_engine} 兜底失败: {e}", file=sys.stderr)
     baberu_elapsed = time.time() - t0
 
     vlm_result = {"texts": None, "status": "skipped", "raw_output": "", "elapsed": 0.0, "retries": 0}

@@ -63,3 +63,13 @@ workspace/*/backup*/
 
 # DSH agent-teams ÔËĞĞÊ±×´Ì¬(²»Èë¿â)
 .agent-teams/
+
+# ---- research reference repos (cloned, ä¸å…¥åº“) ----
+reference/repos/
+research/reference-repos/
+research/mb-research/
+
+# ---- temp debug / research notes ----
+workspace/dbg/
+research_tmp_*.md
+

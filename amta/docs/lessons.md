@@ -280,6 +280,22 @@
 - **Prevention**：estate fixture 已入 tests/conftest.py；新增 memory 测试直接声明 `estate: Path` 参数。
 - **Regression**：fastcheck lint 步全绿（357 测试 + ruff）。
 
+## L34 — 记忆检索要 hook push（UserPromptSubmit 注入），别只靠 MCP pull（工具自觉）
+
+- **Problem**：用户问"detect 模型演进"，记忆字典查不到且我全程没用 MCP——MCP 工具未授权加载是表层，深因是 **pull 层靠执行纪律**：工具在列表里也要模型"记得去调"，不调就等于没有。CLAUDE.local.md 也只写 600 字摘要（loop_state+字典规则），lessons/ADR 全文没进上下文。
+- **Root cause**：① MCP 是 pull 模型，触发权在模型行为，无法强制；② 项目记忆包预算 1.5KB 只装接续状态+字典规则（ADR-027 内容契约），坑库全文从不注入；③ 无任何 hook 在提问时按关键词检索记忆。
+- **Durable lesson**：真强制层 = **UserPromptSubmit hook 按 prompt 关键词检索地产并 stdout 注入**（Claude Code 四个 stdout 注入例外事件之一，见 hooks 文档）；"遇错/决策前先查"这种 prompt 级纪律没 hook 就是空话。MCP/CLI 降级为按需打捞（pull），hook 管每轮推送（push）。
+- **Prevention**：scripts/memory_autoinject.py（extract_tokens→do_grep→≤3KB stdout，恒 exit 0，无命中零输出）+ .claude/settings.json UserPromptSubmit 挂载；注入预算 ≤3KB（CC 实测 ~10K 落盘替换为 2KB 预览）。
+- **Regression**：暂无自动化（hook 效果肉眼验证）；规则见本条 + memory_autoinject.py 契约头注释。
+
+## L35 — CLAUDE_CONFIG_DIR 改配置位置：查 MCP 授权先看 env 再动 ~/.claude.json
+
+- **Problem**：排查 amta-memory MCP 不加载，先改了 `C:\Users\asus\.claude.json` 的 enabledMcpjsonServers，无效——Claude Code 真读的是 `E:\claude\.claude\.claude.json`。
+- **Root cause**：本机 `CLAUDE_CONFIG_DIR=E:\claude\.claude`，所有 Claude Code 配置（含 projects/<path>/mcpServers 授权）落在那里；默认 `~/.claude.json` 是旧文件/另一套。
+- **Durable lesson**：排查/配置 Claude Code MCP 前先 `echo $CLAUDE_CONFIG_DIR` 定位真配置文件；MCP 项目级授权记录在 `<config>/projects/<path>.mcpServers`（local scope，最高优先级、免审批、自动加载，supabase 同款），`.mcp.json` 只是项目级声明需授权，local scope 会整体遮蔽同名。
+- **Prevention**：改配置前备份（.bak-时间戳）；server 命令用绝对路径（CWD 非契约）；`python` 必须在启动 claude 的环境 PATH。
+- **Regression**：暂无自动化；规则见本条。
+
 ## 模板（新增时复制）
 
 ```

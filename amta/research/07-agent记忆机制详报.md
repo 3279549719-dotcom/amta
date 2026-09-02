@@ -73,7 +73,34 @@
 
 核心洞察：**压缩（compact）是长会话记忆丢失的机制性时刻，官方 matcher 恰好提供该时点的重注入钩子**；读取端机械化的最小闭环 = "startup 注入 + compact 重注入 + 工具打捞 + linter 防腐"。
 
-## 5. 待定问题（Round 3 拷问项）
+## 5. 补充调研（2026-08-29 深抓，第一调研员迟到交付，与主调研互为印证）
+
+以下为官方文档逐页抓取的增量事实（与第 3 节结论不冲突，均为加固或细化）：
+
+### 5.1 Claude Code 细节加固
+- **stdout 注入面收窄**：exit-0 纯文本 stdout 直入上下文的事件只有四个（SessionStart / UserPromptSubmit / UserPromptExpansion / PostModelSwitch）——本方案选 SessionStart 是四者中唯一在会话开头 + compact 后双时点触发的。
+- **matcher 全覆盖建议**：SessionStart 不配 matcher = startup/resume/clear/compact/fork 全跑，脚本按 stdin JSON 的 `source` 分支全量/瘦包（本方案采用；官方 hooks-guide 给的 compact 重注入示例即 `"matcher": "compact"`）。
+- **SessionStart 无阻断能力**：exit 2 对 SessionStart 不阻塞（仅 stderr 展示），纯注入语义——hook 恒 exit 0 的纪律是双保险而非必需。
+- **版本门控**：resume 专属字段需 CC ≥ v2.1.251；v2.1.214 前 fork 报 `resume`。落地前确认实际 CC 版本（本方案不依赖 resume 专属字段，风险低）。
+- **CLAUDE.md 规模上限**：官方建议单文件 <200 行、Auto memory 每会话只载前 200 行/25KB——本方案 <120 行红线合规且有余量。
+
+### 5.2 跨运行时确定性分级（写入设计纪律）
+| 机制 | 确定性 | 结论 |
+|---|---|---|
+| CC SessionStart stdout / `additionalContext` | 确定 | 关键记忆唯一承载通道 |
+| Cursor `alwaysApply: true` / Windsurf `trigger: always_on` / Cline 无 frontmatter 规则 / OpenHands `triggers`+`paths` | 确定 | 可承载关键记忆（本方案未用） |
+| Cursor `description` / Windsurf `model_decision` / Cline Memory Bank / 各家 memories | LLM 自主 | **绝不承载关键记忆**；Cline Memory Bank 是提示词方法论不是注入机制 |
+
+### 5.3 AGENTS.md 桥接细化（未来扩展用）
+- Claude Code **不原生读 AGENTS.md**（agents.md 站点原生列表无 CC）；官方推荐 `CLAUDE.md` 内一行 `@AGENTS.md` import 桥（≤4 跳展开）。amta 现为反桥（AGENTS.md 5 行指针 → CLAUDE.md），对 CC+DSH 已够；若未来接 Cursor/OpenHands 等，把正文迁入 AGENTS.md + CLAUDE.md `@AGENTS.md` 反转即可，工具层脚本不受影响。
+- Aider 属配置式接入（`.aider.conf.yml` 的 `read: AGENTS.md`），非原生；无 hook 机制，注入层不可用，只能靠基线+工具层。
+- Windsurf 文档已并入 docs.devin.ai，旧 Cascade memories 不适用于新 Devin agent——引用其文档注意时效。
+
+### 5.4 对四层设计的最终印证
+- L2（注入）确认为**唯一确定性强保证**，且 CC 是唯一有 session-start 注入机制的运行时——把 hook 脚本写成与运行时无关的纯 stdin/stdout 程序（本方案 Task 5）是正确的可移植投资。
+- L3 一手佐证：claude-mem 的 search→timeline→read 与 MCP memory server 的读写拆分同属“确定性检索工具”范式；description 类自主召回只配做补充。
+
+## 6. 待定问题（Round 3 拷问项）
 
 1. 注入包最终内容与预算（Q7：推荐 .remember + lessons 最近 5 条标题行 + handoff 一行，≤1.5KB）
 2. 打捞工具面切分与返回 schema（Q8/Q10：脚本优先 vs MCP 壳；按知识类型切 3-4 个工具）
