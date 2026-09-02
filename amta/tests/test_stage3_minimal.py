@@ -27,17 +27,17 @@ def test_translate_plain_batch():
 
 
 def test_prompt_parts_terms_injected():
-    """_prompt_parts must inject relevant glossary terms and prior context into system/user."""
-    from amta.translate import _prompt_parts
+    """build_prefetch_context must inject relevant glossary terms into system_extra."""
+    from amta.stage3_minimal import build_prefetch_context
     canon = [{"region_id": "r01", "baberu_text": "豊姫様"}]
     work_state = {"terms": {"豊姫": {"translation": "丰姬", "status": "confirmed"}}}
-    system, prefix = _prompt_parts(canon, work_state, prev_pages=None, open_questions=None)
-    assert "丰姬" in system, "relevant glossary term must be in system message"
+    ctx = build_prefetch_context(canon, work_state, None, None)
+    assert "丰姬" in ctx["system_extra"], "relevant glossary term must be in system_extra"
 
 
 def test_build_semantic_context_public():
     """build_semantic_context must be importable from translate_tools (public, not _private)."""
-    from amta.translate_tools import build_semantic_context
+    from amta.stage3_minimal import build_semantic_context
     assert callable(build_semantic_context)
 
 
@@ -265,7 +265,7 @@ def test_translate_station_minimal_mode():
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
     def fake_text(messages, tools=None):
         return json.dumps({"r01": "你好"})
-    result = translate_page("test", canon, mode="minimal", llm_text=fake_text, vlm_enabled=False)
+    result = translate_page("test", canon, llm_text=fake_text, vlm_enabled=False)
     assert result["translations"] == {"r01": "你好"}
 
 
