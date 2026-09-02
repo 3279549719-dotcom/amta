@@ -44,14 +44,14 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 
 
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
-             page_idx: int, engine: str = "baberu", vlm_enabled: bool = False,
+             page_idx: int, engine: str = "hayai", vlm_enabled: bool = False,
              rule_filter_enabled: bool = False,
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
              crop_dir: Path | str | None = None,
              fallback_ocr_fn=None) -> dict:
     """Stage 2 OCR 工位。裁框 → OCR → [规则过滤] → [VLM校验] → CanonArtifact。
 
-    engine: baberu(默认,ONNX) / hayai(HayaiOCR-v2.1) / manga_ocr(kha-white)。
+    engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快) / manga_ocr(kha-white)。
     fallback_ocr_fn: 可选第二引擎兜底（空串补译，宁滥勿缺）。缺省同主引擎。
     rule_filter_enabled=False 时跳过硬规则过滤，全部检测框直接保留。
     """
@@ -79,7 +79,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     empty_crops = [str(c) for _, _, c, _ in pairs if not ocr_by_crop.get(str(c))]
     if empty_crops:
         # 备选引擎：主引擎非 baberu 时副=baberu(免费快)；主=baberu 时副=hayai。
-        fallback_engine = "baberu" if engine != "baberu" else "hayai"
+        fallback_engine = "hayai" if engine != "hayai" else "baberu"
         print(f"[ocr_station] 空串回退 {fallback_engine}: {len(empty_crops)} crops", file=sys.stderr)
         try:
             fb = fallback_ocr_fn(empty_crops, engine=fallback_engine)
