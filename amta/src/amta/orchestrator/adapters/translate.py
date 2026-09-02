@@ -1,10 +1,14 @@
-"""translate 工位适配器 — StationContext → translate_station.translate_page → StationResult。"""
+"""translate 工位适配器 — StationContext → translate_station.translate_page → StationResult。
+
+注意：translate_page 只返回 dict 不落盘，落盘逻辑在适配器里（与 03_translate.py 一致）。
+canon 输入用 artifacts.load_canon 规范化（兼容旧裸 list 格式 + validate）。
+"""
 from __future__ import annotations
 
 import time
 
 from amta import artifacts
-from amta.paths import read_json
+from amta.paths import write_json
 from amta.translate_station import translate_page
 
 from ..context import StationContext, StationResult
@@ -15,14 +19,16 @@ def run(ctx: StationContext) -> StationResult:
 
     上游依赖：ctx.inputs["ocr"] → canon artifact
     从 ctx.config 读取：mode, vlm_enabled
-    产出：{artifacts_dir}/{page}_translation.json
+    产出：{artifacts_dir}/{page}_translation.json（适配器负责落盘）
     """
     t0 = time.perf_counter()
     try:
         canon_path = ctx.inputs.get("ocr")
         if canon_path is None:
             raise ValueError("上游 ocr 产物路径缺失，检查阶段依赖配置")
-        canon = read_json(canon_path)
+
+        # load_canon: normalize + validate + 兼容旧裸 list 格式（与 03_translate.py 一致）
+        canon = artifacts.load_canon(canon_path)
 
         doc = translate_page(
             work_id=ctx.work_id,
@@ -33,9 +39,14 @@ def run(ctx: StationContext) -> StationResult:
             raw_image_path=ctx.raw_image,
             vlm_enabled=ctx.config.get("vlm_enabled", True),
         )
-        duration = time.perf_counter() - t0
-        out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["translation"]
 
+        # translate_page 不落盘，适配器负责落盘（与 03_translate.py 第36行一致）
+        out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["translation"]
+        doc_to_save = dict(doc)
+        doc_to_save.pop("_trace", None)  # trace 不落盘（与 03_translate.py 第35行一致）
+        write_json(out_path, doc_to_save)
+
+        duration = time.perf_counter() - t0
         translations = doc.get("translations", {})
         return StationResult(
             page=ctx.page,
