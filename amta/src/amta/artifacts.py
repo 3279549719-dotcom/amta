@@ -247,3 +247,37 @@ def load_translation(path: Path | str) -> dict:
     doc.setdefault("residue", [])
     doc.setdefault("glossary_violations", [])
     return doc
+
+
+# ---------------------------------------------------------------------------
+# 后续阶段 Artifact schema（预留 — 工位实现时填充具体字段）
+# ---------------------------------------------------------------------------
+
+class InpaintArtifact(TypedDict, total=False):
+    """Stage 4 擦除产物 — 原图去掉文字后的干净图 + mask + 擦除计划。"""
+    work_id: str
+    page: str
+    schema_version: str
+    generated_at: str
+    clean_image: str          # 擦除后的图片路径（相对 artifacts_dir）
+    masks: dict[str, list]   # region_id -> mask 多边形点列表
+    plan: list[dict]         # 擦除计划（来自 inpaint_strategy.plan_inpaint）
+
+
+class TypesetArtifact(TypedDict, total=False):
+    """Stage 5 排版产物 — 译文排到气泡后的最终图 + 排版信息。"""
+    work_id: str
+    page: str
+    schema_version: str
+    generated_at: str
+    final_image: str                # 最终图片路径
+    layout: dict[str, dict]         # region_id -> 排版信息（font, size, direction, lines, position）
+
+
+class SegmentArtifact(TypedDict, total=False):
+    """文本分割产物 — 气泡/文本区域的精细分割 mask。"""
+    work_id: str
+    page: str
+    schema_version: str
+    generated_at: str
+    segments: dict[str, dict]       # region_id -> 分割信息（mask, area, perimeter）
