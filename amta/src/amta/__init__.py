@@ -1,54 +1,69 @@
 """AMTA 纯库包：被 scripts/ 薄 CLI 与 tests/ 引用。
 
+最终选型三阶段：
+- 检测: RT-DETR-v2（scripts/detect_rtdetr.py，ONNX）
+- OCR: baberu-OCR（src/amta/ocr_engines.py + ocr_station.py，本地 ONNX）+ 规则过滤
+- VLM 三态过滤: vlm_filter.py（keep/fix/drop，照抄 exp_guardrails_v2）
+- 翻译: stage3_minimal.py（deepseek flash LLM + 上下文 + 术语，无内部 VLM 裁决）
+
 对外稳定接口：
-- koharu_client.KoharuClient — koharu REST 封装
-- koharu_blocks.* — koharu scene 节点→文字块 纯整形（collect_blocks/排序）
-- chat_client.* — OpenAI 兼容 chat/completions 深模块（翻译/OCR 共用接缝）
-- translate_tools.* — 真 function calling 工具机（TOOLS_SCHEMA/预算/execute/loop）
+- chat_client.* — OpenAI 兼容 chat/completions 深模块（翻译共用接缝）
+- translate.* — minimal 纯文本翻译（LLM 调用）
+- stage3_minimal.* — Stage 3 minimal 翻译实现（LLM + 上下文 + 术语）
+- vlm_filter.* — VLM 三态过滤（keep/fix/drop）
+- translate_station.* — 翻译工位薄封装
+- ocr_engines.* — baberu-OCR 引擎（本地 ONNX）
+- ocr_station.* — OCR 工位（裁框 → baberu → 规则过滤 → canon）
+- rule_filter.* — 规则过滤（pure_punct/pure_number/extreme_aspect/edge_box）
 - guardrails.* — 翻译机械护栏（结构错/日文残留）
-- pipeline.* — 引擎 DAG 常量
 - metrics.* — CER/EM/归一化/匹配/日文残留判据
 - geometry.* — bbox/iou/并集
-- runner.* — 单页流水线执行器（建项目→跑→回读→关项目）
-- ocr_engines.* — OpenAI 兼容 OCR 引擎（本地 llama-server / DashScope）
-- gt_alignment.* — GT→detector 框对齐裁剪
 - images.* — 图片裁剪工具
 - evalkit.* — CER/EM 评测聚合
 - workstate.* — per-work workspace + work_state（ADR-013 产物结构）
 - paths.* — 项目路径与 JSON/UTF-8 IO 工具
+- artifacts.* — 产物读写（detection/canon/translation）
+- config.* — 密钥与模型配置（env → .env 回退）
+- pipeline_log.* — 流水线 step tracing
 """
 from amta import (  # noqa: F401
+    artifacts,
     chat_client,
+    config,
     evalkit,
     geometry,
-    gt_alignment,
     guardrails,
     images,
-    koharu_blocks,
-    koharu_client,
     metrics,
     ocr_engines,
+    ocr_station,
     paths,
-    pipeline,
-    runner,
-    translate_tools,
+    pipeline_log,
+    rule_filter,
+    stage3_minimal,
+    translate,
+    translate_station,
+    vlm_filter,
     workstate,
 )
 
 __all__ = [
+    "artifacts",
     "chat_client",
+    "config",
     "evalkit",
     "geometry",
-    "gt_alignment",
     "guardrails",
     "images",
-    "koharu_blocks",
-    "koharu_client",
     "metrics",
     "ocr_engines",
+    "ocr_station",
     "paths",
-    "pipeline",
-    "runner",
-    "translate_tools",
+    "pipeline_log",
+    "rule_filter",
+    "stage3_minimal",
+    "translate",
+    "translate_station",
+    "vlm_filter",
     "workstate",
 ]

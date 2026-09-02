@@ -1,4 +1,5 @@
-# 012 — 代码结构重构：逻辑收敛进 src/amta 共享库，scripts 只留薄 CLI
+﻿# 012 — 代码结构重构：逻辑收敛进 src/amta 共享库，scripts 只留薄 CLI
+> ⚠️ 2026-09-01 更新：本文描述的 legacy 翻译通道（translate_tools/repair_failed/stage3_planner/page_judge/translate_semantic_check）已清理，现行架构见 stage3_minimal.py。本文保留作历史决策参考。
 
 ## Context
 

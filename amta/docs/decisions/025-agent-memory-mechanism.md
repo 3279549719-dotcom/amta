@@ -3,9 +3,9 @@
 日期：2026-08-30　状态：已采纳
 
 ## 决策
-1. 读取端机械化四层：基线（CLAUDE.md/AGENTS.md 自动加载 + 问题域启发式表）→ 推送（SessionStart hook 注入记忆包，startup ≤1.5KB / compact ≤0.5KB）→ 拉取（memory_grep/index/read/recent/status 五工具，条目级语义返回）→ 护栏（pytest 锁 hook + memory_lint 五规则进 fastcheck + 冷启动探针挂 audit）。
+1. 读取端机械化四层：基线（CLAUDE.md/AGENTS.md 自动加载 + 问题域启发式表）→ 推送（CC: SessionStart hook 注入记忆包 startup ≤1.5KB/compact ≤0.5KB；DSH: agent-instructions 原生加载 workspace 根 CLAUDE.local.md，memory_inject.py 生成，startup ≤4KB）→ 拉取（memory_grep/index/read/recent/status 五工具，条目级语义返回）→ 护栏（pytest 锁 hook + memory_lint 五规则进 fastcheck + 冷启动探针挂 audit）。
 2. 写路径沿用 claude-remember 插件（.remember/）+ cycle-close 晋升管线 + Stage 2-d INDEX 写回（scripts/memory.py add），不重造。
-3. **DSH 侧注入遵守 L11**：不接 CC hook 桥（进程级泄漏风险）；DSH 会话靠基线层（CLAUDE.md/AGENTS.md 原生注入）+ 工具层（脚本通用）覆盖。何时开桥：等 DSH hooks-claude-code 桥支持项目级 SessionStart + additionalContext 且无跨项目泄漏后，单独验证再开（门控，不默认）。
+3. **DSH 侧注入走 DSH 原生机制，不接 CC hook 桥**：DSH 的 `agent-instructions` 插件（web 会话经 standard 等 agent preset 挂载）自动加载 workspace 根（amta）的 AGENTS.md/CLAUDE.md 及本地 overlay AGENTS.local.md/CLAUDE.local.md（默认候选，无需改 profile/preset）。故 DSH 推送层实现为：`scripts/memory_inject.py` 把当前记忆包（now/recent/近期 lessons，≤4KB）写入 `amta/CLAUDE.local.md`（gitignore 生成物），随每个 DSH 会话自动注入，改文件后会话内即动态重注入（已实证）。CC hook 桥（进程级 stdio，L11 泄漏风险）仍不接；何时需要：仅当要按 source=compact 做瘦包重注入或按会话事件精确触发时，再评估。不默认，门控。
 4. 工具族零第三方依赖（过 depguard）；不建 MCP 壳（脚本对 CC/DSH/Codex 通用）；.remember 维持 gitignore（Q11）。
 
 ## 理由

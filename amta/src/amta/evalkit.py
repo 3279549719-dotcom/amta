@@ -1,4 +1,4 @@
-"""评测聚合工具 — 统一 CER/EM 逐行计算与按类型汇总（ocr_eval / eval_86 / ocr_score 共用）。"""
+﻿"""评测聚合工具 — 统一 CER/EM 逐行计算与按类型汇总（benchmark.py 共用）。"""
 from __future__ import annotations
 
 import os
