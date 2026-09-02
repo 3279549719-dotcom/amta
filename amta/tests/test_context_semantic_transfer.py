@@ -1,4 +1,4 @@
-"""Lesson 03 实践：get_context 语义化传递 — TDD 测试。
+﻿"""Lesson 03 实践：get_context 语义化传递 — TDD 测试。
 
 Seam：execute_tool("get_context", ...) 的返回值行为。
 验证：category 标注、relationships 附加、术语筛选、边界回退、条数限制。
@@ -23,7 +23,7 @@ def _write_page_artifacts(artifacts_dir: Path, page: int, canon: list[dict], tra
 
 def test_get_context_reads_canon_category_and_labels(tmp_path):
     """Red→Green：get_context 同时读 canon 和 translation，返回带 category 标注的文本。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -40,7 +40,7 @@ def test_get_context_reads_canon_category_and_labels(tmp_path):
         "page_1_u02": "注意事项",
     })
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+    out = build_semantic_context(1, {}, None, state_dir)
 
     assert "[对话]" in out
     assert "[拟声]" in out
@@ -52,7 +52,7 @@ def test_get_context_reads_canon_category_and_labels(tmp_path):
 
 def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
     """边界：canon 文件不存在时，回退到纯文本（无 category 标注），不崩溃。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -66,7 +66,7 @@ def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
         "translations": {"page_1_u00": "你好"},
     }, ensure_ascii=False), encoding="utf-8")
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+    out = build_semantic_context(1, {}, None, state_dir)
 
     assert "你好" in out
     # 无 canon 时不应该有 category 标注，但也不应该崩溃
@@ -75,7 +75,7 @@ def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
 
 def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
     """Red→Green：get_context 附加 work_state 的 relationships（confirmed + inferred，标置信度）。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -93,7 +93,7 @@ def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
         ]
     }
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+    out = build_semantic_context(1, ws, None, state_dir)
 
     assert "八意永琳" in out
     assert "主从" in out
@@ -106,7 +106,7 @@ def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
 
 def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
     """Red→Green：get_context 筛选前页原文中出现的术语（norm 模糊匹配，最多 5 条）。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -125,7 +125,7 @@ def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
         }
     }
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+    out = build_semantic_context(1, ws, None, state_dir)
 
     assert "八意大人" in out
     assert "月之民" in out
@@ -134,7 +134,7 @@ def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
 
 def test_get_context_limits_relationships_to_three(tmp_path):
     """条数限制：relationships 最多附加 3 条，按置信度排序（confirmed 优先）。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -153,7 +153,7 @@ def test_get_context_limits_relationships_to_three(tmp_path):
         ]
     }
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+    out = build_semantic_context(1, ws, None, state_dir)
 
     # confirmed 的 2 条应该都在
     assert "角色0" in out
@@ -165,7 +165,7 @@ def test_get_context_limits_relationships_to_three(tmp_path):
 
 def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
     """TDD：双引擎 canon（baberu_text，无 text 字段）也要能喂术语相关性筛选。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -183,14 +183,14 @@ def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
     )
     ws = {"terms": {"八意様": {"translation": "八意大人", "status": "confirmed", "source": "p1"}}}
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+    out = build_semantic_context(1, ws, None, state_dir)
 
     assert "八意大人" in out  # 术语相关性来自 canon 原文——baberu_text 格式必须被读到
 
 
 def test_get_context_page_header_count_matches_rendered(tmp_path):
     """TDD：页头「共N条」应等于实际渲染条数（截断时=15），而不是页内总数。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -204,7 +204,7 @@ def test_get_context_page_header_count_matches_rendered(tmp_path):
     translations = {f"page_1_u{i:02d}": f"译文{i}" for i in range(16)}
     _write_page_artifacts(artifacts_dir, page=1, canon=canon, translations=translations)
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+    out = build_semantic_context(1, {}, None, state_dir)
 
     header = next(line for line in out.splitlines() if line.startswith("--- 第1页"))
     assert "共15条" in header
@@ -213,7 +213,7 @@ def test_get_context_page_header_count_matches_rendered(tmp_path):
 
 def test_get_context_truncates_regions_to_fifteen(tmp_path):
     """边界：单页 region 数超过 MAX_REGIONS_PER_PAGE(15) 时只渲染前 15 条。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -227,7 +227,7 @@ def test_get_context_truncates_regions_to_fifteen(tmp_path):
     translations = {f"page_1_u{i:02d}": f"译文{i}" for i in range(16)}
     _write_page_artifacts(artifacts_dir, page=1, canon=canon, translations=translations)
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, {}, state_dir=state_dir)
+    out = build_semantic_context(1, {}, None, state_dir)
 
     rendered = [line for line in out.splitlines() if line.startswith("[对话]")]
     assert len(rendered) == 15
@@ -238,7 +238,7 @@ def test_get_context_truncates_regions_to_fifteen(tmp_path):
 
 def test_get_context_caps_terms_at_five(tmp_path):
     """边界：相关 confirmed 术语超过 MAX_TERMS(5) 时只显示前 5 条（按插入序）。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -262,7 +262,7 @@ def test_get_context_caps_terms_at_five(tmp_path):
         }
     }
 
-    out = translate_tools.execute_tool("get_context", {"pages": 1}, ws, state_dir=state_dir)
+    out = build_semantic_context(1, ws, None, state_dir)
 
     assert "译一" in out and "译五" in out
     assert "译六" not in out
@@ -270,7 +270,7 @@ def test_get_context_caps_terms_at_five(tmp_path):
 
 def test_get_context_multipage_reads_last_two_pages(tmp_path):
     """pages=2 时读取页码最大的 2 页（translation 文件按页码排序取尾部）。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -284,7 +284,7 @@ def test_get_context_multipage_reads_last_two_pages(tmp_path):
             translations={f"page_{page}_u00": text},
         )
 
-    out = translate_tools.execute_tool("get_context", {"pages": 2}, {}, state_dir=state_dir)
+    out = build_semantic_context(2, {}, None, state_dir)
 
     assert "--- 第2页" in out
     assert "--- 第3页" in out
@@ -295,7 +295,7 @@ def test_get_context_multipage_reads_last_two_pages(tmp_path):
 
 def test_get_context_tolerates_malformed_canon(tmp_path):
     """容错：canon 含非 dict 项 / 缺 region_id 项 / 坏 JSON 时不得崩溃，仍输出有效内容。"""
-    from amta import translate_tools
+    from amta.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -319,7 +319,7 @@ def test_get_context_tolerates_malformed_canon(tmp_path):
         encoding="utf-8",
     )
 
-    out = translate_tools.execute_tool("get_context", {"pages": 2}, {}, state_dir=state_dir)
+    out = build_semantic_context(2, {}, None, state_dir)
 
     assert "你好" in out
     assert "第二页" in out
