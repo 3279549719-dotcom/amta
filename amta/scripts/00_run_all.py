@@ -8,7 +8,8 @@
 页面映射: src-dir/N.jpg → page_idx = N-1(0 基,与评测 canon 对齐)
 断点:     artifacts 产物存在 → skipped(文件存在=跳过,失败修复后重跑自动续)
 追溯:     state/pipeline_log.json 每步 span;失败写 failed_step 锚点 + reason
-阶段:     01_detect(RT-DETR-v2) → 02_ocr(baberu) → 03_translate(v2三态) → [04_inpaint → 05_typeset]
+阶段:     01_detect(RT-DETR-v2, conf=0.7) → 02_ocr(baberu+规则过滤) → 03_translate(单LLM+术语库+前页上下文) → [04_inpaint → 05_typeset]
+说明:     conf=0.7 高阈值已过滤假框，不再需要 02b VLM 三态过滤；翻译层单 LLM + 术语库注入 + 前页上下文注入
 """
 from __future__ import annotations
 
@@ -81,7 +82,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
         trans_path = paths_d["translation"]
 
         try:
-            # ---- 01 detect (RT-DETR-v2) ----
+            # ---- 01 detect (RT-DETR-v2, conf=0.7) ----
             if det_path.exists():
                 log.add_span(run_id, step="01_detect", page=page, status="skipped",
                              input=str(raw), output=str(det_path))
@@ -89,7 +90,8 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
             else:
                 t0 = time.time()
                 _run_cli([str(HERE / "01_detect.py"), "--work-id", work_id,
-                          "--raw", str(raw), "--out", str(det_path)])
+                          "--raw", str(raw), "--out", str(det_path),
+                          "--conf", "0.7"])
                 log.add_span(run_id, step="01_detect", page=page, status="ok",
                              input=str(raw), output=str(det_path),
                              duration_s=time.time() - t0)
@@ -109,34 +111,19 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                              input=str(det_path), output=str(canon_path),
                              duration_s=time.time() - t0)
 
-            # ---- 02b VLM 三态过滤 (keep/fix/drop, 照抄 exp_guardrails_v2) ----
-            filtered_canon_path = canon_path.parent / f"{page}_canon_filtered.json"
-            if filtered_canon_path.exists():
-                log.add_span(run_id, step="02b_vlm_filter", page=page, status="skipped",
-                             input=str(canon_path), output=str(filtered_canon_path))
-                print(f"[00_run_all] {page} 02b_vlm_filter skipped (exists)")
-            else:
-                t0 = time.time()
-                _run_cli([str(HERE / "02b_vlm_filter.py"), "--canon", str(canon_path),
-                          "--raw", str(raw), "--out", str(filtered_canon_path),
-                          "--work-id", work_id])
-                log.add_span(run_id, step="02b_vlm_filter", page=page, status="ok",
-                             input=str(canon_path), output=str(filtered_canon_path),
-                             duration_s=time.time() - t0)
-
-            # ---- 03 translate (deepseek flash LLM, 无内部 VLM 裁决) ----
+            # ---- 03 translate (deepseek 单 LLM + 术语库 + 前页上下文, 无 VLM 裁决) ----
             if trans_path.exists():
                 log.add_span(run_id, step="03_translate", page=page, status="skipped",
-                             input=str(filtered_canon_path), output=str(trans_path))
+                             input=str(canon_path), output=str(trans_path))
                 print(f"[00_run_all] {page} 03_translate skipped (exists)")
             else:
                 t0 = time.time()
-                _run_cli([str(HERE / "03_translate.py"), "--canon", str(filtered_canon_path),
+                _run_cli([str(HERE / "03_translate.py"), "--canon", str(canon_path),
                           "--out", str(trans_path), "--work-id", work_id,
                           "--state-dir", str(state_dir),
                           "--no-vlm"])
                 log.add_span(run_id, step="03_translate", page=page, status="ok",
-                             input=str(filtered_canon_path), output=str(trans_path),
+                             input=str(canon_path), output=str(trans_path),
                              duration_s=time.time() - t0)
             # 每完成一页刷新合并 translation.json（前页回溯读取）
             _refresh_merged_translation(ws_root)
