@@ -1,4 +1,4 @@
-"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
+﻿"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
 
 用法:
   python scripts/00_run_all.py --work-id touhou-single-wing \
@@ -8,7 +8,7 @@
 页面映射: src-dir/N.jpg → page_idx = N-1(0 基,与评测 canon 对齐)
 断点:     artifacts 产物存在 → skipped(文件存在=跳过,失败修复后重跑自动续)
 追溯:     state/pipeline_log.json 每步 span;失败写 failed_step 锚点 + reason
-阶段:     01_detect(RT-DETR-v2, conf=0.7) → 02_ocr(baberu+规则过滤) → 03_translate(单LLM+术语库+前页上下文) → [04_inpaint → 05_typeset]
+阶段:     01_detect(RT-DETR-v2, conf=0.7) → 02_ocr(hayai+规则过滤) → 03_translate(单LLM+术语库+前页上下文) → [04_inpaint → 05_typeset]
 说明:     conf=0.7 高阈值已过滤假框，不再需要 02b VLM 三态过滤；翻译层单 LLM + 术语库注入 + 前页上下文注入
 """
 from __future__ import annotations
@@ -96,7 +96,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                              input=str(raw), output=str(det_path),
                              duration_s=time.time() - t0)
 
-            # ---- 02 ocr (baberu + 规则过滤, 无 VLM 校验) ----
+            # ---- 02 ocr (hayai + 规则过滤, 无 VLM 校验) ----
             if canon_path.exists():
                 log.add_span(run_id, step="02_ocr", page=page, status="skipped",
                              input=str(det_path), output=str(canon_path))
@@ -106,7 +106,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 _run_cli([str(HERE / "02_ocr.py"), "--work-id", work_id,
                           "--det", str(det_path), "--raw", str(raw),
                           "--out", str(canon_path), "--page-idx", str(page_idx),
-                          "--no-vlm"])
+                          "--engine", "hayai"])
                 log.add_span(run_id, step="02_ocr", page=page, status="ok",
                              input=str(det_path), output=str(canon_path),
                              duration_s=time.time() - t0)
@@ -121,7 +121,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 _run_cli([str(HERE / "03_translate.py"), "--canon", str(canon_path),
                           "--out", str(trans_path), "--work-id", work_id,
                           "--state-dir", str(state_dir),
-                          "--no-vlm"])
+                          "--engine", "hayai"])
                 log.add_span(run_id, step="03_translate", page=page, status="ok",
                              input=str(canon_path), output=str(trans_path),
                              duration_s=time.time() - t0)

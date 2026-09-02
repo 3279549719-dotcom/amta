@@ -1,11 +1,7 @@
 """Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
 
-最终选型: baberu-OCR（主引擎） + VLM contact sheet 批量校验（质检） + 规则过滤（假框过滤）。
-流程: 裁框 → baberu OCR → 规则过滤(pure_punct/pure_number/extreme_aspect/edge_box) → VLM 校验 → canon。
-藏匿：裁框（region_id 与 detect 输出顺序一一对应）、baberu 批量 OCR、规则过滤、
-VLM contact sheet 校验、VLM key 解析（amta.config）、双引擎输出（baberu_text + vlm_text）、
-trace、save_canon（doc 化）。
-接缝：ocr_fn / vlm_fn 函数注入（内部接缝，测试用 fake）。
+流程: 裁框 → OCR → [规则过滤] → [VLM 校验] → canon。
+rule_filter_enabled=False 时跳过硬规则过滤，所有检测框直接保留交翻译。
 """
 from __future__ import annotations
 
@@ -45,9 +41,14 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              page_idx: int, vlm_enabled: bool = True,
+             rule_filter_enabled: bool = True,
+             ocr_engine: str = "baberu",
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
              crop_dir: Path | str | None = None) -> dict:
-    """单页 OCR：裁框 → baberu → 规则过滤 → VLM 校验 → CanonArtifact（doc 信封）。"""
+    """单页 OCR：裁框 → OCR → [规则过滤] → [VLM 校验] → CanonArtifact。
+
+    rule_filter_enabled=False 时跳过硬规则过滤，全部检测框直接保留。
+    """
     from amta.ocr_engines import ocr_batch as _default_ocr
     from amta.vlm_verify import vlm_verify_batch as _default_vlm
     ocr_fn = ocr_fn or _default_ocr
@@ -61,13 +62,13 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     if not pairs:
         raise RuntimeError(f"02_ocr: no valid bbox on {page} (source {det.get('page', '?')})")
 
-    # ---- baberu OCR ----
+    # ---- OCR ----
     t0 = time.time()
     ocr_rows = ocr_fn([str(c) for _, _, c, _ in pairs])
     ocr_by_crop = {r["crop"]: (r.get("ocr") or "").strip() for r in ocr_rows}
-    baberu_elapsed = time.time() - t0
+    ocr_elapsed = time.time() - t0
 
-    # ---- 规则过滤（假框过滤）----
+    # ---- 规则过滤（可跳过）----
     img_w, img_h = Image.open(raw_page).size
     ocr_blocks = []
     for rid, b, crop, _pil in pairs:
@@ -75,7 +76,12 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
         ob["region_id"] = rid
         ob["text"] = ocr_by_crop.get(str(crop), "")
         ocr_blocks.append(ob)
-    kept_blocks, rule_removed = rule_filter(ocr_blocks, img_w, img_h)
+
+    if rule_filter_enabled:
+        kept_blocks, rule_removed = rule_filter(ocr_blocks, img_w, img_h)
+    else:
+        kept_blocks, rule_removed = ocr_blocks, []
+
     kept_rids = {b["region_id"] for b in kept_blocks}
     kept_pairs = [p for p in pairs if p[0] in kept_rids]
 
@@ -87,7 +93,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
             t1 = time.time()
             try:
                 vlm_result = vlm_fn([pil for _, _, _, pil in kept_pairs], api_key=key)
-            except Exception as e:  # noqa: BLE001 — VLM 失败不拖垮 OCR 工位
+            except Exception as e:  # noqa: BLE001
                 vlm_result = {"texts": None, "status": "failed", "raw_output": str(e),
                               "elapsed": time.time() - t1, "retries": 0}
         else:
@@ -100,12 +106,13 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     for rid, b, crop, _pil in kept_pairs:
         vlm_text = vlm_texts[vlm_idx] if (vlm_texts and vlm_idx < len(vlm_texts)) else None
         vlm_idx += 1
-        baberu_text = ocr_by_crop.get(str(crop), "")
+        ocr_text = ocr_by_crop.get(str(crop), "")
         item = {
             "region_id": rid,
             "bbox": b.get("bbox"),
-            "text": baberu_text,  # 主文本 = baberu（VLM 仅作校验参考）
-            "baberu_text": baberu_text,
+            "text": ocr_text,
+            "baberu_text": ocr_text,  # 兼容字段
+            "ocr_engine": ocr_engine,
             "vlm_text": vlm_text,
             "contained_in": b.get("contained_in"),
             "source_engines": b.get("source_engines", []),
@@ -126,27 +133,26 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
         "n_blocks_raw": len(pairs),
         "n_blocks_kept": len(kept_pairs),
         "n_blocks_rule_removed": len(rule_removed),
+        "rule_filter_enabled": rule_filter_enabled,
+        "ocr_engine": ocr_engine,
         "rule_removed_by_reason": rule_removed_summary,
         "rule_removed_details": [
             {"region_id": b.get("region_id"), "text": b.get("text", "")[:30],
              "reason": b.get("filter_reason")}
             for b in rule_removed
         ],
-        "baberu_elapsed": round(baberu_elapsed, 2),
+        "ocr_elapsed": round(ocr_elapsed, 2),
         "vlm_status": vlm_result["status"],
         "vlm_elapsed": round(vlm_result.get("elapsed", 0.0), 2),
         "vlm_retries": vlm_result.get("retries", 0),
-        "baberu_vs_vlm_diff": [
-            {"region_id": it["region_id"], "baberu": it["baberu_text"],
-             "vlm": it["vlm_text"],
-             "match": it["baberu_text"] == (it["vlm_text"] or "")}
-            for it in items if it["vlm_text"] is not None
-        ],
     })
 
     doc = artifacts.stamp({"items": items, "n_regions": len(items),
+                           "ocr_engine": ocr_engine,
+                           "rule_filter_enabled": rule_filter_enabled,
                            "vlm_status": vlm_result["status"],
                            "rule_filter": {
+                               "enabled": rule_filter_enabled,
                                "raw": len(pairs), "kept": len(kept_pairs),
                                "removed": len(rule_removed),
                                "removed_by_reason": rule_removed_summary,
