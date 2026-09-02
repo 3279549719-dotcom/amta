@@ -33,6 +33,10 @@
 | D-021 | 改 typeset 工位时 | docs/decisions/021-stage5-typeset-station.md | Stage5 typeset 工位 |
 | D-022 | 引用审计 / 探针结论时 | docs/decisions/022-audit-probe-conclusion.md | 审计探针结论 |
 | D-023 | 做 front3 重构相关工作时 | docs/decisions/023-front3-reconstruction.md | front3 重构决策 |
+| D-024 | 改 Stage 1-3 产物契约 / 深工位时 | docs/decisions/024-deep-interface-refactor.md | 产物契约单一事实源 + 三深工位 |
+| D-025 | 设计记忆机制时 | docs/decisions/025-agent-memory-mechanism.md | 记忆四层闭环（基线/推送/拉取/护栏） |
+| D-026 | 记忆选型时 | docs/decisions/026-memory-system-build-vs-buy.md | 选型定案：暂缓开源（agentmemory Windows 弱），自建字典 |
+| D-027 | 改注入 / 检索 / 接续时 | docs/decisions/027-memory-dictionary-mcp.md | 注入瘦身 + MCP 字典 + loop_state 接续 |
 
 ## 经验（L = docs/lessons.md 分节）
 

@@ -184,7 +184,7 @@ def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-    from amta import translate
+    from amta import stage3_minimal
     import json as _json
 
     canon = [{"region_id": "r01", "text": "豊姫が話す", "page": 1}]
@@ -192,12 +192,14 @@ def test_cli_translate_uses_llm_and_writes_translation(tmp_path, monkeypatch):
     canon_path.write_text(_json.dumps(canon, ensure_ascii=False), encoding="utf-8")
     out_path = tmp_path / "translation.json"
 
-    # 脚本内 llm 闭包按 chat_with_tools(base_url, model, messages, tools=..., api_key=...) 调用，fake 须匹配其签名
-    def fake_llm(base_url, model, messages, tools=None, api_key=None):
-        return {"content": '{"r01": "丰姬在说话"}'}
+    # minimal 路径用 text_chat(base_url, model, messages, *, api_key, temperature)，返回纯文本
+    # stage3_minimal 用 from-import 绑定，须 patch 该模块的引用
+    def fake_text(base_url, model, messages, api_key=None, timeout=120, temperature=None):
+        return '{"r01": "丰姬在说话"}'
 
-    monkeypatch.setattr(translate, "get_chat_config", lambda: {"base_url": "x", "model": "m", "api_key": "k"})
-    monkeypatch.setattr(translate, "chat_with_tools", fake_llm)
+    monkeypatch.setattr(stage3_minimal, "get_chat_config",
+                        lambda: {"base_url": "x", "model": "m", "api_key": "k"})
+    monkeypatch.setattr(stage3_minimal, "text_chat", fake_text)
 
     from _03_translate import run
 

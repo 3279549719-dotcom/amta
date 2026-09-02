@@ -40,6 +40,16 @@ ADR-025 设计了自造的四层记忆闭环（基线/推送/拉取/护栏），
 2. **评估迁移路径**：现有 `lessons.md`（33 条）+ `docs/decisions/`（26 个 ADR）+ `.remember/` 如何迁移到选定系统。
 3. **定案后**：另开 ADR 记录最终选型、迁移计划、退役自造工具的时间表。
 
+## 定案（2026-09-01，完成「具体项目待定」）
+
+评估 agentmemory（rohitg00，头号候选）后**暂缓采用，自建字典先行**（详见 ADR-027）：
+
+- **暂缓理由**：
+  1. **Windows 原生是弱项**：官方文档明说 fast path 是 WSL2，原生安装需手动 ~10-20 分钟，且 `agentmemory connect` 在 Windows 原生**不受支持**——本机是 Windows 11 CPU-only 纯原生环境。
+  2. **规模不匹配**：知识库 ~30 lessons + 25 ADR，agentmemory 的混合检索（BM25+向量+图）+ 实时 viewer 是给大型长期多 agent 工作负载的，当前是杀鸡用牛刀。
+- **替代方案**（ADR-027 采纳）：注入瘦身 + `loop_state.json` 接续 + 自建 MCP 字典（`memory_search/read/recent`，纯 stdlib 复用现有 tools）。它覆盖 ADR-026 指出的四个问题：① 注入包跨 harness 可读（MCP 工具面常驻）② 字典默认可见（不再靠 AI 自觉）③ 注入内容从「采样」改为「元信息+按需查」④ 不引依赖、规模匹配。
+- **复审触发**：循环规模扩大（多 work 并发 / 长跑 context 膨胀）或捕获质量成为瓶颈、或本机获得 WSL2/原生安装通畅时，重开本 ADR 评估 agentmemory。
+
 ## 备注
 
 - ADR-025 的**四层闭环设计思路**（基线/推送/拉取/护栏）仍然有效，只是实现层从自造 `scripts/memory*.py` 换成开源项目。

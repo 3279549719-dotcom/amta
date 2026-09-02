@@ -56,14 +56,32 @@ def _fmt(h: Hit) -> str:
     return f"{h.entry_id}|{h.title}|{rng}|{h.hit_text[:80]}"
 
 
-def do_grep(root: Path, query: str, scope: str = "all", limit: int = 10) -> list[Hit]:
-    pat = re.compile(query) if _valid_re(query) else re.compile(re.escape(query))
+def do_grep(
+    root: Path, query: str, scope: str = "all", limit: int = 10, tokens: list[str] | None = None
+) -> list[Hit]:
+    """条目级检索。tokens 非空时 = 多词 AND（每词须在条目内任意行出现，跨行也行）；
+    否则按单正则（合法正则原样编译，否则转义字面）。命中返回条目级语义单元，各报首个命中行。"""
+    pats = [re.compile(re.escape(t)) for t in tokens] if tokens else None
+    if pats is None:
+        pat = re.compile(query) if _valid_re(query) else re.compile(re.escape(query))
+    else:
+        pat = None
     hits: list[Hit] = []
     for _name, entries in _scopes(root, scope):
         for e in entries:
             if e.end_line <= e.start_line and e.entry_id == e.title:
                 continue  # research 的目录壳条目，正文由行扫描覆盖
             lines = read_lines(e.path)
+            if pats is not None:
+                entry_lines = lines[e.start_line - 1 : e.end_line]
+                if not all(any(p.search(line) for line in entry_lines) for p in pats):
+                    continue
+                anchor = next((i for i, line in enumerate(entry_lines) if pats[0].search(line)), 0)
+                hits.append(
+                    Hit(e.entry_id, e.title, e.path, e.start_line, e.end_line, e.start_line + anchor, entry_lines[anchor].strip())
+                )
+                continue
+            assert pat is not None  # 单词路径已绑定（tokens 为空分支）
             for i in range(e.start_line - 1, min(e.end_line, len(lines))):
                 if pat.search(lines[i]):
                     hits.append(Hit(e.entry_id, e.title, e.path, e.start_line, e.end_line, i + 1, lines[i].strip()))

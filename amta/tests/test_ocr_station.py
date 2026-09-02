@@ -24,6 +24,11 @@ def _fake_ocr(crops, engine="auto", **kw):
     return [{"crop": c, "ocr": "月の都" if "u00" in c else ""} for c in crops]
 
 
+def _fake_fallback(crops, engine="auto", **kw):
+    """假第二引擎：也识别不出 → 空串保留（宁滥勿缺契约：兜底也空才保留空）。"""
+    return [{"crop": c, "ocr": ""} for c in crops]
+
+
 def test_ocr_page_doc_canon_on_disk(tmp_path, monkeypatch):
     monkeypatch.delenv("VLM_API_KEY", raising=False)
     monkeypatch.delenv("CHAT_API_KEY", raising=False)
@@ -54,8 +59,21 @@ def test_ocr_page_empty_ocr_kept(tmp_path, monkeypatch):
     assert doc["items"][0]["baberu_text"] == "月の都" or True  # u00 命中
     det2 = _det([{"region_id": "page_0_u01", "bbox": [110, 50, 190, 80]}])
     doc2 = ocr_page("w1", det2, _raw(tmp_path), tmp_path / "artifacts", page_idx=0,
-                    vlm_enabled=False, ocr_fn=_fake_ocr)
-    assert doc2["items"][0]["baberu_text"] == ""  # 空 OCR 保留（双引擎契约）
+                    vlm_enabled=False, ocr_fn=_fake_ocr, fallback_ocr_fn=_fake_fallback)
+    assert doc2["items"][0]["baberu_text"] == ""  # 主+兜底都空 → 保留空串（宁滥勿缺契约：补不到才保留）
+
+
+def test_ocr_page_empty_ocr_fallback_fills(tmp_path, monkeypatch):
+    """宁滥勿缺：主引擎空，第二引擎能补 → 补上非空（抄 manga-image-translator mocr 双引擎）。"""
+    monkeypatch.delenv("VLM_API_KEY", raising=False)
+    monkeypatch.delenv("CHAT_API_KEY", raising=False)
+    from amta.ocr_station import ocr_page
+    det = _det([{"region_id": "page_0_u02", "bbox": [110, 50, 190, 80]}])
+    def _fb(crops, engine="auto", **kw):
+        return [{"crop": c, "ocr": "満福"} for c in crops]  # 兜底能认出
+    doc = ocr_page("w1", det, _raw(tmp_path), tmp_path / "artifacts", page_idx=0,
+                   vlm_enabled=False, ocr_fn=_fake_ocr, fallback_ocr_fn=_fb)
+    assert doc["items"][0]["baberu_text"] == "満福"
 
 
 def test_ocr_page_no_valid_bbox_raises(tmp_path):

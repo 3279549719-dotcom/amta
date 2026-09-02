@@ -10,6 +10,9 @@
 translate_with_retry 与 scripts/repair_failed.py 共用的 function-calling 层；
 从 translate 拆出后，repair_failed 不再依赖整个 translate 模块（Leverage：一个实现喂两个调用方）。
 """
+# LEGACY: preserved for --mode legacy fallback. Stable after 3 works, delete in cleanup commit.
+# Minimal path (stage3_minimal.py) is default; these files are no longer called in minimal mode.
+# build_semantic_context() is PUBLIC and used by stage3_minimal; rest is legacy.
 from __future__ import annotations
 
 import json
@@ -136,7 +139,7 @@ def execute_tool(name: str, args: dict, work_state: dict,
     if name == "get_context":
         pages = max(1, min(int(args.get("pages") or 3), 3))
         # Lesson 03 语义化传递：category标注 + relationships + confirmed术语筛选 + 回退兼容
-        return _build_semantic_context(pages, work_state or {}, prev_pages, state_dir)
+        return build_semantic_context(pages, work_state or {}, prev_pages, state_dir)
     if name == "lookup_image":
         region_id = str(args.get("region_id", "")).strip()
         if not region_id:
@@ -208,9 +211,9 @@ MAX_RELATIONSHIPS = 3
 MAX_TERMS = 5
 
 
-def _build_semantic_context(pages: int, work_state: dict,
-                             prev_pages: list[dict] | None,
-                             state_dir: Path | str | None) -> str:
+def build_semantic_context(pages: int, work_state: dict,
+                           prev_pages: list[dict] | None,
+                           state_dir: Path | str | None) -> str:
     """构建带语义标注的前页上下文（Lesson 03 实践）。
 
     优先读 artifacts/ 下的单页 canon+translation（带 category 标注），
@@ -263,7 +266,7 @@ def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, l
     """
     if state_dir is None:
         return []
-    artifacts_dir = Path(state_dir).parent / "artifacts"
+    artifacts_dir = Path(state_dir) / "artifacts"
     if not artifacts_dir.exists():
         return []
 
@@ -332,7 +335,7 @@ def _read_fallback_context(state_dir, prev_pages, pages: int) -> str:
     candidates: list[Path] = []
     if state_dir is not None:
         sdir = Path(state_dir)
-        candidates = [sdir.parent / "artifacts" / "translation.json",
+        candidates = [sdir / "artifacts" / "translation.json",
                       sdir / "translation.json"]
     for p in candidates:
         if p.exists():

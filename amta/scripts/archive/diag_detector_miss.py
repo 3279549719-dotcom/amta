@@ -74,9 +74,8 @@ def run_diag(raw_page: Path, out_path: Path,
     client = KoharuClient(host=host, port=port)
     client.wait_server(timeout=60)
 
-    steps = list(DETECTOR_STEPS.keys())
     print(f"[diag] running 4 detectors on {raw_page.name} ...", flush=True)
-    results = run_all_pages(client, [raw_page], steps,
+    results = run_all_pages(client, [raw_page], DETECTOR_STEPS,
                             prefix="amta-diag", timeout=1200, label="diag")
     per_engine = next(iter(results.values()))["engines"]
 
@@ -146,7 +145,7 @@ def run_diag(raw_page: Path, out_path: Path,
         "per_engine_count": {eng: len(blocks) for eng, blocks in engines_raw.items()},
         "union_count": len(union),
         "miss_regions": miss_regions,
-        "detectors": steps,
+        "detectors": list(DETECTOR_STEPS.keys()),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     write_json(out_path, doc)

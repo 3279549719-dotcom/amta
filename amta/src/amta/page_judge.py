@@ -10,6 +10,8 @@
 - 只在每页结束时调一次 LLM，成本可控
 - 默认关闭（--with-judge），不破坏现有流水线
 """
+# LEGACY: preserved for --mode legacy fallback. Stable after 3 works, delete in cleanup commit.
+# Minimal path (stage3_minimal.py) is default; these files are no longer called in minimal mode.
 from __future__ import annotations
 
 import json

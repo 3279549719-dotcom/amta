@@ -32,7 +32,8 @@ def test_translate_page_happy_path(tmp_path, monkeypatch):
     monkeypatch.setattr("amta.translate.get_chat_config",
                         lambda: {"base_url": "x", "model": "m", "api_key": "k"})
     from amta.translate_station import translate_page
-    out = translate_page("w1", CANON, state_dir=_state(tmp_path), page="page_0", llm=_llm_ok)
+    out = translate_page("w1", CANON, state_dir=_state(tmp_path), page="page_0",
+                         llm=_llm_ok, mode="legacy")
     assert out["translations"]["page_0_u00"] == "你好"
     assert out["residue"] == [] and out["schema_version"] == artifacts.SCHEMA_VERSION
 
@@ -42,7 +43,8 @@ def test_translate_page_records_failure_log(tmp_path, monkeypatch):
                         lambda: {"base_url": "x", "model": "m", "api_key": "k"})
     from amta.translate_station import translate_page
     state = _state(tmp_path)
-    translate_page("w1", CANON, state_dir=state, page="page_0", llm=_llm_always_japanese)
+    translate_page("w1", CANON, state_dir=state, page="page_0", llm=_llm_always_japanese,
+                   mode="legacy")
     log = json.loads((state / "failure_log.json").read_text(encoding="utf-8"))
     kinds = {p["kind"] for p in log["failures"][0]["problems"]}
     assert "residue" in kinds  # 护栏失败结构化落盘（ADR-016）
@@ -55,7 +57,7 @@ def test_translate_page_appends_suggestions(tmp_path, monkeypatch):
     state = _state(tmp_path)
     canon = [{"region_id": "page_0_u00", "baberu_text": "サグメは言った", "vlm_text": None,
               "vlm_status": "ok", "page": 0}]
-    translate_page("w1", canon, state_dir=state, page="page_0", llm=_llm_ok)
+    translate_page("w1", canon, state_dir=state, page="page_0", llm=_llm_ok, mode="legacy")
     sugg = json.loads((state / "suggestions.json").read_text(encoding="utf-8"))
     assert any(s["term"] == "サグメ" for s in sugg["suggestions"])  # 追加在实现内（修 F5）
 
@@ -65,7 +67,7 @@ def test_translate_page_accepts_canon_artifact_dict(tmp_path, monkeypatch):
                         lambda: {"base_url": "x", "model": "m", "api_key": "k"})
     from amta.translate_station import translate_page
     doc = {"items": CANON, "page": "page_0"}
-    out = translate_page("w1", doc, state_dir=_state(tmp_path), llm=_llm_ok)
+    out = translate_page("w1", doc, state_dir=_state(tmp_path), llm=_llm_ok, mode="legacy")
     assert out["translations"]["page_0_u00"] == "你好"
 
 

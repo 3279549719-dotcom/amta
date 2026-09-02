@@ -7,6 +7,9 @@ r"""Stage 3 方案 B：VLM 整页图规划。
 - 原图目录 D:\我的汉化\汉化作品\东方\单翼停留之地\{page}.jpg
 - .env: CHAT_API_KEY / CHAT_BASE_URL（DeepSeek）
 """
+# LEGACY: preserved for --mode legacy fallback. Stable after 3 works, delete in cleanup commit.
+# Minimal path (stage3_minimal.py) is default; these files are no longer called in minimal mode.
+# load_page_image_base64() is reused by minimal path; rest is legacy.
 from __future__ import annotations
 
 import base64

@@ -34,3 +34,5 @@
 - [023 — front3 重构](./023-front3-reconstruction.md)
 - [024 — Stage 1-3 深接口改造:产物契约单一事实源 + 三深工位](./024-deep-interface-refactor.md)
 - [025 — Agent 记忆机制:四层闭环（注入 + 打捞 + 护栏）](./025-agent-memory-mechanism.md)
+- [026 — 记忆系统选型：不自造轮子，改用开源高星项目](./026-memory-system-build-vs-buy.md)
+- [027 — 记忆层 v2：注入瘦身 + loop_state 接续 + MCP 字典](./027-memory-dictionary-mcp.md)

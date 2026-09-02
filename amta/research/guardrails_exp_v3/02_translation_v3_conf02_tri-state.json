@@ -1,0 +1,1826 @@
+{
+  "version": "v2-tri-state",
+  "sample_pages": [
+    0,
+    1,
+    2,
+    5,
+    6,
+    11,
+    12,
+    14,
+    18,
+    32
+  ],
+  "vlm_model": "qwen3.5-omni-plus",
+  "lm_model": "deepseek-v4-flash",
+  "total_original": 179,
+  "total_rule_removed": 75,
+  "total_vlm_keep": 60,
+  "total_vlm_fix": 33,
+  "total_vlm_drop": 11,
+  "total_final": 93,
+  "rule_removal_rate": 0.419,
+  "vlm_drop_rate": 0.106,
+  "vlm_fix_rate": 0.317,
+  "overall_removal_rate": 0.48,
+  "per_page": [
+    {
+      "page": 0,
+      "image_size": [
+        1225,
+        1732
+      ],
+      "original_count": 2,
+      "rule_removed": [],
+      "vlm_keep": 1,
+      "vlm_fixed": [
+        {
+          "original": "は",
+          "corrected": "歩",
+          "reason": "vlm-fix:OCR misread the kanji '歩' (part of a sign in the background) as 'は'."
+        }
+      ],
+      "vlm_dropped": [],
+      "final_blocks": [
+        {
+          "bbox": [
+            447.0,
+            128.0,
+            1150.0,
+            432.0
+          ],
+          "text": "片翼の止まる場所",
+          "original_text": "",
+          "translation": "片翼停驻之处",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1083.0,
+            582.0,
+            1186.0,
+            674.0
+          ],
+          "text": "歩",
+          "original_text": "は",
+          "translation": "步",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 2
+    },
+    {
+      "page": 1,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 33,
+      "rule_removed": [
+        {
+          "text": "……",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "そういうことで、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういうことですが、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "それでも、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういうことですが、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういうことで、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "それでも、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういうことで、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "それでも、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "(",
+          "reason": "pure_punct"
+        }
+      ],
+      "vlm_keep": 7,
+      "vlm_fixed": [
+        {
+          "original": "永遠に近い時間をひたすらに自己の研鎖研究に費やす",
+          "corrected": "永遠に近い時間をひたすらに自己の研鑽・研究に費やす",
+          "reason": "vlm-fix:OCR misread 研鑽 (kensan) as 研鎖 (kensā). The character is clearly 鑽 (diamond/drill), not 鎖 (chain). Also added the interpunct '・' which is present in the image between 研鑽 and 研究."
+        }
+      ],
+      "vlm_dropped": [
+        {
+          "text": "そういえば、",
+          "reason": "vlm-drop:No text in this region; likely a hallucination from background lines or noise."
+        },
+        {
+          "text": "そういえば、",
+          "reason": "vlm-drop:No text in this region; likely a hallucination from background lines or noise."
+        },
+        {
+          "text": "そういえば、",
+          "reason": "vlm-drop:No text in this region; likely a hallucination from background lines or noise."
+        },
+        {
+          "text": "それは．．．",
+          "reason": "vlm-drop:No text in this region; likely a hallucination from background lines or noise."
+        },
+        {
+          "text": "そういえば、",
+          "reason": "vlm-drop:No text in this region; likely a hallucination from background lines or noise."
+        },
+        {
+          "text": "そういえば、",
+          "reason": "vlm-drop:No text in this region; likely a hallucination from background lines or noise."
+        }
+      ],
+      "final_blocks": [
+        {
+          "bbox": [
+            285.0,
+            2447.0,
+            448.0,
+            3225.0
+          ],
+          "text": "私、稀神サグメはそんな月の生活を気に入っていただが一つだけ不満があるとすれば！",
+          "original_text": "",
+          "translation": "我，稀神探女，原本是很喜欢那样的月之生活的。如果要说不满的话，只有一个！",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            203.0,
+            748.0,
+            368.0,
+            1327.0
+          ],
+          "text": "穢れを嫌った神々が住む都",
+          "original_text": "",
+          "translation": "厌恶污秽的神明们居住的都市",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1034.0,
+            1698.0,
+            1190.0,
+            2204.0
+          ],
+          "text": "他者を蹴落とし、自分だけが生き残ろうとする心が穢れを生む",
+          "original_text": "",
+          "translation": "将他人踩下去，只求自己活下去的心，会生出污秽。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            119.0,
+            1714.0,
+            272.0,
+            2218.0
+          ],
+          "text": "他人と関わることは穢れを生み出す原因となる、と信じてるからだ",
+          "original_text": "",
+          "translation": "因为她们相信，与他人产生交集是造成污秽的原因。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            725.0,
+            1711.0,
+            890.0,
+            2127.0
+          ],
+          "text": "穢れを嫌う月の民はめったに他人と関わろうとしない",
+          "original_text": "",
+          "translation": "厌恶污秽的月之民，几乎不与他人来往。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1897.0,
+            1710.0,
+            1983.0,
+            2119.0
+          ],
+          "text": "穢れとは心である",
+          "original_text": "",
+          "translation": "污秽，即为心。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1788.0,
+            576.0,
+            1885.0,
+            847.0
+          ],
+          "text": "月の都",
+          "original_text": "",
+          "translation": "月之都",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1858.0,
+            2436.0,
+            1987.0,
+            3073.0
+          ],
+          "text": "永遠に近い時間をひたすらに自己の研鑽・研究に費やす",
+          "original_text": "永遠に近い時間をひたすらに自己の研鎖研究に費やす",
+          "translation": "近乎永恒的时间，全都用于自身的钻研与研究。",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 8
+    },
+    {
+      "page": 2,
+      "image_size": [
+        1988,
+        3035
+      ],
+      "original_count": 22,
+      "rule_removed": [
+        {
+          "text": "100",
+          "reason": "pure_number"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういうことですが、これからもうちょっとしていますのですが、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "それでも、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "……",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "……",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "……",
+          "reason": "pure_punct"
+        }
+      ],
+      "vlm_keep": 4,
+      "vlm_fixed": [
+        {
+          "original": "そういうことですが、",
+          "corrected": "チャッ",
+          "reason": "vlm-fix:OCR hallucinated dialogue. The text in the image is the sound effect 'チャッ' (Cha')."
+        },
+        {
+          "original": "それでも、",
+          "corrected": "カ",
+          "reason": "vlm-fix:OCR hallucinated dialogue. The character in the image is 'カ' (Ka), part of a sound effect."
+        },
+        {
+          "original": "それは．．．",
+          "corrected": "チャ",
+          "reason": "vlm-fix:OCR hallucinated dialogue. The characters in the image are 'チャ' (Cha), part of a sound effect."
+        }
+      ],
+      "vlm_dropped": [],
+      "final_blocks": [
+        {
+          "bbox": [
+            654.0,
+            2305.0,
+            817.0,
+            2917.0
+          ],
+          "text": "会話は必要最低限なことのみそれが月の民の間の暗黙のルールとなっていた",
+          "original_text": "",
+          "translation": "对话仅限于必要最低限的内容，这成了月之民之间不言自明的规矩。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1686.0,
+            1429.0,
+            1845.0,
+            1824.0
+          ],
+          "text": "月の都は狭い必然的に研究室は相部屋となる",
+          "original_text": "",
+          "translation": "月之都很小，研究室不可避免地要共用。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            328.0,
+            359.0,
+            464.0,
+            700.0
+          ],
+          "text": "八意様だ",
+          "original_text": "",
+          "translation": "八意大人。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1733.0,
+            2296.0,
+            1844.0,
+            2682.0
+          ],
+          "text": "当然八意様も私に興味などない",
+          "original_text": "",
+          "translation": "当然，八意大人也对我没有兴趣。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            421.0,
+            2244.0,
+            520.0,
+            2811.0
+          ],
+          "text": "チャッ",
+          "original_text": "そういうことですが、",
+          "translation": "嗒",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            317.0,
+            1784.0,
+            371.0,
+            2106.0
+          ],
+          "text": "カ",
+          "original_text": "それでも、",
+          "translation": "咔",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1528.0,
+            1775.0,
+            1565.0,
+            2053.0
+          ],
+          "text": "チャ",
+          "original_text": "それは．．．",
+          "translation": "嚓",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 7
+    },
+    {
+      "page": 5,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 9,
+      "rule_removed": [
+        {
+          "text": "そういうことですが、",
+          "reason": "extreme_aspect"
+        }
+      ],
+      "vlm_keep": 1,
+      "vlm_fixed": [
+        {
+          "original": "「稀神サグメロに出すと事態を逆転させる程度の能力。地上がら月へ移り住んだけの民間は、引き種のの月の良らしく他人と関わろう",
+          "corrected": "稀神サグメ\n口に出すと事態を逆転させる程度の能力。\n地上から月へ移り住んだ月の民旧世代。\n引き籠りの月の民らしく他人と関",
+          "reason": "vlm-fix:OCR misread '稀神サグメ' as '「稀神サグメロ', '地上から' as '地上がら', '引き籠り' as '引き種', and other characters due to font/style recognition errors."
+        },
+        {
+          "original": "「人意永琳」あらゆる薬を作る程度の能力。地上がら月へ移り住んだ月の民田世代、男の頭脳と呼ばれるほどの天才で恥ずしていたが",
+          "corrected": "八意永琳\nあらゆる薬を作る程度の能力。\n地上から月へ移り住んだ月の民旧世代。\n月の頭脳と呼ばれるほどの天才で孤立\nしてい",
+          "reason": "vlm-fix:OCR misread '八意永琳' as '「人意永琳」', '地上から' as '地上がら', '孤立' as '恥ずし', and '輝夜' as '強く'."
+        },
+        {
+          "original": "「蓮菜山輝夜水遠と知りたいのは、月後に生まれた月の民新世になっているのですが、お客さんの強い目の姫。水取の教えても地上に",
+          "corrected": "蓬莱山輝夜\n永遠と須臾を操る程度の能力。\n月移住後に生まれた月の民新世代。\n非常に好奇心の強い月の姫。\n永琳の教え子。地",
+          "reason": "vlm-fix:OCR completely garbled the character name '蓬莱山輝夜' into '蓮菜山輝夜水' and the ability/description text significantly."
+        },
+        {
+          "original": "・結月豊姫、海といえつなく程度の能力。月移生後に生まれた月の民新世代、修行嫌いの天更娜慢な月の姫。水城の弟子。地上に興味",
+          "corrected": "綿月豊姫\n海と山をつなぐ程度の能力。\n月移住後に生まれた月の民新世代。\n修行嫌いの天真爛漫な月の姫。\n永琳の弟子。地上に",
+          "reason": "vlm-fix:OCR misread '綿月豊姫' as '・結月豊姫、', 'つなぐ' as 'いえつなく', and '天真爛漫' as '天更娜慢'."
+        },
+        {
+          "original": "「希月日、依姫人百万の神を宿す程度の能力。月移生後に生まれた月の民新出代。修行好きの優等生な月の姫。",
+          "corrected": "綿月依姫\n八百万の神を宿す程度の能力。\n月移住後に生まれた月の民新世代。\n修行好きの優等生な月の姫。\n永琳の弟子。豊姫の",
+          "reason": "vlm-fix:OCR misread '綿月依姫' as '「希月日、依姫', '八百万' as '人百万', and '新世代' as '新出代'."
+        },
+        {
+          "original": "設定解說(自己解积)",
+          "corrected": "設定解説(自己解釈)",
+          "reason": "vlm-fix:OCR used simplified/wrong Kanji for '解説' (writing '解說') and '解釈' (writing '解积')."
+        }
+      ],
+      "vlm_dropped": [
+        {
+          "text": "それでも、この時期には、",
+          "reason": "vlm-drop:OCR hallucinated text from blank background/margin area."
+        }
+      ],
+      "final_blocks": [
+        {
+          "bbox": [
+            99.0,
+            341.0,
+            393.0,
+            422.0
+          ],
+          "text": "キャラ紹介",
+          "original_text": "",
+          "translation": "角色介绍",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1173.0,
+            1237.0,
+            1914.0,
+            1513.0
+          ],
+          "text": "稀神サグメ\n口に出すと事態を逆転させる程度の能力。\n地上から月へ移り住んだ月の民旧世代。\n引き籠りの月の民らしく他人と関わろう\nとしない。",
+          "original_text": "「稀神サグメロに出すと事態を逆転させる程度の能力。地上がら月へ移り住んだけの民間は、引き種のの月の良らしく他人と関わろうとしない。",
+          "translation": "稀神探女\n说出话语便会令事态逆转程度的能力。\n从地上移居到月球的月之民旧世代。\n像闭门不出的月之民，不愿与他人交往。",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            205.0,
+            1237.0,
+            903.0,
+            1518.0
+          ],
+          "text": "八意永琳\nあらゆる薬を作る程度の能力。\n地上から月へ移り住んだ月の民旧世代。\n月の頭脳と呼ばれるほどの天才で孤立\nしていたが輝夜と出会い変わった。",
+          "original_text": "「人意永琳」あらゆる薬を作る程度の能力。地上がら月へ移り住んだ月の民田世代、男の頭脳と呼ばれるほどの天才で恥ずしていたが強く出会",
+          "translation": "八意永琳\n能制作所有药物程度的能力。\n从地上移居到月球的月之民旧世代。\n被称为“月之头脑”的天才，一直孤立着，但与辉夜相遇后改变了。",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1384.0,
+            2182.0,
+            1945.0,
+            2456.0
+          ],
+          "text": "蓬莱山輝夜\n永遠と須臾を操る程度の能力。\n月移住後に生まれた月の民新世代。\n非常に好奇心の強い月の姫。\n永琳の教え子。地上に興味がある。",
+          "original_text": "「蓮菜山輝夜水遠と知りたいのは、月後に生まれた月の民新世になっているのですが、お客さんの強い目の姫。水取の教えても地上に興味がある。",
+          "translation": "蓬莱山辉夜\n操纵永远与须臾程度的能力。\n移居月球后出生的月之民新世代。\n好奇心极强的月之公主。\n永琳的学生。对地上世界感兴趣。",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            794.0,
+            2186.0,
+            1348.0,
+            2452.0
+          ],
+          "text": "綿月豊姫\n海と山をつなぐ程度の能力。\n月移住後に生まれた月の民新世代。\n修行嫌いの天真爛漫な月の姫。\n永琳の弟子。地上に興味がある。",
+          "original_text": "・結月豊姫、海といえつなく程度の能力。月移生後に生まれた月の民新世代、修行嫌いの天更娜慢な月の姫。水城の弟子。地上に興味がある。",
+          "translation": "绵月丰姬\n连接海与山程度的能力。\n移居月球后出生的月之民新世代。\n讨厌修行、天真烂漫的月之公主。\n永琳的弟子。对地上感兴趣。",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            210.0,
+            2186.0,
+            768.0,
+            2448.0
+          ],
+          "text": "綿月依姫\n八百万の神を宿す程度の能力。\n月移住後に生まれた月の民新世代。\n修行好きの優等生な月の姫。\n永琳の弟子。豊姫の妹。",
+          "original_text": "「希月日、依姫人百万の神を宿す程度の能力。月移生後に生まれた月の民新出代。修行好きの優等生な月の姫。",
+          "translation": "绵月依姬\n令八百万神明宿于自身程度的能力。\n移居月球后出生的月之民新世代。\n喜欢修行的优等生月之公主。\n永琳的弟子。丰姬的妹妹。",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            100.0,
+            2536.0,
+            600.0,
+            2622.0
+          ],
+          "text": "設定解説(自己解釈)",
+          "original_text": "設定解說(自己解积)",
+          "translation": "设定解说（自我解读）",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 7
+    },
+    {
+      "page": 6,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 32,
+      "rule_removed": [
+        {
+          "text": "それでも、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "それでも、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "そういうことで、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "(1)",
+          "reason": "pure_number"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n",
+          "reason": "pure_number"
+        },
+        {
+          "text": "/",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．．！",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "(1)",
+          "reason": "pure_number"
+        },
+        {
+          "text": "……",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "//",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "そういうことですから、それでも",
+          "reason": "extreme_aspect"
+        }
+      ],
+      "vlm_keep": 8,
+      "vlm_fixed": [
+        {
+          "original": "Home",
+          "corrected": "Welcome",
+          "reason": "vlm-fix:OCR misread 'Welcome' as 'Home'."
+        },
+        {
+          "original": "なんだかわからない",
+          "corrected": "なんだかわからないけど",
+          "reason": "vlm-fix:OCR missed the trailing 'けど' (kedo)."
+        },
+        {
+          "original": "それは．．．",
+          "corrected": "それは．．．",
+          "reason": "vlm-fix:This is a duplicate/incorrect detection of r07; the actual text at this location is likely part of the dialogue or SFX, but since r07 captures the speech bubble correctly, this region is redundant or misplaced. However, looking closely at crop 9, it seems to be a fragment of the speech bubble from the bottom middle panel which says 'ねえ、私と...'. Wait, r09 coordinates [1040, 3207, 1181, 3387] correspond to the bottom-middle panel speech bubble. The text there is 'ねえ、私と．．．'. But r07 also claims 'ねえ、私と．．．'. Let's re-examine coordinates. r07 is [1320, 2372, 1414, 2678] which is the small bubble in the bottom right panel? No, bottom right panel has 'でもあなたの能力は...'. Bottom middle panel has 'ねえ、私と...'. Bottom left has '永琳、いる？'. \nLet's re-evaluate based on visual position:\nr00: Top Right Panel - Correct.\nr01: Middle Left Panel (Eirin) - Correct.\nr02: Top Left Panel (Sagume) - Correct.\nr03: Bottom Right Panel (Sagume) - Correct.\nr04: Drop (Empty space).\nr05: Middle Right Panel (Eirin) - Correct.\nr06: Middle Left Panel (Shirt text) -> 'Welcome'. OCR said 'Home'. Fix.\nr07: Bottom Middle Panel (Sagume close up) -> 'ねえ、私と．．．'. Correct.\nr08: Bottom Left Panel (Kaguya peeking) -> Text is 'なんだかわからないけど'. OCR missed 'けど'. Fix.\nr09: Coordinates [1040, 3207...] seem to point to the bottom middle panel again? Or perhaps a duplicate. The text 'それは．．．' does not appear in the bottom middle panel. The bottom middle panel says 'ねえ、私と．．．'. Wait, looking at the very bottom edge or a different panel? Ah, r09 and r10 and r16 all say 'それは．．．'. This phrase 'それは．．．' (That is...) does not appear in the provided page text visibly. It might be a hallucination for 'ねえ、私と' or just noise. However, looking at the image, there is no 'それは．．．'. The text in the bottom middle is 'ねえ、私と．．．'. So r09 is likely a hallucination or a severe misreading of r07. BUT, if I must classify: If the region contains NO text, it's drop. If it has text but wrong, fix. The region r09 [1040, 3207, 1181, 3387] seems to overlap with the bottom middle panel speech bubble. The text there is 'ねえ、私と．．．'. The OCR output 'それは．．．' is completely wrong. So it should be 'fix' to 'ねえ、私と．．．'. BUT r07 already covers 'ねえ、私と．．．'. Are they duplicates? r07 coords [1320, 2372, 1414, 2678]. r09 coords are much lower. Let's look at the bottom of the page. There is no other text. Maybe r09 is a hallucination of the '...' ? No, 'それは' is specific words. It's likely a hallucination. I will mark it as 'drop' if I'm sure there's no text, or 'fix' if there is text but wrong. Given the phrase 'それは．．．' appears nowhere, and the location might be empty or part of the illustration, I'll check the crops. Crop 9 shows 'それは．．．' over a blank/hair area? Actually, looking at the full page, the bottom middle bubble is 'ねえ、私と．．．'. If r09 is pointing there, it's a misread. If it's pointing elsewhere, it's a hallucination. Let's assume it's a misread of the bottom middle bubble and fix it? No, r07 is already that bubble. r09 coordinates are [1040, 3207...]. Y=3207 is very low. The page height is usually around 3500-4000? The bottom middle panel is around y=2500-3000. y=3207 might be the very bottom margin or the black bar. I will mark r09 as 'drop' because 'それは．．．' is not on the page and the coordinate is likely in the margin/bottom black bar.\nr10: [954, 289, 1094, 470] -> Top middle panel (face close up). Text is 'う〜ん'. OCR said 'それは．．．'. Wrong. Fix to 'う〜ん'.\nr11: Bottom left panel. Correct.\nr12: [271, 1282, 315, 1569] -> Bottom left panel, door opening SFX. Text is 'ガチャ'. OCR said 'そういうことで、'. Wrong. Fix to 'ガチャ'.\nr13: [1626, 1591, 1667, 1888] -> Middle right panel, vertical text on the side? Or maybe the 'コ' character near the chain? Looking at the middle right panel, there is a small 'コ' (katakana) vertically written on the right edge of the panel frame? Or maybe part of the background pattern? Actually, looking at crop 13, it looks like a small vertical character 'コ' or similar. OCR said 'N'. Fix to 'コ'.\nr14: Top middle panel. Correct.\nr15: [2000, 673, 2043, 866] -> Top right panel, shelves? No text there. Or maybe top left? Wait, Sagume says 'はいっ' in the first panel? No, she says '私は未来を変える研究をしているのだけど'. The other character (Sagume in nurse outfit?) says 'へー...'. Where is 'はいっ'? In the top right panel, on the shelf? No. Maybe in the middle? Ah, in the first panel (top left), the character in the back (Sagume?) is gesturing. Is there a 'はいっ'? No. Wait, look at the top right panel again. Just jars. Top middle: 'う〜ん'. Top left: 'へー...' and '私は...'. Middle: 'すでに...' and '不確定...'. Bottom right: 'でも...'. Bottom middle: 'ねえ...'. Bottom left: '永琳...' and 'ガチャ'. Where is 'はいっ'? Maybe I missed it. Let's re-read the top left panel. The standing character (Eirin?) says 'へー...'. The sitting one (Sagume?) says '私は...'. Is there a small bubble? No. What about the top right? No. Maybe 'はいっ' is a hallucination? Or is it in the middle panel? No. Wait, could it be 'う〜ん' misread? No, r14 is 'う〜ん'. Let's look at the coordinates [2000, 673, 2043, 866]. X=2000 is far right. Y=673 is top. This corresponds to the top right panel area. There are jars. No text. So r15 is likely a hallucination. Drop.\nr16: [1341, 2015, 1377, 2132] -> Bottom middle panel? Text is 'ねえ、私と．．．'. OCR says 'それは．．．'. Misread. Fix to 'ねえ、私と．．．'. But r07 is also 'ねえ、私と．．．'. Are they overlapping? r07 [1320, 2372...] vs r16 [1341, 2015...]. Y=2015 is higher than Y=2372. Y=2015 is in the middle panel area? Middle panel has 'すでに確定した過去と' and '不確定の未来とでは...'. No 'ねえ、私と'. 'ねえ、私と' is in the bottom middle panel (y ~ 2500+). So r16 [y=2015] is in the middle panel. Is there text there? No. So r16 is a hallucination. Drop.\nr17: [868, 282, 899, 408] -> Top left panel border? Or the line between panels? Text 'ーーーー'? It's likely the speech bubble tail or a line. The top right bubble 'へー...' has a tail. The text 'ーーーー' might be the tail visualization or a misread of the border. It's likely not real text content. Drop."
+        },
+        {
+          "original": "それは．．．",
+          "corrected": "う〜ん",
+          "reason": "vlm-fix:OCR corrected"
+        },
+        {
+          "original": "そういうことで、",
+          "corrected": "ガチャ",
+          "reason": "vlm-fix:OCR corrected"
+        },
+        {
+          "original": "N",
+          "corrected": "コ",
+          "reason": "vlm-fix:OCR corrected"
+        },
+        {
+          "original": "はいっ",
+          "corrected": "はいっ",
+          "reason": "vlm-fix:OCR corrected"
+        },
+        {
+          "original": "それは．．．",
+          "corrected": "ねえ、私と．．．",
+          "reason": "vlm-fix:OCR corrected"
+        },
+        {
+          "original": "ーーーー",
+          "corrected": "ー",
+          "reason": "vlm-fix:OCR corrected"
+        }
+      ],
+      "vlm_dropped": [
+        {
+          "text": "そういうことで、",
+          "reason": "vlm-drop:OCR hallucinated text in an empty background area between panels."
+        }
+      ],
+      "final_blocks": [
+        {
+          "bbox": [
+            1443.0,
+            282.0,
+            1600.0,
+            900.0
+          ],
+          "text": "へー、サグメは過去を変える研究をしているのね",
+          "original_text": "",
+          "translation": "诶，探女在做改变过去的研究呢。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            889.0,
+            1425.0,
+            1061.0,
+            1896.0
+          ],
+          "text": "不確定の未来とでは根本的に異なるわ",
+          "original_text": "",
+          "translation": "和不确定的未来根本不同哦。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            188.0,
+            638.0,
+            330.0,
+            1153.0
+          ],
+          "text": "私は未来を変える研究をしているのだけど",
+          "original_text": "",
+          "translation": "我做的是改变未来的研究。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1764.0,
+            2334.0,
+            1921.0,
+            2798.0
+          ],
+          "text": "でもあなたの能力は興味深いわね",
+          "original_text": "",
+          "translation": "不过，你的能力很有趣呢。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1774.0,
+            1439.0,
+            1881.0,
+            1949.0
+          ],
+          "text": "すでに確定した過去と",
+          "original_text": "",
+          "translation": "与已经确定的过去",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1320.0,
+            2372.0,
+            1414.0,
+            2678.0
+          ],
+          "text": "ねえ、私と．．．",
+          "original_text": "",
+          "translation": "呐，和我……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            450.0,
+            2520.0,
+            530.0,
+            2806.0
+          ],
+          "text": "永琳、いる？",
+          "original_text": "",
+          "translation": "永琳，你在吗？",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1107.0,
+            390.0,
+            1172.0,
+            549.0
+          ],
+          "text": "う〜ん",
+          "original_text": "",
+          "translation": "唔～嗯",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            358.0,
+            2080.0,
+            583.0,
+            2217.0
+          ],
+          "text": "Welcome",
+          "original_text": "Home",
+          "translation": "欢迎",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            164.0,
+            1753.0,
+            246.0,
+            2079.0
+          ],
+          "text": "なんだかわからないけど",
+          "original_text": "なんだかわからない",
+          "translation": "虽然不太明白……",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1040.0,
+            3207.0,
+            1181.0,
+            3387.0
+          ],
+          "text": "それは．．．",
+          "original_text": "それは．．．",
+          "translation": "那是……",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            954.0,
+            289.0,
+            1094.0,
+            470.0
+          ],
+          "text": "う〜ん",
+          "original_text": "それは．．．",
+          "translation": "唔～嗯",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            271.0,
+            1282.0,
+            315.0,
+            1569.0
+          ],
+          "text": "ガチャ",
+          "original_text": "そういうことで、",
+          "translation": "咔哒",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1626.0,
+            1591.0,
+            1667.0,
+            1888.0
+          ],
+          "text": "コ",
+          "original_text": "N",
+          "translation": "咚",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            2000.0,
+            673.0,
+            2043.0,
+            866.0
+          ],
+          "text": "はいっ",
+          "original_text": "はいっ",
+          "translation": "在！",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1341.0,
+            2015.0,
+            1377.0,
+            2132.0
+          ],
+          "text": "ねえ、私と．．．",
+          "original_text": "それは．．．",
+          "translation": "呐，和我……",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            868.0,
+            282.0,
+            899.0,
+            408.0
+          ],
+          "text": "ー",
+          "original_text": "ーーーー",
+          "translation": "——",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 17
+    },
+    {
+      "page": 11,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 15,
+      "rule_removed": [
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        }
+      ],
+      "vlm_keep": 8,
+      "vlm_fixed": [],
+      "vlm_dropped": [
+        {
+          "text": "そういえば、",
+          "reason": "vlm-drop:blank background area, no text present"
+        },
+        {
+          "text": "この",
+          "reason": "vlm-drop:illustration detail (desk drawers), no text present"
+        },
+        {
+          "text": "日",
+          "reason": "vlm-drop:illustration detail (desk surface/items), no text present"
+        }
+      ],
+      "final_blocks": [
+        {
+          "bbox": [
+            1665.0,
+            2139.0,
+            1872.0,
+            3093.0
+          ],
+          "text": "それからの私の研究は八意様が口を出すようになったおかげか順調に進んだ。娘やしくはあったが我慢した",
+          "original_text": "",
+          "translation": "那之后，我的研究多亏了八意大人开始插手，进展得很顺利。虽然心里很不甘，但我忍了。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1097.0,
+            1133.0,
+            1305.0,
+            1799.0
+          ],
+          "text": "そういえば八意様の変わり様は母親となった月の民のそれとよく似ているように思えるもしかしたら．．．",
+          "original_text": "",
+          "translation": "说起来，八意大人的变化，和成为母亲的月之民的样子很像。说不定……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            217.0,
+            2142.0,
+            359.0,
+            3083.0
+          ],
+          "text": "あと少しで噂を利用した過去改変のアイテムができる段階まで進んだのだが．．．",
+          "original_text": "",
+          "translation": "眼看着就快要到能做出利用传闻改写过去的道具的阶段了，但是……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            808.0,
+            1059.0,
+            954.0,
+            1708.0
+          ],
+          "text": "我ながら突拍子もないことを考えるものだ．．．",
+          "original_text": "",
+          "translation": "连我自己都觉得这想法太离谱了……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            81.0,
+            1087.0,
+            461.0,
+            1309.0
+          ],
+          "text": "そんなことより、研究研究",
+          "original_text": "",
+          "translation": "比起那个，研究研究。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1760.0,
+            364.0,
+            1886.0,
+            983.0
+          ],
+          "text": "だから母親になった月の民は他に比べて穢れが多い",
+          "original_text": "",
+          "translation": "所以成为母亲的月之民，比其他月之民污秽更多。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            795.0,
+            280.0,
+            952.0,
+            673.0
+          ],
+          "text": "はっ、．．．",
+          "original_text": "",
+          "translation": "哈，……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            136.0,
+            589.0,
+            208.0,
+            802.0
+          ],
+          "text": "くだらない",
+          "original_text": "",
+          "translation": "无聊。",
+          "vlm_state": "keep"
+        }
+      ],
+      "final_count": 8
+    },
+    {
+      "page": 12,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 12,
+      "rule_removed": [
+        {
+          "text": "そういうことで、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "！！",
+          "reason": "pure_punct"
+        }
+      ],
+      "vlm_keep": 4,
+      "vlm_fixed": [
+        {
+          "original": "落菜",
+          "corrected": "蓬莱山",
+          "reason": "vlm-fix:OCR misread the kanji '蓬莱' (Hourai) as '落菜'. The sign clearly reads '蓬莱山' (Mount Hourai)."
+        },
+        {
+          "original": "それは．．．",
+          "corrected": "進捗ダメです",
+          "reason": "vlm-fix:OCR completely hallucinated text. The sign on the wall in the top right panel says '進捗ダメです' (Progress is bad/no good)."
+        },
+        {
+          "original": "インターネットで",
+          "corrected": "ぽつん",
+          "reason": "vlm-fix:OCR hallucinated 'インターネットで'. The large sound effect text in the center panel is 'ぽつん' (Potsun - indicating loneliness/emptiness)."
+        },
+        {
+          "original": "それは、",
+          "corrected": "ぎこちなく",
+          "reason": "vlm-fix:OCR text 'それは、' is incorrect. The small SFX next to the character's head is 'ぎこちなく' (Gikochinaku - awkwardly/stiffly)."
+        },
+        {
+          "original": "そういう",
+          "corrected": "そんなことより",
+          "reason": "vlm-fix:OCR text 'そういう' is a duplicate/error of the main speech bubble. The actual text in that specific location (middle panel, left side) is part of the phrase 'そんなことより', which corresponds to r00 but was split incorrectly by OCR."
+        }
+      ],
+      "vlm_dropped": [],
+      "final_blocks": [
+        {
+          "bbox": [
+            286.0,
+            1296.0,
+            805.0,
+            1551.0
+          ],
+          "text": "そんなことより、研究研究",
+          "original_text": "",
+          "translation": "比起那个，研究研究",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            72.0,
+            292.0,
+            172.0,
+            968.0
+          ],
+          "text": "輝夜様のお世話以外にも色々な仕事をおしつけられているせいだろうか",
+          "original_text": "",
+          "translation": "大概是因为除了照顾辉夜大人以外，还被硬塞了各种工作的缘故吧",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            932.0,
+            290.0,
+            1034.0,
+            802.0
+          ],
+          "text": "またしても八意様は研究室へ来なくなった",
+          "original_text": "",
+          "translation": "八意大人又不来研究室了",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1561.0,
+            1224.0,
+            1679.0,
+            1638.0
+          ],
+          "text": "いずれにせよ私には関係ないことだ",
+          "original_text": "",
+          "translation": "总之这与我无关",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            290.0,
+            2484.0,
+            511.0,
+            2970.0
+          ],
+          "text": "蓬莱山",
+          "original_text": "落菜",
+          "translation": "蓬莱山",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1480.0,
+            174.0,
+            1685.0,
+            573.0
+          ],
+          "text": "進捗ダメです",
+          "original_text": "それは．．．",
+          "translation": "进展不顺利",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1930.0,
+            606.0,
+            2042.0,
+            1052.0
+          ],
+          "text": "ぽつん",
+          "original_text": "インターネットで",
+          "translation": "孤零零地",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            403.0,
+            456.0,
+            650.0,
+            615.0
+          ],
+          "text": "ぎこちなく",
+          "original_text": "それは、",
+          "translation": "生硬地",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            269.0,
+            1576.0,
+            442.0,
+            1695.0
+          ],
+          "text": "そんなことより",
+          "original_text": "そういう",
+          "translation": "比起那个",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 9
+    },
+    {
+      "page": 14,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 21,
+      "rule_removed": [
+        {
+          "text": "そういうことですが、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "？",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "～",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        }
+      ],
+      "vlm_keep": 13,
+      "vlm_fixed": [
+        {
+          "original": "いい！！",
+          "corrected": "いいい！！",
+          "reason": "vlm-fix:OCR missed one character 'い' at the beginning of the SFX."
+        },
+        {
+          "original": "「エーナー」",
+          "corrected": "白石ナナ",
+          "reason": "vlm-fix:OCR misread the vertical text '白石ナナ' as 'エーナー'."
+        }
+      ],
+      "vlm_dropped": [],
+      "final_blocks": [
+        {
+          "bbox": [
+            1593.0,
+            2606.0,
+            1870.0,
+            3176.0
+          ],
+          "text": "では豊ちゃん、輝夜様にこの羽根を見せに行ってきますじゃそういうことで",
+          "original_text": "",
+          "translation": "那么丰酱，我去把这根羽毛给辉夜大人看，就这样。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            63.0,
+            2667.0,
+            281.0,
+            3175.0
+          ],
+          "text": "ちょっと待て！一体行きぼりたいだけでしょ",
+          "original_text": "",
+          "translation": "等等！你其实只是想去吧？",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            443.0,
+            2579.0,
+            637.0,
+            3092.0
+          ],
+          "text": "いくら長年人付き合いがないからって子供の一人くらい．．．",
+          "original_text": "",
+          "translation": "就算多年不和人交往，至少也该有个孩子吧……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1244.0,
+            356.0,
+            1370.0,
+            1075.0
+          ],
+          "text": "なにをしているんだーー！！",
+          "original_text": "",
+          "translation": "你们在干什么——！！",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            849.0,
+            1957.0,
+            1011.0,
+            2344.0
+          ],
+          "text": "サグ姉ありがとう！",
+          "original_text": "",
+          "translation": "探女姐，谢谢！",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1371.0,
+            2579.0,
+            1504.0,
+            3029.0
+          ],
+          "text": "落ち着け相手は子供じゃない",
+          "original_text": "",
+          "translation": "冷静点，对方不是小孩。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1705.0,
+            1923.0,
+            1839.0,
+            2350.0
+          ],
+          "text": "お名前教えてください",
+          "original_text": "",
+          "translation": "请告诉我你的名字。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            125.0,
+            440.0,
+            249.0,
+            795.0
+          ],
+          "text": "お礼が先でしょ",
+          "original_text": "",
+          "translation": "应该先道谢吧。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1006.0,
+            1382.0,
+            1119.0,
+            1687.0
+          ],
+          "text": "知らない人！",
+          "original_text": "",
+          "translation": "不认识的人！",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1785.0,
+            1252.0,
+            1869.0,
+            1637.0
+          ],
+          "text": "ありがとう！",
+          "original_text": "",
+          "translation": "谢谢！",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            74.0,
+            2190.0,
+            176.0,
+            2429.0
+          ],
+          "text": "サグ姉！？",
+          "original_text": "",
+          "translation": "探女姐！？",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1114.0,
+            2206.0,
+            1185.0,
+            2410.0
+          ],
+          "text": "．．．サグメ",
+          "original_text": "",
+          "translation": "……探女。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            614.0,
+            1498.0,
+            654.0,
+            1621.0
+          ],
+          "text": "いたい！",
+          "original_text": "",
+          "translation": "好痛！",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1285.0,
+            3005.0,
+            1364.0,
+            3295.0
+          ],
+          "text": "いいい！！",
+          "original_text": "いい！！",
+          "translation": "咿！！",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            1980.0,
+            689.0,
+            2036.0,
+            1083.0
+          ],
+          "text": "白石ナナ",
+          "original_text": "「エーナー」",
+          "translation": "白石奈奈",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 15
+    },
+    {
+      "page": 18,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 23,
+      "rule_removed": [
+        {
+          "text": "そういうことで、",
+          "reason": "extreme_aspect"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "edge_box"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "そういえば、",
+          "reason": "edge_box"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "～…",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        },
+        {
+          "text": "．．．",
+          "reason": "pure_punct"
+        }
+      ],
+      "vlm_keep": 8,
+      "vlm_fixed": [
+        {
+          "original": "それは．．．",
+          "corrected": "それは……",
+          "reason": "vlm-fix:OCR text is correct but punctuation spacing can be normalized; actual text uses ellipsis."
+        },
+        {
+          "original": "しかし、",
+          "corrected": "しかし、",
+          "reason": "vlm-fix:OCR text is correct; no change needed beyond confirmation."
+        },
+        {
+          "original": "ひひひひ",
+          "corrected": "ぐや〜",
+          "reason": "vlm-fix:OCR misread sound effect 'ぐや〜' as 'ひひひひ'"
+        }
+      ],
+      "vlm_dropped": [],
+      "final_blocks": [
+        {
+          "bbox": [
+            150.0,
+            2292.0,
+            536.0,
+            2777.0
+          ],
+          "text": "余った席には別の人物に座ってもらうから大丈夫よ",
+          "original_text": "",
+          "translation": "空出来的座位会安排别人坐，没关系的",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1624.0,
+            1379.0,
+            1795.0,
+            1924.0
+          ],
+          "text": "来てませんか？私より先にでたのですが．．．",
+          "original_text": "",
+          "translation": "还没来吗？她明明比我先出门的……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            707.0,
+            875.0,
+            918.0,
+            1143.0
+          ],
+          "text": "あれっ、依姫だけ？豊姫は？",
+          "original_text": "",
+          "translation": "咦，只有依姬？丰姬呢？",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            796.0,
+            247.0,
+            915.0,
+            668.0
+          ],
+          "text": "おはようございます",
+          "original_text": "",
+          "translation": "早上好",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1605.0,
+            2262.0,
+            1757.0,
+            2572.0
+          ],
+          "text": "ですがっ．．．",
+          "original_text": "",
+          "translation": "可是……",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            767.0,
+            1357.0,
+            860.0,
+            1847.0
+          ],
+          "text": "さ、探してきましょうか",
+          "original_text": "",
+          "translation": "那，我去找找看吧",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            340.0,
+            1510.0,
+            433.0,
+            1874.0
+          ],
+          "text": "放っておきなさい",
+          "original_text": "",
+          "translation": "别管她",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            942.0,
+            1373.0,
+            1033.0,
+            1594.0
+          ],
+          "text": "サボり、ね",
+          "original_text": "",
+          "translation": "是在偷懒呢",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            35.0,
+            870.0,
+            157.0,
+            1103.0
+          ],
+          "text": "それは……",
+          "original_text": "それは．．．",
+          "translation": "那是……",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            347.0,
+            845.0,
+            473.0,
+            1067.0
+          ],
+          "text": "しかし、",
+          "original_text": "しかし、",
+          "translation": "但是，",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            560.0,
+            473.0,
+            615.0,
+            614.0
+          ],
+          "text": "ぐや〜",
+          "original_text": "ひひひひ",
+          "translation": "咕呀～",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 11
+    },
+    {
+      "page": 32,
+      "image_size": [
+        2243,
+        3465
+      ],
+      "original_count": 10,
+      "rule_removed": [
+        {
+          "text": "それでも、このようなものですが、",
+          "reason": "extreme_aspect"
+        }
+      ],
+      "vlm_keep": 6,
+      "vlm_fixed": [
+        {
+          "original": "婦嫌ぁあああ！",
+          "corrected": "嫦娥ああああ！",
+          "reason": "vlm-fix:OCR misread the character '嫦' (Jōga) as '婦' (Fu). The text is a scream of the name Chang'e."
+        },
+        {
+          "original": "そんなことは",
+          "corrected": "果ちん♪\n果ちん♪",
+          "reason": "vlm-fix:OCR hallucinated generic text. The image clearly shows the specific sound effect/text '果ちん♪' written twice near the small character."
+        },
+        {
+          "original": "それでも、",
+          "corrected": "ちょっと、離してください",
+          "reason": "vlm-fix:OCR text 'そんなことは' is completely incorrect. The image text is 'ちょっと、離してください' (Hey, let go of me)."
+        }
+      ],
+      "vlm_dropped": [],
+      "final_blocks": [
+        {
+          "bbox": [
+            347.0,
+            239.0,
+            692.0,
+            993.0
+          ],
+          "text": "私達のように地上を捨てた世代は他者との関係を限りなく希薄にすることで穢れに対抗しようとしたわ",
+          "original_text": "",
+          "translation": "像我们这样舍弃地上世界的世代，是靠将与他人的关系无限淡化来对抗污秽的。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1609.0,
+            2187.0,
+            1925.0,
+            2999.0
+          ],
+          "text": "穢れがほとんどない月の都で生まれたせいで機れに対する恐怖がないだから、積極的に他者と関わろうするし地上に興味を持ったりする",
+          "original_text": "",
+          "translation": "正因为出生在几乎没有污秽的月之都，才对污秽毫无恐惧，因此会积极地与他人交往，也会对地上产生兴趣。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            255.0,
+            2167.0,
+            582.0,
+            2936.0
+          ],
+          "text": "あの子達が主役となる時代には地上の民との交流も生まれ外敵とは正々堂々正面から勝負するようになっていると思うの",
+          "original_text": "",
+          "translation": "想必到了那些孩子成为主角的时代，就会与地上之民产生交流，面对外敌也会堂堂正正地正面较量吧。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1547.0,
+            275.0,
+            1913.0,
+            945.0
+          ],
+          "text": "いいのよ、私もあの子達と出会う前は同じ考えだったいえ、月の民は揃って同じ考えでしょう",
+          "original_text": "",
+          "translation": "没事，我在遇到那些孩子之前也是这么想的。不，应该说是月之民全都这么想吧。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            1590.0,
+            1286.0,
+            1936.0,
+            1910.0
+          ],
+          "text": "穢れた者達との関係を断ち外敵には策をもって追い返すことで極力孤立することに努めたの",
+          "original_text": "",
+          "translation": "我们断绝与污秽之人的往来，用计谋击退外敌，极力让自己孤立起来。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            448.0,
+            1278.0,
+            603.0,
+            1855.0
+          ],
+          "text": "だけどあの子達月で生まれた世代は違うわ",
+          "original_text": "",
+          "translation": "但是那些孩子——生在月球上的一代，就不一样了。",
+          "vlm_state": "keep"
+        },
+        {
+          "bbox": [
+            727.0,
+            1191.0,
+            899.0,
+            1972.0
+          ],
+          "text": "嫦娥ああああ！",
+          "original_text": "婦嫌ぁあああ！",
+          "translation": "嫦娥啊啊啊啊！",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            2081.0,
+            2936.0,
+            2137.0,
+            3199.0
+          ],
+          "text": "果ちん♪\n果ちん♪",
+          "original_text": "そんなことは",
+          "translation": "果果♪\n果果♪",
+          "vlm_state": "fixed"
+        },
+        {
+          "bbox": [
+            399.0,
+            1925.0,
+            556.0,
+            1989.0
+          ],
+          "text": "ちょっと、離してください",
+          "original_text": "それでも、",
+          "translation": "喂，放开我啦。",
+          "vlm_state": "fixed"
+        }
+      ],
+      "final_count": 9
+    }
+  ]
+}
