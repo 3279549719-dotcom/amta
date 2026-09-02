@@ -2,7 +2,7 @@
 
 引擎可插拔: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX内置免费) / manga_ocr(kha-white)。
 默认关闭硬规则过滤（--rule-filter 开启），VLM 校验默认关闭（--vlm 开启）。
-实现: amta.ocr_station.ocr_page（深模块，含双引擎兜底）。
+实现: amta.ocr_station.ocr_page（深模块，单引擎+可选规则过滤+可选VLM校验）。
 断点: 输出文件已存在 → 跳过(00_run_all 调用方决定)。
 """
 from __future__ import annotations
@@ -21,14 +21,13 @@ from amta.paths import write_json  # noqa: E402
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         page_idx: int = 0, engine: str = "hayai", vlm_enabled: bool = False,
         rule_filter_enabled: bool = False,
-        crop_dir: Path | None = None, fallback_ocr_fn=None) -> dict:
+        crop_dir: Path | None = None) -> dict:
     det = load_detection(det_path)
 
     doc = ocr_page(work_id, det, raw_page, out_path.parent, page_idx=page_idx,
                    engine=engine, vlm_enabled=vlm_enabled,
                    rule_filter_enabled=rule_filter_enabled,
-                   ocr_fn=ocr_batch, crop_dir=crop_dir,
-                   fallback_ocr_fn=fallback_ocr_fn)
+                   ocr_fn=ocr_batch, crop_dir=crop_dir)
     write_json(out_path, doc)
     return doc
 
