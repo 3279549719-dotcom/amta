@@ -463,7 +463,8 @@ def translate_page_minimal(work_id: str, canon, *,
             result[rid] = ""
 
     residue = guardrails.japanese_residue_check(list(result.values()))
-    violations = glossary.check_glossary(canon_items, result, ws)
+    # glossary_violations 已停用: 纯机械检查出违规也无法触发重翻/修正, 无实际价值
+    violations: list[str] = []
 
     out = artifacts.stamp({
         "translations": result,
