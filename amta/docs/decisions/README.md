@@ -36,3 +36,4 @@
 - [025 — Agent 记忆机制:四层闭环（注入 + 打捞 + 护栏）](./025-agent-memory-mechanism.md)
 - [026 — 记忆系统选型：不自造轮子，改用开源高星项目](./026-memory-system-build-vs-buy.md)
 - [027 — 记忆层 v2：注入瘦身 + loop_state 接续 + MCP 字典](./027-memory-dictionary-mcp.md)
+- [028 — Ralph Loop：外层循环 + 文件状态的无人值守开发循环](./028-ralph-loop-autonomous-development.md)
