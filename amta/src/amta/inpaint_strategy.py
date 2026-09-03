@@ -1,8 +1,10 @@
-"""Stage 4 擦除策略(纯函数,零依赖): category → fill_white / inpaint / skip。
+"""Stage 4 擦除策略(纯函数,零依赖): bubble_type → fill_white / inpaint / skip。
 
-ADR-019 + Spec §2: dialogue_bubble 白底直填(蓝图 bypass invariant);
-overlay_text / sfx 走 mask+inpaint;bbox 越界/缺失防御性 skip。
-sfx_triage(旁注/保全)延后——本期 sfx 一律 inpaint。
+text_bubble 白底直填(气泡本来就是白的);
+text_free 走 mask+inpaint(文字在画面背景上,需要修复背景);
+bbox 越界/缺失防御性 skip。
+
+兼容旧字段 category(dialogue_bubble/overlay_text/sfx),新字段 bubble_type(text_bubble/text_free)。
 """
 from __future__ import annotations
 
@@ -11,10 +13,18 @@ INPAINT = "inpaint"
 SKIP = "skip"
 
 
+def _resolve_category(r: dict) -> str:
+    """从 region 解析分类: 优先 bubble_type(新), 兼容 category(旧)。"""
+    bt = r.get("bubble_type")
+    if bt:
+        return "dialogue_bubble" if bt == "text_bubble" else "overlay_text"
+    return r.get("category") or "dialogue_bubble"  # 保守默认涂白
+
+
 def plan_inpaint(regions: list[dict], image_meta: dict | None = None) -> list[dict]:
     plan = []
     for r in regions:
-        cat = r.get("category") or "dialogue_bubble"  # 兼容旧产物,保守默认
+        cat = _resolve_category(r)
         bb = r.get("bbox")
         if not bb or len(bb) != 4:
             plan.append({"region_id": r.get("region_id"), "category": cat,

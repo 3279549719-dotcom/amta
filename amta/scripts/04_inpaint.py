@@ -1,9 +1,9 @@
-"""04_inpaint 工位 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4, ADR-019 契约)。
+"""04_inpaint 工位 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。
 
 用法: python scripts/04_inpaint.py --work-id <id> --det <detection.json> --raw <page图>
       --out <page>_inpaint.json --clean-dir <artifacts/clean> [--dry-run]
-策略: category 三级分类(ADR-019) → dialogue_bubble 白底直填 / overlay_text+sfx mask+inpaint(koharu lama-manga)。
-贴回: 探针 2026-08-27 定案 — fetch_inpainted(WEBP) 整页替换,再重放 fill_white。
+策略: bubble_type 分类 → text_bubble 白底直填 / text_free mask+inpaint(koharu lama-manga)。
+贴回: fetch_inpainted(WEBP) 整页替换,再重放 fill_white。
 断点: --out 存在 → 跳过(00_run_all 调用方决定)。
 """
 from __future__ import annotations
@@ -27,15 +27,15 @@ def _apply_fill_white(img: Image.Image, bbox: list) -> None:
 
 
 def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4) -> bytes:
-    """inpaint 区域聚合 mask(PNG 编码): 目标区黑(0),其余白(255)。探针定案: 必须 PNG 字节。"""
-    mask = Image.new("L", img.size, 255)
+    """inpaint 区域聚合 mask(PNG 编码): 目标区白(255),其余黑(0)。koharu 约定: 白色=要修复区域。"""
+    mask = Image.new("L", img.size, 0)
     d = ImageDraw.Draw(mask)
     for bb in bboxes:
         x1, y1, x2, y2 = [int(v) for v in bb]
         x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
         x2, y2 = min(img.width, x2 + pad), min(img.height, y2 + pad)
         if x2 > x1 and y2 > y1:
-            d.rectangle([x1, y1, x2, y2], fill=0)
+            d.rectangle([x1, y1, x2, y2], fill=255)
     buf = io.BytesIO()
     mask.save(buf, format="PNG")
     return buf.getvalue()
@@ -56,7 +56,9 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
     det = read_json(det_path)
     raw_img = Image.open(raw_page).convert("RGB")
     img = raw_img.copy()
-    plan = plan_inpaint(det.get("regions") or [], det.get("image_meta"))
+    # detection.json 字段是 blocks(新), 兼容 regions(旧)
+    regions = det.get("blocks") or det.get("regions") or []
+    plan = plan_inpaint(regions, det.get("image_meta"))
 
     filled = [p for p in plan if p["action"] == FILL_WHITE]
     inpaint_boxes = [p["bbox"] for p in plan if p["action"] == INPAINT]
@@ -77,7 +79,7 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
                 try:
                     inpainted = Image.open(io.BytesIO(data)).convert("RGB")
                     if inpainted.size == img.size:
-                        img = inpainted  # 整页替换为 inpaint 结果(探针定案)
+                        img = inpainted  # 整页替换为 inpaint 结果
                 except Exception as e:  # noqa: BLE001
                     print(f"[04_inpaint] WARN inpainted decode failed: {e}")
             else:
