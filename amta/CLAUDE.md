@@ -66,3 +66,9 @@ Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读
 - **记忆自举（JIT 触发纪律，补充全量）**：记忆包已自动注入近况/经验摘要，但**完整 lessons/ADR 仍按需读**——每轮任务按关键词 `python scripts/memory_grep.py --query <主题> --scope all` 查相关 lessons/ADR（压缩后必读 now.md 全量 `python scripts/memory_recent.py`），先查记忆再动手，避免重踩已有坑。记忆机制自检：`python scripts/memory_status.py`。
 - **记忆 GC（腐坏自动清理）**：`python scripts/memory_gc.py` 归档未归档 today→recent、刷新 now.md（压缩恢复现场）、清空一次性临时目录；已并入 fastcheck 机械护栏。收尾前跑一次确认记忆地产干净。
 - **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。
+
+---
+
+## Python 运行规范（强制）
+
+所有 Python 命令必须用 `uv run python`，禁止直接用 `python`。系统 Python 3.14 无依赖，项目 `.venv` 是 Python 3.12 有全部依赖。`uv run` 自动选对解释器。项目包在 `src/` 下，运行模块时需设 `$env:PYTHONPATH="src"`（项目脚本内部已自动处理）。常用短命令见 `run.ps1`。详见 AGENTS.md。
