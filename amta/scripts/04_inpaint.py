@@ -14,10 +14,13 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.inpaint_strategy import FILL_WHITE, INPAINT, SKIP, plan_inpaint  # noqa: E402
 from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import read_json, write_json  # noqa: E402
+from amta.text_mask_refiner import build_rect_mask, refine_text_mask  # noqa: E402
 from PIL import Image, ImageChops, ImageDraw  # noqa: E402
 
 
@@ -26,18 +29,22 @@ def _apply_fill_white(img: Image.Image, bbox: list) -> None:
     ImageDraw.Draw(img).rectangle([x1, y1, x2, y2], fill=(255, 255, 255))
 
 
-def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4) -> bytes:
-    """inpaint 区域聚合 mask(PNG 编码): 目标区白(255),其余黑(0)。koharu 约定: 白色=要修复区域。"""
-    mask = Image.new("L", img.size, 0)
-    d = ImageDraw.Draw(mask)
-    for bb in bboxes:
-        x1, y1, x2, y2 = [int(v) for v in bb]
-        x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
-        x2, y2 = min(img.width, x2 + pad), min(img.height, y2 + pad)
-        if x2 > x1 and y2 > y1:
-            d.rectangle([x1, y1, x2, y2], fill=255)
+def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4,
+                refine: bool = False) -> bytes:
+    """inpaint 区域聚合 mask(PNG 编码): 目标区白(255),其余黑(0)。koharu 约定: 白色=要修复区域。
+
+    refine=False: 矩形 mask (默认, 向后兼容)
+    refine=True:  框内传统方法精修像素级 mask (Plan A, 减少背景覆盖 70%+)
+    """
+    if refine and bboxes:
+        img_rgb = np.array(img.convert("RGB"))
+        mask_np = refine_text_mask(img_rgb, bboxes, pad=pad)
+        mask_img = Image.fromarray(mask_np)
+    else:
+        mask_np = build_rect_mask(img.size, bboxes, pad=pad)
+        mask_img = Image.fromarray(mask_np)
     buf = io.BytesIO()
-    mask.save(buf, format="PNG")
+    mask_img.save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -52,7 +59,8 @@ def _pixel_diff_ratio(a: Image.Image, b: Image.Image) -> float:
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         clean_dir: Path | None = None, dry_run: bool = False,
-        host: str = "127.0.0.1", port: int = 4000) -> dict:
+        host: str = "127.0.0.1", port: int = 4000,
+        refine_mask: bool = False, inpaint_engine: str = "lama-manga") -> dict:
     det = read_json(det_path)
     raw_img = Image.open(raw_page).convert("RGB")
     img = raw_img.copy()
@@ -71,9 +79,9 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
             client.close_current_project()
             client.create_project(f"amta-inpaint-{work_id}")
             page_id = client.import_page(raw_page)
-            client.run_inpaint(page_id, {"segment": _build_mask(img, inpaint_boxes),
-                                         "bubble": _build_mask(img, inpaint_boxes)},
-                               engine="lama-manga")
+            client.run_inpaint(page_id, {"segment": _build_mask(img, inpaint_boxes, refine=refine_mask),
+                                         "bubble": _build_mask(img, inpaint_boxes, refine=refine_mask)},
+                               engine=inpaint_engine)
             data = client.fetch_inpainted(page_id)
             if data:
                 try:
@@ -101,6 +109,8 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
             "inpainted": len(inpaint_boxes),
             "skipped": len(skipped),
             "size_ok": True,
+            "refine_mask": refine_mask,
+            "inpaint_engine": inpaint_engine,
             "pixel_diff_ratio": _pixel_diff_ratio(img, raw_img),
         },
         "dry_run": dry_run,
@@ -118,10 +128,16 @@ def main() -> int:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--clean-dir", type=Path, default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--refine-mask", action="store_true",
+                    help="框内传统方法精修像素级 mask (Plan A, 减少背景覆盖 70%+)")
+    ap.add_argument("--engine", default="lama-manga", choices=["lama-manga", "aot-inpainting", "flux2-klein"],
+                    help="inpaint 引擎 (默认 lama-manga)")
     a = ap.parse_args()
-    doc = run(a.work_id, a.det, a.raw, a.out, clean_dir=a.clean_dir, dry_run=a.dry_run)
+    doc = run(a.work_id, a.det, a.raw, a.out, clean_dir=a.clean_dir, dry_run=a.dry_run,
+              refine_mask=a.refine_mask, inpaint_engine=a.engine)
     print(f"[04_inpaint] {doc['page']}: filled={doc['checks']['filled']} "
           f"inpainted={doc['checks']['inpainted']} skipped={doc['checks']['skipped']} "
+          f"refine={doc['checks']['refine_mask']} engine={doc['checks']['inpaint_engine']} "
           f"diff={doc['checks']['pixel_diff_ratio']} -> {a.out}")
     return 0
 

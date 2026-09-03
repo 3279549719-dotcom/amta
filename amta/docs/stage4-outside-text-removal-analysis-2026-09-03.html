@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage 4 框外字像素级去除：第一性原理分析与方案设计</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI','Microsoft YaHei',system-ui,sans-serif; background:#f0f2f5; color:#333; line-height:1.7; }
+  .container { max-width:900px; margin:0 auto; padding:32px 24px; }
+  h1 { font-size:26px; color:#1a1a2e; margin-bottom:8px; font-weight:700; }
+  .subtitle { font-size:14px; color:#888; margin-bottom:32px; }
+  h2 { font-size:19px; color:#1a1a2e; margin:36px 0 16px 0; padding-left:12px; border-left:4px solid #e74c3c; font-weight:700; }
+  h3 { font-size:16px; color:#2c3e50; margin:24px 0 12px 0; font-weight:600; }
+  p { margin-bottom:14px; font-size:14px; }
+  .card { background:#fff; border-radius:10px; padding:20px 24px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .highlight { background:#fff8e1; border-left:4px solid #f39c12; padding:14px 18px; border-radius:0 8px 8px 0; margin:16px 0; font-size:13px; }
+  .insight { background:#e8f5e9; border-left:4px solid #27ae60; padding:14px 18px; border-radius:0 8px 8px 0; margin:16px 0; font-size:13px; }
+  .warning { background:#ffebee; border-left:4px solid #e74c3c; padding:14px 18px; border-radius:0 8px 8px 0; margin:16px 0; font-size:13px; }
+  code { background:#f4f4f4; padding:2px 6px; border-radius:4px; font-size:13px; font-family:'Consolas',monospace; color:#c0392b; }
+  pre { background:#1e1e2e; color:#cdd6f4; padding:16px; border-radius:8px; overflow-x:auto; margin:12px 0; font-size:12px; line-height:1.6; }
+  pre code { background:none; color:#cdd6f4; padding:0; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:13px; }
+  th { background:#2c3e50; color:#fff; padding:10px 12px; text-align:left; font-weight:600; }
+  td { padding:10px 12px; border-bottom:1px solid #eee; }
+  tr:nth-child(even) { background:#f9f9f9; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; margin-right:6px; }
+  .tag-ok { background:#d4edda; color:#155724; }
+  .tag-fail { background:#f8d7da; color:#721c24; }
+  .tag-rec { background:#fff3cd; color:#856404; }
+  ul, ol { margin:10px 0 14px 24px; font-size:14px; }
+  li { margin-bottom:6px; }
+  .flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:16px 0; }
+  .flow-step { background:#3498db; color:#fff; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:600; }
+  .flow-arrow { color:#999; font-size:18px; }
+  .metric { display:inline-block; background:#f0f4f8; padding:6px 12px; border-radius:6px; font-size:12px; margin:4px; }
+  .metric b { color:#2980b9; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Stage 4 框外字像素级去除：第一性原理分析与方案设计</h1>
+<div class="subtitle">分支 feat/stage4-ctd-mask-probe · 2026-09-03 · 基于 BallonsTranslator / comic-translate / koharu 参考实现</div>
+
+<!-- 执行摘要 -->
+<div class="card">
+<h2 style="margin-top:0;border-color:#3498db;">执行摘要</h2>
+<p><b>核心结论：</b>当前 Stage 4 陷入了一个错误的方向——追求"全页像素级文字分割模型"。但所有专用模型（CTD DBNet、comic-text-detector-seg）都只训练了气泡内黑字白底，对框外字零响应。</p>
+<p><b>认知 shift：</b>RT-DETR-v2 的检测框已经够用了。问题不在"找不到文字在哪"，而在"框内怎么精确圈出文字像素"。在框内，传统图像处理（Otsu 阈值 + 颜色直方图 + 连通域分析）完全够用——这是 BallonsTranslator 和 comic-translate 都验证过的生产级方案。</p>
+<p><b>推荐路径：</b>方案 A（框内传统方法精修，零新模型，立即可以试）→ 验证不够再上方案 B（SAM 框提示分割）→ 最终考虑方案 C（端到端漫画 inpaint 模型）。</p>
+</div>
+
+<!-- 问题诊断 -->
+<h2>一、问题诊断：为什么当前方案都失败了</h2>
+
+<div class="card">
+<h3>1.1 现状盘点</h3>
+<table>
+<tr><th>对象</th><th>处理方式</th><th>状态</th></tr>
+<tr><td>框内字 (text_bubble)</td><td>矩形涂白</td><td><span class="tag tag-ok">已通过</span> 残字率 0%，5页验证</td></tr>
+<tr><td>框外字 (text_free)</td><td>矩形 mask + inpaint</td><td><span class="tag tag-fail">不理想</span> lama-manga / aot 均效果差</td></tr>
+</table>
+
+<h3>1.2 已试方案失败根因</h3>
+<table>
+<tr><th>方案</th><th>失败原因</th><th>本质问题</th></tr>
+<tr><td>CTD DBNet 像素级 mask</td><td>对框外字零响应（max=0.0005~0.0014）</td><td>训练域不匹配：只学了气泡内黑字白底</td></tr>
+<tr><td>comic-text-detector-seg</td><td>输出全黑</td><td>同上，分割模型训练域不匹配</td></tr>
+<tr><td>矩形 mask + lama-manga</td><td>背景修复差，伪影多</td><td>矩形过度覆盖（60-70%是空白/背景）+ 通用模型不懂漫画网点</td></tr>
+<tr><td>矩形 mask + aot-inpainting</td><td>同上</td><td>同上</td></tr>
+<tr><td>flux2-klein 扩散模型</td><td>10分钟未完成</td><td>扩散模型算力开销不适合全页批量</td></tr>
+</table>
+
+<div class="warning">
+<b>关键矛盾：</b>当前思路假设"需要一个能在全页做像素级文字分割的模型"。但这个假设本身就是错的——检测器（RT-DETR-v2）已经把文字区域用框标出来了，不需要全页分割。需要的是<b>在框内做精修</b>，而框内的文字/背景区分用传统方法完全可以做。
+</div>
+</div>
+
+<!-- 参考项目分析 -->
+<h2>二、参考项目深度分析：别人是怎么解决的</h2>
+
+<div class="card">
+<h3>2.1 BallonsTranslator：模型给粗先验 + 传统方法精修（最有价值）</h3>
+
+<p>BallonsTranslator 的 <code>textmask.py</code> 揭示了一个完全不同的思路：CTD 模型的 UNet mask <b>不是最终 mask</b>，只是一个<b>先验（pred_mask）</b>。真正的像素级 mask 是在框内用传统图像处理精修出来的。</p>
+
+<p><b>核心流程 <code>refine_mask()</code>：</b></p>
+<ol>
+<li>对每个检测框，crop 出框内图像和对应的 pred_mask</li>
+<li><b>get_topk_masklist()</b>：在框内取灰度直方图 top-3 主导颜色，每个颜色 ±30 范围生成候选 mask</li>
+<li><b>get_otsuthresh_masklist()</b>：对每个 RGB 通道做 Otsu 阈值化，生成候选 mask（自动判断黑字/白字）</li>
+<li><b>merge_mask_list()</b>：对每个候选 mask 做连通域分析，逐组件判断：如果加入该组件后与 pred_mask 的 XOR 减小，则保留（即该组件很可能是文字）</li>
+<li>膨胀 5×5 覆盖抗锯齿边缘 + 填洞</li>
+</ol>
+
+<div class="insight">
+<b>为什么这能工作：</b>即使 CTD 对框外字响应弱（pred_mask 稀疏），传统方法（颜色直方图 + Otsu）在框内仍然能找到文字像素。pred_mask 只是用来做"裁判"——判断一个连通域是不是文字，而不是直接作为 mask。这是一个非常聪明的设计。
+</div>
+
+<h3>2.2 comic-translate：完全不用模型，纯传统方法</h3>
+
+<p>comic-translate 的 <code>content.py → detect_content_mask_in_bbox()</code> 更激进：<b>完全不用任何深度学习模型</b>，纯传统方法在框内做文字分割。</p>
+
+<p><b>核心流程：</b></p>
+<ol>
+<li>灰度化 + Otsu 阈值</li>
+<li>同时考虑<b>黑字</b>（gray &lt; threshold）和<b>白字</b>（gray &gt; threshold），取并集</li>
+<li>连通域分析，过滤规则：
+  <ul>
+  <li>面积 &lt; min_area(10px)：排除噪点</li>
+  <li>面积 &gt; 50% 框面积：排除大块背景</li>
+  <li>贴边组件（margin=1px）：排除与框边界相连的背景</li>
+  <li>标点大小组件（area≥4, w≤6, h≤6）：特别保留</li>
+  </ul>
+</li>
+<li>形态学闭运算连接笔画</li>
+</ol>
+
+<div class="insight">
+<b>为什么这能工作：</b>在框内，文字通常是最显著的连通组件。Otsu 自动找到文字和背景的分界，连通域分析过滤掉背景噪点。这个方法简单但有效，是生产级方案。
+</div>
+
+<h3>2.3 BallonsTranslator inpaint 模型：专门的动漫 inpaint 模型</h3>
+
+<p>BallonsTranslator 有一个当前项目没用上的模型：<code>lama_large_512px</code>，来自 <code>dreMaz/AnimeMangaInpainting</code>，是<b>专门针对动漫/漫画训练的 LaMa 大模型</b>。</p>
+
+<p>当前项目用的 koharu <code>lama-manga</code> 可能是不同的模型或版本。如果 mask 精确了，再配合专门的动漫 inpaint 模型，效果应该会显著提升。</p>
+
+<table>
+<tr><th>模型</th><th>来源</th><th>特点</th></tr>
+<tr><td>lama-manga (koharu)</td><td>koharu 内置</td><td>通用 manga inpaint，效果不理想</td></tr>
+<tr><td>lama_large_512px</td><td>dreMaz/AnimeMangaInpainting</td><td>专门动漫训练，大架构，BallonsTranslator 推荐</td></tr>
+<tr><td>aot-inpainting</td><td>manga-image-translator</td><td>AOT 架构，效果也不理想</td></tr>
+<tr><td>flux2-klein</td><td>Black Forest Labs</td><td>扩散模型，质量高但太慢</td></tr>
+</table>
+</div>
+
+<!-- 第一性原理 -->
+<h2>三、第一性原理思考：从源头拆解问题</h2>
+
+<div class="card">
+<h3>3.1 问题的本质是什么</h3>
+
+<p>框外字去除 = <b>文字像素识别</b> + <b>背景修复</b></p>
+
+<p>这两个子问题的难度是不对称的：</p>
+<ul>
+<li><b>文字像素识别</b>：在框内，文字和背景有明显的颜色/对比度差异。这是一个<b>局部问题</b>，传统方法可以解决。</li>
+<li><b>背景修复</b>：需要理解漫画的网点、线条、纹理、渐变。这是一个<b>全局问题</b>，需要专门的模型。</li>
+</ul>
+
+<div class="highlight">
+<b>第一性原理洞察：</b>当前项目把大部分精力花在了"文字像素识别"上（试了 CTD、seg 模型），但这个子问题其实用传统方法就能解决。真正难的是"背景修复"，但因为 mask 太粗糙（矩形），inpaint 模型需要修复的区域太大，导致效果差。<b>先把 mask 做精确，inpaint 的难度会自然下降。</b>
+</div>
+
+<h3>3.2 为什么"全页像素级分割模型"是错误方向</h3>
+
+<ol>
+<li><b>训练域不匹配</b>：所有公开的漫画文字检测/分割模型（CTD、comic-text-detector）都主要训练气泡内黑字白底。框外字（网点背景、黑底白字、衣服上的字、SFX）不在训练分布内。</li>
+<li><b>不需要全页分割</b>：检测器已经给出了框。全页分割是在重复检测器的工作，而且精度更低。</li>
+<li><b>框内更简单</b>：在框内，文字是主要内容，背景相对简单。传统方法（Otsu、颜色直方图、连通域）在框内的效果远好于全页。</li>
+</ol>
+
+<h3>3.3 "一个好模型能消灭大多问题"——哪个模型？</h3>
+
+<p>用户的直觉是对的：一个好模型能消灭大多问题。但这个模型不应该是"文字分割模型"，而应该是<b>"端到端的漫画文字去除模型"</b>。</p>
+
+<p>两个层次的"好模型"：</p>
+<ul>
+<li><b>层次 1（mask 层）：</b>SAM。通用分割模型，以框为 prompt，零样本就能在框内做精确分割。一个模型解决所有文字像素识别问题。</li>
+<li><b>层次 2（inpaint 层）：</b>专门的动漫 inpaint 模型（lama_large_512px 或扩散 inpaint）。理解漫画网点和纹理，一个模型解决所有背景修复问题。</li>
+</ul>
+
+<p>如果两个都用上，就是：<b>SAM 做精确 mask + 专门动漫 inpaint 模型做修复</b>。这是从源头解决问题的方案。</p>
+</div>
+
+<!-- 方案设计 -->
+<h2>四、三个方案的详细设计</h2>
+
+<div class="card">
+<h3>方案 A：框内传统方法精修 mask（推荐 · 立即试）</h3>
+
+<p><span class="tag tag-rec">零新模型</span><span class="tag tag-rec">零新依赖</span><span class="tag tag-rec">速度极快</span><span class="tag tag-rec">生产验证</span></p>
+
+<h4>核心思路</h4>
+<p>移植 BallonsTranslator <code>textmask.py</code> + comic-translate <code>content.py</code> 的精华，对每个 text_free 框做框内精修。</p>
+
+<h4>具体流程</h4>
+<div class="flow">
+<span class="flow-step">1. 遍历 text_free 框</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">2. Crop 框内图像</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">3. Otsu + 颜色直方图</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">4. 连通域过滤</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">5. 膨胀+填洞</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">6. 贴回全页 mask</span>
+</div>
+
+<h4>关键算法细节</h4>
+<pre><code># 伪代码：框内文字精修
+def refine_text_mask(crop_img):
+    gray = cv2.cvtColor(crop_img, cv2.COLOR_RGB2GRAY)
+    
+    # 方法1：Otsu 阈值（同时考虑黑字和白字）
+    _, binary_black = cv2.threshold(gray, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY)
+    binary_white = 255 - binary_black
+    
+    # 方法2：灰度直方图 top-3 颜色范围
+    hist = cv2.calcHist([gray], [0], None, [256], [0,256])
+    top_colors = get_topk_colors(hist, k=3, color_var=10)
+    color_masks = [cv2.inRange(gray, c-30, c+30) for c in top_colors]
+    
+    # 合并所有候选
+    candidates = [binary_black, binary_white] + color_masks
+    
+    # 连通域分析：过滤太小、太大、贴边的组件
+    text_mask = np.zeros_like(gray)
+    for cand in candidates:
+        components = connected_components_with_stats(cand)
+        for comp in components:
+            if is_text_like(comp, crop_shape):  # 面积、大小、位置判断
+                text_mask |= comp.mask
+    
+    # 形态学后处理
+    text_mask = cv2.morphologyEx(text_mask, cv2.MORPH_CLOSE, (3,3))
+    text_mask = cv2.dilate(text_mask, (5,5), iterations=1)  # 覆盖抗锯齿
+    text_mask = fill_holes(text_mask)
+    
+    return text_mask</code></pre>
+
+<h4>预期效果</h4>
+<ul>
+<li>常规黑白漫画框外字：mask 精确率 &gt; 95%，inpaint 质量显著提升</li>
+<li>彩色文字 / 低对比度文字：可能不够，需要方案 B 升级</li>
+<li>速度：&lt; 0.1s / 框（CPU），几乎不增加总耗时</li>
+</ul>
+
+<h4>验证方法</h4>
+<ol>
+<li>用 page_11、page_12（问题最明显的两页）做探针</li>
+<li>对比：矩形 mask vs 精修 mask 的 inpaint 效果</li>
+<li>量化指标：mask 像素覆盖率（应该从 10-14% 降到 3-5%）、pixel_diff_ratio、肉眼评估</li>
+<li>跑 5 页端到端验证</li>
+</ol>
+</div>
+
+<div class="card">
+<h3>方案 B：SAM 框提示像素级分割（中期 · 一个模型通吃）</h3>
+
+<p><span class="tag tag-rec">通用模型</span><span class="tag tag-rec">零样本</span><span class="tag tag-rec">复杂背景鲁棒</span><span class="tag tag-rec">需 GPU</span></p>
+
+<h4>核心思路</h4>
+<p>用 SAM (Segment Anything Model) 以 RT-DETR 的检测框为 prompt，在框内做零样本像素级分割。SAM 是通用分割模型，对任意背景都有泛化能力。</p>
+
+<h4>具体流程</h4>
+<div class="flow">
+<span class="flow-step">1. RT-DETR 检测框（已有）</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">2. SAM box prompt</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">3. 多 mask 评分选最优</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">4. 像素级 mask</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step">5. inpaint</span>
+</div>
+
+<h4>为什么 SAM 是"一个好模型"</h4>
+<ul>
+<li><b>泛化能力</b>：SAM 在 1100 万张图像上训练，对任意物体都有分割能力，不限于文字</li>
+<li><b>box prompt</b>：正好匹配现有的检测框，不需要重新训练</li>
+<li><b>零样本</b>：不需要漫画文字的训练数据，直接就能用</li>
+<li><b>精度高</b>：在复杂背景（渐变、网点、纹理）上的分割精度远高于传统方法</li>
+</ul>
+
+<h4>实现要点</h4>
+<ul>
+<li>模型选择：SAM ViT-B（最小，~375MB）或 ViT-L（~1.2GB，精度更高）</li>
+<li>推理：ONNX Runtime 或 PyTorch，GPU 加速</li>
+<li>框内裁剪：为了速度，可以只把框内区域（加 padding）送给 SAM，而不是全页</li>
+<li>多 mask 选择：SAM 对一个 box prompt 会返回 3 个候选 mask，选置信度最高的</li>
+</ul>
+
+<h4>预期效果</h4>
+<ul>
+<li>复杂背景（渐变、网点、衣服纹理）：mask 精确率 &gt; 90%</li>
+<li>彩色文字 / 艺术字 / SFX：比传统方法更鲁棒</li>
+<li>速度：GPU ~0.3-0.5s / 框；CPU 可能 2-5s / 框（较慢）</li>
+</ul>
+
+<h4>适用场景</h4>
+<p>方案 A 对渐变/低对比度/彩色文字不够时的升级路径。或者直接作为主力方案（如果有 GPU）。</p>
+</div>
+
+<div class="card">
+<h3>方案 C：端到端漫画文字去除模型（根本 · 消灭 pipeline）</h3>
+
+<p><span class="tag tag-rec">质量上限最高</span><span class="tag tag-rec">从源头解决</span><span class="tag tag-rec">需找/训模型</span><span class="tag tag-rec">需 GPU</span></p>
+
+<h4>核心思路</h4>
+<p>不用"检测 + 分割 + inpaint"三步 pipeline，直接用一个端到端模型输入原图，输出去除文字后的干净图。或者至少用一个专门的动漫 inpaint 模型替代当前的通用 lama-manga。</p>
+
+<h4>候选模型</h4>
+<table>
+<tr><th>模型</th><th>来源</th><th>特点</th><th>可行性</th></tr>
+<tr><td>lama_large_512px</td><td>dreMaz/AnimeMangaInpainting</td><td>专门动漫训练，LaMa 大架构</td><td><span class="tag tag-ok">高</span> BallonsTranslator 已集成，可直接移植</td></tr>
+<tr><td>manga-image-translator inpaint</td><td>zyddnys/manga-image-translator</td><td>专门漫画 inpaint，AOT 架构</td><td><span class="tag tag-ok">中</span> 需要提取模型权重</td></tr>
+<tr><td>Flux.1 inpainting (小区域)</td><td>Black Forest Labs</td><td>扩散模型，质量最高</td><td><span class="tag tag-rec">中</span> 只在 crop 小区域跑，速度可接受</td></tr>
+<tr><td>专门 manga cleaner 模型</td><td>需搜索/训练</td><td>端到端文字去除</td><td><span class="tag tag-fail">低</span> 可能没有现成的，需要自己训练</td></tr>
+</table>
+
+<h4>最可行的子方案：lama_large_512px + 精确 mask</h4>
+<p>即使不做端到端，把 inpaint 模型从通用的 lama-manga 换成专门的 lama_large_512px，配合方案 A/B 的精确 mask，效果应该会有质的提升。</p>
+
+<p>BallonsTranslator 的 <code>lama_large_512px</code> 配置：</p>
+<ul>
+<li>inpaint_size: 1536（可选 512/768/1024/1536/2048）</li>
+<li>precision: bf16（如果 GPU 支持）</li>
+<li>模型文件：~800MB（.ckpt）</li>
+</ul>
+
+<h4>扩散模型小区域 inpaint 的思路</h4>
+<p>flux2-klein 整页跑太慢，但如果只在每个 text_free 框的 crop 区域（加 padding）上跑扩散 inpaint，速度可以接受（~5-10s / 框）。质量上限最高，适合对质量要求极高的场景。</p>
+</div>
+
+<!-- 推荐路径 -->
+<h2>五、推荐执行路径</h2>
+
+<div class="card">
+<div class="flow" style="margin-bottom:20px;">
+<span class="flow-step" style="background:#27ae60;">Phase 1: 方案 A 探针</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step" style="background:#27ae60;">5页对比验证</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step" style="background:#f39c12;">不够则上方案 B</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step" style="background:#9b59b6;">换 lama_large_512px</span>
+<span class="flow-arrow">→</span>
+<span class="flow-step" style="background:#9b59b6;">最终端到端模型</span>
+</div>
+
+<h3>Phase 1（立即）：方案 A 探针 + 验证</h3>
+<ol>
+<li>写 <code>scripts/probe_refine_mask.py</code>：移植 BallonsTranslator + comic-translate 的框内精修算法</li>
+<li>用 page_11、page_12 做对比：矩形 mask vs 精修 mask 的 inpaint 效果</li>
+<li>量化：mask 覆盖率、pixel_diff_ratio、肉眼评估</li>
+<li>如果效果好，接入 <code>04_inpaint.py</code>，跑 5 页端到端验证</li>
+</ol>
+
+<h3>Phase 2（如果 Phase 1 不够）：方案 B SAM 升级</h3>
+<ol>
+<li>下载 SAM ViT-B 或 ViT-L 模型</li>
+<li>写 <code>sam_mask_generator.py</code>：以检测框为 prompt 生成像素级 mask</li>
+<li>对比方案 A vs 方案 B 的 mask 质量（特别关注复杂背景）</li>
+<li>如果有 GPU，直接用方案 B 作为主力</li>
+</ol>
+
+<h3>Phase 3（质量优化）：换专门的动漫 inpaint 模型</h3>
+<ol>
+<li>从 BallonsTranslator 移植 <code>lama_large_512px</code> 模型加载和推理代码</li>
+<li>对比 lama-manga vs lama_large_512px 的 inpaint 效果</li>
+<li>如果效果显著提升，替换默认 inpaint 引擎</li>
+</ol>
+
+<h3>Phase 4（长期）：端到端模型探索</h3>
+<ol>
+<li>调研是否有现成的端到端漫画文字去除模型</li>
+<li>如果没有，考虑用配对数据（有字图 + 无字图）微调扩散 inpaint 模型</li>
+<li>目标：一个模型直接输入原图输出干净图，消灭 mask 生成步骤</li>
+</ol>
+</div>
+
+<!-- 风险 -->
+<h2>六、风险与注意事项</h2>
+
+<div class="card">
+<h3>6.1 方案 A 的风险</h3>
+<ul>
+<li><b>彩色文字 / 艺术字</b>：Otsu 和颜色直方图对多色文字可能不够，需要多通道分别处理</li>
+<li><b>极低对比度文字</b>：文字和背景颜色接近时，Otsu 可能无法有效分割</li>
+<li><b>文字与背景线条粘连</b>：如果文字压在漫画线条上，连通域分析可能把线条也当成文字</li>
+<li><b>参数调优</b>：颜色范围（±30）、面积阈值、膨胀核大小可能需要根据不同漫画风格微调</li>
+</ul>
+
+<h3>6.2 方案 B 的风险</h3>
+<ul>
+<li><b>GPU 依赖</b>：SAM 在 CPU 上较慢（2-5s/框），需要 GPU 才能实用</li>
+<li><b>模型大小</b>：ViT-L ~1.2GB，ViT-B ~375MB，需要下载</li>
+<li><b>框内多物体</b>：如果框内有文字 + 其他物体（如人物脸部），SAM 可能分割出错误的物体</li>
+<li><b>多 mask 选择</b>：SAM 返回 3 个候选，需要可靠的评分机制选最优</li>
+</ul>
+
+<h3>6.3 方案 C 的风险</h3>
+<ul>
+<li><b>模型移植成本</b>：从 BallonsTranslator 移植 lama_large_512px 需要适配其模型加载代码</li>
+<li><b>GPU 显存</b>：大模型 + 高分辨率 inpaint 需要较多显存（建议 8GB+）</li>
+<li><b>端到端模型缺失</b>：可能没有现成的端到端漫画文字去除模型，需要自己训练</li>
+</ul>
+
+<h3>6.4 通用注意事项</h3>
+<ul>
+<li><b>mask 膨胀量</b>：精修后的 mask 需要适当膨胀（3-5px）以覆盖文字的抗锯齿边缘，否则 inpaint 后可能有残留文字边缘</li>
+<li><b>inpaint 区域独立性</b>：多个 text_free 框应该合并 mask 后一次 inpaint，还是分别 inpaint？合并可以减少上下文切换，但可能让不同区域互相干扰。建议先合并试试。</li>
+<li><b>回退机制</b>：精修 mask 失败时（如 mask 全空或全满），应该回退到矩形 mask，保证 pipeline 不中断</li>
+<li><b>可配置参数</b>：阈值、膨胀核、面积阈值等应该做成可配置参数，方便根据不同漫画风格调整</li>
+</ul>
+</div>
+
+<!-- 总结 -->
+<h2>七、总结</h2>
+
+<div class="card">
+<p><b>最核心的认知 shift：</b>不要追求"全页像素级文字分割模型"。检测器的框已经够用了，问题在框内精修。在框内，传统图像处理（Otsu + 颜色直方图 + 连通域）完全够用，这是 BallonsTranslator 和 comic-translate 都验证过的生产级方案。</p>
+
+<p><b>立即行动：</b>写方案 A 的探针脚本，用 page_11、page_12 做对比验证。如果效果好，直接接入 Stage 4。这是零成本、零风险、高回报的一步。</p>
+
+<p><b>中期升级：</b>如果方案 A 对复杂背景不够，上 SAM（方案 B）。一个通用分割模型，以框为 prompt，零样本解决所有文字像素识别问题。</p>
+
+<p><b>根本解决：</b>换专门的动漫 inpaint 模型（lama_large_512px），最终探索端到端模型。从"修 mask"升级到"直接修图"。</p>
+
+<div class="insight" style="margin-top:20px;">
+<b>一句话总结：</b>当前的瓶颈不是"没有好的分割模型"，而是"方向错了"。放弃全页分割，在框内用传统方法精修，配合专门的动漫 inpaint 模型——这是从源头解决问题的路径。
+</div>
+</div>
+
+<div style="text-align:center;margin-top:40px;padding:20px;color:#999;font-size:12px;">
+  Stage 4 框外字像素级去除分析报告 · 2026-09-03<br>
+  基于 BallonsTranslator / comic-translate / koharu 参考实现
+</div>
+
+</div>
+</body>
+</html>
