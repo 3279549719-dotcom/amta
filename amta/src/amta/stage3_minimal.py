@@ -337,6 +337,20 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
             item["baberu_text"] = vlm_refine.ocr_refinements[rid]
         refined.append(item)
 
+    # === Direct term pre-replacement (mechanical guardrail) ===
+    # Replace locked terminology (from pre-scan) with Chinese translations
+    # BEFORE glossary injection. This makes glossary injection a no-op
+    # (Japanese terms no longer in cur_text) and ensures LLM translates
+    # a 日中混合文 where terms are already correct. Zero retry, zero repair.
+    _locked = {}
+    for _k, _v in work_state.get("terms", {}).items():
+        if _v.get("status") == "confirmed" and _v.get("translation"):
+            _locked[_k] = _v["translation"]
+    if _locked and refined:
+        from amta.term_replace import replace_in_canon
+        refined = replace_in_canon(refined, _locked)
+    # === End term pre-replacement ===
+
     cur_text = " ".join(r.get("baberu_text") or r.get("text") or "" for r in refined)
     relevant = extract_relevant_terms(cur_text, work_state.get("terms", {}))
     system_parts = []
