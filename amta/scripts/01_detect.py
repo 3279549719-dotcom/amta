@@ -22,7 +22,7 @@ def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
                 out_path: Path | None = None) -> dict:
     """单页检测：RT-DETR-v2 → detection.json（doc 信封格式）。"""
     if page_idx is None:
-        page_idx = int(raw_page.stem) - 1
+        page_idx = int(raw_page.stem)
     page = f"page_{page_idx}"
 
     det = RTDetrDetector(conf_threshold=conf_threshold)
@@ -51,7 +51,7 @@ def main() -> int:
     ap.add_argument("--raw", required=True, type=Path, help="源页图路径(N.jpg)")
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--page-idx", type=int, default=None,
-                    help="0 基页号（默认从文件名 N.jpg 推导 N-1）")
+                    help="页号（1 基，默认从文件名 N.jpg 推导 N）")
     ap.add_argument("--conf", type=float, default=0.7, help="置信度阈值（默认 0.7，高阈值直接砍掉假框，无需 VLM 三态过滤）")
     a = ap.parse_args()
     doc = detect_page(a.work_id, a.raw, a.out.parent, page_idx=a.page_idx,

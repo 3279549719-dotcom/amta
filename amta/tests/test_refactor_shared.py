@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta import evalkit, geometry, images, ocr_engines, runner  # noqa: E402
+from amta import evalkit, geometry, images, runner  # noqa: E402
 from amta.koharu_client import KoharuError  # noqa: E402
 
 
@@ -154,90 +154,6 @@ class ImagesTest(unittest.TestCase):
             # 越界空框（pad 后 x1 <= x0）：不写文件
             self.assertFalse(images.crop_with_pad(src, [200, 200, 210, 220], dest))
             self.assertFalse(dest.exists())
-
-
-class OcrEnginesTest(unittest.TestCase):
-    def test_build_payload_shape(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as td:
-            p = Path(td) / "a.png"
-            p.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
-            payload = ocr_engines.build_payload("paddle", p)
-        self.assertEqual(payload["model"], "paddle")
-        parts = payload["messages"][0]["content"]
-        self.assertEqual(parts[0]["type"], "image_url")
-        self.assertTrue(parts[0]["image_url"]["url"].startswith("data:image/png;base64,"))
-        self.assertEqual(parts[1], {"type": "text", "text": "OCR"})
-
-    def test_send_chat_sends_to_base_url_with_auth(self):
-        import tempfile
-        import unittest.mock as mock
-
-        from amta import chat_client
-
-        with tempfile.TemporaryDirectory() as td:
-            crop = Path(td) / "a.png"
-            crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
-            fake = mock.Mock()
-            fake.return_value.status_code = 200
-            fake.return_value.json.return_value = {"choices": [{"message": {"content": "月の都"}}]}
-            with mock.patch.object(chat_client.requests, "post", fake):
-                out = ocr_engines.send_chat("http://127.0.0.1:8118/v1", "paddle", crop, api_key="k")
-        self.assertEqual(out, "月の都")
-        self.assertEqual(fake.call_args.args[0], "http://127.0.0.1:8118/v1/chat/completions")
-        self.assertEqual(fake.call_args.kwargs["headers"]["Authorization"], "Bearer k")
-
-    def test_send_chat_returns_empty_on_malformed_response(self):
-        import tempfile
-        import unittest.mock as mock
-
-        from amta import chat_client
-
-        with tempfile.TemporaryDirectory() as td:
-            crop = Path(td) / "a.png"
-            crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
-            fake = mock.Mock()
-            fake.return_value.status_code = 200
-            fake.return_value.json.return_value = {"unexpected": True}
-            with mock.patch.object(chat_client.requests, "post", fake):
-                out = ocr_engines.send_chat("http://x/v1", "m", crop)
-        self.assertEqual(out, "")
-    def test_local_payload_disables_prompt_cache(self):
-        """L17：多模态 cache 误命中不同图像——本地引擎请求必须带 cache_prompt:false。"""
-        import tempfile
-        import unittest.mock as mock
-
-        from amta import chat_client
-
-        with tempfile.TemporaryDirectory() as td:
-            crop = Path(td) / "a.png"
-            crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
-            fake = mock.Mock()
-            fake.return_value.status_code = 200
-            fake.return_value.json.return_value = {"choices": [{"message": {"content": "x"}}]}
-            with mock.patch.object(chat_client.requests, "post", fake):
-                ocr_engines.local_ocr_batch([str(crop)])
-        self.assertIs(fake.call_args.kwargs["json"]["cache_prompt"], False)
-
-    def test_dashscope_payload_has_no_cache_prompt(self):
-        """DashScope 兼容端点不认识 cache_prompt，不应携带（L17）。"""
-        import tempfile
-        import unittest.mock as mock
-
-        from amta import chat_client
-
-        with tempfile.TemporaryDirectory() as td:
-            crop = Path(td) / "a.png"
-            crop.write_bytes(b"\x89PNG\r\n\x1a\nfakepng")
-            fake = mock.Mock()
-            fake.return_value.status_code = 200
-            fake.return_value.json.return_value = {"choices": [{"message": {"content": "x"}}]}
-            with mock.patch.object(chat_client.requests, "post", fake):
-                with mock.patch.dict("os.environ", {"DASHSCOPE_API_KEY": "sk"}):
-                    ocr_engines.dashscope_ocr_batch([str(crop)])
-        self.assertNotIn("cache_prompt", fake.call_args.kwargs["json"])
-
 
 if __name__ == "__main__":
     unittest.main()

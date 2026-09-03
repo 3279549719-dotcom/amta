@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from amta import artifacts, guardrails, glossary, workstate
+from amta import artifacts, guardrails, workstate
 from amta.canon_schema import validate_canon
 from amta.chat_client import chat
 from amta.config import _resolve, get_dashscope_key  # _resolve: 同包 env→.env 解析唯一归属

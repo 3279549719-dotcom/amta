@@ -1,6 +1,6 @@
 """02_ocr 工位 — OCR: detection.json + raw 页 → artifacts/{page}_canon.json（薄 CLI）。
 
-引擎可插拔: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX内置免费) / manga_ocr(kha-white)。
+引擎可插拔: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX内置免费)。
 默认关闭硬规则过滤（--rule-filter 开启），VLM 校验默认关闭（--vlm 开启）。
 实现: amta.ocr_station.ocr_page（深模块，单引擎+可选规则过滤+可选VLM校验）。
 断点: 输出文件已存在 → 跳过(00_run_all 调用方决定)。
@@ -33,13 +33,13 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="02_ocr 工位（引擎可插拔: baberu/hayai/manga_ocr）")
+    ap = argparse.ArgumentParser(description="02_ocr 工位（引擎可插拔: baberu/hayai）")
     ap.add_argument("--work-id", required=True)
     ap.add_argument("--det", required=True, type=Path)
     ap.add_argument("--raw", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--page-idx", type=int, default=0, help="页面序号(0 基)")
-    ap.add_argument("--engine", default="hayai", choices=["baberu", "hayai", "manga_ocr"],
+    ap.add_argument("--page-idx", type=int, default=0, help="页面序号(1 基，与原图序号一致)")
+    ap.add_argument("--engine", default="hayai", choices=["baberu", "hayai"],
                     help="OCR 引擎（默认 hayai，HayaiOCR-v2.1）")
     ap.add_argument("--rule-filter", action="store_true",
                     help="启用硬规则过滤（默认关闭，过滤纯标点/纯数字/边缘框/极端长宽比）")

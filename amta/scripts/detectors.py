@@ -129,4 +129,3 @@ class CtdDetector(Detector):
 
 
 # 导出工具函数供测试使用
-from ctd_detector import seg_rep_extract_boxes as _seg_rep_extract_boxes, quad_to_bbox as _quad_to_bbox  # noqa: E402

@@ -114,7 +114,8 @@ def vlm_filter_v2(image_path: Path, blocks: list[dict]) -> tuple[list[dict], lis
         print(f"  [vlm-v2] WARNING: JSON parse failed, all kept. raw[:200]={raw[:200]}")
         return blocks, [], []
 
-    keep_ids = set(parsed.get("keep", []))
+    # 注意：VLM 的 "keep" 无需显式处理——未 drop/未 fix 的框默认保留（else 分支），
+    # 与 "keep" 语义一致，故不读 keep 列表（F841）。
     fix_dict = parsed.get("fix", {})
     drop_ids = set(parsed.get("drop", []))
     reasons = parsed.get("reasons", {})
@@ -132,7 +133,7 @@ def vlm_filter_v2(image_path: Path, blocks: list[dict]) -> tuple[list[dict], lis
             b["text"] = corrected
             b["filter_reason"] = f"vlm-fix:{reasons.get(rid, 'OCR corrected')}"
             fixed.append(b)
-        else:  # keep_ids 或未分类（默认保留）
+        else:  # VLM 标 keep 或未分类 → 默认保留
             kept.append(b)
 
     print(f"  [vlm-v2] {elapsed:.1f}s, keep={len(kept)}, fix={len(fixed)}, drop={len(dropped)}")

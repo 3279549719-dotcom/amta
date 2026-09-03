@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from amta.koharu_client import KoharuClient  # noqa: E402
-from amta.pipeline import DETECTOR_STEPS  # noqa: E402
 
 PAGE = Path(r"D:\我的汉化\output\单翼停留之地\process\01\page.jpg")
 if not PAGE.is_file():
@@ -42,7 +41,10 @@ def main() -> int:
     page_id = c.import_page(PAGE)
     print(f"[smoke] page imported: {page_id}")
 
-    op = c.run_pipeline(page_ids=[page_id], steps=DETECTOR_STEPS["comic-text-detector"])
+    # 本 smoke 验证 koharu headless API 通路（引擎健康，inpaint/segment 仍依赖 koharu）。
+    # 直接跑 koharu 自带的 comic-text-detector；生产检测走 scripts/01_detect.py 本地 ONNX
+    # RTDetrDetector（见 test_final_integration::TestDeprecatedCodeRemoved），不在此验证。
+    op = c.run_pipeline(page_ids=[page_id], steps=["comic-text-detector"])
     print(f"[smoke] detection pipeline started: {op}")
     result = c.wait_operation(op, timeout=600)
     print(f"[smoke] detection status: {result.get('status')}")

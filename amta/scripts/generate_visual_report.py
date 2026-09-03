@@ -34,7 +34,7 @@ def load_translation(page_idx: int) -> dict:
 
 
 def build_page_section(page_idx: int) -> str:
-    jpg_num = page_idx + 1
+    jpg_num = page_idx
     img_path = RAW_IMAGE_DIR / f"{jpg_num}.jpg"
     canon = load_canon(page_idx)
     trans = load_translation(page_idx)

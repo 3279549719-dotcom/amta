@@ -80,13 +80,13 @@ class TranslationArtifact(TypedDict, total=False):
 # ---------- 页键 / ID / 命名（唯一归属） ----------
 
 def page_key(page_idx: int) -> str:
-    """0 基页键（与 00_run_all / region_id / eval_stage2/3 对齐）。"""
+    """1 基页键（page_N ↔ N.jpg，与原图序号一致）。"""
     return f"page_{page_idx}"
 
 
 def page_idx_from_raw(raw_page: Path) -> int:
-    """N.jpg（1 基文件名）→ 0 基页号。"""
-    return int(raw_page.stem) - 1
+    """N.jpg → 页号 N（1 基，与原图序号一致）。"""
+    return int(raw_page.stem)
 
 
 def region_id(page_idx: int, order: int) -> str:

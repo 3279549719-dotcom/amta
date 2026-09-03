@@ -60,7 +60,7 @@ def compact_blocks(blocks: list[dict], fields: tuple[str, ...],
 
 
 def page_key(page: Path, idx: int) -> str:
-    """默认页键：page_{idx}（0 基，与评测 canon 对齐）。"""
+    """默认页键：page_{idx}（1 基，page_N ↔ N.jpg）。"""
     return f"page_{idx}"
 
 

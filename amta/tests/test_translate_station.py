@@ -1,5 +1,4 @@
 """translate_station 接口测试：minimal 路径唯一入口（legacy 已删除，cleanup commit）。"""
-import json
 import sys
 from pathlib import Path
 

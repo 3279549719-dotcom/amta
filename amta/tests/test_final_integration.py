@@ -2,7 +2,7 @@
 
 最终选型:
 - 检测: RT-DETR-v2 (scripts/detect_rtdetr.py, 输出 label/score)
-- OCR: baberu (src/amta/ocr_engines.py + ocr_station.py, 纯 baberu)
+- OCR: hayai/baberu 双引擎 (ocr_engines.py 分发, 02_ocr 默认 hayai, 可 --engine 切 baberu)
 - 翻译: v2 三态 (src/amta/stage3_minimal.py, qwen VLM + deepseek flash LLM + keep/fix/drop + 上下文 + 术语)
 """
 from __future__ import annotations
@@ -71,12 +71,12 @@ class TestDetectionRTDETR:
 # ---- OCR 阶段: baberu-only ----
 
 class TestOCREngines:
-    """验证 ocr_engines.py 只保留 baberu，废弃 local/dashscope。"""
+    """验证 ocr_engines.py 引擎集合 = (baberu, hayai)；local/dashscope/manga_ocr 已移除。"""
 
-    def test_engines_tuple_only_baberu(self):
-        """ENGINES 元组只包含 baberu。"""
+    def test_engines_tuple_baberu_hayai(self):
+        """ENGINES 元组 = (baberu, hayai)。"""
         from amta.ocr_engines import ENGINES
-        assert ENGINES == ("baberu",)
+        assert ENGINES == ("baberu", "hayai")
 
     def test_no_local_ocr_batch(self):
         """local_ocr_batch 已删除。"""
@@ -95,17 +95,18 @@ class TestOCREngines:
 
 
 class TestOCRStation:
-    """验证 ocr_station.py 去掉 VLM 校验，只保留 baberu。"""
+    """验证 ocr_station.py 接口契约：可插拔 engine + VLM 校验参数。"""
 
-    def test_ocr_page_has_vlm_params(self):
-        """ocr_page 保留 vlm_enabled 参数（VLM 校验是质检环节，默认启用）。"""
+    def test_ocr_page_engine_and_vlm_params(self):
+        """ocr_page 有 engine（默认 hayai）与 vlm_enabled/vlm_fn（质检环节）。"""
         import inspect
         from amta.ocr_station import ocr_page
         sig = inspect.signature(ocr_page)
         param_names = list(sig.parameters.keys())
+        assert "engine" in param_names
+        assert sig.parameters["engine"].default == "hayai"
         assert "vlm_enabled" in param_names
         assert "vlm_fn" in param_names
-        assert "engine" not in param_names  # engine 已删除（只保留 baberu）
 
     def test_vlm_verify_exists(self):
         """vlm_verify.py 存在（VLM contact sheet 校验，质检环节）。"""
@@ -194,16 +195,18 @@ class TestDeprecatedCodeRemoved:
             content = (ROOT / "scripts" / script).read_text(encoding="utf-8")
             assert "koharu" not in content.lower(), f"{script} still references koharu"
 
-    def test_02_ocr_has_no_vlm_option(self):
-        """02_ocr.py 有 --no-vlm 选项（默认启用 VLM 校验）。"""
+    def test_02_ocr_vlm_is_opt_in(self):
+        """02_ocr.py VLM 校验是 opt-in（--vlm，默认关闭）；无 --no-vlm。"""
         content = (ROOT / "scripts" / "02_ocr.py").read_text(encoding="utf-8")
-        assert "--no-vlm" in content
-        assert "vlm_enabled" in content
+        assert "--vlm" in content
+        assert "--no-vlm" not in content
 
-    def test_02_ocr_no_engine_option(self):
-        """02_ocr.py 不再有 --engine 选项（只保留 baberu）。"""
+    def test_02_ocr_engine_option_present(self):
+        """02_ocr.py 有 --engine（baberu/hayai，默认 hayai）；manga_ocr 已移除。"""
         content = (ROOT / "scripts" / "02_ocr.py").read_text(encoding="utf-8")
-        assert "--engine" not in content
+        assert "--engine" in content
+        assert "hayai" in content
+        assert "manga_ocr" not in content
 
     def test_no_ocr_engine_in_00_run_all(self):
         """00_run_all.py 不再有 --ocr-engine 选项。"""

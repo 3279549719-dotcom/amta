@@ -3,11 +3,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from amta.geometry import mark_contained, union_blocks
 from amta.runner import compact_blocks
-from eval_stage1_robust import detection_path_for
 
 
 def _b(x1, y1, x2, y2, eid="test"):
@@ -166,14 +164,3 @@ def test_detect_flow_source_engines_are_engine_names():
     for b in blocks:
         assert b["source_engines"], "每个框都应有引擎来源"
         assert all(not e.startswith("det-") for e in b["source_engines"]), "source_engines 不应是 node_id"
-
-
-# ── Bug 1: 检测产物文件名页码 off-by-one ─────────────────────────
-
-
-def test_eval_detection_path_uses_real_page_num():
-    """eval_stage1_robust 产物文件名必须用真实页码（off-by-one 回归）。"""
-    out = detection_path_for(Path("artifacts"), 11)
-    assert out.name == "page_11_detection.json"
-    assert out != Path("artifacts") / "page_10_detection.json", "page 11 的数据不应写入 page_10 文件"
-    assert detection_path_for(Path("artifacts"), 20).name == "page_20_detection.json"

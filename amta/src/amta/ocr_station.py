@@ -1,13 +1,12 @@
 """Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
 
-流程: 裁框 → OCR(engine可插拔: baberu/hayai/manga_ocr) → [规则过滤] → [VLM校验] → canon。
+流程: 裁框 → OCR(engine可插拔: baberu/hayai) → [规则过滤] → [VLM校验] → canon。
 藏匿：裁框（region_id 与 detect 输出顺序一一对应）、ocr_batch 分发、VLM contact sheet 批量校验、trace、save_canon。
 接缝：ocr_fn / vlm_fn 函数注入（内部接缝，测试用 fake）。
 rule_filter_enabled=True 时开启硬规则过滤；默认关闭（无过滤，所有框直接交翻译）。
 """
 from __future__ import annotations
 
-import sys
 import time
 from pathlib import Path
 
@@ -49,7 +48,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              crop_dir: Path | str | None = None) -> dict:
     """Stage 2 OCR 工位。裁框 → OCR → [规则过滤] → [VLM校验] → CanonArtifact。
 
-    engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快) / manga_ocr(kha-white)。
+    engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快)。
     rule_filter_enabled=False 时跳过硬规则过滤，全部检测框直接保留。
     """
     from amta.ocr_engines import ocr_batch as _default_ocr

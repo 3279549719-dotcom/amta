@@ -1,7 +1,7 @@
-"""mask 阶段适配器 — 精修mask结果 → StageOutput（深接口）。
+"""inpaint 阶段适配器 — inpaint修复结果 → StageOutput（深接口）。
 
-方案A：框内传统方法（Otsu + 颜色直方图 + 连通域）精修像素级mask。
-单元格渲染：该框区域的 mask 叠加缩略图（半透明红覆盖在原图上）。
+单元格渲染：该框区域在 inpaint 后 clean 图上的裁剪缩略图。
+page_artifact：整页 clean 图（用于报告顶部2图并列）。
 """
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import base64
 import io
 from typing import Any
 
-import numpy as np
 from PIL import Image
 
 from ..model import StageOutput
@@ -31,47 +30,36 @@ def _crop_to_b64(img: Image.Image, bbox: list[float], max_w: int = 180) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def _build_mask_overlay(raw_img: Image.Image, mask_np: np.ndarray) -> Image.Image:
-    """把精修mask以半透明红色叠加到原图上。"""
-    overlay = raw_img.convert("RGBA")
-    mask_pil = Image.fromarray(mask_np)
-    red_layer = Image.new("RGBA", mask_pil.size, (239, 68, 68, 90))
-    overlay.paste(red_layer, mask=mask_pil)
-    return overlay.convert("RGB")
-
-
 def render_cell(data: Any) -> str:
-    """表格单元格渲染：mask叠加缩略图。"""
+    """表格单元格渲染：inpaint后裁剪缩略图。"""
     if not data:
         return '<span style="color:#999;font-size:11px">(无)</span>'
-    img_b64 = data.get("mask_crop_b64", "")
+    img_b64 = data.get("clean_crop_b64", "")
     if not img_b64:
-        return '<span style="color:#999;font-size:11px">(无mask)</span>'
+        return '<span style="color:#999;font-size:11px">(无)</span>'
     return (f'<img src="data:image/jpeg;base64,{img_b64}" '
             f'style="max-width:180px;border-radius:4px;border:1px solid #e5e7eb">')
 
 
-def from_mask(raw_img: Image.Image, mask_np: np.ndarray,
-               bboxes: dict[str, list[float]]) -> StageOutput:
-    """原图 + 全页精修mask + 各框bbox → StageOutput。
+def from_inpaint(clean_img: Image.Image,
+                  bboxes: dict[str, list[float]]) -> StageOutput:
+    """inpaint后的clean图 + 各框bbox → StageOutput。
 
     Args:
-        raw_img: 原图 (RGB)
-        mask_np: 全页精修mask (H,W), 255=文字像素, 0=背景
+        clean_img: inpaint后的整页clean图 (RGB)
         bboxes: {region_id: [x1,y1,x2,y2]}，只传 text_free 框
     """
-    mask_overlay = _build_mask_overlay(raw_img, mask_np)
-
     cells: dict[str, Any] = {}
     for rid, bbox in bboxes.items():
         cells[rid] = {
             "bbox": bbox,
-            "mask_crop_b64": _crop_to_b64(mask_overlay, bbox),
+            "clean_crop_b64": _crop_to_b64(clean_img, bbox),
         }
 
     return StageOutput(
-        key="mask",
-        label="像素精修mask",
+        key="inpaint",
+        label="inpaint修复后",
         cells=cells,
         render_cell=render_cell,
+        page_artifact={"clean_image": clean_img},
     )

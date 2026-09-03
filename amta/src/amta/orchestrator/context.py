@@ -27,7 +27,7 @@ class StationContext:
     工位需要的所有信息（原始图片、上游产物、配置、工作区路径）都从这里取。
     """
     work_id: str
-    page: str               # 页键，如 "page_11"（0 基）
+    page: str               # 页键，如 "page_11"（1 基，与原图序号一致）
     page_idx: int           # 页号整数，如 11
     raw_image: Path         # 原始图片路径（N.jpg，1 基文件名）
     artifacts_dir: Path     # 产物目录（所有阶段的产物都落在这里）

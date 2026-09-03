@@ -41,21 +41,20 @@ class StageSpec:
 
 def _build_registry() -> dict[str, StageSpec]:
     """延迟构建注册表，避免循环 import。"""
-    from .adapters.detect import run as detect_run
     from .adapters.ocr import run as ocr_run
     from .adapters.translate import run as translate_run
 
     return {
+        # detect 尚未接入当前检测路径（scripts/01_detect.py 本地 ONNX RTDetrDetector）。
+        # 旧适配器对着已删除的 amta.detect_station（koharu 4-detector 并集）写，从未可用；
+        # 按 inpaint/typeset/segment 同款占位处理，等 detect 作为库的 seam 定案后再接线。
         "detect": StageSpec(
             name="detect",
-            station=detect_run,
+            station=_not_implemented("detect"),
             consumes=[],
             produces="detection",
             default_config={
-                "detectors": "all",
                 "conf_threshold": 0.7,
-                "host": "127.0.0.1",
-                "port": 4000,
             },
         ),
         "ocr": StageSpec(

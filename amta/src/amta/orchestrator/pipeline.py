@@ -24,9 +24,9 @@ from .registry import get_stage
 
 
 def _resolve_page_list(config: PipelineConfig) -> list[tuple[int, str, Path]]:
-    """把 start_page/end_page（1 基文件名）展开成 [(page_idx, page_key, raw_path)]。
+    """把 start_page/end_page（原图序号）展开成 [(page_idx, page_key, raw_path)]。
 
-    page_idx = 文件名 - 1（0 基，与 artifacts.page_key / region_id 对齐）
+    page_idx = 文件名 N（1 基，page_N ↔ N.jpg，与原图序号一致）
     不存在的图片跳过并打印警告。
     """
     pages = []
@@ -35,7 +35,7 @@ def _resolve_page_list(config: PipelineConfig) -> list[tuple[int, str, Path]]:
         if not raw_path.exists():
             print(f"[pipeline] WARN {raw_path} not found, skip page {n}")
             continue
-        page_idx = n - 1
+        page_idx = n
         page_key = artifacts.page_key(page_idx)
         pages.append((page_idx, page_key, raw_path))
     return pages

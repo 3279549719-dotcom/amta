@@ -31,7 +31,6 @@ def from_canon(canon: dict) -> StageOutput:
     label_map = {
         "baberu": "OCR (baberu)",
         "hayai": "OCR (HayaiOCR-v2.1)",
-        "manga_ocr": "OCR (manga-ocr)",
     }
     return StageOutput(
         key="ocr",

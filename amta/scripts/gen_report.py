@@ -47,7 +47,7 @@ def main() -> int:
     total_regions = 0
 
     for n in page_nums:
-        page_idx = n - 1
+        page_idx = n
         try:
             page = load_from_workspace(
                 work_id=a.work_id,

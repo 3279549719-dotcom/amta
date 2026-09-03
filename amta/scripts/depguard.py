@@ -77,6 +77,9 @@ def _scan_third_party() -> dict[str, set[str]]:
             continue
         for p in base.rglob("*.py"):
             rel = str(p.relative_to(ROOT)).replace("\\", "/")
+            # archive/ = 归档代码（ruff/pyright 已排除），不参与依赖治理
+            if rel.startswith(("scripts/archive/", "tests/archive/")):
+                continue
             if rel in EXCLUDE_FILES:
                 continue
             try:
@@ -88,7 +91,10 @@ def _scan_third_party() -> dict[str, set[str]]:
                 mods = []
                 if isinstance(node, ast.Import):
                     mods = [a.name.split(".")[0] for a in node.names]
-                elif isinstance(node, ast.ImportFrom) and node.module:
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    # 只查绝对导入的顶层第三方；相对导入（level>0，如 orchestrator 包内
+                    # from .context import）是本仓子模块，ast 会把点号剥进 node.level、
+                    # node.module 只剩子模块名，误判为第三方，须跳过。
                     mods = [node.module.split(".")[0]]
                 for m in mods:
                     if m in LOCAL_TOP or m == "__future__":

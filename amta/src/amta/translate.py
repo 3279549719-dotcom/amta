@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import Any
 
-from amta.chat_client import chat, chat_text
+from amta.chat_client import chat_text
 from amta.config import get_chat_config as _config_get_chat_config
 from amta.guardrails import mechanical_guardrails
 from amta.metrics import levenshtein, norm

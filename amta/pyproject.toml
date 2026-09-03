@@ -8,9 +8,14 @@ requires-python = ">=3.12"
 # 铁律：能原生/标准库实现就不加依赖。加任何依赖前先跑 `uv run depguard` 审视。
 # requests / pillow 是全仓真正 import 到的第三方库（requests: koharu_client/ocr_engines/translate；
 # pillow: images/baberu_ocr）。其余一律标准库。
+# numpy: report/ 图层叠加 + gen_stage4_report（mask 数组运算），两路 OCR 取舍都离不开。
 dependencies = [
     "requests==2.34.2",
     "pillow==12.3.0",
+    "numpy==2.5.2",
+    # hayai_ocr: 02_ocr 默认 OCR 引擎（HayaiOCR-v2.1，SigLIP2+transformer，PyTorch）。
+    # manga_ocr(kha-white) 曾接线但包未装、属半截集成，已摘除（2026-09-03）。
+    "hayai-ocr==2.1.0",
 ]
 
 [tool.uv]
@@ -20,7 +25,7 @@ dependencies = [
 [tool.ruff]
 target-version = "py311"
 line-length = 120
-exclude = ["scripts/archive/**", "research/reference-repos/**", "models/**", "output/**"]
+exclude = ["scripts/archive/**", "tests/archive/**", "research/reference-repos/**", "models/**", "output/**"]
 
 [tool.ruff.lint]
 # E701/E702（单行多条语句）是项目既有紧凑风格，忽略；其余规则保留。
@@ -33,8 +38,12 @@ ignore = ["E701", "E702"]
 [tool.pyright]
 pythonVersion = "3.11"
 # 外部模型目录（models/）不入库，排除避免误报
-exclude = ["models/**", "output/**", "scripts/archive/**", "research/reference-repos/**"]
+exclude = ["models/**", "output/**", "scripts/archive/**", "tests/archive/**", "research/reference-repos/**"]
 
 [tool.pytest.ini_options]
 # memory_* 测试的 import 通路：amta 包 + tests 跨文件 fixture 复用（ADR-025 前置）
 pythonpath = ["src", "."]
+# tests/archive/ = 归档的旧架构测试（git mv 保留，不再收集）。归档测试对应已删除的
+# amta.pipeline/amta.detect_station（见 test_final_integration::TestDeprecatedCodeRemoved），
+# import 必然失败，故从收集排除；git 历史可随时找回。
+norecursedirs = ["tests/archive"]

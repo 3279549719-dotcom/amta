@@ -65,7 +65,7 @@ def load_from_workspace(
     ws_root = Path(workspace_root) if workspace_root else ROOT / "workspace"
     art_dir = ws_root / work_id / "artifacts"
     page = f"page_{page_idx}"
-    raw = Path(src_dir) / f"{page_idx + 1}.jpg"
+    raw = Path(src_dir) / f"{page_idx}.jpg"
 
     return load_page_report(
         page_idx=page_idx,

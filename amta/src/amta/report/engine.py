@@ -190,7 +190,7 @@ def render_report(page: PageReport) -> ReportResult:
         warn_html = f'<div class="page-warnings">⚠ {len(warnings)} 条警告: {"; ".join(warnings[:5])}</div>'
 
     # 7. 组装 HTML
-    page_num = page.page_idx + 1
+    page_num = page.page_idx
     stages_str = " → ".join(s.label for s in page.stages)
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">

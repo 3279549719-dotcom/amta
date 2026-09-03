@@ -29,8 +29,18 @@ from amta.geometry import union_boxes  # noqa: E402
 from amta.images import crop_with_pad  # noqa: E402
 from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.paths import CROPS, DATA, ensure_output, read_json, write_json  # noqa: E402
-from amta.pipeline import DETECTOR_STEPS  # noqa: E402
 from amta.runner import run_all_pages  # noqa: E402
+
+# Benchmark 钉的是 koharu v0.59.1 的 4 detector 能力边界（pp-doclayout/comic-text 等）。
+# 旧 amta.pipeline.DETECTOR_STEPS 常量已随 koharu-检测时代删除（见
+# test_final_integration::TestDeprecatedCodeRemoved）；每个引擎的 steps = [自身]（恒等），
+# 故内联为引擎名列表即可，无需复活已删模块。
+KOHARU_DETECTORS = (
+    "pp-doclayout-v3",
+    "comic-text-detector",
+    "anime-text",
+    "comic-text-bubble-detector",
+)
 
 MANIFEST = DATA / "label_manifest.json"
 SOURCE_PAGE_NAMES = ("page.jpg", "page.jpeg", "page.png")
@@ -56,7 +66,7 @@ def _is_source_page(p: Path) -> bool:
 
 def gather_detections(pages: list[Path], engines: list[str] | None = None) -> dict[str, dict]:
     """对每页跑全部 engines，返回 {page_key: {path, engines: {engine: [blocks]}}}。"""
-    steps = {eng: DETECTOR_STEPS[eng] for eng in (engines or list(DETECTOR_STEPS))}
+    steps = {eng: [eng] for eng in (engines or list(KOHARU_DETECTORS))}
     client = KoharuClient()
     client.wait_server()
     return run_all_pages(client, pages, steps, _page_label, prefix="amta-bench", timeout=1200, label="A")

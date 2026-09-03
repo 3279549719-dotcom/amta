@@ -18,7 +18,7 @@ def run(ctx: StationContext) -> StationResult:
     """执行翻译工位。
 
     上游依赖：ctx.inputs["ocr"] → canon artifact
-    从 ctx.config 读取：mode, vlm_enabled
+    从 ctx.config 读取：vlm_enabled
     产出：{artifacts_dir}/{page}_translation.json（适配器负责落盘）
     """
     t0 = time.perf_counter()
@@ -30,12 +30,12 @@ def run(ctx: StationContext) -> StationResult:
         # load_canon: normalize + validate + 兼容旧裸 list 格式（与 03_translate.py 一致）
         canon = artifacts.load_canon(canon_path)
 
+        # mode 参数已从 translate_page 移除（translate_station.py:18 注释），与 03_translate.py 一致不传
         doc = translate_page(
             work_id=ctx.work_id,
             canon=canon,
             state_dir=ctx.state_dir,
             page=ctx.page,
-            mode=ctx.config.get("mode", "minimal"),
             raw_image_path=ctx.raw_image,
             vlm_enabled=ctx.config.get("vlm_enabled", True),
         )

@@ -33,7 +33,7 @@ def gen_report(work_id: str, src_dir: Path, out_path: Path, pages: list[int]) ->
         det_path = artifacts_dir / f"{page}_detection.json"
         canon_path = artifacts_dir / f"{page}_canon.json"
         trans_path = artifacts_dir / f"{page}_translation.json"
-        raw_path = src_dir / f"{page_idx + 1}.jpg"
+        raw_path = src_dir / f"{page_idx}.jpg"
 
         if not all(p.exists() for p in (det_path, canon_path, trans_path, raw_path)):
             print(f"WARN {page}: missing artifacts, skip")
@@ -60,7 +60,7 @@ def gen_report(work_id: str, src_dir: Path, out_path: Path, pages: list[int]) ->
 
         pages_data.append({
             "page_idx": page_idx,
-            "page_num": page_idx + 1,
+            "page_num": page_idx,
             "raw_image": img_to_base64(raw_path),
             "n_detected": det.get("n_boxes", 0),
             "n_ocr": canon.get("n_regions", 0),
@@ -122,12 +122,12 @@ h2 { color: #16213e; margin-top: 30px; }
     html_parts.append('</table></div>\n')
 
     for p in pages_data:
-        html_parts.append(f'<div class="page-section">\n')
+        html_parts.append('<div class="page-section">\n')
         html_parts.append(f'<div class="page-header"><h2 style="margin:0">Page {p["page_num"]}</h2>')
         html_parts.append(f'<span class="stats">检测 {p["n_detected"]} → OCR {p["n_ocr"]} → 翻译 {p["n_translated"]} | 检测器: {p["detector"]} | conf={p["conf_threshold"]}</span></div>\n')
-        html_parts.append(f'<div class="page-content">\n')
+        html_parts.append('<div class="page-content">\n')
         html_parts.append(f'<div class="page-image"><img src="data:image/jpeg;base64,{p["raw_image"]}" alt="Page {p["page_num"]}"></div>\n')
-        html_parts.append(f'<div class="page-table"><table><tr><th>ID</th><th>类型</th><th>OCR 原文</th><th>译文</th></tr>\n')
+        html_parts.append('<div class="page-table"><table><tr><th>ID</th><th>类型</th><th>OCR 原文</th><th>译文</th></tr>\n')
         for item in p["items"]:
             btype = item["bubble_type"]
             badge_cls = "badge-bubble" if btype == "text_bubble" else "badge-free"
@@ -136,7 +136,7 @@ h2 { color: #16213e; margin-top: 30px; }
             html_parts.append(f'<tr><td class="rid">{item["region_id"]}</td><td><span class="badge {badge_cls}">{btype}</span></td><td>{ocr_html}</td><td>{trans_html}</td></tr>\n')
         html_parts.append('</table></div></div></div>\n')
 
-    html_parts.append(f'<div class="footer">AMTA 最终选型: 检测=RT-DETR-v2 | OCR=baberu | 翻译=qwen3.5-omni-plus VLM + deepseek-v4-flash LLM (v2 三态 keep/fix/drop + 上下文 + 术语)</div>\n')
+    html_parts.append('<div class="footer">AMTA 最终选型: 检测=RT-DETR-v2 | OCR=baberu | 翻译=qwen3.5-omni-plus VLM + deepseek-v4-flash LLM (v2 三态 keep/fix/drop + 上下文 + 术语)</div>\n')
     html_parts.append('</body></html>')
 
     out_path.write_text("".join(html_parts), encoding="utf-8")

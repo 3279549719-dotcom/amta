@@ -5,7 +5,7 @@
       --src-dir "D:\\我的汉化\\汉化作品\\东方\\单翼停留之地" \
       --start-page 1 --end-page 3
 
-页面映射: src-dir/N.jpg → page_idx = N-1(0 基,与评测 canon 对齐)
+页面映射: src-dir/N.jpg → page_idx = N(1 基,与原图序号一致)
 断点:     artifacts 产物存在 → skipped(文件存在=跳过,失败修复后重跑自动续)
 追溯:     state/pipeline_log.json 每步 span;失败写 failed_step 锚点 + reason
 阶段:     01_detect(RT-DETR-v2, conf=0.7) → 02_ocr(hayai+规则过滤) → 03_translate(单LLM+术语库+前页上下文) → [04_inpaint → 05_typeset]
@@ -56,7 +56,7 @@ def _ensure_terms(work_id: str, ws_root: Path) -> None:
     canon_dir = ws_root / "artifacts"
     canon_files = sorted(canon_dir.glob("page_*_canon.json"))
     if not canon_files:
-        print(f"[00_run_all] pre_scan skipped (no canon files yet)")
+        print("[00_run_all] pre_scan skipped (no canon files yet)")
         return
 
     master_dict = HERE.parent / "data" / "thbwiki_master_dict.json"
@@ -99,7 +99,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
     failed = None
 
     for n in range(start_page, end_page + 1):
-        page_idx = n - 1
+        page_idx = n
         raw = src_dir / f"{n}.jpg"
         if not raw.exists():
             print(f"[00_run_all] WARN {raw} not found, skip")
