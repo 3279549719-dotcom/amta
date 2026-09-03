@@ -1,8 +1,8 @@
 {
-  "mission": "记忆层字典先行：注入瘦身 + MCP 检索字典",
-  "current_step": "里程碑完成：注入瘦身 + loop_state + MCP 字典 + ADR-027/026 定案，全部验证通过",
-  "next_action": "用户决定是否提交（pre-commit 会被 dirty 树的预存失败拦截）；后续接检测调优试点闭环",
-  "last_verified": "记忆测试全绿（45）+ 我改文件 lint/typecheck 干净；字典真实验证 search(拟声词)→ADR-006/022/023",
-  "escalation": "repo 级 fastcheck FAIL 均为预存问题（pyclipper 缺依赖 / get_context 测试过期 / dirty 脚本 ruff+depguard），非本里程碑引入",
-  "updated_at": "2026-09-01T23:30"
+  "mission": "Ralph Loop 最小可行验证：外层循环 + 强制写记忆工作流",
+  "current_step": "ralph loop 首次迭代：修 fastcheck compile 错误",
+  "next_action": "删除 scripts/probe_inpaint_mask_compare.py 和 scripts/probe_refine_mask.py（一次性探针，编码损坏有语法错误），然后重跑 fastcheck 确认 compile 阶段通过",
+  "last_verified": "hook 已修（uv run python），记忆注入已刷新，loop_state 从 9/1  stale 更新到当前",
+  "escalation": "fastcheck 当前红：depguard 报 probe_*.py 未声明 ctd_detector/cv2/torch/hayai_ocr；需确认是删探针还是加白名单",
+  "updated_at": "2026-09-04T01:06"
 }
