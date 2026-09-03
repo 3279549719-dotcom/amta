@@ -296,6 +296,14 @@
 - **Prevention**：改配置前备份（.bak-时间戳）；server 命令用绝对路径（CWD 非契约）；`python` 必须在启动 claude 的环境 PATH。
 - **Regression**：暂无自动化；规则见本条。
 
+## L36 — 发行名与 import 名只差分隔符（hayai_ocr vs hayai-ocr）：比较前做 PEP 503 归一化
+
+- **Problem**：depguard 报 `src/amta/ocr_engines.py: import hayai_ocr 未声明`，同时报 pyproject 的 `hayai-ocr 未使用`——未声明+未使用双杀假阳，实为同一个发行版。
+- **Root cause**：pyproject `[project].dependencies` 用发行名（PEP 503 规范形，小写连字符 `hayai-ocr`）；代码 import 顶层名受模块名语法限制用下划线（`hayai_ocr`）。depguard 直接字符串比较两边，没归一化就永远对不上。
+- **Durable lesson**：凡比较"pyproject 发行名"与"代码 import 名/CLI 参数名"，先按 PEP 503 归一化（lower + `_`/`.`→`-`）再比；只差 `-`/`_` 的属同一类（如 `hayai_ocr`），而 `PIL→pillow`、`cv2→opencv-python` 这类名字全异的是另一类，需显式 IMPORT_TO_PKG 映射。比较键用归一化形，界面文案保留原名。
+- **Prevention**：`scripts/depguard.py` 新增 `_norm()`，declared 与 used 双方都过归一化再查集。以后写同类校验工具（依赖/glossary 审计）直接复用该函数，别二次裸比较。
+- **Regression**：暂无自动化；规则见本条 + `scripts/depguard.py` `_norm()` docstring。
+
 ## 模板（新增时复制）
 
 ```

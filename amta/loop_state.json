@@ -1,8 +1,8 @@
 {
   "mission": "Ralph Loop 最小可行验证：外层循环 + 强制写记忆工作流",
-  "current_step": "删除编码损坏的一次性探针 probe_inpaint_mask_compare.py / probe_refine_mask.py（连带其唯一依赖方 probe_refined_aot_compare.py），fastcheck compile 阶段转绿",
-  "next_action": "fastcheck 剩余红全为 pre-existing 非本次引入：(a) 18 pytest fails（known task #6，now.md 已分类）；(b) depguard 其余 probe_*.py 未声明依赖（probe_ctd_mask/probe_e2e_inpaint/probe_overlay_text/probe_sam_mask，待人类裁决删 or 加白名单）+ depguard hayai_ocr 归一化 bug + text_mask_refiner cv2；(c) ruff 54 errors。下一步：修 depguard.py 下划线/连字符归一化（hayai_ocr vs hayai-ocr，机械修复），剩余探针命运待裁决",
-  "last_verified": "py -3.13 scripts/fastcheck.py：compile PASS（删除 3 探针后 compileall 干净）；lint FAIL 54 pre-existing、unit tests 18 failed pre-existing、depguard FAIL pre-existing（无新增项）；pyright/memory lint/gc/inject OK",
-  "escalation": "fastcheck 仍红但全为 pre-existing：① ruff 54 errors（scripts/ 旧探针与 compare 脚本）② pytest 18 fails（task #6）③ depguard：probe_ctd_mask/e2e_inpaint/overlay_text/sam_mask 未声明 ctd_detector/cv2/segment_anything/torch（探针命运待裁决）；ocr_engines hayai_ocr 与 pyproject hayai-ocr『未使用』系 depguard 归一化 bug（下划线 vs 连字符不匹配）；text_mask_refiner cv2 未声明。附注：.venv 无 ruff（工具链全局装，L26），uv run python 跑 fastcheck 时 lint 报 No module named ruff，须用 py -3.13 全局解释器",
-  "updated_at": "2026-09-04T01:16"
+  "current_step": "修 depguard.py 下划线/连字符归一化（PEP 503 _norm()），hayai_ocr vs hayai-ocr 假阳双杀消除，docs/lessons.md 新增 L36",
+  "next_action": "等待人类裁决剩余红项：① probe_ctd_mask/e2e_inpaint/overlay_text/sam_mask 命运（删 or 加白名单，连带 ctd_detector/cv2/segment_anything/torch 未声明）；② src/amta/text_mask_refiner.py import cv2 是否真需要补 opencv-python 声明；裁决后清 depguard/ruff 余账",
+  "last_verified": "py -3.13 scripts/fastcheck.py：compile/typecheck PASS；depguard 11 项降至 9 项（hayai_ocr 未声明+未使用 2 假阳消除，无新增）；ruff 54 errors 与 pytest 18 fails 全 pre-existing 不变；scripts/depguard.py 单独 ruff clean",
+  "escalation": "① ruff 54 errors（scripts/ 旧探针与 compare 脚本）② pytest 18 fails（task #6）③ depguard 余 9 项：probe_ctd_mask/e2e_inpaint/overlay_text 引 ctd_detector+cv2、probe_sam_mask 引 segment_anything+torch（探针命运待裁决）、text_mask_refiner cv2 未声明（是否真需 opencv-python 待裁决）。附注：.venv 无 ruff（工具链全局装，L26），fastcheck 须用 py -3.13 全局解释器",
+  "updated_at": "2026-09-04T01:20"
 }

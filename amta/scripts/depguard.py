@@ -53,6 +53,16 @@ def _is_local_module(top: str) -> bool:
     return False
 
 
+def _norm(name: str) -> str:
+    """分布名比较键归一化（PEP 503）：大小写不敏感，'-'/'_'/'.' 等价。
+
+    import 顶层名与 pyproject 分布名常只差分隔符（如 hayai_ocr vs hayai-ocr），
+    直接比较必然误报"未声明"+"未使用"双杀；比较键统一成小写连字符形。
+    注意只用于比较，界面文案仍显示原始名。
+    """
+    return name.lower().replace("_", "-").replace(".", "-")
+
+
 def _declared_deps() -> set[str]:
     pyproject = ROOT / "pyproject.toml"
     if not pyproject.is_file():
@@ -113,19 +123,21 @@ def _scan_third_party() -> dict[str, set[str]]:
 
 def main() -> int:
     declared = _declared_deps()
+    declared_keys = {_norm(d) for d in declared}
     found = _scan_third_party()
     used: set[str] = set()
     issues: list[str] = []
     for rel, mods in sorted(found.items()):
         for m in sorted(mods):
-            pkg = IMPORT_TO_PKG.get(m, m).lower()
-            used.add(pkg)
-            if pkg not in declared:
+            pkg = IMPORT_TO_PKG.get(m, m)
+            key = _norm(pkg)
+            used.add(key)
+            if key not in declared_keys:
                 issues.append(f"[未声明] {rel}: import {m} 未在 [project].dependencies 声明")
 
     # 声明了但没被任何 import 用到
     for d in sorted(declared):
-        if d not in used:
+        if _norm(d) not in used:
             issues.append(f"[未使用] pyproject 声明 {d}，但 src/scripts/tests 未 import 到 —— 死依赖，删除")
 
     if issues:
