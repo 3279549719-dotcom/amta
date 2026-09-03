@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     AMTA Ralph Loop — 自治迭代外层循环（Windows 版）
 
@@ -106,13 +106,8 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
         Write-Output "==============================================================="
 
         # 追加完成日志
-        $completeLog = @"
-
-## $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') RALPH COMPLETE
-- 完成迭代: $i / $MaxIterations
-- 最终状态: 见 loop_state.json
----
-"@
+        $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        $completeLog = "`n## $ts RALPH COMPLETE`n- 完成迭代: $i / $MaxIterations`n- 最终状态: 见 loop_state.json`n---`n"
         Add-Content -Path $LogFile -Value $completeLog -Encoding UTF8
 
         exit 0
@@ -130,14 +125,8 @@ Write-Output "  RALPH reached max iterations ($MaxIterations) without COMPLETE s
 Write-Output "  Check loop_state.json and ralph-log.md for status"
 Write-Output "==============================================================="
 
-$maxLog = @"
-
-## $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') RALPH MAX ITERATIONS
-- 达到最大迭代次数: $MaxIterations
-- 未收到 COMPLETE 信号
-- 最终状态: 见 loop_state.json
----
-"@
+$ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+$maxLog = "`n## $ts RALPH MAX ITERATIONS`n- 达到最大迭代次数: $MaxIterations`n- 未收到 COMPLETE 信号`n- 最终状态: 见 loop_state.json`n---`n"
 Add-Content -Path $LogFile -Value $maxLog -Encoding UTF8
 
 exit 1
