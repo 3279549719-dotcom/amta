@@ -12,3 +12,10 @@
 - 经验/教训：pyproject 发行名（连字符形）与代码 import 顶层名（下划线形）是同一发行版，凡比较必须先 PEP 503 归一化（lower + _/.→-）再比；名字全异（PIL→pillow）才需显式映射。比较键归一化，文案保留原名。
 - 下一步：等待人类裁决剩余红项（探针脚本删 or 白名单、text_mask_refiner 是否真需 opencv-python 声明）
 ---
+## [2026-09-04 01:27] 迭代完成（blocked-on-human 确认，无代码改动）
+- 做了什么：next_action 为"等待人类裁决"，本次迭代不越权删文件/加依赖，改为跑 fastcheck 复核基线 + 为两项裁决收集证据包：① 4 探针——probe_ctd_mask/e2e_inpaint/overlay_text import 的 ctd_detector 已归档到 archive/（硬死，import 即崩），probe_sam_mask 是败选 Plan B；② src/amta/text_mask_refiner.py cv2——04_inpaint.py:23 模块级 import，--with-inpaint 干净克隆必炸，属真需要
+- 改了哪些文件：docs/lessons.md（新增 L37：本地模块归档后残留 importer 被 depguard 误报第三方，归档须连带清 importer）、loop_state.json、ralph-log.md
+- fastcheck 结果：没过（红全 pre-existing）。compile/pyright PASS；ruff 24 errors（上次记 54，3420e85 删 3 mojibake 探针后自然回落）；pytest 18 failed（task #6）；depguard 9 项不变（4 探针 8 项 + text_mask_refiner cv2 1 项）
+- 经验/教训：blocked-on-human 状态不硬编造任务，产出证据包让裁决一次到位；归档本地模块会静默改变 depguard 分类（L37）。推荐裁决：① 4 探针 DELETE；② text_mask_refiner 声明 opencv-python（连带 IMPORT_TO_PKG 补 cv2→opencv-python）
+- 下一步：loop_state.next_action（仍等待人类裁决 ①/②）
+---

@@ -304,6 +304,14 @@
 - **Prevention**：`scripts/depguard.py` 新增 `_norm()`，declared 与 used 双方都过归一化再查集。以后写同类校验工具（依赖/glossary 审计）直接复用该函数，别二次裸比较。
 - **Regression**：暂无自动化；规则见本条 + `scripts/depguard.py` `_norm()` docstring。
 
+## L37 — 本地模块归档进 archive/ 后，残留 importer 被 depguard 误报"第三方未声明"：归档时须连带清 importer
+
+- **Problem**：depguard 报 `scripts/probe_ctd_mask.py / probe_e2e_inpaint.py / probe_overlay_text.py: import ctd_detector 未在 [project].dependencies 声明`。ctd_detector 明明是本仓模块，为何当第三方报？
+- **Root cause**：`scripts/ctd_detector.py` 已被 git mv 进 `scripts/archive/`。depguard `_is_local_module()` 只在 src/scripts/tests 活动目录查同名 `.py`；模块进 archive 后该检查失效，残留 importer 的 `from ctd_detector import ...` 被当第三方顶层名 → 误报未声明。此时这些 importer 实际已硬死（archive/ 不入 sys.path，import 即 ModuleNotFoundError），depguard 报"未声明"其实是"死代码"的侧写。
+- **Durable lesson**：把 scripts/tests 下被互 import 的本地模块归档（git mv → archive/）时，必须顺带清扫仍 import 它的活动文件（删 or 一起归档 or EXCLUDE_FILES），否则 depguard 挂一条看似莫名的"第三方未声明"红债。archive/ 在 ruff/pyright/depguard 扫描全部豁免，是"已死代码"的仓库级标记。
+- **Prevention**：归档本地模块后跑 `py -3.13 scripts/depguard.py` 复查，新报的"未声明"若指向刚归档的本地名 → 去 grep 清 importer。
+- **Regression**：暂无自动化；规则见本条。当前红债（4 探针命运）见 loop_state escalation，待人类裁决。
+
 ## 模板（新增时复制）
 
 ```
