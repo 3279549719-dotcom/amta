@@ -41,6 +41,35 @@ def _out(ws_root: Path, name: str) -> Path:
     return ws_root / "artifacts" / name
 
 
+def _ensure_terms(work_id: str, ws_root: Path) -> None:
+    """确保术语表存在：有就复用，没有就自动跑 pre_scan 扫描全本已有 canon。
+
+    术语表是 work_id 级别，只创建一次，写入 state/work_state.json。
+    后续重跑翻译时直接复用，不会重复扫描。
+    """
+    from amta.workstate import load_state
+
+    ws = load_state(work_id)
+    if ws.get("terms"):
+        return  # 已有术语表，直接复用
+
+    canon_dir = ws_root / "artifacts"
+    canon_files = sorted(canon_dir.glob("page_*_canon.json"))
+    if not canon_files:
+        print(f"[00_run_all] pre_scan skipped (no canon files yet)")
+        return
+
+    master_dict = HERE.parent / "data" / "thbwiki_master_dict.json"
+    if not master_dict.exists():
+        print(f"[00_run_all] pre_scan skipped (master_dict not found: {master_dict})")
+        return
+
+    print(f"[00_run_all] pre_scan: scanning {len(canon_files)} canon files...")
+    _run_cli([str(HERE / "pre_scan.py"), "--work-id", work_id,
+              "--artifacts-dir", str(canon_dir),
+              "--master-dict", str(master_dict)])
+
+
 def _refresh_merged_translation(ws_root: Path) -> None:
     """刷新 artifacts/translation.json：合并所有 page_*_translation.json（前页回溯读取）。"""
     import re as _re
@@ -110,6 +139,9 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                 log.add_span(run_id, step="02_ocr", page=page, status="ok",
                              input=str(det_path), output=str(canon_path),
                              duration_s=time.time() - t0)
+
+            # ---- 术语预扫描（只跑一次，有术语表就复用，没有就自动创建）----
+            _ensure_terms(work_id, ws_root)
 
             # ---- 03 translate (deepseek 单 LLM + 术语库 + 前页上下文, 无 VLM 裁决) ----
             if trans_path.exists():
