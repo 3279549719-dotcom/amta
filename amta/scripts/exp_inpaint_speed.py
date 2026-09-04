@@ -153,7 +153,7 @@ def run_p0(page_num: int, repeat: int = 3) -> dict:
 
 
 def run_p1(page_num: int, repeat: int = 3, inpainter: LocalLamaInpainter | None = None,
-           mode_name: str = "p1_cpu") -> dict:
+           mode_name: str = "p1_cpu", refine: bool = True) -> dict:
     raw, det = load_page(page_num)
     free_boxes = get_free_boxes(det)
     if inpainter is None:
@@ -165,7 +165,7 @@ def run_p1(page_num: int, repeat: int = 3, inpainter: LocalLamaInpainter | None 
         fill_bubbles(img, det)
         for box in free_boxes:
             crop, origin = crop_box(img, box["bbox"])
-            mask_bytes = build_crop_mask(crop, box["bbox"], origin, refine=True)
+            mask_bytes = build_crop_mask(crop, box["bbox"], origin, refine=refine)
             mask_img = Image.open(io.BytesIO(mask_bytes)).convert("L")
             inpainted = inpainter.inpaint(crop, mask_img)
             if inpainted and inpainted.size == crop.size:
@@ -178,12 +178,12 @@ def run_p1(page_num: int, repeat: int = 3, inpainter: LocalLamaInpainter | None 
             img.save(save_path)
     return {"page": page_num, "mode": mode_name, "times": times,
             "avg": sum(times) / len(times), "n_free": len(free_boxes),
-            "model_load_time": inpainter.load_time_s}
+            "model_load_time": inpainter.load_time_s, "refine": refine}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", required=True, choices=["baseline", "p0", "p1_cpu", "p1_gpu", "all"])
+    ap.add_argument("--mode", required=True, choices=["baseline", "p0", "p1_cpu", "p1_rect", "p1_gpu", "all"])
     ap.add_argument("--pages", default="11-15")
     ap.add_argument("--repeat", type=int, default=3)
     a = ap.parse_args()
@@ -199,8 +199,8 @@ def main() -> int:
 
     for mode in modes:
         print(f"\n=== MODE: {mode} ===")
-        if mode in ("p1_cpu", "p1_gpu") and inpainter is None:
-            device = "cpu" if mode == "p1_cpu" else "cpu"  # GPU fallback to cpu
+        if mode in ("p1_cpu", "p1_rect", "p1_gpu") and inpainter is None:
+            device = "cpu"  # GPU not supported for TorchScript
             print(f"[exp] Loading local LaMa model ({device})...")
             inpainter = LocalLamaInpainter(device=device)
             print(f"[exp] Model loaded in {inpainter.load_time_s:.1f}s")
@@ -212,8 +212,10 @@ def main() -> int:
                     r = run_baseline(p, a.repeat)
                 elif mode == "p0":
                     r = run_p0(p, a.repeat)
-                elif mode in ("p1_cpu", "p1_gpu"):
-                    r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode)
+                elif mode == "p1_cpu":
+                    r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=True)
+                elif mode == "p1_rect":
+                    r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=False)
                 else:
                     continue
                 results.append(r)
