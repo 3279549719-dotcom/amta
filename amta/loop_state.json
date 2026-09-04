@@ -1,8 +1,9 @@
 {
-  "mission": "第二次 Ralph Loop 完成：修复 stage4 lama-manga 合并引入的全部 fastcheck 违规（ruff 8 + pyright 14 + depguard 7 + 1 真 bug），配置 Claude Code PreToolUse + SessionStart hooks，更新 AGENTS.md 加「Ralph Loop 运行规范」4 条规则，写 learning-record 0021。",
-  "current_step": "全部完成。迭代1-3由 Ralph 自主完成（修 ruff/pyright/depguard），迭代4配置 hook 时 agent 卡住 19 分钟，人工介入完成 hook 配置 + AGENTS.md 更新 + learning-record。fastcheck ALL PASS。",
-  "next_action": "等待人类验收合并回 main。合并后可启动第三次 Ralph Loop 接产品流水线任务（Stage 4 产品化），验证规章制度在真实开发任务中的效果。",
+  "mission": "候选4探针归档：scripts/probes/ 目录已存在且 ruff/pyright 已 exclude。把 scripts/ 根目录下 6 个实验探针移到 scripts/probes/：probe_fill_white.py、probe_flux2.py、probe_refine_mask_batch.py、probe_seg_mask.py、exp_inpaint_speed.py、compare_inpaint_engines.py。移动后更新所有引用：tests/test_exp_p1_manga.py 的 import exp_inpaint_speed、docs/ 下文档里的脚本路径、脚本自身 docstring。_*.py（旧版生产脚本）这次不动。完成标准：fastcheck ALL PASS，6个文件都在 scripts/probes/ 下。",
+  "current_step": "待开始",
+  "next_action": "Ralph自主执行探针归档",
   "last_verified": "2026-09-04 最终验证：py -3.13 scripts/fastcheck.py → ALL PASS（compile OK / ruff All checks passed / pyright 0 errors 0 warnings / pytest 315 passed 3 skipped / depguard OK / memory lint+gc+inject OK）。SessionStart hook 正常输出项目状态。PreToolUse hook 正常工作：非 commit 命令 allow，commit 命令跑 fastcheck，FAIL 则 block。",
-  "escalation": "迭代4 agent 卡住 19 分钟（now.md 12分钟未更新、无外部命令运行），人工介入完成。建议给 ralph.ps1 加迭代超时机制（15分钟自动杀掉重启）。",
-  "updated_at": "2026-09-04T17:50"
+  "escalation": "无",
+  "updated_at": "2026-09-05T00:24",
+  "status": ""
 }

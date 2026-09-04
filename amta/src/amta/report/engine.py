@@ -127,26 +127,22 @@ def _render_table(rows: list[dict], stages: list[StageOutput]) -> str:
 
 
 def _compute_stats(page: PageReport, rows: list[dict]) -> list[dict]:
-    """计算每页统计卡片数据。"""
+    """计算每页统计卡片数据（泛化：每个 stage 自动有计数卡）。"""
     stats = []
-    detect_stage = next((s for s in page.stages if s.key == "detect"), None)
-    ocr_stage = next((s for s in page.stages if s.key == "ocr"), None)
-    trans_stage = next((s for s in page.stages if s.key == "translate"), None)
-
-    if detect_stage:
-        stats.append({"num": len(detect_stage.cells), "lbl": "检测框", "cls": ""})
-    if ocr_stage:
-        stats.append({"num": len(ocr_stage.cells), "lbl": "OCR 区域", "cls": ""})
-    if trans_stage:
-        non_empty = sum(1 for d in trans_stage.cells.values()
-                        if isinstance(d, dict) and d.get("translation", "").strip())
-        stats.append({"num": non_empty, "lbl": "成功译文", "cls": "ok"})
-        pa = trans_stage.page_artifact
-        if isinstance(pa, dict):
-            residue = pa.get("residue", [])
-            glossary = pa.get("glossary_violations", [])
-            stats.append({"num": len(residue), "lbl": "日文残留", "cls": "ok" if not residue else "warn"})
-            stats.append({"num": len(glossary), "lbl": "术语违例", "cls": "ok" if not glossary else "warn"})
+    for s in page.stages:
+        stats.append({"num": len(s.cells), "lbl": s.label, "cls": ""})
+        if s.key == "translate":
+            non_empty = sum(1 for d in s.cells.values()
+                            if isinstance(d, dict) and d.get("translation", "").strip())
+            stats.append({"num": non_empty, "lbl": "成功译文", "cls": "ok"})
+            pa = s.page_artifact
+            if isinstance(pa, dict):
+                residue = pa.get("residue", [])
+                glossary = pa.get("glossary_violations", [])
+                if residue:
+                    stats.append({"num": len(residue), "lbl": "日文残留", "cls": "warn"})
+                if glossary:
+                    stats.append({"num": len(glossary), "lbl": "术语违例", "cls": "warn"})
     return stats
 
 

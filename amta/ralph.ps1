@@ -146,6 +146,11 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
         Write-Output "  status: $($state.status)"
     }
 
+    # 开工注入：跑 memory_index + git log，拼进 prompt（agent 一睁眼就看到最新清单和脉络，实时）
+    Write-Output "[ralph] Building preamble (memory_index + git log)..."
+    $preamble = & uv run python scripts/ralph_context.py preamble --root $ProjectRoot 2>&1 | Out-String
+    $promptWithContext = $promptContent + "`n`n" + $preamble
+
     # 启动新鲜 agent 会话
     Write-Output ""
     Write-Output "[ralph] Spawning fresh agent (timeout: $IterationTimeoutSeconds s, heartbeat: $HeartbeatStallSeconds s)..."
@@ -162,7 +167,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
             param($prompt, $workDir)
             Set-Location $workDir
             claude -p $prompt 2>&1
-        } -ArgumentList $promptContent, $ProjectRoot
+        } -ArgumentList $promptWithContext, $ProjectRoot
 
         # --- 心跳监测：spawn 后每 30s 查一次本次会话 JSONL 的 mtime，连续失守即杀 ---
         $jobCompleted = $false
@@ -296,6 +301,12 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
         }
         $completeLog = "`n## $ts RALPH COMPLETE`n- 完成迭代: $i / $MaxIterations`n- 最终状态: 见 loop_state.json`n- 迭代日志: $iterationLogFile`n- trace 统计:`n$traceStatsText`n---`n"
         Add-RalphLog $completeLog
+
+        # 收尾 DONE：从 loop_state 搬运 agent 写好的成果/遗留，空 commit 标记 run 结束（git log 可扫到 run 边界）
+        Write-Output "[ralph] Writing DONE commit (from loop_state)..."
+        $doneMsg = & uv run python scripts/ralph_context.py done-msg --root $ProjectRoot 2>&1 | Out-String
+        git -C $ProjectRoot add -A 2>&1 | Out-Null
+        git -C $ProjectRoot commit --allow-empty -m $doneMsg 2>&1 | ForEach-Object { Write-Output "  [ralph] $_" }
 
         exit 0
     }

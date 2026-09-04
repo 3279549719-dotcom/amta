@@ -12,8 +12,9 @@
 - `last_verified`：上一步的验证结果
 - `escalation`：有没有需要人介入的问题
 
-### 2. 读经验
-如果 `docs/lessons.md` 存在，快速扫一眼标题列表。如果本次任务涉及之前踩过的坑（OCR、翻译、护栏、记忆机制等），用 `uv run python scripts/memory_grep.py --query "<关键词>"` 查相关 lesson。
+### 2. 读经验（外层已注入，扫清单自选）
+外层 ralph 已把「记忆清单（lessons + ADR 全标题）+ 最近 git 脉络」注入到 prompt 开头。扫一遍清单，挑出和本次任务相关的条目，用 `uv run python scripts/memory.py read <ID>` 读详情。
+不要用 memory_grep 猜关键词（74 条全扫，召回天然 100%；关键词匹配实测只有 25%）。git 脉络里的 `ralph: DONE` 标记是上次 run 的边界和遗留。
 
 ### 3. 确认分支
 确认你在正确的分支上（`git branch --show-current`）。如果 `loop_state.json` 里指定了分支但你不在，切换过去。
@@ -57,8 +58,8 @@
 
 ### 8. 更新状态（强制）
 更新 `loop_state.json`：
-- `current_step`：你刚完成的事
-- `next_action`：下一步该做什么（如果你想不出来，写"等待人类指定下一步"）
+- `current_step`：你刚完成的事（**写成果**，ralph 会搬运到 DONE commit）
+- `next_action`：下一步该做什么（**写遗留/尾巴**，ralph 会搬运到 DONE commit；如果你想不出来，写"等待人类指定下一步"）
 - `last_verified`：fastcheck 结果 + 你做了什么验证
 - `escalation`：有没有需要人介入的问题（没有就清空或写"无"）
 - `status`：可选。需要人裁决时设为 `"BLOCKED"`（见第 10 步），否则不写或清空
@@ -87,7 +88,7 @@ git commit -m "ralph: <一句话描述本次迭代>"
 ```
 
 然后检查状态，三选一：
-- **任务全部完成** → 输出 `<promise>COMPLETE</promise>` 然后退出
+- **任务全部完成** → 输出 `<promise>COMPLETE</promise>` 然后退出（**ralph 会自动从 loop_state 搬运成果/遗留做 DONE 空 commit，你不需要自己做收尾 commit**）
 - **需要人裁决**（三个决策点之一：删除文件 / 依赖声明或基准方案变更 / 合并回 main；或 next_action 是"等待人类…"；或死胡同）→ 用 `uv run python scripts/loop_state.py blocked --reason "<需要人做什么>"` 把 `status` 设为 `BLOCKED`，**正常退出（不输出 COMPLETE）**。外层循环检测到 BLOCKED 会停止循环等人。
 - **还有明确的下一步** → 正常退出（外层循环会启动下一次迭代）
 
