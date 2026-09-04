@@ -10,7 +10,7 @@ import base64
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 PROBE_DIR = ROOT / "output" / "tmp" / "ctd_mask_probe"
 OUT_HTML = PROBE_DIR / "ctd_mask_probe_report.html"
 

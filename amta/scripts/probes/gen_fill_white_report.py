@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 OUT_DIR = ROOT / "output" / "tmp" / "fill_white_probe"
 OUT_HTML = OUT_DIR / "fill_white_report.html"
 
