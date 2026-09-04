@@ -328,6 +328,14 @@
 - **Prevention**：背景复杂的漫画优先整页推理（缩小到 1024 宽平衡速度与质量）；裁剪推理仅用于背景简单的区域（纯白对话框内）；验收标准必须包含"放大检查修复区域无方框/噪点"，不能只看整页缩略图。
 - **Regression**：5 页对比验证（page11-15），整页推理（19.7s/页）无方框，裁剪推理（7.3s/页）有方框；整页推理比 Baseline（152.5s/页）快 87%。
 
+## L40 — Pillow ≥10 移除顶层 Resampling 常量（Image.NEAREST 等）：用 Image.Resampling.* 枚举
+
+- **Problem**：`local_lama_inpainter.py` 调 `mask.resize(image.size, Image.NEAREST)` 在 Pillow 12 报 `AttributeError: module 'PIL.Image' has no attribute 'NEAREST'`（pyright: reportAttributeAccessIssue），Pillow 9.1 起顶层常量已弃用、10.0 移除。
+- **Root cause**：Pillow 把插值常量从 `Image` 模块顶层迁到 `Image.Resampling` 枚举；旧顶层 `Image.NEAREST/BILINEAR/BICUBIC/LANCZOS/BOX/HAMMING` 全部移除。类型桩只认 `Image.Resampling.*`。
+- **Durable lesson**：本项目 Pillow 版本无上限（venv 装最新），**插值参数一律写 `Image.Resampling.NEAREST` 等枚举，勿用顶层旧常量**；Pillow-heavy 代码（typeset/image 处理）新增 resize/thumbnail/transform 时直接照此写。
+- **Prevention**：pyright 会拦（reportAttributeAccessIssue），但仅覆盖已声明的 image 处理路径——写新 Pillow 代码时默认用 `Image.Resampling.*`；遇到旧代码报此类错直接改名常量即可，行为等价。
+- **Regression**：pyright src 0 errors；`tests/test_local_lama_inpainter_manga.py` 通过（resize 路径含在 local_lama_inpainter 单测中）。
+
 ## 模板（新增时复制）
 
 ```

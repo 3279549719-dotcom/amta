@@ -165,7 +165,7 @@ class LocalLamaInpainter:
         orig_w, orig_h = image.size
         # 确保 mask 与 image 同尺寸
         if mask.size != image.size:
-            mask = mask.resize(image.size, Image.NEAREST)
+            mask = mask.resize(image.size, Image.Resampling.NEAREST)
         result = self.model(image, mask)
         # 裁剪回原图尺寸 (padding 可能导致尺寸变化)
         if result.size != (orig_w, orig_h):

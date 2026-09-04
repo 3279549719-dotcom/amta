@@ -33,3 +33,11 @@
 - 经验/教训：F821 undefined name 同时是 pyright 报错——补 import 修 ruff 会连带 pyright 计数下降；ruff 只查默认 E4/E7/E9/F，import 排序（I 系）不在内
 - 下一步：loop_state.next_action = 第二步修 pyright 13 errors（_lama_ffc.py×10 / _lama_model.py×2 / local_lama_inpainter.py×1）
 ---
+
+## [2026-09-04 17:22] 迭代完成
+- 做了什么：修复全部 13 个 pyright errors（mission 第二步）→ src 0 errors 0 warnings
+- 改了哪些文件：src/amta/_lama_ffc.py（orig_size None 兜底消除 possibly-unbound；padding_type 注解 PaddingMode=Literal；norm_layer/activation_layer 注解 type[nn.Module] 修默认值过窄推断）、src/amta/_lama_model.py（LAMA_MODEL 单次读取 truthiness 收窄 str|None；prepare_img_and_mask 改赋 image_t/mask_t 中间变量）、src/amta/local_lama_inpainter.py（Image.NEAREST→Image.Resampling.NEAREST）、docs/lessons.md（新增 L40：Pillow≥10 移除顶层 Resampling 常量）
+- fastcheck 结果：没过（但 pyright OK、pytest 315 passed 3 skipped 不降级、ruff 改动文件 ALL PASS）。剩余唯一红=depguard 7 项（torch+safetensors 未声明，mission 第三步选项C 已知待办，非本次新增）
+- 经验/教训：torch 移植模块无注解时 pyright 把默认值类对象推断成过窄的具体 type（type[BatchNorm2d]/type[Identity]），塞不同激活/归一化层会报错——显式注解 type[nn.Module] 根治；Pillow 10+ 已删 Image.NEAREST 顶层常量（L40）
+- 下一步：loop_state.next_action = 第三步 depguard 选项C：torch+safetensors 声明进 pyproject.toml
+---
