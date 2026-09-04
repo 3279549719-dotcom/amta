@@ -32,6 +32,8 @@
 | `ralph-log.md` | append-only 学习日志 | agent（每步追加） | 人（复盘） |
 | `docs/lessons.md` | 可复用经验库（L1-L37+） | agent（第 7 步沉淀） | agent（memory_search） |
 | `.claude/settings.json` | SessionStart hook（`uv run python scripts/memory_inject.py`） | 人 | claude |
+| `scripts/trace_probe.py` | claude 会话 JSONL 探针（心跳定位 / 卡死诊断 / trace 统计） | ralph.ps1 | ralph.ps1 |
+| `scripts/loop_state.py` | loop_state 读写 CLI（含 `blocked` 快捷命令，写 status=BLOCKED） | agent / ralph | agent / ralph |
 | `CLAUDE.local.md` | 自动注入的记忆包（loop_state 摘要 + 字典规则） | memory_inject.py | agent（会话启动） |
 
 ## prompt.md 10 步工作流
@@ -47,7 +49,7 @@
 7. **更新状态**：写 `loop_state.json`（current_step/next_action/last_verified/escalation/updated_at）
 8. **写日志**：追加 `ralph-log.md`（做了什么/改了哪些文件/fastcheck 结果/经验教训/下一步）
 9. **commit**：`git add -A && git commit -m "..."`
-10. **信号**：任务完成输出 `<promise>COMPLETE</promise>`，需要人裁决则写进 next_action 并继续
+10. **信号**：任务完成输出 `<promise>COMPLETE</promise>`；需要人裁决则写 `status=BLOCKED`（`loop_state.py blocked`）停止，ralph 检测到即停循环等人
 
 ## 记忆机制（读 + 写）
 
@@ -65,7 +67,7 @@
 
 - **所有 Python 命令用 `uv run python`**，但 fastcheck 例外：`.venv` 无 ruff，须用 `py -3.13 scripts/fastcheck.py`（L26）
 - **不越权修历史债**：fastcheck 红项如果是 pre-existing，记入 escalation，不试图全修
-- **blocked-on-human 时不硬编造任务**：产出证据包让裁决一次到位（迭代 3 的做法）
+- **blocked-on-human 时不硬编造任务**：产出证据包让裁决一次到位（迭代 3 的做法）；同时写 `status=BLOCKED` 让 ralph 停循环等人（v3），不再空转
 - **每次迭代一个新鲜 agent**：无上下文继承，所有状态从文件重建
 - **commit 用 `--no-verify`**：fastcheck 红时 pre-commit 会拦，ralph loop 自己跑 fastcheck 做验证
 
@@ -81,7 +83,7 @@ A: 检查 prompt.md 第 7-9 步是否还在。写记忆是工作流指令，不�
 A: 看 loop_state.escalation，区分"本次引入"和"pre-existing"。pre-existing 等人裁决，不要让 ralph loop 无限循环修历史债。
 
 **Q: 怎么停止循环？**
-A: Ctrl+C，或者让 agent 输出 `<promise>COMPLETE</promise>`，或者达到 MaxIterations。
+A: Ctrl+C，或者 agent 输出 `<promise>COMPLETE</promise>`，或者写 `status=BLOCKED`（ralph 自动停循环），或者达到 MaxIterations。
 
 **Q: 怎么加新任务？**
 A: 编辑 `loop_state.json` 的 `next_action`，然后重新跑 `.\ralph.ps1`。

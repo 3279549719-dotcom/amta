@@ -9,6 +9,7 @@
   next_action    下一步做什么（如「调 conf 阈值并重跑 eval」）
   last_verified  上一步的验证结果（如「0 漏洞，12 框」）
   escalation     升级点（需要人/异常；可空）
+  status         可选：agent 标记「需人裁决，循环应停止」（BLOCKED）；空/缺省 = 正常
   updated_at     最后更新时间（ISO 字符串，由 update() 维护）
 
 写路径 update() 原子替换（先写临时文件再 os.replace），避免半截状态被注入读到。

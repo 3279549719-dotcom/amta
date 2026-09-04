@@ -81,6 +81,7 @@ Ralph Loop 全自主推进，但以下三个节点必须暂停，等人类确认
 | **合并回 main** | 分支完成后，合并进 main 前必须人类验收 |
 
 其余所有操作（写代码、跑测试、修 bug、写文档、commit 到 feature 分支）Ralph 全自主。
+- 遇到决策点时，agent 在 `loop_state.json` 写 `status=BLOCKED` + escalation 说明需要人做什么（`uv run python scripts/loop_state.py blocked --reason "..."`），ralph 检测到即停止循环等人，不空转。
 
 ### 4. bug 不累积
 

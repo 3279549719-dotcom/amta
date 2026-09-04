@@ -26,6 +26,8 @@
 ### 5. 跑质量检查
 执行 `uv run python scripts/fastcheck.py`。这是你的质量门。
 
+如果本次改动涉及**引擎面**（`koharu_client.py` / `koharu_blocks.py` / `pipeline.py` / `runner.py` / `smoke_test.py` 等）：额外执行 `uv run python scripts/fastcheck.py --with-e2e` —— koharu :4000 可达则必跑 smoke（必须 PASS）；不可达但改引擎面会判 FAIL（按第 6 步处理）；不可达且不涉引擎面打印 SKIPPED（不算失败，但要在 loop_state 注明"未跑 smoke"）。
+
 ### 6. 处理失败
 如果 fastcheck 失败：
 - 读错误信息，判断是不是你这次改动引入的
@@ -50,9 +52,11 @@
 - `next_action`：下一步该做什么（如果你想不出来，写"等待人类指定下一步"）
 - `last_verified`：fastcheck 结果 + 你做了什么验证
 - `escalation`：有没有需要人介入的问题（没有就清空或写"无"）
+- `status`：可选。需要人裁决时设为 `"BLOCKED"`（见第 10 步），否则不写或清空
 - `updated_at`：当前时间
 
-用 `uv run python` 脚本来更新，保证 JSON 格式正确。
+用 `uv run python` 脚本来更新，保证 JSON 格式正确。推荐：
+`uv run python scripts/loop_state.py update --field "next_action=..." --field "last_verified=..."`
 
 ### 9. 写学习日志（强制）
 在项目根目录创建或追加 `ralph-log.md`：
@@ -73,9 +77,10 @@ git add -A
 git commit -m "ralph: <一句话描述本次迭代>"
 ```
 
-然后检查 `loop_state.json` 的 `next_action`：
-- 如果 `next_action` 是"等待人类指定下一步"或任务全部完成 → 输出 `<promise>COMPLETE</promise>` 然后退出
-- 如果还有明确的下一步 → 正常退出（外层循环会启动下一次迭代）
+然后检查状态，三选一：
+- **任务全部完成** → 输出 `<promise>COMPLETE</promise>` 然后退出
+- **需要人裁决**（三个决策点之一：删除文件 / 依赖声明或基准方案变更 / 合并回 main；或 next_action 是"等待人类…"；或死胡同）→ 用 `uv run python scripts/loop_state.py blocked --reason "<需要人做什么>"` 把 `status` 设为 `BLOCKED`，**正常退出（不输出 COMPLETE）**。外层循环检测到 BLOCKED 会停止循环等人。
+- **还有明确的下一步** → 正常退出（外层循环会启动下一次迭代）
 
 ## 硬规则
 
@@ -83,7 +88,7 @@ git commit -m "ralph: <一句话描述本次迭代>"
 - **所有 Python 用 `uv run python`**。系统 Python 3.14 没有依赖。
 - **fastcheck 是质量门**。不过就不能算完成（pre-existing 错误除外，但必须记录）。
 - **写记忆是强制的**。第 8 步和第 9 步不能跳。不写记忆的迭代等于白做。
-- **不要问人问题**。除非遇到完全无法推进的死胡同，否则自己做决定，记录在 escalation 里。
+- **不要问人问题**。除非遇到完全无法推进的死胡同，否则自己做决定，记录在 escalation 里。真的需要人裁决时：写 `status=BLOCKED` 停止（第 10 步），不要空转等下一轮。
 - **不要改 prompt.md 和 ralph.ps1**。这是循环控制文件，改了会破坏外层循环。
 - **不要动 main 分支**。在当前分支上工作。
 
