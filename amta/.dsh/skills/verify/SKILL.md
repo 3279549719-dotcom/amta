@@ -9,10 +9,12 @@ description: 回归验证与发布流程——smoke/check/precheck 门槛与 git
 
 - `npm run check` — 语法门（`python -m compileall -q src scripts`）
 - `npm run fastcheck` — 全量门（compile+ruff+pyright+pytest）。**tests/ 用 pytest 收集**（unittest discover 只收 `TestCase` 类，静默跳过模块级 pytest 函数会假 PASS）；Windows 下 pytest 尾部 `PermissionError: pytest-current` 是 tmp_path teardown 噪音（L19），**判据 = 汇总行 `N passed` 而非 exit code**（fastcheck 已用 `--basetemp` 根治）。
+- `fastcheck.py --with-e2e` — **L5 端到端门**（ADR-030）：追加探测 koharu :4000 —— 可达必跑 smoke（必须 PASS）；不可达但本次改动涉及引擎面（koharu_client/koharu_blocks/pipeline/runner/smoke_test）→ FAIL；不可达且不涉引擎面 → SKIPPED。
 - `npm run precheck` — 4000 端口可达性（exit 0/1）
 - `npm run smoke` — 冒烟测试（**需先 `npm start`**）：连引擎→建项目→传图→跑检测→读场景→读 mask→关项目，PASS 即通路 OK
+- `uv run python scripts/review.py [--base main]` — **L6 独立 model 审核**（ADR-030）：spawn 独立 `claude -p` 会话（不知道你做了什么，只读 Read/Grep/Glob）审 git diff，按「达成验收标准 / 漏需求或引入 bug / 无证据断言」三维度输出 `VERDICT: PASS|FAIL|CONCERN` + 证据。合入 main 前建议跑一次（可加 `--mission "验收标准"`）。
 
-改代码后至少过 `check`；动 `koharu_client.py` / 流水线 / 引擎相关必须过 `smoke`。
+改代码后至少过 `check`；动 `koharu_client.py` / 流水线 / 引擎相关必须过 `fastcheck --with-e2e`（koharu 未启动会被判 FAIL，先 `npm start`）；合入 main 前用 `review.py` 做独立第二模型审核。
 
 ## 发布流程（git/gh 裸命令，不包进 package.json）
 

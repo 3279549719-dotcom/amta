@@ -1,4 +1,4 @@
-﻿# Lessons（可复用经验库 = 坑的唯一归属）
+# Lessons（可复用经验库 = 坑的唯一归属）
 
 > 回答："我们从问题中学到了什么？"
 > **本文件是「坑/经验」的唯一事实来源**。CLAUDE.md 只保留最精简的关键规则与指针，**不重复贴坑**。
@@ -343,6 +343,22 @@
 - **Durable lesson**：给"已由他人传递安装、只为 depguard 显式化"的依赖补声明时，**精确版本一律从 `uv.lock` 的 `version =` 字段抄公共版本**（torch/safetensors 之类带 +cpu/+cu 标签的尤甚），别从 `pip freeze` / `__version__` 抄。直声明与传递解析出的版本一致，`uv lock` 才能无扰动通过。
 - **Prevention**：改 pyproject 后必跑 `uv lock` 复核（退出 0 + `git diff uv.lock` 应只见 root 包 dependencies/requires-dist 增两行，无版本漂移），再跑 `py -3.13 scripts/depguard.py` 确认转绿。
 - **Regression**：depguard 0 项 + `uv lock` clean（amta root 包新增 safetensors==0.8.0 / torch==2.14.0 两条直声明）。
+
+## L42 — 仓库根上移（filter-repo 到父目录）后 core.hooksPath 相对值失效：pre-commit/pre-push 静默不跑
+
+- **Problem**：把仓库根从 `amta/` 迁到父目录（filter-repo 给内容加 `amta/` 前缀）后，从 amta 提交时 pre-commit/pre-push 不再触发——fastcheck/ruff 提交门禁（L26）静默失效，无人察觉。
+- **Root cause**：`.githooks` 物理位置仍在 `amta/.githooks`，没随根移动；而 `core.hooksPath=.githooks` 是相对值，git 按**运行 git 时的 cwd** 解析——实测 `git rev-parse --git-path hooks`：搬迁前 repo 根=amta、cwd=amta → `.githooks` 命中 `amta/.githooks`；搬迁后 repo 根=父目录、从 amta 跑 → 解析为 `../.githooks` = 父目录/.githooks（不存在）。hook 文件找不到时 git 不报错，直接跳过。
+- **Durable lesson**：`core.hooksPath` 别用相对值——仓库根/内容前缀只要可能变，一律写**绝对路径**；hook 失效是静默的（缺文件不报错），唯一核对手段是 `git rev-parse --git-path hooks` 看解析结果是否落在真实存在的目录。同理，凡"仓库根在 cwd 之下"的假设（`.githooks`、`.venv`、`package.json` 向上查找）在根上移后都要复查。
+- **Prevention**：已设 `git config core.hooksPath "E:/manga translator agent/amta/.githooks"`（绝对）；`scripts/install_hooks.ps1` 现在仍写相对 `.githooks`，应改成输出绝对路径；改完用 `git rev-parse --git-path hooks` 核对。Claude Code 启动目录仍是 `amta/`（根级无配置），勿从父目录启动。
+- **Regression**：暂无自动化；规则见本条。
+
+## L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
+
+- **Problem**：scripts/review.py（L6 独立审核门）用 `subprocess.run(["claude", "-p", ...])` 报 WinError 2 找不到文件；同一命令在 PowerShell 里 `claude -p` 一切正常。
+- **Root cause**：Windows 上 npm 装的 `claude` 实际是 `claude.cmd`（+ `claude.ps1`）脚本，PATH 里没有可执行的 `claude` 裸文件。PowerShell 走自己的命令解析能跑 .ps1/.cmd；Python subprocess 的 CreateProcess 不做 PATHEXT 解析、也不执行 .cmd/.ps1，所以裸名 "claude" 解析失败 → WinError 2。`shutil.which("claude")` 能返回 .CMD 路径（做存在性判定可用），但照此路径直接 Popen 仍失败。
+- **Durable lesson**：Windows 下从 Python spawn 任何 npm/全局 CLI，先确认其真实形态（.exe / .cmd / .ps1）；若是 .cmd，用 `["cmd", "/c", "<name>", ...]` 调用（cmd 会按 PATHEXT 解析并正确转发 stdin/stdout）；大 prompt 走 stdin 管道（`subprocess.run(input=...)`）以绕开 Windows 命令行 ~32k 长度限制。
+- **Prevention**：review.py 已用 `os.name == "nt"` 分支切 `cmd /c claude`；新写 spawn 外部 CLI 的脚本沿用此模式。
+- **Regression**：`claude -p` 经 stdin 管道回 "OK"（实测，见 review.py L6 门）。
 
 ## 模板（新增时复制）
 

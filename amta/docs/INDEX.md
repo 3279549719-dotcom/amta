@@ -37,6 +37,9 @@
 | D-025 | 设计记忆机制时 | docs/decisions/025-agent-memory-mechanism.md | 记忆四层闭环（基线/推送/拉取/护栏） |
 | D-026 | 记忆选型时 | docs/decisions/026-memory-system-build-vs-buy.md | 选型定案：暂缓开源（agentmemory Windows 弱），自建字典 |
 | D-027 | 改注入 / 检索 / 接续时 | docs/decisions/027-memory-dictionary-mcp.md | 注入瘦身 + MCP 字典 + loop_state 接续 |
+| D-028 | 跑 Ralph Loop / 自治开发时 | docs/decisions/028-ralph-loop-autonomous-development.md | 外层循环 + 文件状态无人值守开发循环 |
+| D-029 | 改 inpaint / 本地推理时 | docs/decisions/029-lama-manga-local-inference.md | Lama-Manga 本地推理替代 Koharu HTTP Inpaint |
+| D-030 | 设计验证阶梯 / 合入前审核时 | docs/decisions/030-verification-ladder-l5-l6.md | 验证阶梯补全 L5 端到端门 + L6 独立 model 审核 |
 
 ## 经验（L = docs/lessons.md 分节）
 

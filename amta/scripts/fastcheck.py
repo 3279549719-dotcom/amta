@@ -1,4 +1,4 @@
-"""fastcheck — 编码期快速校验（Level 1，秒级，不连 koharu）。
+"""fastcheck — 编码期快速校验（Level 1，秒级，默认不连 koharu）。
 
 组合：
   1. compileall（src + scripts 语法门）
@@ -7,7 +7,12 @@
   4. 确定性单测（tests/，纯数据，不依赖引擎/网络）
   5. depguard（依赖膨胀守卫：未声明/未使用第三方依赖拦截，ADR-015）
 
-等价于 `npm run check` + lint + typecheck + `npm run test` + depguard，
+可选 L5 端到端门：`--with-e2e` 追加探测 koharu :4000 —
+  可达 → 跑 scripts/smoke_test.py（连通引擎→建项目→传图→检测→读场景→关项目，必须 PASS）；
+  不可达且本次改动涉及引擎面（koharu_client/koharu_blocks/pipeline/runner/smoke_test）→ FAIL
+  （堵"引擎改动没验证就提交"的洞，ADR-030）；不可达且不涉及引擎面 → SKIPPED（不算失败）。
+
+等价于 `npm run check` + lint + typecheck + `npm run test` + depguard [+ e2e]，
 合并为一条命令。退出码：0 = 全过；非 0 = 有失败。
 """
 from __future__ import annotations
@@ -100,7 +105,75 @@ def _memory_inject() -> int:
     return _run([sys.executable, str(ROOT / "scripts" / "memory_inject.py")], "memory inject (CLAUDE.local.md)")
 
 
+def _port_open(host: str, port: int, timeout: float = 2.0) -> bool:
+    """探测 TCP 端口（stdlib only）。"""
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _changed_files() -> set[str]:
+    """收集本次改动文件：工作区（未暂存 + 已暂存）+ main...HEAD（已提交）。git 不可用/出错时返回空集。"""
+    changed: set[str] = set()
+    if not shutil.which("git"):
+        return changed
+    for cmd in (
+        ["git", "diff", "--name-only", "HEAD"],
+        ["git", "diff", "--cached", "--name-only"],
+        ["git", "diff", "--name-only", "main...HEAD"],
+    ):
+        try:
+            r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if r.returncode == 0:
+            changed.update(p.strip() for p in r.stdout.splitlines() if p.strip())
+    return changed
+
+
+# L5 引擎面判定：只认 src/ 与 scripts/ 下的代码改动。纯文档（.dsh/docs/ADR）不算引擎面，
+# 避免引擎未启动时文档改动被误判 FAIL（L6 review 首跑实测发现）。token 匹配文件名。
+ENGINE_SURFACE_TOKENS = ("koharu", "pipeline", "runner", "smoke")
+
+
+def _engine_surface_changed() -> list[str]:
+    """本次改动中触及引擎面的代码文件（L5 判定用）。"""
+    changed = []
+    for p in _changed_files():
+        parts = Path(p).parts
+        if "src" not in parts and "scripts" not in parts:
+            continue  # 非代码目录（docs/.dsh/ADR）不算引擎面
+        if any(tok in Path(p).name for tok in ENGINE_SURFACE_TOKENS):
+            changed.append(p)
+    return sorted(changed)
+
+
+def _smoke() -> int:
+    """L5 端到端门（--with-e2e）：koharu 可达 → 跑 smoke_test.py 必须 PASS；
+    不可达且改引擎面 → FAIL（堵"引擎改动没验证就提交"）；不可达且不涉引擎面 → SKIPPED(0)。"""
+    if not _port_open("127.0.0.1", 4000):
+        touched = _engine_surface_changed()
+        if touched:
+            print(f"== [fastcheck] e2e FAIL: koharu :4000 未启动，但本次改动涉及引擎面：{', '.join(touched)} ==")
+            print("== [fastcheck] 请先 `npm start` 启动 koharu，再重跑 `fastcheck.py --with-e2e` 完成 L5 验证 ==")
+            return 1
+        print("== [fastcheck] e2e SKIPPED: koharu :4000 未启动，且本次改动不涉及引擎面（L5 无需跑）==")
+        return 0
+    print("== [fastcheck] e2e: koharu :4000 可达，跑 smoke_test.py ==")
+    uv = shutil.which("uv")
+    if uv:
+        cmd = [uv, "run", "python", str(ROOT / "scripts" / "smoke_test.py")]
+    else:
+        cmd = [sys.executable, str(ROOT / "scripts" / "smoke_test.py")]
+    return _run(cmd, "e2e smoke (koharu 通路)")
+
+
 def main() -> int:
+    with_e2e = "--with-e2e" in sys.argv[1:]
     c = _compile()
     lint_rc = _lint()
     t = _typecheck()
@@ -109,7 +182,19 @@ def main() -> int:
     m = _memory_lint()
     g = _memory_gc()
     inj = _memory_inject()
-    fails = [name for name, rc in (("compile", c), ("lint", lint_rc), ("typecheck", t), ("unit tests", u), ("depguard", d), ("memory lint", m), ("memory gc", g), ("memory inject", inj)) if rc]
+    checks: list[tuple[str, int]] = [
+        ("compile", c),
+        ("lint", lint_rc),
+        ("typecheck", t),
+        ("unit tests", u),
+        ("depguard", d),
+        ("memory lint", m),
+        ("memory gc", g),
+        ("memory inject", inj),
+    ]
+    if with_e2e:
+        checks.append(("e2e smoke", _smoke()))
+    fails = [name for name, rc in checks if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
         return 1
