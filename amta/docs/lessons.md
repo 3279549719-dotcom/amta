@@ -336,6 +336,14 @@
 - **Prevention**：pyright 会拦（reportAttributeAccessIssue），但仅覆盖已声明的 image 处理路径——写新 Pillow 代码时默认用 `Image.Resampling.*`；遇到旧代码报此类错直接改名常量即可，行为等价。
 - **Regression**：pyright src 0 errors；`tests/test_local_lama_inpainter_manga.py` 通过（resize 路径含在 local_lama_inpainter 单测中）。
 
+## L41 — depguard 补声明已传递安装的依赖时，版本读 uv.lock 的公共版本，别抄 `__version__` 的本地构建标签（+cpu）
+
+- **Problem**：lama 本地 inpainting 直 import torch/safetensors 但 pyproject 未声明 → depguard 7 项 [未声明]。补声明时若照 `import torch; torch.__version__`（实测 `2.14.0+cpu`）写 `torch==2.14.0+cpu`，uv 解析会失败——本地标签不在分发索引的公共版本上。
+- **Root cause**：同一 wheel 有两个版本面：安装后元数据 `__version__` 带 PEP 440 本地构建标签（`+cpu`），而 uv.lock `[[package]] version = "2.14.0"` 只记公共版本、本地标签落在 wheel url 里。pyproject 的 `==` 约束按公共版本对分发解析，抄错一个面就锁不上。
+- **Durable lesson**：给"已由他人传递安装、只为 depguard 显式化"的依赖补声明时，**精确版本一律从 `uv.lock` 的 `version =` 字段抄公共版本**（torch/safetensors 之类带 +cpu/+cu 标签的尤甚），别从 `pip freeze` / `__version__` 抄。直声明与传递解析出的版本一致，`uv lock` 才能无扰动通过。
+- **Prevention**：改 pyproject 后必跑 `uv lock` 复核（退出 0 + `git diff uv.lock` 应只见 root 包 dependencies/requires-dist 增两行，无版本漂移），再跑 `py -3.13 scripts/depguard.py` 确认转绿。
+- **Regression**：depguard 0 项 + `uv lock` clean（amta root 包新增 safetensors==0.8.0 / torch==2.14.0 两条直声明）。
+
 ## 模板（新增时复制）
 
 ```

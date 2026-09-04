@@ -12,6 +12,8 @@ dependencies = [
     { name = "opencv-python" },
     { name = "pillow" },
     { name = "requests" },
+    { name = "safetensors" },
+    { name = "torch" },
 ]
 
 [package.metadata]
@@ -21,6 +23,8 @@ requires-dist = [
     { name = "opencv-python", specifier = "==5.0.0.93" },
     { name = "pillow", specifier = "==12.3.0" },
     { name = "requests", specifier = "==2.34.2" },
+    { name = "safetensors", specifier = "==0.8.0" },
+    { name = "torch", specifier = "==2.14.0" },
 ]
 
 [[package]]

@@ -41,3 +41,11 @@
 - 经验/教训：torch 移植模块无注解时 pyright 把默认值类对象推断成过窄的具体 type（type[BatchNorm2d]/type[Identity]），塞不同激活/归一化层会报错——显式注解 type[nn.Module] 根治；Pillow 10+ 已删 Image.NEAREST 顶层常量（L40）
 - 下一步：loop_state.next_action = 第三步 depguard 选项C：torch+safetensors 声明进 pyproject.toml
 ---
+
+## [2026-09-04T17:25] 迭代完成
+- 做了什么：第三步——depguard 7 项转绿（选项C）：torch+safetensors 声明进 pyproject.toml
+- 改了哪些文件：pyproject.toml（+2 直声明带注释）、uv.lock（root 包 dependencies/requires-dist +4 行）、docs/lessons.md（+L41）
+- fastcheck 结果：过（ruff OK / pyright 0/0 / pytest 315 passed 3 skipped / depguard OK / memory lint OK，exit 0）
+- 经验/教训：给已传递安装的依赖补声明时，版本抄 uv.lock 的公共版本（2.14.0），别抄 __version__ 的 +cpu 标签（L41）
+- 下一步：第四步——配置 Claude Code PreToolUse hook（git commit/merge 前快速 fastcheck，FAIL 阻止）
+---
