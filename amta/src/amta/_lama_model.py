@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from ._lama_util import prepare_img_and_mask
+from ._lama_util import download_model, prepare_img_and_mask
 
 LAMA_MODEL_URL = os.environ.get(
     "LAMA_MODEL_URL",

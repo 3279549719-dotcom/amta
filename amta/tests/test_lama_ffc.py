@@ -8,16 +8,15 @@
 """
 from __future__ import annotations
 
+import glob
 import sys
 from pathlib import Path
 
 import torch
+from safetensors.torch import load_file
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
-
-import glob
-from safetensors.torch import load_file
 
 
 def find_lama_manga() -> Path:
