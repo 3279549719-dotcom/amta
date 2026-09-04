@@ -1,5 +1,9 @@
 """生成 Stage 4 框外字去除 A/B 对比实验最终报告 HTML。
 
+⚠️ 待收敛: 本脚本为独立实现（279行），尚未上移到 amta.report 深接口。
+   新报告需求请用 gen_report.py（amta.report 通用引擎），本脚本仅用于历史 A/B 实验复现。
+   收敛计划: 核心渲染逻辑上移到 src/amta/report/ab_report.py，本脚本退化为薄 CLI。
+
 方案A: 框内传统方法精修mask (Otsu + 颜色直方图 + 连通域过滤)
 方案B: SAM框提示像素级分割 (ViT-B, box prompt)
 样本: 11-20页, 8页有text_free框, 共19个框
