@@ -16,7 +16,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from amta.local_lama_inpainter import LocalLamaInpainter
+from amta.local_lama_inpainter import LocalLamaInpainter  # noqa: E402
 
 
 def make_test_image(size: int = 256) -> Image.Image:

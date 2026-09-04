@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from ._lama_util import prepare_img_and_mask
+from ._lama_util import download_model, prepare_img_and_mask
 
 LAMA_MODEL_URL = os.environ.get(
     "LAMA_MODEL_URL",
@@ -17,8 +17,8 @@ class SimpleLama:
             "cuda" if torch.cuda.is_available() else "cpu"
         ),
     ) -> None:
-        if os.environ.get("LAMA_MODEL"):
-            model_path = os.environ.get("LAMA_MODEL")
+        model_path = os.environ.get("LAMA_MODEL")
+        if model_path:
             if not os.path.exists(model_path):
                 raise FileNotFoundError(
                     f"lama torchscript model not found: {model_path}"
@@ -32,10 +32,10 @@ class SimpleLama:
         self.device = device
 
     def __call__(self, image: Image.Image | np.ndarray, mask: Image.Image | np.ndarray):
-        image, mask = prepare_img_and_mask(image, mask, self.device)
+        image_t, mask_t = prepare_img_and_mask(image, mask, self.device)
 
         with torch.inference_mode():
-            inpainted = self.model(image, mask)
+            inpainted = self.model(image_t, mask_t)
 
             cur_res = inpainted[0].permute(1, 2, 0).detach().cpu().numpy()
             cur_res = np.clip(cur_res * 255, 0, 255).astype(np.uint8)

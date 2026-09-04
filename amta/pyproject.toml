@@ -18,6 +18,11 @@ dependencies = [
     "hayai-ocr==2.1.0",
     # opencv-python(cv2): src/amta/text_mask_refiner.py 框内文字像素精修（04_inpaint 模块级 import），Stage4 Plan A 必需。
     "opencv-python==5.0.0.93",
+    # torch + safetensors: lama-manga 本地 inpainting 实验功能（_lama_ffc/_lama_model/_lama_util/local_lama_inpainter，
+    # FFCResNetGenerator 前向 + .safetensors 权重加载）。torch 已由 hayai-ocr 传递安装，直声明仅为 depguard 显式化
+    # （本地 CPU-only i5，非新增重量运行时）；safetensors 无 stdlib 替代，加载 lama 权重必需（ADR-015 审视通过）。
+    "torch==2.14.0",
+    "safetensors==0.8.0",
 ]
 
 [tool.uv]

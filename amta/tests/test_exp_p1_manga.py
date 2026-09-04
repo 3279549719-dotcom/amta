@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -19,9 +18,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 def test_p1_manga_in_choices():
     """--mode p1_manga 在参数 choices 中。"""
-    import exp_inpaint_speed as exp
-    # 检查 argparse 的 choices
-    parser = argparse.ArgumentParser()
     # 模拟 main() 中的参数定义
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", required=True,

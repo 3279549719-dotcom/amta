@@ -130,7 +130,6 @@ def build_speed_chart(summaries: dict[str, dict[int, dict]]) -> str:
 
 def build_page_comparison(page: int, summaries: dict[str, dict[int, dict]]) -> str:
     """每页四格对比: 原图 / Baseline / P0 / P1。"""
-    images_html = []
     labels = [("原图", SRC_DIR / f"{page}.jpg")]
     for mode, label in MODES:
         if mode == "baseline":

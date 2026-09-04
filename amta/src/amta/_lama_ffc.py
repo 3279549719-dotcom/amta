@@ -6,9 +6,14 @@
 """
 from __future__ import annotations
 
+from typing import Literal
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+# torch nn.Conv2d 的 padding_mode 参数只接受这几个字面量 (torch 类型桩要求)
+PaddingMode = Literal["zeros", "reflect", "replicate", "circular"]
 
 
 class FourierUnit(nn.Module):
@@ -32,6 +37,7 @@ class FourierUnit(nn.Module):
 
     def forward(self, x):
         batch = x.shape[0]
+        orig_size = None
         if self.spatial_scale_factor is not None:
             orig_size = x.shape[-2:]
             x = F.interpolate(x, scale_factor=self.spatial_scale_factor,
@@ -52,7 +58,7 @@ class FourierUnit(nn.Module):
         ffted = torch.complex(ffted[..., 0], ffted[..., 1])
         ifft_shape_slice = x.shape[-3:] if self.ffc3d else x.shape[-2:]
         output = torch.fft.irfftn(ffted, s=ifft_shape_slice, dim=fft_dim, norm=self.fft_norm)
-        if self.spatial_scale_factor is not None:
+        if orig_size is not None:
             output = F.interpolate(output, size=orig_size, mode=self.spatial_scale_mode, align_corners=False)
         return output
 
@@ -93,7 +99,7 @@ class SpectralTransform(nn.Module):
 class FFC(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, ratio_gin, ratio_gout,
                  stride=1, padding=0, dilation=1, groups=1, bias=False, enable_lfu=True,
-                 padding_type='reflect', gated=False, **spectral_kwargs):
+                 padding_type: PaddingMode = 'reflect', gated=False, **spectral_kwargs):
         super().__init__()
         assert stride == 1 or stride == 2
         self.stride = stride
@@ -138,8 +144,9 @@ class FFC(nn.Module):
 class FFC_BN_ACT(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, ratio_gin, ratio_gout,
                  stride=1, padding=0, dilation=1, groups=1, bias=False,
-                 norm_layer=nn.BatchNorm2d, activation_layer=nn.Identity,
-                 padding_type='reflect', enable_lfu=True, **kwargs):
+                 norm_layer: type[nn.Module] = nn.BatchNorm2d,
+                 activation_layer: type[nn.Module] = nn.Identity,
+                 padding_type: PaddingMode = 'reflect', enable_lfu=True, **kwargs):
         super().__init__()
         self.ffc = FFC(in_channels, out_channels, kernel_size, ratio_gin, ratio_gout,
                         stride, padding, dilation, groups, bias, enable_lfu,
@@ -162,8 +169,9 @@ class FFC_BN_ACT(nn.Module):
 
 
 class FFCResnetBlock(nn.Module):
-    def __init__(self, dim, padding_type, norm_layer, activation_layer=nn.ReLU,
-                 dilation=1, inline=False, **conv_kwargs):
+    def __init__(self, dim: int, padding_type: PaddingMode, norm_layer: type[nn.Module],
+                 activation_layer: type[nn.Module] = nn.ReLU, dilation: int = 1,
+                 inline: bool = False, **conv_kwargs):
         super().__init__()
         self.conv1 = FFC_BN_ACT(dim, dim, kernel_size=3, padding=dilation, dilation=dilation,
                                  norm_layer=norm_layer, activation_layer=activation_layer,
@@ -214,8 +222,11 @@ class FFCResNetGenerator(nn.Module):
     lama-manga 使用 large arch: n_blocks=18, 初始/输出卷积 7x7, 无输出激活.
     """
     def __init__(self, input_nc=4, output_nc=3, ngf=64, n_downsampling=3, n_blocks=18,
-                 norm_layer=nn.BatchNorm2d, padding_type='reflect', activation_layer=nn.ReLU,
-                 up_norm_layer=nn.BatchNorm2d, up_activation=nn.ReLU(True),
+                 norm_layer: type[nn.Module] = nn.BatchNorm2d,
+                 padding_type: PaddingMode = 'reflect',
+                 activation_layer: type[nn.Module] = nn.ReLU,
+                 up_norm_layer: type[nn.Module] = nn.BatchNorm2d,
+                 up_activation=nn.ReLU(True),
                  init_conv_kwargs=None, downsample_conv_kwargs=None, resnet_conv_kwargs=None,
                  add_out_act=True, max_features=1024, out_ffc=False, out_ffc_kwargs=None):
         assert n_blocks >= 0

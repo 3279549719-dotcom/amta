@@ -3,7 +3,14 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "uv run python scripts/memory_inject.py" }
+          { "type": "command", "command": "py -3.13 scripts/hook_sessionstart.py" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "py -3.13 scripts/hook_pretooluse.py" }
         ]
       }
     ]
