@@ -181,6 +181,64 @@ def run_p1(page_num: int, repeat: int = 3, inpainter: LocalLamaInpainter | None 
             "model_load_time": inpainter.load_time_s, "refine": refine}
 
 
+def run_p1_fullpage(page_num: int, repeat: int = 3, inpainter: LocalLamaInpainter | None = None,
+                     mode_name: str = "p1_manga", max_width: int = 1024) -> dict:
+    """整页推理: 生成整页 mask, 缩小到 max_width 宽, 整页 inpaint, 放大回原尺寸.
+
+    整页推理让模型有更多上下文, 背景修复更准确 (无方框感), 但速度较慢.
+    """
+    import numpy as np
+    from PIL import ImageDraw
+    raw, det = load_page(page_num)
+    free_boxes = get_free_boxes(det)
+    if inpainter is None:
+        inpainter = LocalLamaInpainter(device="cpu", model_type="lama-manga")
+    times = []
+    for i in range(repeat):
+        t0 = time.time()
+        img = Image.open(raw).convert("RGB")
+        fill_bubbles(img, det)
+
+        # 生成整页 mask (所有框外字的 bbox 合并)
+        full_mask = Image.new("L", img.size, 0)
+        draw = ImageDraw.Draw(full_mask)
+        for box in free_boxes:
+            x1, y1, x2, y2 = [int(v) for v in box["bbox"]]
+            x1 = max(0, x1 - 4); y1 = max(0, y1 - 4)
+            x2 = min(img.width, x2 + 4); y2 = min(img.height, y2 + 4)
+            draw.rectangle([x1, y1, x2, y2], fill=255)
+
+        # 缩小到 max_width 宽
+        scale = max_width / img.width
+        new_size = (max_width, int(img.height * scale))
+        img_small = img.resize(new_size, Image.LANCZOS)
+        mask_small = full_mask.resize(new_size, Image.NEAREST)
+
+        # 整页推理
+        inpainted_small = inpainter.inpaint(img_small, mask_small)
+
+        # 放大回原尺寸
+        inpainted_full = inpainted_small.resize(img.size, Image.LANCZOS)
+
+        # 只替换 mask 区域
+        mask_np = np.array(full_mask) > 127
+        orig_np = np.array(img)
+        result_np = np.array(inpainted_full)
+        orig_np[mask_np] = result_np[mask_np]
+        img = Image.fromarray(orig_np)
+
+        elapsed = time.time() - t0
+        times.append(elapsed)
+        if i == repeat - 1:
+            save_path = OUT_DIR / mode_name / "clean" / f"page_{page_num}_clean.png"
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(save_path)
+    return {"page": page_num, "mode": mode_name, "times": times,
+            "avg": sum(times) / len(times), "n_free": len(free_boxes),
+            "model_load_time": inpainter.load_time_s, "fullpage": True,
+            "max_width": max_width}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", required=True, choices=["baseline", "p0", "p1_cpu", "p1_rect", "p1_manga", "p1_gpu", "all"])
@@ -218,7 +276,7 @@ def main() -> int:
                 elif mode == "p1_rect":
                     r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=False)
                 elif mode == "p1_manga":
-                    r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=False)
+                    r = run_p1_fullpage(p, a.repeat, inpainter=inpainter, mode_name=mode)
                 else:
                     continue
                 results.append(r)

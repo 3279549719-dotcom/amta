@@ -102,8 +102,13 @@ class _LamaMangaModel:
         # 输出过 sigmoid (Koharu 在模型最后加了 sigmoid, 限制到 [0, 1])
         output = torch.sigmoid(output)
 
-        # 用 mask 做硬混合: mask 区域用模型输出, 非 mask 区域保留原图
-        result = img_t * (1 - mask_t) + output * mask_t
+        # mask 羽化: 对二值 mask 做 Gaussian blur, 消除硬边界, 让修复区域平滑融入背景
+        mask_np_blur = mask_t[0, 0].cpu().numpy()
+        mask_np_blur = cv2.GaussianBlur(mask_np_blur, (21, 21), 0)
+        mask_blur = torch.from_numpy(mask_np_blur).unsqueeze(0).unsqueeze(0).to(self.device)
+
+        # 用羽化后的 mask 做 alpha 混合
+        result = img_t * (1 - mask_blur) + output * mask_blur
 
         # 裁剪回原图尺寸
         if pad_h > 0 or pad_w > 0:
