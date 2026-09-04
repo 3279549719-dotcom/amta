@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Claude Code Trace</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --text:       #f0ebe3;
+    --text-muted: #b8a898;
+    --text-dim:   #8c7e72;
+
+    --c-user:     #60a5fa;
+    --c-injected: #a78bfa;
+    --c-asst:     #fb923c;
+    --c-tool-r:   #4ade80;
+    --c-meta:     #6b7280;
+    --c-think:  #fbbf24;
+    --c-tcall:  #f97316;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Safari blocks .click() on file inputs with display:none — keep in DOM, off-screen. */
+  .visually-hidden-file-input {
+    position: fixed;
+    right: 100%;
+    bottom: 100%;
+    width: 1px;
+    height: 1px;
+    opacity: 0.01;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  body {
+    background: linear-gradient(160deg, #0f0e0d 0%, #161310 100%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    background: rgba(255,245,235,0.04);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid rgba(255,245,235,0.08);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 30px rgba(0,0,0,0.5);
+  }
+  header h1 { font-size: 15px; font-weight: 600; }
+  .badge {
+    font-size: 11px;
+    background: rgba(96,165,250,0.18);
+    color: #93c5fd;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(96,165,250,0.3);
+  }
+  #hstats { margin-left: auto; display: none; gap: 16px; font-size: 12px; color: var(--text-muted); }
+  #hstats strong { color: var(--text); }
+  #s-sub-wrap { align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+  #s-sub-trigger { white-space: nowrap; }
+  #ctrl-btns { display: none; gap: 6px; }
+
+  /* ── Layout ── */
+  .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 440px;
+    flex-shrink: 0;
+    background: rgba(255,245,235,0.03);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid rgba(255,245,235,0.07);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-toolbar { padding: 10px 12px; border-bottom: 1px solid rgba(255,245,235,0.07); display: flex; gap: 6px; flex-shrink: 0; }
+  .btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,245,235,0.12);
+    background: rgba(255,245,235,0.07);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: rgba(255,245,235,0.11);
+    border-color: rgba(255,245,235,0.2);
+  }
+  .btn.primary {
+    background: linear-gradient(135deg, rgba(37,99,235,0.6), rgba(59,130,246,0.5));
+    border-color: rgba(96,165,250,0.45);
+    color: white;
+    box-shadow: 0 0 22px rgba(59,130,246,0.22);
+  }
+  .btn.primary:hover {
+    background: linear-gradient(135deg, rgba(37,99,235,0.8), rgba(59,130,246,0.7));
+    box-shadow: 0 0 28px rgba(59,130,246,0.35);
+  }
+  .btn.small { padding: 3px 8px; font-size: 11px; }
+  .sidebar-search { padding: 8px 12px; border-bottom: 1px solid rgba(255,245,235,0.07); flex-shrink: 0; }
+  .sidebar-search input {
+    width: 100%;
+    background: rgba(255,245,235,0.05);
+    border: 1px solid rgba(255,245,235,0.1);
+    border-radius: 7px;
+    color: var(--text);
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .sidebar-search input::placeholder { color: var(--text-dim); }
+  .sidebar-search input:focus {
+    outline: none;
+    border-color: rgba(96,165,250,0.5);
+    box-shadow: 0 0 0 2px rgba(96,165,250,0.12);
+  }
+  #session-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+  .project-group { margin-bottom: 2px; }
+  .project-label { padding: 8px 12px 4px; font-size: 12px; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+  .project-label:hover { color: var(--text); }
+  .project-label .toggle { font-size: 9px; transition: transform .15s; }
+  .project-label.collapsed .toggle { transform: rotate(-90deg); }
+  .project-sessions { padding: 0 6px; }
+  .project-label.collapsed + .project-sessions { display: none; }
+  .session-item {
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all .15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+  .session-item:hover { background: rgba(255,245,235,0.06); border-color: rgba(255,245,235,0.09); }
+  .session-item.active {
+    background: rgba(37,99,235,0.2);
+    border: 1px solid rgba(96,165,250,0.35);
+    box-shadow: 0 0 16px rgba(59,130,246,0.12);
+  }
+  .session-item .session-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; font-family: monospace; color: var(--text-muted); }
+  .session-item.active .session-name { color: var(--text); }
+  .session-item .session-size { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+
+  /* ── Content ── */
+  #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Filter bar */
+  #filter-bar {
+    padding: 6px 14px;
+    background: rgba(255,245,235,0.025);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,245,235,0.07);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,245,235,0.1);
+    background: rgba(255,245,235,0.04);
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all .15s;
+  }
+  .filter-btn .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .filter-btn.active { color: #fff; }
+  .filter-btn[data-type="user"].active        { background: rgba(37,99,235,0.3);   border-color: rgba(96,165,250,0.45);  box-shadow: 0 0 10px rgba(96,165,250,0.15); }
+  .filter-btn[data-type="injected"].active   { background: rgba(109,40,217,0.3);  border-color: rgba(167,139,250,0.45); box-shadow: 0 0 10px rgba(167,139,250,0.15); }
+  .filter-btn[data-type="assistant"].active   { background: rgba(194,65,12,0.3);   border-color: rgba(251,146,60,0.45);  box-shadow: 0 0 10px rgba(251,146,60,0.15); }
+  .filter-btn[data-type="tool-result"].active { background: rgba(22,101,52,0.3);   border-color: rgba(74,222,128,0.38);  box-shadow: 0 0 10px rgba(74,222,128,0.12); }
+  .filter-btn[data-type="meta"].active        { background: rgba(55,65,81,0.45);   border-color: rgba(107,114,128,0.35); }
+  /* Always-on filters (cannot turn off): default cursor, no pointer/hover affordance */
+  .filter-btn[data-type="user"],
+  .filter-btn[data-type="tool-result"],
+  .filter-btn[data-type="assistant"] {
+    cursor: default;
+    pointer-events: none;
+  }
+  .filter-right { margin-left: auto; }
+  #ev-search {
+    background: rgba(255,245,235,0.05);
+    border: 1px solid rgba(255,245,235,0.1);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 3px 10px;
+    font-size: 12px;
+    width: 180px;
+  }
+  #ev-search::placeholder { color: var(--text-dim); }
+  #ev-search:focus { outline: none; border-color: rgba(96,165,250,0.5); box-shadow: 0 0 0 2px rgba(96,165,250,0.1); }
+
+  /* ── Timeline ── */
+  #tl-wrap { flex: 1; overflow-y: auto; padding: 16px 20px 80px; }
+
+  /* Welcome */
+  #welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); gap: 12px; text-align: center; }
+  #welcome .icon { font-size: 48px; opacity: .5; }
+  #welcome h2 { font-size: 16px; color: var(--text); }
+  #welcome p { font-size: 13px; max-width: 320px; line-height: 1.7; }
+
+  /* Session banner */
+  .sess-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 8px 14px;
+    background: rgba(255,245,235,0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,245,235,0.08);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .sess-banner strong { color: var(--text); font-family: monospace; font-size: 11px; }
+
+  /* Turn group – glass card */
+  .turn-group {
+    margin-bottom: 14px;
+    padding: 12px 14px 14px 14px;
+    background: rgba(255,245,235,0.038);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border: 1px solid rgba(255,245,235,0.11);
+    border-left: 3px solid rgba(255,245,235,0.18);
+    border-radius: 14px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,245,235,0.07);
+    position: relative;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .turn-group:hover {
+    border-color: rgba(255,245,235,0.18);
+    border-left-color: rgba(255,245,235,0.38);
+    box-shadow: 0 6px 32px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,245,235,0.1);
+  }
+  .turn-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255,245,235,0.07);
+  }
+  .turn-label .turn-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255,245,235,0.13);
+    border: 1px solid rgba(255,245,235,0.28);
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--text);
+    flex-shrink: 0;
+    box-shadow: 0 0 10px rgba(255,245,235,0.07);
+  }
+  .turn-label .turn-line { flex: 1; height: 1px; background: linear-gradient(to right, rgba(255,245,235,0.1), transparent); }
+
+  /* Prelude block – session init messages before the first user turn */
+  .prelude-group {
+    margin-bottom: 14px;
+    padding: 12px 14px 14px 14px;
+    background: rgba(107,114,128,0.10);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border: 1px solid rgba(255,245,235,0.07);
+    border-left: 3px solid rgba(107,114,128,0.45);
+    border-radius: 14px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,245,235,0.04);
+    position: relative;
+  }
+  .prelude-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-dim);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255,245,235,0.07);
+  }
+  .prelude-label .prelude-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(107,114,128,0.18);
+    border: 1px solid rgba(107,114,128,0.38);
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .prelude-label .turn-line { flex: 1; height: 1px; background: linear-gradient(to right, rgba(107,114,128,0.2), transparent); }
+
+  /* Group count + shared-key badges */
+  .group-count {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(255,245,235,0.09);
+    border: 1px solid rgba(255,245,235,0.18);
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .group-key {
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    opacity: .9;
+  }
+
+  /* Timeline item */
+  .tl-item { display: flex; gap: 0; margin-bottom: 5px; }
+  .tl-item.hidden { display: none !important; }
+
+  /* LLM call anchor dots — req and resp: solid filled cyan */
+  .tl-item.llm-req .tl-dot,
+  .tl-item.llm-resp .tl-dot {
+    background: #22d3ee !important;
+    box-shadow: 0 0 8px rgba(34,211,238,0.9), 0 0 20px rgba(34,211,238,0.35) !important;
+  }
+  /* mid: invisible dot (keep space so connector layout is undisturbed) */
+  .tl-item.llm-mid .tl-dot { visibility: hidden; }
+  /* JS-drawn overlay line */
+  .llm-call-line {
+    position: absolute;
+    width: 3px;
+    transform: translateX(-50%);
+    background: #22d3ee;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 2;
+    box-shadow: 0 0 6px rgba(34,211,238,0.6);
+  }
+  /* LLM call index label in time column */
+  .llm-call-label {
+    display: block;
+    margin-top: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #22d3ee;
+    white-space: nowrap;
+  }
+
+  /* Time column */
+  .tl-time { width: 72px; flex-shrink: 0; padding-top: 10px; font-size: 10px; font-family: monospace; color: var(--text-dim); text-align: right; padding-right: 10px; line-height: 1.2; }
+  .tl-delta { display: block; font-size: 9px; color: var(--text-dim); opacity: .85; margin-top: 1px; }
+
+  /* Connector column */
+  .tl-connector { width: 24px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
+  .tl-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 11px; z-index: 1; }
+  .tl-line { width: 2px; flex: 1; margin-top: 3px; min-height: 8px; }
+
+  /* Colors per type */
+  .tl-item[data-type="user"]        .tl-dot  { background: var(--c-user); box-shadow: 0 0 8px rgba(96,165,250,.6), 0 0 18px rgba(96,165,250,.2); }
+  .tl-item[data-type="user"]        .tl-line { background: linear-gradient(to bottom, rgba(96,165,250,.35), rgba(96,165,250,.04)); }
+  .tl-item[data-type="injected"]    .tl-dot  { background: var(--c-injected); box-shadow: 0 0 8px rgba(167,139,250,.5), 0 0 18px rgba(167,139,250,.15); }
+  .tl-item[data-type="injected"]    .tl-line { background: linear-gradient(to bottom, rgba(167,139,250,.25), rgba(167,139,250,.03)); }
+  /* assistant and tool-result: neutral dots, no color, same size as user */
+  .tl-item[data-type="assistant"]   .tl-dot  { background: rgba(255,245,235,0.2); }
+  .tl-item[data-type="assistant"]   .tl-line { background: rgba(255,245,235,0.07); }
+  .tl-item[data-type="tool-result"] .tl-dot  { background: rgba(255,245,235,0.2); }
+  .tl-item[data-type="tool-result"] .tl-line { background: rgba(255,245,235,0.07); }
+  /* meta: no dot at all */
+  .tl-item[data-type="meta"]        .tl-dot  { display: none; }
+  .tl-item[data-type="meta"]        .tl-line { background: rgba(255,245,235,0.05); }
+
+  /* Card */
+  .tl-card {
+    flex: 1;
+    border-radius: 10px;
+    border: 1px solid rgba(255,245,235,0.07);
+    overflow: hidden;
+    min-width: 0;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .tl-item[data-type="user"]        .tl-card { background: rgba(96,165,250,0.13);  border-color: rgba(96,165,250,0.26); }
+  .tl-item[data-type="injected"]    .tl-card { background: rgba(167,139,250,0.10); border-color: rgba(167,139,250,0.22); }
+  .tl-item[data-type="assistant"]   .tl-card { background: rgba(251,146,60,0.13);  border-color: rgba(251,146,60,0.26); }
+  .tl-item[data-type="tool-result"] .tl-card { background: rgba(74,222,128,0.10);  border-color: rgba(74,222,128,0.22); }
+  .tl-item[data-type="meta"]        .tl-card { background: rgba(255,245,235,0.05); border-color: rgba(255,245,235,0.09); opacity: .7; }
+  .tl-item.is-error .tl-card { border-color: rgba(239,68,68,.4) !important; box-shadow: 0 0 16px rgba(239,68,68,0.1); }
+
+  .tl-item[data-type="user"]:hover        .tl-card { border-color: rgba(96,165,250,0.4);  box-shadow: 0 0 22px rgba(96,165,250,0.09); }
+  .tl-item[data-type="injected"]:hover    .tl-card { border-color: rgba(167,139,250,0.35); box-shadow: 0 0 22px rgba(167,139,250,0.08); }
+  .tl-item[data-type="assistant"]:hover   .tl-card { border-color: rgba(251,146,60,0.4);  box-shadow: 0 0 22px rgba(251,146,60,0.09); }
+  .tl-item[data-type="tool-result"]:hover .tl-card { border-color: rgba(74,222,128,0.32); box-shadow: 0 0 22px rgba(74,222,128,0.08); }
+
+  /* Card header */
+  .tl-header { display: flex; align-items: center; gap: 7px; padding: 7px 12px; cursor: pointer; user-select: none; }
+  .tl-header:hover { background: rgba(255,245,235,0.03); }
+  .type-chip {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+  }
+  .type-chip.user        { background: rgba(96,165,250,.16);  color: #bfdbfe; border-color: rgba(96,165,250,0.26); }
+  .type-chip.injected    { background: rgba(167,139,250,.13); color: #ddd6fe; border-color: rgba(167,139,250,0.25); font-style: italic; }
+  .type-chip.assistant   { background: rgba(251,146,60,.16);  color: #fed7aa; border-color: rgba(251,146,60,0.26); }
+  .type-chip.tool-result { background: rgba(74,222,128,.13);  color: #bbf7d0; border-color: rgba(74,222,128,0.23); }
+  .type-chip.meta        { background: rgba(107,114,128,.18); color: #d1d5db; border-color: rgba(107,114,128,0.26); }
+  .dir-arrow { font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .tl-item[data-type="user"]        .dir-arrow { color: #93c5fd; }
+  .tl-item[data-type="injected"]    .dir-arrow { color: #c4b5fd; }
+  .tl-item[data-type="assistant"]   .dir-arrow { color: #fdba74; }
+  .tl-item[data-type="tool-result"] .dir-arrow { color: #86efac; }
+  .tl-item[data-type="meta"]        .dir-arrow { color: var(--text-dim); }
+  .tl-preview { font-size: 12px; color: var(--text-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; user-select: text; }
+  .tl-meta { display: flex; gap: 8px; align-items: center; flex-shrink: 0; font-size: 11px; color: var(--text-dim); }
+  .tok {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(255,245,235,0.06);
+    border: 1px solid rgba(255,245,235,0.1);
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .model-tag { font-family: monospace; font-size: 10px; color: #fbbf24; }
+  .expand-arrow { font-size: 9px; transition: transform .2s; flex-shrink: 0; color: var(--text-dim); }
+  .tl-card.open > .tl-header .expand-arrow { transform: rotate(90deg); }
+
+  /* Dependency badge */
+  .dep-badge {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 5px;
+    background: rgba(74,222,128,.1);
+    color: #86efac;
+    border: 1px solid rgba(74,222,128,.22);
+    font-family: monospace;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Card body */
+  .tl-body { display: none; border-top: 1px solid rgba(255,245,235,.05); user-select: text; }
+  .tl-card.open > .tl-body { display: block; }
+
+  /* Blocks */
+  .block { border-bottom: 1px solid rgba(255,245,235,.04); }
+  .block:last-child { border-bottom: none; }
+  .block-hd { display: flex; align-items: center; gap: 7px; padding: 6px 12px; cursor: pointer; user-select: none; }
+  .block-hd:hover { background: rgba(255,245,235,.03); }
+  .block-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+  }
+  .block-label.thinking  { background: rgba(251,191,36,.16);  color: #fde68a; border-color: rgba(251,191,36,0.26); }
+  .block-label.tool-call { background: rgba(249,115,22,.16);  color: #fed7aa; border-color: rgba(249,115,22,0.26); }
+  .block-label.text      { background: rgba(96,165,250,.15);  color: #bfdbfe; border-color: rgba(96,165,250,0.25); }
+  .block-label.raw       { background: rgba(107,114,128,.16); color: #d1d5db; border-color: rgba(107,114,128,0.24); }
+  .block-label.result-ok  { background: rgba(74,222,128,.12); color: #bbf7d0; border-color: rgba(74,222,128,0.22); }
+  .block-label.result-err { background: rgba(248,113,113,.12);color: #fca5a5; border-color: rgba(248,113,113,0.22); }
+  .block-preview { font-size: 11px; color: var(--text-dim); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: monospace; }
+  .block-arr { font-size: 8px; color: var(--text-dim); transition: transform .15s; flex-shrink: 0; }
+  .block.open > .block-hd .block-arr { transform: rotate(90deg); }
+  .block-bd { display: none; padding: 6px 12px 10px; user-select: text; }
+  .block.open > .block-bd { display: block; }
+  .block-bd pre {
+    font-family: 'SF Mono','Fira Code',monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,245,235,0.07);
+    padding: 10px 12px;
+    border-radius: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .tool-id-line { font-size: 10px; color: var(--text-dim); font-family: monospace; margin-bottom: 6px; }
+
+  /* Usage footer */
+  .usage-footer { padding: 8px 12px 10px; border-top: 1px solid rgba(255,245,235,.04); display: flex; flex-wrap: wrap; gap: 5px; }
+  .usage-chip {
+    background: rgba(255,245,235,0.05);
+    border: 1px solid rgba(255,245,235,0.09);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .usage-chip .ul { font-size: 9px; color: var(--text-dim); }
+
+  /* ── Scroll-to-bottom button ── */
+  #scroll-bottom-btn {
+    position: fixed;
+    right: 28px;
+    bottom: 32px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(37,99,235,0.75), rgba(59,130,246,0.65));
+    border: 1px solid rgba(96,165,250,0.5);
+    color: #e0eeff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 18px rgba(59,130,246,0.25);
+    transition: opacity .2s, transform .2s, box-shadow .2s;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+  }
+  #scroll-bottom-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  #scroll-bottom-btn:hover {
+    background: linear-gradient(135deg, rgba(37,99,235,0.92), rgba(59,130,246,0.85));
+    box-shadow: 0 6px 26px rgba(0,0,0,0.55), 0 0 28px rgba(59,130,246,0.4);
+    transform: translateY(-2px);
+  }
+  .usage-chip .uv { font-family: monospace; font-weight: 600; }
+  .meta-footer { padding: 6px 12px 8px; border-top: 1px solid rgba(255,245,235,.04); font-size: 10px; color: var(--text-dim); font-family: monospace; line-height: 1.8; }
+
+  /* Drag overlay */
+  #drag-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(96,165,250,.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px dashed rgba(96,165,250,0.5);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #bfdbfe;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,245,235,0.12); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,245,235,0.2); }
+
+  .no-support-banner {
+    background: rgba(69,26,3,0.45);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(146,64,14,0.45);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 12px;
+    font-size: 12px;
+    color: #fcd34d;
+  }
+  .folder-fallback-hint {
+    background: rgba(30,58,138,0.22);
+    border: 1px solid rgba(129,140,248,0.35);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 12px;
+    font-size: 12px;
+    color: #c7d2fe;
+    line-height: 1.45;
+  }
+  .sec-label { font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin: 8px 0 3px; }
+
+  /* Orphan subagents — on-disk traces not linked to any tool_result (e.g. rejected Agent call) */
+  .orphan-subagent-section {
+    margin: 18px 12px 24px;
+    border: 1px solid rgba(251,191,36,0.35);
+    border-radius: 10px;
+    background: rgba(251,191,36,0.06);
+    overflow: hidden;
+  }
+  .orphan-subagent-section .orphan-hd {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fcd34d;
+    border-bottom: 1px solid rgba(251,191,36,0.2);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .orphan-subagent-section .orphan-hd span.note {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--text-muted);
+    flex: 1;
+    min-width: 200px;
+  }
+  .orphan-subagent-card {
+    border-top: 1px solid rgba(255,245,235,0.06);
+  }
+  .orphan-subagent-card:first-of-type { border-top: none; }
+  .orphan-subagent-card-hd {
+    padding: 8px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .orphan-subagent-card-hd:hover { background: rgba(251,191,36,0.08); }
+  .orphan-subagent-card-hd .id-tag {
+    font-family: monospace;
+    font-size: 11px;
+    color: #fde68a;
+    background: rgba(0,0,0,0.25);
+    padding: 2px 8px;
+    border-radius: 5px;
+  }
+  .orphan-subagent-card-hd .stat-mini { font-size: 11px; color: var(--text-muted); }
+  .orphan-subagent-card-hd .arr { margin-left: auto; font-size: 10px; color: var(--text-dim); transition: transform .15s; }
+  .orphan-subagent-card.open .orphan-subagent-card-hd .arr { transform: rotate(90deg); }
+  .orphan-subagent-card-bd {
+    display: none;
+    padding: 0 8px 12px;
+    border-top: 1px solid rgba(255,245,235,0.05);
+  }
+  .orphan-subagent-card.open .orphan-subagent-card-bd { display: block; }
+  .orphan-subagent-card-bd .turn-group { margin-bottom: 8px; }
+  .sub-popup-row.orphan-row {
+    border-left: 3px solid rgba(251,191,36,0.65);
+    background: rgba(251,191,36,0.06);
+  }
+  .sub-popup-row .orphan-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #fcd34d;
+    margin-right: 6px;
+  }
+
+  /* Subagent badge — card-level indicator (timeline item header, right zone) */
+  .subagent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: rgba(251,191,36,0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(251,191,36,0.55);
+    border-left: 2px solid rgba(251,191,36,0.7);
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: .04em;
+  }
+
+  /* Subagent button — block header right zone, clearly clickable */
+  .subagent-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 11px 3px 11px;
+    border-radius: 6px;
+    background: rgba(251,191,36,0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(251,191,36,0.55);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: 6px;
+    padding-left: 14px;
+    border-left-width: 2px;
+    border-left-color: rgba(251,191,36,0.7);
+    transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .subagent-btn:hover {
+    background: rgba(251,191,36,0.32);
+    border-color: rgba(251,191,36,0.85);
+    color: #fde68a;
+    box-shadow: 0 0 10px rgba(251,191,36,0.25);
+  }
+  .subagent-btn.active {
+    background: rgba(251,191,36,0.28);
+    border-color: rgba(251,191,36,0.9);
+    color: #fef3c7;
+    box-shadow: 0 0 14px rgba(251,191,36,0.3);
+  }
+  .subagent-btn .btn-icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+  .subagent-btn .btn-chevron {
+    font-size: 8px;
+    opacity: 0.7;
+    transition: transform .15s;
+  }
+  .subagent-btn.active .btn-chevron { transform: rotate(90deg); }
+
+  /* Subagent panel — sibling to block-bd, shown when badge is clicked */
+  .subagent-panel {
+    display: none;
+    border-top: 1px solid rgba(251,191,36,0.2);
+    border-left: 3px solid rgba(251,191,36,0.45);
+    background: rgba(0,0,0,0.35);
+    padding: 10px 10px 10px 8px;
+  }
+  .subagent-panel.open { display: block; }
+  .subagent-panel .turn-group { margin-bottom: 10px; }
+  .subagent-panel .block-bd pre { max-height: 200px; }
+
+  /* Subagent inline section inside tool-call block-bd */
+  .subagent-inline {
+    margin: 10px 0 4px;
+    border: 1px solid rgba(251,191,36,0.2);
+    border-left: 3px solid rgba(251,191,36,0.45);
+    border-radius: 8px;
+    background: rgba(251,191,36,0.025);
+    overflow: hidden;
+  }
+  .subagent-inline-hd {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(251,191,36,0.05);
+  }
+  .subagent-inline-hd:hover { background: rgba(251,191,36,0.09); }
+  .subagent-inline-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #fde68a;
+    flex-shrink: 0;
+  }
+  .subagent-inline-name {
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-dim);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .subagent-inline-arr { font-size: 9px; color: var(--text-dim); flex-shrink: 0; transition: transform .15s; }
+  .subagent-inline-body { display: none; padding: 8px; }
+  .subagent-inline-body.open { display: block; }
+  .subagent-inline-body .turn-group { margin-bottom: 10px; }
+  .subagent-inline-body .block-bd pre { max-height: 200px; }
+
+  /* ── Subagent stats popup ── */
+  #s-sub-trigger {
+    cursor: pointer;
+    border-bottom: 1px dotted var(--text-muted);
+    transition: color .15s;
+  }
+  #s-sub-trigger:hover { color: var(--text); }
+  #sub-popup {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    background: #3a332c;
+    border: 1px solid rgba(255,245,235,0.16);
+    border-radius: 10px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,245,235,0.04);
+    min-width: 480px;
+    max-width: 600px;
+    overflow: hidden;
+  }
+  #sub-popup.open { display: block; }
+  .sub-popup-hd {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-dim);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(255,245,235,0.07);
+  }
+  .sub-popup-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255,245,235,0.04);
+    font-size: 12px;
+  }
+  .sub-popup-row:last-child { border-bottom: none; }
+  .sub-popup-name {
+    font-family: monospace;
+    font-size: 10px;
+    color: #fde68a;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sub-popup-stat { color: var(--text-muted); white-space: nowrap; }
+  .sub-popup-stat strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="drag-overlay">📂 Drop to load JSONL file</div>
+
+<div id="sub-popup">
+  <div class="sub-popup-hd">⤷ Subagent Stats</div>
+  <div id="sub-popup-list"></div>
+</div>
+
+<button id="scroll-bottom-btn" title="Jump to bottom">↓</button>
+
+<header>
+  <div>🔍</div>
+  <h1>Claude Code Trace</h1>
+  <div id="hstats">
+    <span><strong id="s-msgs">0</strong> User Calls</span>
+    <span><strong id="s-turns">0</strong> LLM Calls</span>
+    <span><strong id="s-tools">0</strong> Tool Calls</span>
+    <span id="s-sub-wrap" style="display:none;">
+      <span id="s-sub-trigger"><strong id="s-sub-calls">0</strong> <span id="s-sub-label">Subagents</span></span>
+    </span>
+    <span><strong id="s-tok">0</strong> Tokens</span>
+    <span id="s-model" style="color:#a5b4fc;font-size:11px;"></span>
+  </div>
+  <div id="ctrl-btns">
+    <button class="btn small" id="expand-all">Expand All</button>
+    <button class="btn small" id="collapse-all">Collapse All</button>
+  </div>
+</header>
+
+<div class="main-layout">
+  <div id="sidebar">
+    <div class="sidebar-toolbar">
+      <div style="flex:1;position:relative;min-width:0;display:flex;">
+        <button class="btn primary" id="pick-dir-btn" style="flex:1;width:100%;">📂 Select projects directory</button>
+        <label id="pick-dir-fallback-label" for="dir-input-fallback" style="display:none;position:absolute;inset:0;cursor:pointer;z-index:2;border-radius:8px;" aria-label="Select Claude projects folder"></label>
+      </div>
+      <button class="btn small" id="drop-files-btn" title="Drop JSONL files">＋Files</button>
+    </div>
+    <div id="dir-hint" style="padding:6px 12px 4px;font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:5px;">
+      <span style="opacity:.7;">→ navigate to</span>
+      <code style="background:rgba(255,245,235,0.07);padding:1px 6px;border-radius:4px;color:var(--text-muted);font-size:11px;">~/.claude/projects</code>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" id="session-search" placeholder="Search sessions…" />
+    </div>
+    <div id="session-list">
+      <div style="padding:20px 12px;text-align:center;color:var(--text-dim);font-size:12px;">
+        Click "Select Directory" to open<br><code style="font-size:11px;">~/.claude/projects/</code>
+      </div>
+    </div>
+  </div>
+
+  <div id="content">
+    <div id="filter-bar">
+      <span style="font-size:10px;font-weight:700;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;">→ Send</span>
+      <button class="filter-btn active" data-type="user"><span class="dot" style="background:var(--c-user)"></span>User Input</button>
+<button class="filter-btn active" data-type="tool-result"><span class="dot" style="background:var(--c-tool-r)"></span>Tool Result</button>
+      <span style="font-size:10px;font-weight:700;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;margin-left:4px;">← Return</span>
+      <button class="filter-btn active" data-type="assistant"><span class="dot" style="background:var(--c-asst)"></span>Assistant</button>
+      <span style="display:inline-block;width:1px;height:16px;background:var(--text-dim);opacity:.35;margin:0 6px;vertical-align:middle;"></span>
+      <button class="filter-btn active" data-type="meta"><span class="dot" style="background:var(--c-meta)"></span>Client Log</button>
+      <div class="filter-right">
+        <input type="text" id="ev-search" placeholder="Search content…" />
+      </div>
+    </div>
+    <div id="tl-wrap">
+      <div id="welcome">
+        <div class="icon">🗂️</div>
+        <h2>Select Directory to Start</h2>
+        <p>Click "Select projects directory" on the left,<br>navigate to <code>~/.claude/projects/</code><br>to automatically list all session files</p>
+        <p style="margin-top:8px;font-size:12px;color:var(--text-dim);">Once selected, the directory is remembered —<br>next time it will reload automatically without the picker.</p>
+        <p style="margin-top:4px;font-size:12px;color:var(--text-dim);">You can also drag .jsonl files directly onto the page</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" class="visually-hidden-file-input" accept=".jsonl,.json" multiple>
+<input type="file" id="dir-input-fallback" class="visually-hidden-file-input" webkitdirectory directory>
+
+<script>
+// ── State ──
+const activeFilters = new Set(['user','injected','assistant','tool-result','meta']);
+/** Types that must stay visible: clicking cannot turn these filters off. */
+const FILTER_NO_HIDE = new Set(['user', 'tool-result', 'assistant']);
+let allMessages = [];
+let searchTerm = '';
+let sessionIndex = [];
+let activeSessionId = null;
+let dirHandle = null;
+let pendingHandle = null; // saved handle whose permission has expired
+let subagentMap = new Map();      // toolId → subagent entry (with pre-parsed messages)
+let subagentDataList = [];        // [{name, messages, stats}] for current session
+let orphanSubagentList = [];      // subagent files not linked to any tool_result (no agentId match)
+
+function countLLMCalls(messages) {
+  const { rest } = splitPrelude(messages);
+  let count = 0, prevWasToolResult = false;
+  for (const msg of rest) {
+    if (msg.type === 'tool-result') {
+      if (!prevWasToolResult) count++;
+      prevWasToolResult = true;
+    } else {
+      if (msg.type === 'user') count++;
+      prevWasToolResult = false;
+    }
+  }
+  return count;
+}
+
+function computeStats(messages) {
+  const turns = countLLMCalls(messages);
+  const toolCalls = messages.reduce((n,m) => n + m.blocks.filter(b => b.kind==='tool-call').length, 0);
+  const tokens = messages.reduce((s,m) => {
+    const u = m.usage||{};
+    return s+(u.input_tokens||0)+(u.output_tokens||0)+(u.cache_read_input_tokens||0)+(u.cache_creation_input_tokens||0);
+  }, 0);
+  const userMessages = messages.filter(m => m.type === 'user' && m.direction === 'send').length;
+  return {messages: userMessages, turns, toolCalls, tokens};
+}
+
+// ── IndexedDB ──
+function openDB() {
+  return new Promise((res,rej) => { const r=indexedDB.open('llm-trace-viewer',1); r.onupgradeneeded=e=>e.target.result.createObjectStore('handles'); r.onsuccess=e=>res(e.target.result); r.onerror=()=>rej(r.error); });
+}
+async function saveHandle(h) { const db=await openDB(); return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(h,'dir');tx.oncomplete=res;tx.onerror=()=>rej(tx.error);}); }
+async function loadHandle() { const db=await openDB(); return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const r=tx.objectStore('handles').get('dir');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}); }
+
+// ── Directory picker ──
+const pickDirBtn = document.getElementById('pick-dir-btn');
+const dirInputFallback = document.getElementById('dir-input-fallback');
+const pickDirFallbackLabel = document.getElementById('pick-dir-fallback-label');
+const hasDP = typeof window.showDirectoryPicker === 'function';
+
+if (!hasDP && pickDirFallbackLabel) {
+  pickDirFallbackLabel.style.display = 'block';
+}
+
+if (!hasDP) {
+  document.getElementById('session-list').innerHTML = `<div class="folder-fallback-hint">Click the button above and select your <code style="font-size:11px;">~/.claude</code> folder (or <code style="font-size:11px;">~/.claude/projects</code>). Press <kbd style="font-size:11px;">⌘⇧.</kbd> in the picker to reveal hidden folders. Use <strong>＋Files</strong> or drag <code style="font-size:11px;">.jsonl</code> as a fallback.</div>`;
+  pickDirBtn.textContent = '📂 Select .claude folder';
+}
+
+const dirHint = document.getElementById('dir-hint');
+const dirHintDefaultHTML = dirHint ? dirHint.innerHTML : '';
+async function updatePickDirBtnLabel(h) {
+  if (!hasDP) {
+    pickDirBtn.textContent = sessionIndex.length ? '🔄 Rescan folder' : '📂 Select projects folder';
+    if (dirHint) {
+      if (sessionIndex.length) {
+        dirHint.innerHTML = dirHintDefaultHTML;
+        dirHint.style.display = 'none';
+      } else {
+        dirHint.innerHTML = dirHintDefaultHTML;
+        dirHint.style.display = '';
+      }
+    }
+    return;
+  }
+  if (!h) { pickDirBtn.textContent = '📂 Select projects directory'; if (dirHint) dirHint.style.display=''; return; }
+  try {
+    const p = await h.queryPermission({mode:'read'});
+    if (p === 'granted') {
+      pickDirBtn.textContent = `🔄 Rescan: ${h.name}`;
+    } else {
+      pickDirBtn.textContent = `🔓 Reload: ${h.name}`;
+    }
+    if (dirHint) dirHint.style.display = 'none';
+  } catch(e) {
+    pickDirBtn.textContent = '📂 Select projects directory';
+    if (dirHint) dirHint.style.display = '';
+  }
+}
+
+pickDirBtn.addEventListener('click', () => {
+  if (!hasDP) {
+    dirInputFallback.click();
+    return;
+  }
+  void (async () => {
+    try {
+      const hint = dirHandle || pendingHandle;
+      const opts = {mode:'read'};
+      if (hint) opts.startIn = hint;
+      const newHandle = await window.showDirectoryPicker(opts);
+      dirHandle = newHandle;
+      pendingHandle = null;
+      await saveHandle(dirHandle);
+      await updatePickDirBtnLabel(dirHandle);
+      await scanDirectory(dirHandle);
+    } catch(e) {
+      if (e.name !== 'AbortError') {
+        console.error(e);
+        pickDirBtn.textContent = `⚠️ ${e.message || e.name}`;
+        setTimeout(() => updatePickDirBtnLabel(dirHandle || null), 3000);
+      }
+    }
+  })();
+});
+
+dirInputFallback.addEventListener('change', () => {
+  const filesSnapshot = Array.from(dirInputFallback.files || []);
+  dirInputFallback.value = '';
+  if (!filesSnapshot.length) return;
+  void scanDirectoryFromWebkitFiles(filesSnapshot);
+});
+
+if (hasDP) {
+  loadHandle().then(async h => {
+    if (!h) return;
+    await updatePickDirBtnLabel(h);
+    const p = await h.queryPermission({mode:'read'});
+    if (p === 'granted') {
+      dirHandle = h;
+      await scanDirectory(h);
+    } else {
+      // Permission expired — store it so the click handler can call requestPermission
+      // inside a fresh user-gesture context (requestPermission can't be called outside one).
+      pendingHandle = h;
+    }
+  }).catch(()=>{});
+}
+
+/** Wrap a File so code expecting FileSystemFileHandle.getFile() still works. */
+function fileAsPickableHandle(file) {
+  return { getFile: () => Promise.resolve(file) };
+}
+
+/**
+ * Safari / older browsers: folder chosen via <input webkitdirectory>.
+ * Reconstructs the same sessionIndex shape as scanDirectory() using webkitRelativePath.
+ */
+async function scanDirectoryFromWebkitFiles(fileList) {
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  pickDirBtn.textContent = '⏳ Scanning…';
+  pickDirBtn.disabled = true;
+  if (pickDirFallbackLabel) pickDirFallbackLabel.style.pointerEvents = 'none';
+  sessionIndex = [];
+
+
+  try {
+    const files = Array.from(fileList);
+
+    // webkitRelativePath always starts with the selected folder name as its first component.
+    // When the user picks ~/.claude (not ~/.claude/projects), paths arrive as
+    // ".claude/projects/proj/session.jsonl". Strip the ".claude/" prefix so all
+    // downstream heuristics (which expect "projects/…") work correctly — same as Chrome.
+    const _rawRel = (file) => String(file.webkitRelativePath || file.name || '')
+      .replace(/^﻿/, '').replace(/\\/g, '/').replace(/^\.\/+/, '');
+    const _firstComp = files.length > 0 ? _rawRel(files[0]).split('/')[0] : '';
+    const _dotClaudePrefix = /^\.claude$/i.test(_firstComp) ? _firstComp + '/' : '';
+    function relPath(file) {
+      const p = _rawRel(file);
+      return _dotClaudePrefix && p.startsWith(_dotClaudePrefix) ? p.slice(_dotClaudePrefix.length) : p;
+    }
+
+    /** Top-level dirs under ~/.claude that are not agent project sessions. */
+    const skipFirstPathSeg = new Set(
+      ['sessions', 'cache', 'backups', 'telemetry', 'shell-snapshots', 'file-history', 'paste-cache', 'ide', 'plugins', 'skills', 'plans', 'debug', 'artifacts', 'session-env', 'todos', 'stats-cache'].map((s) => s.toLowerCase()),
+    );
+
+    // Prefer explicit projects/… paths (normal when picking ~/.claude).
+    const hasProjectsPrefix = files.some((f) => /^projects\//i.test(relPath(f)));
+
+    // Some pickers omit the projects/ prefix but still recurse: e.g. history.jsonl at root plus proj/session.jsonl.
+    const hasRootJsonl = files.some((f) => {
+      const p = relPath(f).split('/').filter(Boolean);
+      return p.length === 1 && /\.jsonl$/i.test(p[0]) && !p[0].toLowerCase().includes('.meta.');
+    });
+    const hasLikelyProjectSession = files.some((f) => {
+      const p = relPath(f).split('/').filter(Boolean);
+      if (p.length !== 2) return false;
+      if (!p[1].toLowerCase().endsWith('.jsonl') || p[1].toLowerCase().includes('.meta.')) return false;
+      if (skipFirstPathSeg.has(p[0].toLowerCase())) return false;
+      if (/^history\.jsonl$/i.test(p[1])) return false;
+      return true;
+    });
+    const heuristicClaudeRoot = !hasProjectsPrefix && hasLikelyProjectSession && hasRootJsonl;
+
+    const hasMultiSegJsonl = files.some((f) => {
+      const p = relPath(f).split('/').filter(Boolean);
+      const l = relPath(f).toLowerCase();
+      return p.length >= 2 && l.endsWith('.jsonl') && !l.includes('.meta.');
+    });
+
+    function skipJsonlForClaudeLayout(file) {
+      const rel = relPath(file);
+      const lower = rel.toLowerCase();
+      if (!lower.endsWith('.jsonl') || lower.includes('.meta.')) return true;
+      const parts = rel.split('/').filter(Boolean);
+      // Root ~/.claude transcript — never an agent "session" row in this viewer
+      if (parts.length === 1 && /^history\.jsonl$/i.test(parts[0])) return true;
+      let tail = parts.slice();
+      while (tail.length && /^projects$/i.test(tail[0])) tail = tail.slice(1);
+      if (tail.length >= 1 && skipFirstPathSeg.has(tail[0].toLowerCase())) return true;
+      // Picked ~/.claude parent: Safari often omits projects/ but still recurses — skip lone root *.jsonl
+      if (!hasProjectsPrefix && hasMultiSegJsonl && parts.length === 1) return true;
+      if (hasProjectsPrefix) {
+        return !lower.startsWith('projects/');
+      }
+      if (heuristicClaudeRoot) {
+        if (parts.length === 1) return true;
+        return false;
+      }
+      return false;
+    }
+
+    const mainByKey = new Map();
+
+    function normParts(parts) {
+      let p = parts.filter(Boolean);
+      while (p.length >= 1 && /^projects$/i.test(p[0])) {
+        p = p.slice(1);
+      }
+      return p;
+    }
+
+    function ensureSlot(projectName, sessionName) {
+      const key = projectName + '\0' + sessionName;
+      if (!mainByKey.has(key)) {
+        mainByKey.set(key, { projectName, name: sessionName, mainFile: null, subagentFiles: [] });
+      }
+      return mainByKey.get(key);
+    }
+
+    for (const file of files) {
+      if (skipJsonlForClaudeLayout(file)) continue;
+      const rel = relPath(file);
+      const lower = rel.toLowerCase();
+      if (!lower.endsWith('.jsonl') || lower.includes('.meta.')) continue;
+      const p = normParts(rel.split('/').filter(Boolean));
+      if (!p.length) continue;
+      const last = p[p.length - 1];
+      if (!last.toLowerCase().endsWith('.jsonl')) continue;
+
+      if (p.length >= 2 && /^subagents$/i.test(p[p.length - 2])) {
+        let projectName; let sessionName;
+        if (p.length === 3) {
+          projectName = '(this folder)';
+          sessionName = p[0];
+        } else {
+          projectName = p[0];
+          sessionName = p[1];
+        }
+        const subName = last.replace(/\.jsonl$/i, '');
+        const slot = ensureSlot(projectName, sessionName);
+        slot.subagentFiles.push({ name: subName, file });
+      } else if (p.length === 2) {
+        const sessionName = last.replace(/\.jsonl$/i, '');
+        const slot = ensureSlot(p[0], sessionName);
+        slot.mainFile = file;
+      } else if (p.length === 1) {
+        const sessionName = last.replace(/\.jsonl$/i, '');
+        const slot = ensureSlot('(this folder)', sessionName);
+        slot.mainFile = file;
+      }
+    }
+
+    if (![...mainByKey.values()].some((s) => s.mainFile)) {
+      for (const file of files) {
+        if (skipJsonlForClaudeLayout(file)) continue;
+        const rel = relPath(file);
+        const lower = rel.toLowerCase();
+        if (!lower.endsWith('.jsonl') || lower.includes('.meta.')) continue;
+        const p = normParts(rel.split('/').filter(Boolean));
+        if (!p.length) continue;
+        if (p.length >= 2 && /^subagents$/i.test(p[p.length - 2])) continue;
+        const last = p[p.length - 1];
+        if (!last.toLowerCase().endsWith('.jsonl')) continue;
+        const sessionName = last.replace(/\.jsonl$/i, '');
+        const projectName = p.length >= 2 ? p[p.length - 2] : '(this folder)';
+        ensureSlot(projectName, sessionName).mainFile = file;
+      }
+    }
+
+    for (const slot of mainByKey.values()) {
+      if (!slot.mainFile) continue;
+      const f = slot.mainFile;
+      slot.subagentFiles.sort((a, b) => a.name.localeCompare(b.name));
+      const subagentEntries = slot.subagentFiles.map((sf) => ({
+        name: sf.name,
+        handle: fileAsPickableHandle(sf.file),
+        projectName: slot.projectName,
+      }));
+      sessionIndex.push({
+        projectName: slot.projectName,
+        name: slot.name,
+        handle: fileAsPickableHandle(f),
+        size: f.size,
+        lastModified: f.lastModified,
+        subagentEntries,
+      });
+    }
+
+    if (!sessionIndex.length) {
+      const samples = files
+        .slice(0, 5)
+        .map((f) => relPath(f) || f.name)
+        .map((s) => esc(s));
+      const hint =
+        files.length === 0
+          ? 'No files were returned (Safari may need Full Disk Access for folders under your home directory).'
+          : `Received ${files.length} file(s), but no session .jsonl matched. Sample paths: ${samples.join(' · ') || '(none)'}`;
+      pickDirBtn.textContent = '⚠️ No sessions found';
+      pickDirBtn.disabled = false;
+      document.getElementById('session-list').innerHTML =
+        `<div class="folder-fallback-hint">${hint}<br><br>Choose <code style="font-size:11px;">~/.claude/projects</code> (or <code style="font-size:11px;">.claude</code>), or use <strong>＋Files</strong>.</div>`;
+      setTimeout(() => updatePickDirBtnLabel(null), 5000);
+      return;
+    }
+
+    sessionIndex.sort((a, b) =>
+      a.projectName !== b.projectName ? a.projectName.localeCompare(b.projectName) : b.lastModified - a.lastModified,
+    );
+    renderSessionList(sessionIndex);
+    pickDirBtn.disabled = false;
+    await updatePickDirBtnLabel(null);
+    await autoRestoreSession();
+  } catch (err) {
+    console.error(err);
+    pickDirBtn.textContent = '⚠️ Scan failed';
+    pickDirBtn.disabled = false;
+    document.getElementById('session-list').innerHTML = `<div class="no-support-banner">Scan error: ${esc(err.message || String(err))}</div>`;
+    setTimeout(() => updatePickDirBtnLabel(null), 5000);
+  } finally {
+    if (pickDirFallbackLabel) pickDirFallbackLabel.style.pointerEvents = '';
+  }
+}
+
+async function scanDirectory(root) {
+  pickDirBtn.textContent='⏳ Scanning…'; pickDirBtn.disabled=true; sessionIndex=[];
+  try {
+    // Normalise: accept both ~/.claude and ~/.claude/projects.
+    // The API only exposes handle.name (the last path segment), so we use that.
+    let projectsRoot = null;
+    if (root.name === 'projects') {
+      projectsRoot = root;
+    } else if (root.name === '.claude') {
+      try { projectsRoot = await root.getDirectoryHandle('projects'); } catch(e) {}
+    }
+    if (!projectsRoot) {
+      pickDirBtn.textContent = '⚠️ Wrong directory — select ~/.claude or ~/.claude/projects';
+      pickDirBtn.disabled = false;
+      setTimeout(() => updatePickDirBtnLabel(dirHandle), 3000);
+      return;
+    }
+
+    for await (const [pn, ph] of projectsRoot.entries()) {
+      if (ph.kind !== 'directory') continue;
+      for await (const [fn, fh] of ph.entries()) {
+        if (fh.kind !== 'file' || !fn.endsWith('.jsonl')) continue;
+        const f = await fh.getFile();
+        const baseName = fn.replace('.jsonl','');
+        const subagentEntries = await scanSubagentDir(ph, baseName, pn);
+        sessionIndex.push({projectName:pn, name:baseName, handle:fh, size:f.size, lastModified:f.lastModified, subagentEntries});
+      }
+    }
+  } catch(e) { console.error(e); }
+  sessionIndex.sort((a,b) => a.projectName!==b.projectName ? a.projectName.localeCompare(b.projectName) : b.lastModified-a.lastModified);
+  renderSessionList(sessionIndex);
+  pickDirBtn.textContent = dirHandle ? `🔄 Rescan: ${dirHandle.name}` : '🔄 Rescan';
+  if (dirHint) dirHint.style.display = 'none';
+  pickDirBtn.disabled=false;
+  await autoRestoreSession();
+}
+
+// ── Subagent map ──
+// Scans <sessionName>/subagents/ for subagent session files.
+async function scanSubagentDir(projectDirHandle, sessionName, projectName) {
+  const entries = [];
+  try {
+    const sessionDir = await projectDirHandle.getDirectoryHandle(sessionName);
+    const subagentsDir = await sessionDir.getDirectoryHandle('subagents');
+    for await (const [fn, fh] of subagentsDir.entries()) {
+      if (fh.kind === 'file' && fn.endsWith('.jsonl') && !fn.includes('.meta.')) {
+        entries.push({name: fn.replace('.jsonl',''), handle: fh, projectName});
+      }
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+  } catch(e) {}
+  return entries;
+}
+
+// Eagerly load main session + all subagent files in parallel.
+async function loadSessionWithSubagents(sessionEntry) {
+  const mainFile = await sessionEntry.handle.getFile();
+  const mainText = await mainFile.text();
+  const messages = parseSessionMessages(mainText);
+  annotateToolDeps(messages);
+
+  const entries = sessionEntry.subagentEntries || [];
+  const subagents = await Promise.all(entries.map(async entry => {
+    try {
+      const file = await entry.handle.getFile();
+      const msgs = parseSessionMessages(await file.text());
+      annotateToolDeps(msgs);
+      return {name: entry.name, messages: msgs, stats: computeStats(msgs)};
+    } catch(e) {
+      return {name: entry.name, messages: [], stats: computeStats([])};
+    }
+  }));
+
+  return {messages, subagents};
+}
+
+// Entries in subagentDataList that never got a tool_use_id → subagentMap link.
+function refreshOrphanSubagents() {
+  const linked = new Set(subagentMap.values());
+  orphanSubagentList = subagentDataList.filter(e => !linked.has(e));
+}
+
+// Build subagentMap from pre-parsed subagent data (entries have .messages already).
+// Cross-reference: tool-result messages carry toolUseResult.agentId → subagent name.
+function buildSubagentMapFromData(messages, subagents) {
+  orphanSubagentList = [];
+  if (!subagents || !subagents.length) return;
+  const byAgentId = new Map(subagents.map(e => [e.name.replace(/^agent-/, ''), e]));
+  for (const msg of messages) {
+    if (msg.type !== 'tool-result') continue;
+    const agentId = msg.raw?.toolUseResult?.agentId;
+    if (!agentId) continue;
+    const entry = byAgentId.get(agentId);
+    if (!entry) continue;
+    for (const block of msg.blocks) {
+      if (block.toolId) subagentMap.set(block.toolId, entry);
+    }
+  }
+  refreshOrphanSubagents();
+}
+
+/** Full timeline for a subagent message list (used in tool-call panel + orphan section). */
+function renderSubagentTimeline(container, messages) {
+  container.innerHTML = '';
+  if (!messages.length) {
+    container.innerHTML = '<div style="padding:10px 14px;color:var(--text-dim);font-size:11px;">(empty session)</div>';
+    return;
+  }
+  let prevTs = messages[0]?.ts;
+  const { prelude: sPre, rest: sRest } = splitPrelude(messages);
+  const turns = groupTurns(sRest);
+  if (sPre.length > 0) {
+    const pGrp = document.createElement('div'); pGrp.className = 'prelude-group';
+    const pLbl = document.createElement('div'); pLbl.className = 'prelude-label';
+    pLbl.innerHTML = `<span class="prelude-icon">0</span>Pre-Turn<div class="turn-line"></div>`;
+    pGrp.appendChild(pLbl);
+    const sPreGroups = groupConsecutive(sPre);
+    const sPreMarkings = getGroupMarkings(sPreGroups);
+    sPreGroups.forEach((group, gi) => {
+      const msgs = group.messages;
+      const isLast = gi === sPreGroups.length - 1 && turns.length === 0;
+      const m = msgs.length === 1 ? msgs[0] : { ...msgs[0], blocks: msgs.flatMap(mm => mm.blocks), groupCount: msgs.length, groupKey: group.key };
+      const el = buildTlItem(m, prevTs, isLast, sPreMarkings[gi]);
+      prevTs = msgs[msgs.length - 1].ts || prevTs;
+      pGrp.appendChild(el);
+    });
+    container.appendChild(pGrp);
+  }
+  turns.forEach((turn, ti) => {
+    const grp = document.createElement('div'); grp.className = 'turn-group';
+    const lbl = document.createElement('div'); lbl.className = 'turn-label';
+    lbl.innerHTML = `<span class="turn-num">${ti + 1}</span>Turn ${ti + 1}<div class="turn-line"></div>`;
+    grp.appendChild(lbl);
+    const cgroups = groupConsecutive(turn.messages);
+    const cMarkings = getGroupMarkings(cgroups);
+    cgroups.forEach((group, gi) => {
+      const msgs = group.messages;
+      const isLast = ti === turns.length - 1 && gi === cgroups.length - 1;
+      const m = msgs.length === 1 ? msgs[0] : { ...msgs[0], blocks: msgs.flatMap(mm => mm.blocks), groupCount: msgs.length, groupKey: group.key };
+      const el = buildTlItem(m, prevTs, isLast, cMarkings[gi]);
+      prevTs = msgs[msgs.length - 1].ts || prevTs;
+      grp.appendChild(el);
+    });
+    container.appendChild(grp);
+    drawLLMCallLines(grp);
+  });
+}
+
+// ── Session list ──
+function renderSessionList(sessions) {
+  const listEl = document.getElementById('session-list');
+  const q = document.getElementById('session-search').value.toLowerCase().trim();
+  const filtered = q ? sessions.filter(s=>s.name.toLowerCase().includes(q)||s.projectName.toLowerCase().includes(q)) : sessions;
+  if (!filtered.length) { listEl.innerHTML=`<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px;">No .jsonl files found</div>`; return; }
+  const byProject = {};
+  for (const s of filtered) { if (!byProject[s.projectName]) byProject[s.projectName]=[]; byProject[s.projectName].push(s); }
+  listEl.innerHTML='';
+  for (const [pn, ss] of Object.entries(byProject)) {
+    const g = document.createElement('div'); g.className='project-group';
+    const friendly = pn.replace(/^-/,'').replace(/-/g,'/');
+    g.innerHTML=`<div class="project-label collapsed"><span class="toggle">▼</span><span title="${escHtml(friendly)}" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(friendly)}</span><span style="font-size:10px;font-weight:400;flex-shrink:0;">${ss.length}</span></div><div class="project-sessions"></div>`;
+    const sec = g.querySelector('.project-sessions');
+    for (const s of ss) {
+      const item = document.createElement('div');
+      item.className='session-item'+(activeSessionId===s.name?' active':'');
+      item.innerHTML=`<span class="session-name" title="${escHtml(s.name)}">${escHtml(s.name)}</span><span class="session-size">${fmtSize(s.size)}</span>`;
+      item.addEventListener('click', async () => {
+        if (activeSessionId===s.name) return;
+        hideWelcome();
+        allMessages=[]; subagentMap.clear(); subagentDataList=[]; orphanSubagentList=[];
+        document.getElementById('tl-wrap').innerHTML='';
+        document.querySelectorAll('.session-item.active').forEach(el=>el.classList.remove('active'));
+        const {messages, subagents} = await loadSessionWithSubagents(s);
+        subagentDataList = subagents;
+        buildSubagentMapFromData(messages, subagents);
+        renderSession(`${s.projectName} / ${s.name}`, messages, s.name);
+        activeSessionId=s.name; item.classList.add('active'); updateStats();
+        localStorage.setItem('last-session', JSON.stringify({projectName:s.projectName, name:s.name}));
+      });
+      sec.appendChild(item);
+    }
+    g.querySelector('.project-label').addEventListener('click', function(){this.classList.toggle('collapsed');});
+    listEl.appendChild(g);
+  }
+}
+async function autoRestoreSession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('last-session')||'null');
+    if (!saved) return;
+    const s = sessionIndex.find(x => x.projectName===saved.projectName && x.name===saved.name);
+    if (!s) return;
+    hideWelcome();
+    allMessages=[]; subagentMap.clear(); subagentDataList=[]; orphanSubagentList=[];
+    document.getElementById('tl-wrap').innerHTML='';
+    const {messages, subagents} = await loadSessionWithSubagents(s);
+    subagentDataList = subagents;
+    buildSubagentMapFromData(messages, subagents);
+    renderSession(`${s.projectName} / ${s.name}`, messages, s.name);
+    activeSessionId=s.name; updateStats();
+    const activeItem = [...document.querySelectorAll('.session-item')]
+      .find(el => el.querySelector('.session-name')?.title === s.name);
+    if (activeItem) {
+      activeItem.classList.add('active');
+      activeItem.closest('.project-group')?.querySelector('.project-label')?.classList.remove('collapsed');
+      activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } catch(e) {}
+}
+
+document.getElementById('session-search').addEventListener('input', ()=>renderSessionList(sessionIndex));
+
+// ── Drag & drop ──
+document.getElementById('drop-files-btn').addEventListener('click', ()=>document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', e=>handleFileList([...e.target.files]));
+const dragOverlay = document.getElementById('drag-overlay');
+document.addEventListener('dragover', e=>{e.preventDefault();dragOverlay.style.display='flex';});
+document.addEventListener('dragleave', e=>{if(!e.relatedTarget)dragOverlay.style.display='none';});
+document.addEventListener('drop', e=>{e.preventDefault();dragOverlay.style.display='none';handleFileList([...e.dataTransfer.files].filter(f=>f.name.endsWith('.jsonl')));});
+async function handleFileList(files) {
+  if (!files.length) return;
+  const f = files[0];
+  allMessages=[]; subagentMap.clear(); subagentDataList=[]; orphanSubagentList=[];
+  document.getElementById('tl-wrap').innerHTML='';
+  activeSessionId = f.name;
+  const messages = parseSessionMessages(await f.text());
+  annotateToolDeps(messages);
+  hideWelcome();
+  renderSession(f.name, messages, f.name);
+  updateStats();
+}
+
+// ── Parser ──
+function parseSessionMessages(text) {
+  const msgs=[]; let idx=0;
+  for (const line of text.split('\n')) {
+    const l=line.trim(); if (!l) continue;
+    try { const obj=JSON.parse(l); const m=recordToMessage(obj,++idx); if (m) msgs.push(m); } catch(e){}
+  }
+  return msgs;
+}
+
+function recordToMessage(obj, idx) {
+  const ts = obj.timestamp ? new Date(obj.timestamp) : null;
+  const base = {
+    idx, ts, raw:obj, sessionId:obj.sessionId,
+    uuid: obj.uuid,
+    parentUuid: obj.parentUuid,
+    promptId: obj.promptId,
+  };
+  if (obj.type==='user') return parseUserMsg(obj,base);
+  if (obj.type==='assistant') return parseAssistantMsg(obj,base);
+  return parseClientLog(obj, base);
+}
+
+function parseClientLog(obj, base) {
+  const eventType = obj.type || 'unknown';
+  const preview = clientLogPreview(obj, eventType);
+  return {
+    ...base,
+    type:'meta',
+    direction:'log',
+    preview,
+    blocks:[{kind:'raw', label:eventType, content:JSON.stringify(obj,null,2)}]
+  };
+}
+
+function clientLogPreview(obj, eventType) {
+  if (eventType === 'ai-title' && obj.aiTitle) return `[ai-title] ${obj.aiTitle}`;
+  if (eventType === 'custom-title' && obj.customTitle) return `[custom-title] ${obj.customTitle}`;
+  if (eventType === 'agent-name' && obj.agentName) return `[agent-name] ${obj.agentName}`;
+  if (eventType === 'last-prompt' && obj.lastPrompt) return `[last-prompt] ${obj.lastPrompt}`;
+  if (eventType === 'permission-mode' && obj.permissionMode) return `[permission-mode] ${obj.permissionMode}`;
+  if (eventType === 'queue-operation') return `[queue:${obj.operation||'operation'}] ${String(obj.content||'').slice(0,120)}`;
+  if (eventType === 'system') return `[system:${obj.subtype||obj.level||'event'}] ${systemEventSummary(obj)}`;
+  if (eventType === 'attachment') return `[attachment] ${attachmentSummary(obj.attachment)}`;
+
+  const textKeys = ['aiTitle','customTitle','agentName','lastPrompt','title','name','prompt','message','content','path','operation','permissionMode','subtype','level'];
+  const value = textKeys.map(k=>obj[k]).find(v=>typeof v === 'string' && v.trim());
+  return value ? `[${eventType}] ${value.trim().slice(0,120)}` : `[${eventType}]`;
+}
+
+function attachmentSummary(attachment) {
+  if (!attachment) return '(attachment)';
+  if (typeof attachment === 'string') return attachment.slice(0,120);
+  const type = attachment.type || 'attachment';
+  const added = Array.isArray(attachment.addedNames) ? ` +${attachment.addedNames.length}` : '';
+  const removed = Array.isArray(attachment.removedNames) && attachment.removedNames.length ? ` -${attachment.removedNames.length}` : '';
+  return `${type}${added}${removed}`;
+}
+
+function systemEventSummary(obj) {
+  const cause = obj.cause || obj.error?.cause || obj.error || {};
+  const code = cause.code || obj.apiErrorStatus || '';
+  const path = cause.path || '';
+  const retry = obj.retryAttempt ? ` retry ${obj.retryAttempt}/${obj.maxRetries||'?'}` : '';
+  return [code, path, retry].filter(Boolean).join(' ') || (obj.error ? JSON.stringify(obj.error).slice(0,120) : '');
+}
+
+function parseUserMsg(obj, base) {
+  const content = (obj.message||{}).content;
+  if (Array.isArray(content) && content.some(c=>c.type==='tool_result')) {
+    const results = content.filter(c=>c.type==='tool_result');
+    const isError = results.some(c=>c.is_error);
+    const text = results.map(c=>contentValueToText(c.content)).join('\n---\n');
+    const blocks = results.map(c=>{
+      const ct=contentValueToText(c.content);
+      return {kind:'tool-result', isError:c.is_error, toolId:c.tool_use_id, content:ct};
+    });
+    return {...base, type:'tool-result', direction:'send', isError,
+      preview: text.slice(0,150).replace(/\n/g,' ')||'(empty)',
+      blocks};
+  }
+  const text=contentValueToText(content);
+  if (obj.isMeta) {
+    return {...base, type:'injected', direction:'send', preview:text.replace(/<[^>]+>/g,'').trim().slice(0,150),
+      blocks:contentToBlocks(content, 'Injected'), promptId:obj.promptId};
+  }
+  return {...base, type:'user', direction:'send', preview:text.replace(/<[^>]+>/g,'').trim().slice(0,150),
+    blocks:contentToBlocks(content, 'User Input'), promptId:obj.promptId, permissionMode:obj.permissionMode};
+}
+
+function parseAssistantMsg(obj, base) {
+  const msg=obj.message||{}, content=Array.isArray(msg.content)?msg.content:[];
+  const usage=msg.usage||{}, model=msg.model||'', stopReason=msg.stop_reason||'';
+  const blocks=[]; let preview=''; let toolCallIdx=0;
+  for (const c of content) {
+    if (c.type==='thinking') {
+      blocks.push({kind:'thinking', label:'Thinking', content:c.thinking||''});
+      if (!preview) preview=c.thinking?.trim().slice(0,150)||'';
+    } else if (c.type==='tool_use') {
+      toolCallIdx++;
+      const inp=typeof c.input==='string'?c.input:JSON.stringify(c.input,null,2);
+      blocks.push({kind:'tool-call', label:`Tool Call`, toolName:c.name, toolId:c.id, toolIdx:toolCallIdx, content:inp});
+      if (!preview) preview=`[tool:${c.name}]`;
+    } else if (c.type==='text') {
+      blocks.push({kind:'text', label:'Text', content:c.text||''});
+      if (!preview) preview=c.text?.trim().slice(0,150)||'';
+    } else {
+      const summary = summarizeContentBlock(c);
+      blocks.push({kind:'raw', label:c.type||'Content', content:summary});
+      if (!preview) preview=summary.trim().slice(0,150)||'';
+    }
+  }
+  return {...base, type:'assistant', direction:'recv', messageId:msg.id, preview:preview||(stopReason?`(${stopReason})`:''), blocks, usage, model, stopReason};
+}
+
+function contentToBlocks(content, defaultLabel) {
+  if (!Array.isArray(content)) return [{kind:'text', label:defaultLabel, content:contentValueToText(content)}];
+  return content.map(c=>{
+    if (c.type === 'text') return {kind:'text', label:defaultLabel, content:c.text||''};
+    return {kind:'raw', label:c.type||'Content', content:summarizeContentBlock(c)};
+  });
+}
+
+function contentValueToText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map(c=>{
+    if (typeof c === 'string') return c;
+    if (c?.type === 'text') return c.text || '';
+    if (c?.content != null) return contentValueToText(c.content);
+    return summarizeContentBlock(c);
+  }).join('\n');
+  if (content == null) return '';
+  return JSON.stringify(content,null,2);
+}
+
+function summarizeContentBlock(block) {
+  if (!block || typeof block !== 'object') return String(block||'');
+  if (block.type === 'document') {
+    const source = block.source || {};
+    const media = source.media_type || source.mediaType || 'document';
+    const dataLen = typeof source.data === 'string' ? source.data.length : 0;
+    return `Document: ${media}${source.type?` (${source.type})`:''}${dataLen?`, data ${fmtNum(dataLen)} chars`:''}`;
+  }
+  return JSON.stringify(redactLargeData(block), null, 2);
+}
+
+function redactLargeData(value) {
+  if (Array.isArray(value)) return value.map(redactLargeData);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [k,v] of Object.entries(value)) {
+    out[k] = (k === 'data' && typeof v === 'string' && v.length > 300)
+      ? `${v.slice(0,120)}… (${fmtNum(v.length)} chars)`
+      : redactLargeData(v);
+  }
+  return out;
+}
+
+// Annotate tool_result blocks with tool name from preceding assistant messages
+function annotateToolDeps(messages) {
+  const toolMap={}; // toolId → {name, idx}
+  for (const msg of messages) {
+    if (msg.type==='assistant') {
+      for (const b of msg.blocks) {
+        if (b.kind==='tool-call') toolMap[b.toolId]={name:b.toolName, idx:b.toolIdx};
+      }
+    }
+    if (msg.type==='tool-result') {
+      for (const b of msg.blocks) {
+        if (b.toolId && toolMap[b.toolId]) {
+          b.forTool = toolMap[b.toolId].name;
+          b.forToolIdx = toolMap[b.toolId].idx;
+        }
+      }
+    }
+  }
+}
+
+// Group consecutive messages sharing the same requestId (assistant) or promptId (user/tool-result)
+function groupConsecutive(messages) {
+  const groups = [];
+  for (const msg of messages) {
+    let key = null;
+    if (msg.type === 'assistant' && msg.raw?.requestId) key = 'req:' + msg.raw.requestId;
+    else if ((msg.type === 'user' || msg.type === 'injected' || msg.type === 'tool-result') && msg.promptId) key = 'pid:' + msg.promptId;
+    const last = groups[groups.length - 1];
+    if (last && key && last.key === key) {
+      last.messages.push(msg);
+    } else {
+      groups.push({ key, messages: [msg] });
+    }
+  }
+  return groups;
+}
+
+function groupPrimaryType(group) {
+  return group.messages[0]?.type;
+}
+
+/** Client Log rows — ignored when deciding whether sends/returns are consecutive. */
+function isClientLogGroup(group) {
+  return groupPrimaryType(group) === 'meta';
+}
+
+function isSendLikeGroup(group) {
+  return group.key?.startsWith('pid:');
+}
+
+function isReturnLikeGroup(group) {
+  return groupPrimaryType(group) === 'assistant';
+}
+
+// For a list of groups (from groupConsecutive), compute LLM-call bracket markings.
+// Each group is marked 'req' | 'mid' | 'resp' | null.
+// req = first send in a consecutive send run (user / tool-result); Client Log does not break the run.
+// resp = last assistant in the following consecutive return run; Client Log does not break the run.
+// mid = other sends, other assistants, and Client Log that sits inside an open call.
+function getGroupMarkings(groups) {
+  const markings = new Array(groups.length).fill(null);
+  let callIdx = 0;
+  let i = 0;
+  while (i < groups.length) {
+    while (i < groups.length && isClientLogGroup(groups[i])) i++;
+    if (i >= groups.length) break;
+    if (!isSendLikeGroup(groups[i])) {
+      i++;
+      continue;
+    }
+
+    const reqI = i;
+    markings[reqI] = { mark: 'req', callIdx };
+    i++;
+    while (i < groups.length) {
+      if (isClientLogGroup(groups[i])) {
+        markings[i] = { mark: 'mid', callIdx };
+        i++;
+        continue;
+      }
+      if (isSendLikeGroup(groups[i])) {
+        markings[i] = { mark: 'mid', callIdx };
+        i++;
+        continue;
+      }
+      break;
+    }
+    while (i < groups.length && isClientLogGroup(groups[i])) {
+      markings[i] = { mark: 'mid', callIdx };
+      i++;
+    }
+
+    const retIs = [];
+    while (i < groups.length) {
+      if (isClientLogGroup(groups[i])) {
+        markings[i] = { mark: 'mid', callIdx };
+        i++;
+        continue;
+      }
+      if (isReturnLikeGroup(groups[i])) {
+        retIs.push(i);
+        i++;
+        continue;
+      }
+      break;
+    }
+
+    if (!retIs.length) {
+      for (let k = reqI + 1; k < groups.length; k++) {
+        if (markings[k] == null) markings[k] = { mark: 'mid', callIdx };
+      }
+      callIdx++;
+      break;
+    }
+    const lastRet = retIs[retIs.length - 1];
+    for (const ri of retIs) {
+      markings[ri] = { mark: ri === lastRet ? 'resp' : 'mid', callIdx };
+    }
+    callIdx++;
+  }
+  return markings;
+}
+
+// Split off messages that appear before the first user message as a "prelude".
+// Returns { prelude: Message[], rest: Message[] }.
+function splitPrelude(messages) {
+  const idx = messages.findIndex(m => m.type === 'user');
+  if (idx <= 0) return { prelude: [], rest: messages };
+  return { prelude: messages.slice(0, idx), rest: messages.slice(idx) };
+}
+
+// Group messages into conversation turns (new turn = human user message).
+function groupTurns(messages) {
+  const turns=[]; let current=null;
+  for (const msg of messages) {
+    if (msg.type==='user') { current={messages:[msg]}; turns.push(current); }
+    else { if (!current){current={messages:[]};turns.push(current);} current.messages.push(msg); }
+  }
+  return turns;
+}
+
+// Draw a continuous overlay line from req dot to resp dot within a container.
+// Must be called after the container is in the DOM so getBoundingClientRect works.
+function drawLLMCallLines(container) {
+  const cs = getComputedStyle(container);
+  const borderLeft = parseFloat(cs.borderLeftWidth) || 0;
+  const borderTop  = parseFloat(cs.borderTopWidth)  || 0;
+  const cRect = container.getBoundingClientRect();
+
+  container.querySelectorAll(':scope > .tl-item.llm-req').forEach(req => {
+    const idx  = req.dataset.llmCallIdx;
+    const resp = container.querySelector(`:scope > .tl-item.llm-resp[data-llm-call-idx="${idx}"]`);
+    if (!resp) return;
+    const reqDot  = req.querySelector('.tl-dot');
+    const respDot = resp.querySelector('.tl-dot');
+    if (!reqDot || !respDot) return;
+
+    const rr = reqDot.getBoundingClientRect();
+    const sr = respDot.getBoundingClientRect();
+    // position: absolute is relative to container's padding box (inside border)
+    const x   = rr.left - cRect.left - borderLeft + rr.width  / 2;
+    const top = rr.top  - cRect.top  - borderTop  + rr.height / 2;
+    const bot = sr.top  - cRect.top  - borderTop  + sr.height / 2;
+
+    const line = document.createElement('div');
+    line.className = 'llm-call-line';
+    line.style.left   = x   + 'px';
+    line.style.top    = top + 'px';
+    line.style.height = (bot - top) + 'px';
+    container.appendChild(line);
+  });
+}
+
+// Redraw LLM call lines for every ancestor turn-group / prelude-group of `el`.
+// Needed because expanding an inner card shifts the layout of all outer groups too.
+function redrawAncestorLines(el) {
+  let cur = el;
+  while (cur) {
+    const grp = cur.closest('.turn-group, .prelude-group');
+    if (!grp) break;
+    grp.querySelectorAll(':scope > .llm-call-line').forEach(l => l.remove());
+    drawLLMCallLines(grp);
+    cur = grp.parentElement;
+  }
+}
+
+/** Redraw LLM req→resp lines in every turn/prelude group (main timeline + subagent/orphan panels). */
+function redrawAllLLMCallLines() {
+  document.querySelectorAll('.turn-group, .prelude-group').forEach(grp => {
+    grp.querySelectorAll(':scope > .llm-call-line').forEach(l => l.remove());
+    drawLLMCallLines(grp);
+  });
+}
+
+// ── Render ──
+function hideWelcome() {
+  const w=document.getElementById('welcome'); if(w)w.style.display='none';
+  document.getElementById('hstats').style.display='flex';
+  document.getElementById('ctrl-btns').style.display='flex';
+}
+
+function renderSession(label, messages, sessionId) {
+  allMessages.push(...messages);
+
+  const wrap = document.getElementById('tl-wrap');
+
+  // Session banner
+  const firstTs=messages[0]?.ts, lastTs=messages[messages.length-1]?.ts;
+  const dur=firstTs&&lastTs?formatDuration(lastTs-firstTs):'';
+  const sid=messages[0]?.sessionId||sessionId||'';
+  const banner=document.createElement('div'); banner.className='sess-banner';
+  banner.innerHTML=`<strong>${escHtml(label)}</strong>${dur?`<span>${dur}</span>`:''}<span style="color:var(--text-dim);font-family:monospace;font-size:10px;">${sid.slice(0,8)}</span>`;
+  wrap.appendChild(banner);
+
+  const { prelude, rest } = splitPrelude(messages);
+  const turns = groupTurns(rest);
+  let prevTs = firstTs;
+
+  // Render prelude block (session-init messages before the first user message)
+  if (prelude.length > 0) {
+    const pGrp = document.createElement('div');
+    pGrp.className = 'prelude-group';
+    const pLabel = document.createElement('div');
+    pLabel.className = 'prelude-label';
+    pLabel.innerHTML = `<span class="prelude-icon">0</span>Pre-Turn<div class="turn-line"></div>`;
+    pGrp.appendChild(pLabel);
+    const pGroups = groupConsecutive(prelude);
+    const pMarkings = getGroupMarkings(pGroups);
+    pGroups.forEach((group, gi) => {
+      const msgs = group.messages;
+      const isLast = gi === pGroups.length - 1 && turns.length === 0;
+      const msg = msgs.length === 1 ? msgs[0] : { ...msgs[0], blocks: msgs.flatMap(m => m.blocks), groupCount: msgs.length, groupKey: group.key };
+      const el = buildTlItem(msg, prevTs, isLast, pMarkings[gi]);
+      prevTs = msgs[msgs.length-1].ts || prevTs;
+      pGrp.appendChild(el);
+    });
+    wrap.appendChild(pGrp);
+  }
+
+  turns.forEach((turn, ti) => {
+    const grp = document.createElement('div');
+    grp.className = 'turn-group';
+
+    const label = document.createElement('div');
+    label.className = 'turn-label';
+    label.innerHTML = `<span class="turn-num">${ti+1}</span>Turn ${ti+1}<div class="turn-line"></div>`;
+    grp.appendChild(label);
+
+    const groups = groupConsecutive(turn.messages);
+    const markings = getGroupMarkings(groups);
+    groups.forEach((group, gi) => {
+      const msgs = group.messages;
+      const isLast = (ti===turns.length-1) && (gi===groups.length-1);
+      // Merge into synthetic message when grouped
+      const msg = msgs.length === 1 ? msgs[0] : {
+        ...msgs[0],
+        blocks: msgs.flatMap(m => m.blocks),
+        groupCount: msgs.length,
+        groupKey: group.key,
+      };
+      const el = buildTlItem(msg, prevTs, isLast, markings[gi]);
+      prevTs = msgs[msgs.length-1].ts || prevTs;
+      grp.appendChild(el);
+    });
+
+    wrap.appendChild(grp);
+    drawLLMCallLines(grp);
+  });
+
+  renderOrphanSubagentSection(wrap);
+}
+
+// Subagent .jsonl on disk with no tool_result.agentId link — show at end of timeline.
+function renderOrphanSubagentSection(wrap) {
+  if (!orphanSubagentList.length) return;
+  const n = orphanSubagentList.length;
+  const section = document.createElement('div');
+  section.className = 'orphan-subagent-section';
+  const hd = document.createElement('div');
+  hd.className = 'orphan-hd';
+  hd.innerHTML = `<span>Unlinked subagent file${n > 1 ? 's' : ''} (${n})</span><span class="note">Present under <code style="font-size:10px;">subagents/</code> but no <code style="font-size:10px;">toolUseResult.agentId</code> match — common when the Agent tool was rejected or interrupted before completion.</span>`;
+  section.appendChild(hd);
+
+  for (const entry of orphanSubagentList) {
+    const shortId = entry.name.replace(/^agent-/, '');
+    const st = entry.stats || { messages: 0, turns: 0, toolCalls: 0, tokens: 0 };
+    const card = document.createElement('div');
+    card.className = 'orphan-subagent-card';
+    const rowHd = document.createElement('div');
+    rowHd.className = 'orphan-subagent-card-hd';
+    rowHd.innerHTML = `<span class="id-tag">${escHtml(shortId)}</span><span class="stat-mini">${st.messages} User Calls · ${st.turns} LLM Calls · ${st.toolCalls} Tool Calls · ${fmtNum(st.tokens)} Tokens</span><span class="arr">▶</span>`;
+    const rowBd = document.createElement('div');
+    rowBd.className = 'orphan-subagent-card-bd';
+    card.appendChild(rowHd);
+    card.appendChild(rowBd);
+    let filled = false;
+    rowHd.addEventListener('click', () => {
+      card.classList.toggle('open');
+      if (filled || !card.classList.contains('open')) return;
+      filled = true;
+      renderSubagentTimeline(rowBd, entry.messages || []);
+    });
+    section.appendChild(card);
+  }
+  wrap.appendChild(section);
+}
+
+function buildTlItem(msg, prevTs, isLast, llmMark) {
+  const mark = llmMark?.mark || null;
+  const callIdx = llmMark?.callIdx ?? null;
+
+  const item = document.createElement('div');
+  item.className = `tl-item${msg.isError?' is-error':''}${mark?' llm-'+mark:''}`;
+  item.dataset.type = msg.type;
+  if (callIdx !== null) item.dataset.llmCallIdx = callIdx;
+  item.dataset.search = (msg.preview+' '+msg.blocks.map(b=>b.content||'').join(' ')).toLowerCase();
+
+  // Time column (DOM-built so we can append the LLM call label)
+  const timeStr = msg.ts ? msg.ts.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '';
+  const delta = (msg.ts && prevTs && msg.ts>prevTs) ? `+${formatDuration(msg.ts-prevTs)}` : '';
+  const timeCol = document.createElement('div'); timeCol.className='tl-time';
+  if (timeStr) { const s=document.createElement('span'); s.textContent=timeStr; timeCol.appendChild(s); }
+  if (delta)   { const s=document.createElement('span'); s.className='tl-delta'; s.textContent=delta; timeCol.appendChild(s); }
+  if (mark === 'req') {
+    const lbl=document.createElement('span'); lbl.className='llm-call-label';
+    lbl.textContent=`LLM ${callIdx+1}`; timeCol.appendChild(lbl);
+  }
+
+  // Connector
+  const connector = document.createElement('div'); connector.className='tl-connector';
+  const dot = document.createElement('div'); dot.className='tl-dot'; connector.appendChild(dot);
+  if (!isLast) { const line=document.createElement('div'); line.className='tl-line'; connector.appendChild(line); }
+
+  // Card
+  const card = buildCard(msg, timeStr, delta);
+
+  item.appendChild(timeCol);
+  item.appendChild(connector);
+  item.appendChild(card);
+  return item;
+}
+
+function buildCard(msg, timeStr, delta) {
+  const card = document.createElement('div');
+  card.className = 'tl-card';
+
+  const dirSymbol = msg.type==='meta'?'·':msg.direction==='send'?'→':msg.direction==='recv'?'←':'·';
+  const u = msg.usage||{};
+  const totalIn=(u.input_tokens||0)+(u.cache_read_input_tokens||0)+(u.cache_creation_input_tokens||0);
+  const totalOut=u.output_tokens||0;
+  const tokStr=(totalIn||totalOut)?`↑${fmtNum(totalIn)} ↓${fmtNum(totalOut)}`:'';
+  const modelShort=(msg.model||'').replace('claude-','').slice(0,16);
+
+  const typeLabel = msg.type==='tool-result'?'Tool Result':msg.type==='meta'?'Log':msg.type==='injected'?'Injected':'User Input';
+  const groupCountBadge = msg.groupCount > 1 ? `<span class="group-count">×${msg.groupCount}</span>` : '';
+  const groupKeyLabel = msg.groupKey
+    ? `<span class="group-key">${msg.groupKey.startsWith('req:') ? msg.groupKey.slice(4,14)+'…' : '#'+msg.groupKey.slice(4,12)}</span>`
+    : '';
+  const hasSubagent = msg.blocks.some(b => b.kind==='tool-call' && subagentMap.has(b.toolId));
+  const subagentCardBadge = hasSubagent ? `<span class="subagent-badge" title="展开卡片查看 Subagent 时间线"><span>⤷</span>Subagent</span>` : '';
+
+  // Header
+  const hd = document.createElement('div'); hd.className='tl-header';
+  hd.innerHTML=`
+    <span class="dir-arrow">${dirSymbol}</span>
+    <span class="type-chip ${msg.type}">${typeLabel}</span>
+    ${groupCountBadge}
+    ${groupKeyLabel}
+    <span class="tl-preview">${escHtml(msg.preview)}</span>
+    <div class="tl-meta">
+      ${modelShort?`<span class="model-tag">${escHtml(modelShort)}</span>`:''}
+      ${tokStr?`<span class="tok">${tokStr}</span>`:''}
+    </div>
+    ${subagentCardBadge}
+    <span class="expand-arrow">▶</span>`;
+  hd.addEventListener('click', () => {
+    card.classList.toggle('open');
+    redrawAncestorLines(card);
+  });
+  card.appendChild(hd);
+
+  // Body
+  const body = document.createElement('div'); body.className='tl-body';
+
+  // Blocks
+  for (const block of msg.blocks) {
+    body.appendChild(buildBlock(block, msg));
+  }
+
+  // Usage footer for assistant
+  if (msg.type==='assistant' && (totalIn||totalOut||msg.model||msg.stopReason)) {
+    const uf = document.createElement('div'); uf.className='usage-footer';
+    const chips=[];
+    if (u.input_tokens!=null) chips.push(`<div class="usage-chip"><div class="ul">Input</div><div class="uv">${fmtNum(u.input_tokens)}</div></div>`);
+    if (u.output_tokens!=null) chips.push(`<div class="usage-chip"><div class="ul">Output</div><div class="uv">${fmtNum(u.output_tokens)}</div></div>`);
+    if (u.cache_read_input_tokens) chips.push(`<div class="usage-chip"><div class="ul">Cache Read</div><div class="uv">${fmtNum(u.cache_read_input_tokens)}</div></div>`);
+    if (u.cache_creation_input_tokens) chips.push(`<div class="usage-chip"><div class="ul">Cache Create</div><div class="uv">${fmtNum(u.cache_creation_input_tokens)}</div></div>`);
+    uf.innerHTML=chips.join('');
+    if (chips.length) body.appendChild(uf);
+  }
+
+  // Metadata footer
+  const raw=msg.raw||{};
+  const metaFields=[
+    ['Model',msg.model],
+    ['Stop',msg.stopReason],
+    ['Request',raw.requestId],
+    ['UUID',raw.uuid],
+    ['Parent',raw.parentUuid],
+    ['PromptID',msg.promptId],
+    ['Agent',raw.agentId],
+    ['ToolUse',raw.toolUseID||raw.sourceToolUseID],
+    ['SourceAssistant',raw.sourceToolAssistantUUID],
+    ['Branch',raw.gitBranch],
+    ['CWD',raw.cwd],
+    ['Permission',msg.permissionMode||raw.permissionMode],
+    ['Sidechain',raw.isSidechain],
+    ['Entrypoint',raw.entrypoint],
+    ['Version',raw.version]
+  ].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
+  if (metaFields.length) {
+    const mf=document.createElement('div'); mf.className='meta-footer';
+    mf.innerHTML=metaFields.map(([k,v])=>`<span style="color:var(--text-dim);">${k}:</span> <span style="color:var(--text-muted);">${escHtml(String(v))}</span>　`).join('');
+    body.appendChild(mf);
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+function buildBlock(block, msg) {
+  const sec = document.createElement('div'); sec.className='block';
+
+  const previewText = (block.content||'').trim().slice(0,100).replace(/\n/g,' ');
+
+  let labelClass = block.kind;
+  let labelText = block.label || block.kind;
+  if (block.kind==='tool-call') { labelText=`🔧 ${block.toolName||'tool'}`; labelClass='tool-call'; }
+  if (block.kind==='tool-result') { labelClass=block.isError?'result-err':'result-ok'; labelText=block.isError?'❌ Error':'✅ Result'; }
+
+  // Dependency badge for tool-result blocks
+  const depBadge = (block.kind==='tool-result' && block.forTool)
+    ? `<span class="dep-badge">↳ ${escHtml(block.forTool)}</span>` : '';
+
+  // Subagent button for tool-call blocks (right-side action zone)
+  const subagentEntry = (block.kind==='tool-call' && block.toolId) ? subagentMap.get(block.toolId) : null;
+  const subagentBtn = subagentEntry ? `<span class="subagent-btn" title="展开 Subagent 时间线"><span class="btn-icon">⤷</span>Subagent<span class="btn-chevron">▶</span></span>` : '';
+
+  sec.innerHTML=`
+    <div class="block-hd">
+      <span class="block-label ${labelClass}">${escHtml(labelText)}</span>
+      ${depBadge}
+      <span class="block-preview">${escHtml(previewText)}</span>
+      <span class="block-arr">▶</span>
+      ${subagentBtn}
+    </div>
+    <div class="block-bd">${buildBlockContent(block)}</div>`;
+
+  sec.querySelector('.block-hd').addEventListener('click', () => {
+    sec.classList.toggle('open');
+    redrawAncestorLines(sec);
+  });
+
+  // Subagent panel — data already loaded, render on first open
+  if (subagentEntry) {
+    const panel = document.createElement('div');
+    panel.className = 'subagent-panel';
+    sec.appendChild(panel);
+
+    let rendered = false;
+    sec.querySelector('.subagent-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = panel.classList.toggle('open');
+      e.currentTarget.classList.toggle('active', isOpen);
+      if (isOpen && !rendered) {
+        rendered = true;
+        renderSubagentTimeline(panel, subagentEntry.messages || []);
+      }
+      redrawAncestorLines(sec);
+    });
+  }
+
+  return sec;
+}
+
+function buildBlockContent(block) {
+  if (block.kind==='tool-call') {
+    return `${block.toolId?`<div class="tool-id-line">id: ${escHtml(block.toolId)}</div>`:''}
+      <div class="sec-label">Input</div><pre>${escHtml(block.content||'')}</pre>`;
+  }
+  if (block.kind==='tool-result') {
+    return `${block.toolId?`<div class="tool-id-line">tool_use_id: ${escHtml(block.toolId)}</div>`:''}
+      <div class="sec-label">Result</div><pre>${escHtml(block.content||'(empty)')}</pre>`;
+  }
+  return block.content
+    ? `<pre>${escHtml(block.content)}</pre>`
+    : `<div style="padding:6px 4px;color:var(--text-dim);font-size:11px;font-style:italic;">(empty)</div>`;
+}
+
+// ── Filters ──
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type=btn.dataset.type;
+    if (activeFilters.has(type)) {
+      if (FILTER_NO_HIDE.has(type)) return;
+      activeFilters.delete(type);
+      btn.classList.remove('active');
+    } else {
+      activeFilters.add(type);
+      btn.classList.add('active');
+    }
+    applyFilters();
+  });
+});
+document.getElementById('ev-search').addEventListener('input', e=>{
+  searchTerm=e.target.value.toLowerCase().trim(); applyFilters();
+});
+function applyFilters() {
+  document.querySelectorAll('.tl-item').forEach(item=>{
+    const ok=activeFilters.has(item.dataset.type)&&(!searchTerm||(item.dataset.search||'').includes(searchTerm));
+    item.classList.toggle('hidden',!ok);
+  });
+  redrawAllLLMCallLines();
+}
+
+document.getElementById('expand-all').addEventListener('click', ()=>{
+  document.querySelectorAll('.tl-card').forEach(c=>c.classList.add('open'));
+  document.querySelectorAll('.block').forEach(b=>b.classList.add('open'));
+  redrawAllLLMCallLines();
+});
+document.getElementById('collapse-all').addEventListener('click', ()=>{
+  document.querySelectorAll('.tl-card').forEach(c=>c.classList.remove('open'));
+  document.querySelectorAll('.block').forEach(b=>b.classList.remove('open'));
+  redrawAllLLMCallLines();
+});
+
+// ── Stats ──
+function updateStats() {
+  document.getElementById('s-msgs').textContent=allMessages.filter(m=>m.type==='user'&&m.direction==='send').length;
+  document.getElementById('s-turns').textContent=countLLMCalls(allMessages);
+  document.getElementById('s-tools').textContent=allMessages.reduce((n,m)=>n+m.blocks.filter(b=>b.kind==='tool-call').length,0);
+  const tok=allMessages.reduce((s,m)=>{const u=m.usage||{};return s+(u.input_tokens||0)+(u.output_tokens||0)+(u.cache_read_input_tokens||0)+(u.cache_creation_input_tokens||0);},0);
+  document.getElementById('s-tok').textContent=fmtNum(tok);
+  const models=[...new Set(allMessages.map(m=>m.model).filter(Boolean))];
+  document.getElementById('s-model').textContent=models.map(m=>m.replace('claude-','')).join(' · ');
+
+  // Subagent stats — driven by subagentDataList
+  const subWrap = document.getElementById('s-sub-wrap');
+  const subTrig = document.getElementById('s-sub-trigger');
+  if (subagentDataList.length > 0) {
+    document.getElementById('s-sub-calls').textContent = subagentDataList.length;
+    const subLabel = document.getElementById('s-sub-label');
+    if (subLabel) subLabel.textContent = subagentDataList.length === 1 ? 'Subagent' : 'Subagents';
+    const subTokSum = subagentDataList.reduce((s, e) => s + (e.stats?.tokens ?? 0), 0);
+    const tokHint = `${fmtNum(subTokSum)} tokens across Subagent traces (header “Tokens” = main session only).`;
+    subWrap.style.display = 'inline-flex';
+    if (orphanSubagentList.length) {
+      subTrig.title = `${orphanSubagentList.length} of ${subagentDataList.length} not linked to the timeline (see “Unlinked Subagent” at bottom). ${tokHint}`;
+    } else {
+      subTrig.title = `Click for Subagent stats. ${tokHint}`;
+    }
+  } else {
+    subWrap.style.display = 'none';
+    subTrig.title = '';
+    document.getElementById('sub-popup').classList.remove('open');
+  }
+}
+
+// ── Subagent popup ──
+function renderSubagentPopup() {
+  const list = document.getElementById('sub-popup-list');
+  if (!subagentDataList.length) {
+    list.innerHTML = '';
+    return;
+  }
+
+  const linked = new Set(subagentMap.values());
+
+  const rowHtml = (name, stats, cls='', orphan=false) => `
+    <div class="sub-popup-row ${cls}${orphan ? ' orphan-row' : ''}">
+      <span class="sub-popup-name">${orphan ? '<span class="orphan-tag">unlinked</span>' : ''}${escHtml(name)}</span>
+      <span class="sub-popup-stat"><strong>${stats.messages}</strong> User Calls</span>
+      <span class="sub-popup-stat"><strong>${stats.turns}</strong> LLM Calls</span>
+      <span class="sub-popup-stat"><strong>${stats.toolCalls}</strong> Tool Calls</span>
+      <span class="sub-popup-stat"><strong>${fmtNum(stats.tokens)}</strong> Tokens</span>
+    </div>`;
+
+  list.innerHTML = subagentDataList.map(s =>
+    rowHtml(s.name.replace(/^agent-/, ''), s.stats, '', !linked.has(s))).join('');
+}
+
+document.getElementById('s-sub-trigger').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const popup = document.getElementById('sub-popup');
+  const opening = !popup.classList.contains('open');
+  popup.classList.toggle('open');
+  if (opening) {
+    renderSubagentPopup();
+    const rect = e.currentTarget.getBoundingClientRect();
+    popup.style.top  = (rect.bottom + 6) + 'px';
+    popup.style.left = Math.min(rect.left, window.innerWidth - 500) + 'px';
+  }
+});
+document.addEventListener('click', () => {
+  document.getElementById('sub-popup').classList.remove('open');
+});
+
+// ── Scroll-to-bottom button ──
+(function() {
+  const tlWrap = document.getElementById('tl-wrap');
+  const btn = document.getElementById('scroll-bottom-btn');
+  function updateBtn() {
+    const atBottom = tlWrap.scrollHeight - tlWrap.scrollTop - tlWrap.clientHeight < 60;
+    btn.classList.toggle('visible', !atBottom && tlWrap.scrollHeight > tlWrap.clientHeight);
+  }
+  tlWrap.addEventListener('scroll', updateBtn, { passive: true });
+  btn.addEventListener('click', () => {
+    tlWrap.scrollTo({ top: tlWrap.scrollHeight, behavior: 'smooth' });
+  });
+  // Refresh button state after each content update
+  const observer = new MutationObserver(updateBtn);
+  observer.observe(tlWrap, { childList: true, subtree: false });
+})();
+
+// ── Helpers ──
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtNum(n){return n?Number(n).toLocaleString():'0';}
+function fmtSize(b){return b>1048576?(b/1048576).toFixed(1)+'M':b>1024?(b/1024).toFixed(0)+'K':b+'B';}
+function formatDuration(ms){
+  if(ms<1000) return `${ms}ms`;
+  if(ms<60000) return `${(ms/1000).toFixed(0)}s`;
+  if(ms<3600000) return `${Math.floor(ms/60000)}m${Math.floor((ms%60000)/1000)}s`;
+  return `${Math.floor(ms/3600000)}h${Math.floor((ms%3600000)/60000)}m`;
+}
+</script>
+</body>
+</html>
