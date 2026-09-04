@@ -49,3 +49,11 @@
 - 经验/教训：给已传递安装的依赖补声明时，版本抄 uv.lock 的公共版本（2.14.0），别抄 __version__ 的 +cpu 标签（L41）
 - 下一步：第四步——配置 Claude Code PreToolUse hook（git commit/merge 前快速 fastcheck，FAIL 阻止）
 ---
+
+## [2026-09-04 17:50] 第二次 Ralph Loop 完成（人工介入收尾）
+- 做了什么：迭代1-3 Ralph 自主完成（修 ruff 8 + pyright 13 + depguard 7，fastcheck ALL PASS）；迭代4配置 hook 时 agent 卡住19分钟，人工介入完成 PreToolUse + SessionStart hooks 配置、AGENTS.md 新增「Ralph Loop 运行规范」4条规则、learning-record 0021
+- 改了哪些文件：scripts/hook_pretooluse.py（新建）、scripts/hook_sessionstart.py（新建）、.claude/settings.json（注册两hook）、AGENTS.md（+Ralph Loop运行规范）、pyproject.toml（+torch+safetensors声明）、src/amta/_lama_model.py（真bug+类型）、src/amta/_lama_ffc.py（10类型错误）、src/amta/local_lama_inpainter.py（Pillow Resampling常量）、docs/lessons.md（+L40/L41）、loop_state.json、ralph-log.md
+- fastcheck 结果：ALL PASS（compile OK / ruff 0 / pyright 0 errors / pytest 315 passed 3 skipped / depguard OK / memory OK）
+- 经验/教训：① 能变 hook 的就变 hook，PreToolUse 比 git pre-commit 更可靠（绕不过 --no-verify）② "不是本次产生的bug"是 main 腐烂主因，用"bug不累积"规则根治 ③ F821 undefined name 往往是真bug ④ 依赖版本号抄 uv.lock 不抄 __version__ 的 +cpu 标签 ⑤ ralph.ps1 需加迭代超时机制（15分钟自动杀掉重启）
+- 下一步：等待人类验收合并回 main；合并后可启动第三次 Ralph Loop 接产品流水线任务
+---
