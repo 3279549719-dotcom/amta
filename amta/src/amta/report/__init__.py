@@ -6,8 +6,9 @@
 |------|------|------|-----|
 | 通用管线报告 | `render_report()` + `load_from_workspace()` | 多页管线报告（detect/ocr/translate/inpaint/typeset），阶段可插拔 | `scripts/gen_report.py` |
 | 三阶段最终报告 | `final_report.render_final_report()` | 简洁三阶段视图 + base64 内嵌原图 | `scripts/gen_final_report.py` |
-| Stage4 验证报告 | (gen_stage4_report 内联深接口) | Stage4 11-20页验证 | `scripts/gen_stage4_report.py` |
-| Inpaint A/B 对比 | (gen_inpaint_ab_report 内联深接口) | Inpainting 引擎速度对比 | `scripts/gen_inpaint_ab_report.py` |
+| Stage4 验证报告 | `stage4_report.render_stage4_report()` | Stage4 mask+inpaint 逐页验证 | `scripts/gen_stage4_report.py` |
+| Inpaint A/B 对比 | `inpaint_ab_report.render_inpaint_ab_report()` | Inpainting 引擎速度对比 | `scripts/gen_inpaint_ab_report.py` |
+| 框外字 A/B 对比 | `ab_report.render_ab_report()` | Stage4 框外字去除方案 A/B 对比 | `scripts/gen_ab_report.py` |
 
 ## 新增报告的规范
 
@@ -25,6 +26,10 @@
 from .model import PageReport, ReportResult, StageOutput
 from .engine import render_report
 from .assembler import load_page_report, load_from_workspace
+from .final_report import render_final_report
+from .stage4_report import render_stage4_report, extract_text_free_boxes
+from .ab_report import render_ab_report
+from .inpaint_ab_report import render_inpaint_ab_report
 
 __all__ = [
     "render_report",
@@ -33,4 +38,9 @@ __all__ = [
     "ReportResult",
     "load_page_report",
     "load_from_workspace",
+    "render_final_report",
+    "render_stage4_report",
+    "extract_text_free_boxes",
+    "render_ab_report",
+    "render_inpaint_ab_report",
 ]

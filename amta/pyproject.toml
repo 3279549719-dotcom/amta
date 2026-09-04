@@ -32,7 +32,7 @@ dependencies = [
 [tool.ruff]
 target-version = "py311"
 line-length = 120
-exclude = ["scripts/archive/**", "tests/archive/**", "research/reference-repos/**", "models/**", "output/**"]
+exclude = ["scripts/archive/**", "scripts/probes/**", "tests/archive/**", "research/reference-repos/**", "models/**", "output/**"]
 
 [tool.ruff.lint]
 # E701/E702（单行多条语句）是项目既有紧凑风格，忽略；其余规则保留。
@@ -45,7 +45,7 @@ ignore = ["E701", "E702"]
 [tool.pyright]
 pythonVersion = "3.11"
 # 外部模型目录（models/）不入库，排除避免误报
-exclude = ["models/**", "output/**", "scripts/archive/**", "tests/archive/**", "research/reference-repos/**"]
+exclude = ["models/**", "output/**", "scripts/archive/**", "scripts/probes/**", "tests/archive/**", "research/reference-repos/**"]
 
 [tool.pytest.ini_options]
 # memory_* 测试的 import 通路：amta 包 + tests 跨文件 fixture 复用（ADR-025 前置）

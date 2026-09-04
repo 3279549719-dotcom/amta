@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 OUT_DIR = ROOT / "output" / "tmp" / "e2e_inpaint"
 OUT_HTML = OUT_DIR / "stage4_e2e_report.html"
 
