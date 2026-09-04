@@ -27,7 +27,7 @@ def test_get_context_reads_canon_category_and_labels(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     _write_page_artifacts(artifacts_dir, page=1, canon=[
@@ -56,7 +56,7 @@ def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     # 只写 translation，不写 canon
@@ -79,7 +79,7 @@ def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     _write_page_artifacts(artifacts_dir, page=1, canon=[
@@ -110,7 +110,7 @@ def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     _write_page_artifacts(artifacts_dir, page=1, canon=[
@@ -138,7 +138,7 @@ def test_get_context_limits_relationships_to_three(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     _write_page_artifacts(artifacts_dir, page=1, canon=[
@@ -169,7 +169,7 @@ def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     canon = [
@@ -194,7 +194,7 @@ def test_get_context_page_header_count_matches_rendered(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     canon = [
@@ -217,7 +217,7 @@ def test_get_context_truncates_regions_to_fifteen(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     canon = [
@@ -242,7 +242,7 @@ def test_get_context_caps_terms_at_five(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     combined_src = "八意様 月の民 蓬莱 山の幸 玉鱗 ドカン"
@@ -274,7 +274,7 @@ def test_get_context_multipage_reads_last_two_pages(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     for page, text in [(1, "甲页内容"), (2, "乙页内容"), (3, "丙页内容")]:
@@ -299,7 +299,7 @@ def test_get_context_tolerates_malformed_canon(tmp_path):
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir = state_dir / "artifacts"
     artifacts_dir.mkdir()
 
     canon = [

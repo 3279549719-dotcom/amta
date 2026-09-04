@@ -94,7 +94,7 @@ def main():
                     result.save(OUT_DIR / f"{page['name']}_{engine.replace('-', '_')}.png")
                     print(f"    done in {elapsed:.1f}s")
                 else:
-                    print(f"    FAILED: no result")
+                    print("    FAILED: no result")
             except Exception as e:
                 print(f"    ERROR: {e}")
 
@@ -117,7 +117,7 @@ def main():
             d.text((x + 8, y + 5), label, fill=(0, 0, 0))
             canvas.paste(resize(im), (x, y + 28))
         canvas.save(OUT_DIR / f"{page['name']}_comparison.png")
-        print(f"  comparison saved")
+        print("  comparison saved")
 
     print("\n[probe] Done.")
 

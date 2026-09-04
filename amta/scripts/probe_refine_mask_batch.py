@@ -80,7 +80,7 @@ def make_comparison(img_rgb, rect_mask, refined_mask, page_name):
 
 
 def main():
-    print(f"[batch] Plan A refined mask batch: pages 11-20")
+    print("[batch] Plan A refined mask batch: pages 11-20")
     print(f"  Output: {OUT_DIR}")
 
     summary = {}
@@ -187,7 +187,7 @@ def main():
         avg_reduction = np.mean([s["reduction_pct"] for s in summary.values()])
         avg_iou = np.mean([s["iou"] for s in summary.values()])
         total_free = sum(s["free_boxes"] for s in summary.values())
-        print(f"\n[batch] Summary:")
+        print("\n[batch] Summary:")
         print(f"  Pages with text_free: {len(summary)}/10")
         print(f"  Total text_free boxes: {total_free}")
         print(f"  Avg mask pixel reduction: {avg_reduction:.1f}%")

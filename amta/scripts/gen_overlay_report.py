@@ -42,9 +42,6 @@ def load_summary() -> list[dict]:
 
 
 def build_html() -> str:
-    summary = load_summary()
-    p13 = summary[0] if len(summary) > 0 else {}
-    p14 = summary[1] if len(summary) > 1 else {}
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">

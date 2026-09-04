@@ -63,10 +63,11 @@ def _setup_fake_registry():
     return fake_detect, fake_ocr, fake_translate
 
 
-def test_basic_pipeline():
+def test_basic_pipeline(tmp_path, monkeypatch):
     """测试基本管线：3 页 × 3 阶段，全部成功。"""
     fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
 
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         src_dir = tmp / "raw"
@@ -92,10 +93,11 @@ def test_basic_pipeline():
         print("✓ test_basic_pipeline passed")
 
 
-def test_skip_existing():
+def test_skip_existing(tmp_path, monkeypatch):
     """测试断点续跑：第二次运行所有阶段 skipped。"""
     fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
 
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         src_dir = tmp / "raw"
@@ -116,17 +118,18 @@ def test_skip_existing():
         result2 = run_pipeline(config)
         assert fake_detect.state["calls"] == 1, "detect should not be called again (skipped)"
         assert fake_ocr.state["calls"] == 1, "ocr should not be called again (skipped)"
-        page_result = result2.results["page_0"]
+        page_result = result2.results["page_1"]
         assert page_result["detect"].status == "skipped"
         assert page_result["ocr"].status == "skipped"
         assert page_result["translate"].status == "skipped"
         print("✓ test_skip_existing passed")
 
 
-def test_force_rerun():
+def test_force_rerun(tmp_path, monkeypatch):
     """测试 force_rerun：即使产物存在也重跑。"""
     fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
 
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         src_dir = tmp / "raw"
@@ -148,7 +151,7 @@ def test_force_rerun():
         print("✓ test_force_rerun passed")
 
 
-def test_stage_failure_stops():
+def test_stage_failure_stops(tmp_path, monkeypatch):
     """测试阶段失败：默认情况下失败后停止。"""
     fake_detect = _make_fake_station("detect")
     fake_ocr = _make_fake_station("ocr", should_fail=True)
@@ -160,6 +163,7 @@ def test_stage_failure_stops():
         "translate": _reg_module.StageSpec(name="translate", station=fake_translate, consumes=["ocr"], produces="translation"),
     }
 
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         src_dir = tmp / "raw"
@@ -180,7 +184,7 @@ def test_stage_failure_stops():
         print("✓ test_stage_failure_stops passed")
 
 
-def test_missing_upstream_dependency():
+def test_missing_upstream_dependency(tmp_path, monkeypatch):
     """测试上游依赖缺失：跳过 detect 后，ocr 应该报上游缺失。"""
     fake_ocr = _make_fake_station("ocr")
     fake_translate = _make_fake_station("translate")
@@ -190,6 +194,7 @@ def test_missing_upstream_dependency():
         "translate": _reg_module.StageSpec(name="translate", station=fake_translate, consumes=["ocr"], produces="translation"),
     }
 
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         src_dir = tmp / "raw"
@@ -205,7 +210,7 @@ def test_missing_upstream_dependency():
         result = run_pipeline(config)
 
         assert len(result.failed_pages) == 1
-        page_result = result.results["page_0"]
+        page_result = result.results["page_1"]
         assert "上游阶段缺失" in page_result["ocr"].error
         assert fake_translate.state["calls"] == 0
         print("✓ test_missing_upstream_dependency passed")

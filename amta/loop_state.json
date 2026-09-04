@@ -1,8 +1,8 @@
 {
   "mission": "Ralph Loop 最小可行验证：外层循环 + 强制写记忆工作流",
-  "current_step": "Ralph 迭代 blocked-on-human 确认：fastcheck 基线复核 + 为两项待裁决收集证据包（① 探针 3/4 因 ctd_detector 归档而硬死 ② text_mask_refiner cv2 为 04_inpaint 模块级 import 真需要），docs/lessons.md 新增 L37",
-  "next_action": "等待人类裁决（证据包已就绪，见 escalation）：① 4 探针 DELETE or EXCLUDE_FILES——probe_ctd_mask/e2e_inpaint/overlay_text 硬死（scripts/ctd_detector.py 已归档，import 即 ModuleNotFoundError），probe_sam_mask 是败选 Plan B；同款实验脚本 detect_rtdetr.py/detectors.py 走的是 EXCLUDE 路线，政策需选一；② text_mask_refiner cv2——建议 pyproject 声明 opencv-python + depguard IMPORT_TO_PKG 补 cv2→opencv-python，或若砍 refine 路径则 text_mask_refiner 连带删除。裁决后执行并清 depguard/ruff 余账",
-  "last_verified": "py -3.13 scripts/fastcheck.py：compile(无 SyntaxError)/pyright PASS；ruff 当前 24 errors（上次记 54，3420e85 删 3 个 mojibake 探针后自然回落，非本次改动）；pytest 18 failed（task #6）与 depguard 9 项 pre-existing 不变。depguard 9 = probe_ctd_mask/e2e_inpaint/overlay_text 各 ctd_detector+cv2（6）+ probe_sam_mask segment_anything+torch（2）+ src/amta/text_mask_refiner.py cv2（1）",
-  "escalation": "blocked-on-human：① 4 探针命运——证据：3 探针 import 的 ctd_detector 已归档到 scripts/archive/（depguard _is_local_module 失效才误报第三方，见 L37），均为 2026-09-03 一次性探针，结果已存 docs/stage4-*.md + HTML 报告，删除不破坏任何运行链路；probe_sam_mask 是败选 Plan B（7d7b6b2 方案A胜）。推荐 DELETE（vs EXCLUDE 保留路线不一致——detect_rtdetr 等还在跑才排除）。② text_mask_refiner cv2——证据：04_inpaint.py:23 模块级 import text_mask_refiner，--with-inpaint 干净克隆（uv sync 无 cv2）必炸；cv2 已在 .venv 未声明故本地跑不显。推荐声明 opencv-python；注意声明后 depguard IMPORT_TO_PKG 须补 cv2→opencv-python 否则仍误报（L36 同类）。另：ruff 54→24 已回落；pytest 18 fails 仍是 task #6。附注：.venv 无 ruff，fastcheck 须用 py -3.13 全局解释器",
-  "updated_at": "2026-09-04T01:27"
+  "current_step": "4 类技术债修复完成（人类裁决后执行）：ruff 24→0、pytest 18→0、depguard 9→0、编码错误已修。fastcheck ALL PASS。",
+  "next_action": "Ralph Loop 可继续下一轮迭代（MAX ITERATIONS 已重置条件），或人工推进 Stage 4 产品化。loop_state 已从 blocked-on-human 解锁。",
+  "last_verified": "py -3.13 scripts/fastcheck.py：compile PASS / ruff All checks passed / pyright OK / pytest 305 passed 3 skipped / depguard 依赖干净 / memory lint+gc+inject 全 OK → ALL PASS",
+  "escalation": null,
+  "updated_at": "2026-09-04T02:15"
 }

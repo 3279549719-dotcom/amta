@@ -89,7 +89,7 @@ def main():
             canvas.paste(orig_r, (0, 40))
             canvas.paste(clean_r, (orig_r.width + gap, 40))
             canvas.save(OUT_DIR / f"{page['name']}_comparison.png")
-            print(f"  comparison saved")
+            print("  comparison saved")
 
     with open(OUT_DIR / "summary.json", "w", encoding="utf-8") as f:
         json.dump(all_stats, f, ensure_ascii=False, indent=2)

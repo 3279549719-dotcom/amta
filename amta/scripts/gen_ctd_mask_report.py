@@ -74,7 +74,7 @@ def build_html() -> str:
                 d = v[key]
                 rows.append(f"<tr><td>{label}</td><td>{d['pixels']:,}</td><td>{d['coverage']*100:.2f}%</td><td>{d['iou_with_rect']:.3f}</td><td></td></tr>")
         # v5 数据（summary 里没有，硬编码从探针输出）
-        rows.append(f"<tr class='recommend'><td><strong>v5: t=0.1, d=9×9×7（推荐）</strong></td><td>338,286</td><td>4.35%</td><td>0.058</td><td><span class='badge badge-green'>推荐</span></td></tr>")
+        rows.append("<tr class='recommend'><td><strong>v5: t=0.1, d=9×9×7（推荐）</strong></td><td>338,286</td><td>4.35%</td><td>0.058</td><td><span class='badge badge-green'>推荐</span></td></tr>")
         return "\n".join(rows)
 
     p20 = summary[0] if len(summary) > 0 else {}

@@ -19,3 +19,10 @@
 - 经验/教训：blocked-on-human 状态不硬编造任务，产出证据包让裁决一次到位；归档本地模块会静默改变 depguard 分类（L37）。推荐裁决：① 4 探针 DELETE；② text_mask_refiner 声明 opencv-python（连带 IMPORT_TO_PKG 补 cv2→opencv-python）
 - 下一步：loop_state.next_action（仍等待人类裁决 ①/②）
 ---
+
+## 2026-09-04 01:29:01 RALPH MAX ITERATIONS
+- 达到最大迭代次数: 3
+- 未收到 COMPLETE 信号
+- 最终状态: 见 loop_state.json
+---
+

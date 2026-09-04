@@ -32,7 +32,10 @@ def test_prompt_parts_terms_injected():
     canon = [{"region_id": "r01", "baberu_text": "豊姫様"}]
     work_state = {"terms": {"豊姫": {"translation": "丰姬", "status": "confirmed"}}}
     ctx = build_prefetch_context(canon, work_state, None, None)
-    assert "丰姬" in ctx["system_extra"], "relevant glossary term must be in system_extra"
+    # 术语预替换（replace_in_canon）后，"豊姫"已被直接替换成"丰姬"进 refined_canon，
+    # system_extra 因此为空——这是设计行为（f50985a 后术语走预替换而非 system_extra 注入）
+    assert any("丰姬" in r.get("baberu_text", "") for r in ctx["refined_canon"]),         "confirmed term must be pre-replaced into refined_canon"
+    assert ctx["system_extra"] == "", "pre-replaced terms leave system_extra empty (by design)"
 
 
 def test_build_semantic_context_public():

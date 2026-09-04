@@ -77,7 +77,7 @@ if len(selected) < 10:
                 break
 
 selected = selected[:10]
-print(f"\n=== 选中的 10 页样本 ===")
+print("\n=== 选中的 10 页样本 ===")
 for p, reason in selected:
     print(f"  page_{p['page']:02d}: {p['n_boxes']}框, {p['raw_chars']}字, "
           f"短框{p['short_boxes_le3']}({p['short_ratio']:.0%}), "

@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCAN_DIRS = ("src", "scripts", "tests")
 LOCAL_TOP = {"amta", "scripts", "tests"}  # 本仓顶层模块，不是第三方
 # 分布名与 import 名的映射（import PIL → 包名 pillow）
-IMPORT_TO_PKG = {"PIL": "pillow"}
+IMPORT_TO_PKG = {"PIL": "pillow", "cv2": "opencv-python"}
 # 运行时动态 import / 开发工具链白名单（不入 [project].dependencies）
 ALLOWLIST = {"onnx_infer", "pytest"}
 # 实验脚本排除（A/B 测试 / 调研用，等正式集成主流水线再补依赖声明）

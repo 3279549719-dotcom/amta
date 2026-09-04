@@ -83,7 +83,6 @@ def process_page(page: dict) -> dict:
     canvas.save(OUT_DIR / f"{page['name']}_comparison.png")
 
     # 统计: 检查涂白区域是否还有深色像素(残字)
-    orig_arr = np.array(original.convert("L"))
     proc_arr = np.array(processed.convert("L"))
     residual_info = []
     for b in bubble_boxes:
@@ -131,7 +130,7 @@ def main():
     worst = max(all_stats, key=lambda s: s["max_dark_ratio"])
     print(f"\n[fill_white_probe] Total: bubble={total_bubble}, free={total_free}")
     print(f"[fill_white_probe] Worst page: {worst['page']} (max_dark_ratio={worst['max_dark_ratio']*100:.2f}%)")
-    print(f"[fill_white_probe] Done.")
+    print("[fill_white_probe] Done.")
 
 
 if __name__ == "__main__":

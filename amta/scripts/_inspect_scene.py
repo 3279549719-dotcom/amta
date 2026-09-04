@@ -1,4 +1,5 @@
-import sys, json
+import sys
+import json
 sys.path.insert(0, 'src')
 from amta.koharu_client import KoharuClient
 

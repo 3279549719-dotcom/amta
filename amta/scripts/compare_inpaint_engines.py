@@ -14,7 +14,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 from PIL import Image, ImageDraw
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -106,7 +105,7 @@ def main():
                         inpainted.save(OUT_DIR / f"{page['name']}_{key}.png")
                         print(f"    done in {elapsed:.1f}s")
                     else:
-                        print(f"    FAILED: no result")
+                        print("    FAILED: no result")
                 except Exception as e:
                     print(f"    ERROR: {e}")
 
@@ -130,7 +129,7 @@ def main():
             d.text((x + 8, y + 5), label, fill=(0, 0, 0))
             canvas.paste(resize(im), (x, y + 30))
         canvas.save(OUT_DIR / f"{page['name']}_comparison.png")
-        print(f"  comparison saved")
+        print("  comparison saved")
 
     print("\n[compare] Done.")
 

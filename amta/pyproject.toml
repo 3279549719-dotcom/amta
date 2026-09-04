@@ -16,6 +16,8 @@ dependencies = [
     # hayai_ocr: 02_ocr 默认 OCR 引擎（HayaiOCR-v2.1，SigLIP2+transformer，PyTorch）。
     # manga_ocr(kha-white) 曾接线但包未装、属半截集成，已摘除（2026-09-03）。
     "hayai-ocr==2.1.0",
+    # opencv-python(cv2): src/amta/text_mask_refiner.py 框内文字像素精修（04_inpaint 模块级 import），Stage4 Plan A 必需。
+    "opencv-python==5.0.0.93",
 ]
 
 [tool.uv]

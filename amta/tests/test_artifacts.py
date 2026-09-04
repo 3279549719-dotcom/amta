@@ -12,7 +12,7 @@ from amta import artifacts
 
 def test_page_key_and_idx_from_raw():
     assert artifacts.page_key(10) == "page_10"
-    assert artifacts.page_idx_from_raw(Path("D:/x/11.jpg")) == 10
+    assert artifacts.page_idx_from_raw(Path("D:/x/11.jpg")) == 11  # 1-based (f50985a)
 
 
 def test_region_id_single_space():

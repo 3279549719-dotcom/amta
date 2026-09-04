@@ -27,23 +27,23 @@ def _mk_fake_cli(tmp_path, calls):
         base = tmp_path / "ws" / "t" / "artifacts"
         base.mkdir(parents=True, exist_ok=True)
         if name == "01_detect.py":
-            (base / "page_0_detection.json").write_text(
+            (base / "page_1_detection.json").write_text(
                 json.dumps({"work_id": "t", "page": "1",
                             "image_meta": {"width": 100, "height": 100},
                             "blocks": [], "regions": []}), encoding="utf-8")
         elif name == "02_ocr.py":
-            (base / "page_0_canon.json").write_text(json.dumps([]), encoding="utf-8")
+            (base / "page_1_canon.json").write_text(json.dumps([]), encoding="utf-8")
         elif name == "03_translate.py":
-            (base / "page_0_translation.json").write_text(
+            (base / "page_1_translation.json").write_text(
                 json.dumps({"translations": {}}), encoding="utf-8")
         elif name == "04_inpaint.py":
-            (base / "page_0_inpaint.json").write_text(
+            (base / "page_1_inpaint.json").write_text(
                 json.dumps({"checks": {"filled": 0, "inpainted": 0, "skipped": 0}}),
                 encoding="utf-8")
             (base / "clean").mkdir(exist_ok=True)
-            Image.new("RGB", (100, 100), "white").save(base / "clean" / "page_0_clean.png")
+            Image.new("RGB", (100, 100), "white").save(base / "clean" / "page_1_clean.png")
         elif name == "05_typeset.py":
-            (base / "page_0_typeset.json").write_text(
+            (base / "page_1_typeset.json").write_text(
                 json.dumps({"checks": {"rendered": 0, "translated": 0,
                                        "coverage_complete": True,
                                        "overflow": [], "skipped_no_bbox": []}}),

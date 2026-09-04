@@ -46,7 +46,6 @@ def main():
     avg_ab_iou = np.mean([plan_b[p]["ab_iou"] for p in pages])
     avg_a_time = np.mean([plan_b[p]["plan_a_time"] for p in pages])
     avg_b_time = np.mean([plan_b[p]["plan_b_time"] for p in pages])
-    total_boxes = sum(plan_b[p]["free_boxes"] for p in pages)
 
     print(f"  Plan A avg reduction: {avg_a_reduction:.1f}%")
     print(f"  Plan B avg reduction: {avg_b_reduction:.1f}%")
