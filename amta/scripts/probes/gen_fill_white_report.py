@@ -114,7 +114,7 @@ def build_html() -> str:
 </ol>
 </div>
 
-<div class="footer">AMTA Stage 4 框内字涂白验证 &nbsp;|&nbsp; 2026-09-03 &nbsp;|&nbsp; 脚本: scripts/probe_fill_white.py</div>
+<div class="footer">AMTA Stage 4 框内字涂白验证 &nbsp;|&nbsp; 2026-09-03 &nbsp;|&nbsp; 脚本: scripts/probes/probe_fill_white.py</div>
 
 </body>
 </html>"""

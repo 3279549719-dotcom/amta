@@ -57,3 +57,21 @@
 - 经验/教训：① 能变 hook 的就变 hook，PreToolUse 比 git pre-commit 更可靠（绕不过 --no-verify）② "不是本次产生的bug"是 main 腐烂主因，用"bug不累积"规则根治 ③ F821 undefined name 往往是真bug ④ 依赖版本号抄 uv.lock 不抄 __version__ 的 +cpu 标签 ⑤ ralph.ps1 需加迭代超时机制（15分钟自动杀掉重启）
 - 下一步：等待人类验收合并回 main；合并后可启动第三次 Ralph Loop 接产品流水线任务
 ---
+
+## 2026-09-05 00:41:32 RALPH ITERATION STOPPED
+- 迭代: 1 / 5
+- 原因: 迭代超时 900 秒
+- 现场诊断:
+  （未能定位本次会话 JSONL）
+- 部分输出: 见 E:\manga translator agent\amta\output\logs\iteration-1-20260905-004132.txt
+- 处理: 自动杀掉，继续下一次迭代
+---
+
+
+## 2026-09-05 00:50 迭代完成（候选4 探针归档）
+- 做了什么：pick up 迭代1 超时遗留的候选4 探针归档——6 探针（probe_fill_white/probe_flux2/probe_refine_mask_batch/probe_seg_mask/exp_inpaint_speed/compare_inpaint_engines）git mv 已在暂存区；补齐验证与收尾
+- 改了哪些文件：scripts/probes/（6 探针 ROOT 深度修正 + exp_inpaint_speed docstring）、tests/test_exp_p1_manga.py（sys.path→probes）、docs/stage4-probe-summary-2026-09-03.md、docs/superpowers/specs/2026-09-04-inpaint-speed-ab-test.md、scripts/probes/gen_fill_white_report.py（footer 路径）、scripts/depguard.py（_is_local_module 认 scripts/probes 为本地）、docs/lessons.md（+L44）、loop_state.json、ralph-log.md
+- fastcheck 结果：ALL PASS（ruff 0 / pyright 0 errors 0 warnings / pytest 362 passed 3 skipped / depguard OK / memory OK）；test_exp_p1_manga 2 passed
+- 经验/教训：① 脚本下移一层 = 所有 __file__ 锚定 ROOT/SCRIPT_DIR 深度常量 + sys.path 指向全要跟着改（L44）② probes/ 与 archive/ 语义不同——probes 豁免 lint 但活着（测试仍 import），depguard 要补本地识别而非清 importer（L44 承接 L37）
+- 下一步：等待人类验收：L6 审核（scripts/review.py --base main）+ 合并回 main
+---

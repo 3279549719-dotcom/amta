@@ -108,7 +108,7 @@
 - 尝试 `pip install onnxruntime-directml`（核显组，可选）
 - 确认 Koharu 服务运行在 `127.0.0.1:4000`
 
-### Step 2：写实验脚本 `scripts/exp_inpaint_speed.py`
+### Step 2：写实验脚本 `scripts/probes/exp_inpaint_speed.py`
 - 支持 `--mode baseline|p0|p1_cpu|p1_gpu`
 - 支持 `--pages 11,12,13,14,15`
 - 支持 `--repeat 3`
@@ -141,7 +141,7 @@
 
 | 产物 | 路径 |
 |---|---|
-| 实验脚本 | `scripts/exp_inpaint_speed.py` |
+| 实验脚本 | `scripts/probes/exp_inpaint_speed.py` |
 | 本地推理封装 | `src/amta/local_lama_inpainter.py` |
 | 实验结果（clean 图 + timing） | `output/tmp/inpaint_speed_exp/` |
 | HTML 对比报告 | `output/tmp/inpaint_speed_exp/report.html` |
