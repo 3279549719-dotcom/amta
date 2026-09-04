@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Translation Harness — Context · Guardrails · Tools · Loop</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2b;--panel2:#182238;--text:#e8edf7;--muted:#9eabc2;--line:#2a3853;--accent:#72a7ff;--accent2:#7ee0c2;--warn:#ffd479}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;line-height:1.65}
+nav{position:fixed;left:0;top:0;bottom:0;width:230px;background:#0e1627;border-right:1px solid var(--line);padding:22px 16px}nav h1{font-size:16px;margin:0 0 18px}nav a{display:block;color:var(--muted);text-decoration:none;padding:8px 10px;border-radius:8px;margin:3px 0;font-size:13px}nav a:hover{background:var(--panel);color:var(--text)}
+main{margin-left:230px;max-width:1120px;padding:54px 60px 100px}section{margin-bottom:72px}h2{font-size:30px;line-height:1.25;margin:0 0 18px}h3{font-size:20px;margin:28px 0 10px}p{margin:10px 0;color:#d4dbea}.lead{font-size:18px;color:#cbd6e9;max-width:900px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin:16px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.k{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}.big{font-size:25px;font-weight:700}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#dce8ff}
+pre{background:#09101d;border:1px solid var(--line);padding:18px;border-radius:10px;overflow:auto;color:#dce8ff}
+table{width:100%;border-collapse:collapse;margin:18px 0;background:var(--panel)}th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:#c8d7f2;background:var(--panel2)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:#203252;color:#bcd3ff}.note{border-left:3px solid var(--accent);padding:12px 16px;background:#101b30;margin:18px 0}.warn{border-left-color:var(--warn)}.good{border-left-color:var(--accent2)}
+.flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}.node{padding:10px 14px;border:1px solid var(--line);background:var(--panel2);border-radius:9px}.arrow{color:var(--muted)}
+footer{border-top:1px solid var(--line);padding-top:24px;color:var(--muted);font-size:13px}
+@media(max-width:850px){nav{position:static;width:auto;height:auto}main{margin:0;padding:30px 20px}.grid,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav>
+<h1>Translation Harness</h1>
+<a href="#thesis">01 核心结论</a><a href="#architecture">02 推荐架构</a><a href="#quality">03 翻译质量 Eval</a><a href="#guardrails">04 Guardrails</a><a href="#loop">05 Loop 与 Repair</a><a href="#state">06 State 与 Context</a><a href="#implementation">07 最小实现</a><a href="#roadmap">08 实施顺序</a>
+</nav>
+<main>
+<section id="thesis">
+<div class="k">Translation Layer / Recommended Design</div>
+<h2>把 Translate Layer 从“大 Prompt”升级成 Translation Harness</h2>
+<p class="lead">目标不是堆更多 Agent，而是让 DeepSeek 在一个受控但不僵化的环境里：知道当前需要知道什么、能主动获取什么、知道什么结果不能接受，并在失败后有明确的修复路径。</p>
+<div class="card"><div class="grid3">
+<div><div class="k">Context</div><div class="big">知道什么</div><p>决定模型当前看到哪些信息。</p></div>
+<div><div class="k">Tools</div><div class="big">还能查什么</div><p>允许模型按需获取额外证据。</p></div>
+<div><div class="k">Guardrails</div><div class="big">不能违反什么</div><p>定义输入、输出、知识、状态与质量边界。</p></div>
+</div><div class="note good"><strong>Loop</strong> 把 Context、Tools、Guardrails 组合起来：翻译 → 验证 → 诊断 → 修复 → 再验证 → 通过后落盘。</div></div>
+<div class="note"><strong>关键纠正：</strong>Guardrail ≠ Hook。Hook 是让某些约束在生命周期节点自动执行的机制；Guardrail 本身是对 Agent 行动、状态和输出施加的边界。</div>
+</section>
+
+<section id="architecture">
+<h2>1. 推荐的 Translate Harness</h2>
+<p>第一版不要做成复杂的 Multi-Agent Team。Translation Agent 仍然可以由一个 DeepSeek 负责推理，外部能力由机械脚本、视觉模型和工具提供。</p>
+<pre>
+                    TRANSLATION HARNESS
+                           │
+        ┌──────────────────┼──────────────────┐
+        ↓                  ↓                  ↓
+     CONTEXT             TOOLS           GUARDRAILS
+        │                  │                  │
+  Touhou Canon        lookup_term       input schema
+  Work State          get_context       output schema
+  Recent Context      vision            glossary rules
+  Current Page                           state rules
+  OCR candidates                         quality gates
+        │                  │                  │
+        └──────────────────┼──────────────────┘
+                           ↓
+                         LOOP
+                           │
+                   Translate / Verify
+                           │
+                     ┌─────┴─────┐
+                     ↓           ↓
+                   FAIL         PASS
+                     │           │
+                  Diagnose      Persist
+                     │
+                   Repair
+                     │
+                  Re-verify
+</pre>
+<div class="card"><h3>职责边界</h3><table>
+<tr><th>组件</th><th>核心问题</th><th>不应该负责什么</th></tr>
+<tr><td><b>Context Builder</b></td><td>当前这一页需要知道什么？</td><td>不替模型完成翻译推理</td></tr>
+<tr><td><b>Tools</b></td><td>模型还可以主动查什么？</td><td>不把所有知识预先塞进 Prompt</td></tr>
+<tr><td><b>Translator</b></td><td>基于当前证据做翻译判断</td><td>不自行宣布“通过”</td></tr>
+<tr><td><b>Validators</b></td><td>机械上是否违反硬约束？</td><td>不判断所有主观语言质量</td></tr>
+<tr><td><b>Evaluator</b></td><td>译文质量到底有多好？</td><td>不直接修改结果</td></tr>
+<tr><td><b>Loop</b></td><td>失败后如何诊断、修复、重验？</td><td>不无限重试</td></tr>
+<tr><td><b>State</b></td><td>成功后留下哪些可复用信息？</td><td>不把一次推测直接升级成 Canon</td></tr>
+</table></div>
+</section>
+
+<section id="quality">
+<h2>2. 先解决“翻译到底好不好”：Eval</h2>
+<p>Translation Harness 的第一块地基不是 Hook，而是可量化的质量标准。不要让 Translator 自己说“我翻得不错”。把“好”拆成四个维度，并为每个维度定义评分与通过条件。</p>
+<div class="grid">
+<div class="card"><div class="k">Accuracy</div><h3>语义准确</h3><p>人物关系、动作、语气、否定、程度、隐含信息不能被改变。</p><p><span class="badge">参考集 + 语义评估</span></p></div>
+<div class="card"><div class="k">Fluency</div><h3>中文自然</h3><p>像中文漫画对白，而不是逐字日译中。</p><p><span class="badge">独立 LLM Judge / 人工抽检</span></p></div>
+<div class="card"><div class="k">Consistency</div><h3>全作一致</h3><p>人名、地名、作品术语、角色称呼、固定译法保持一致。</p><p><span class="badge">机械 Validator 最强</span></p></div>
+<div class="card"><div class="k">Readability</div><h3>漫画可读</h3><p>句长、断行、气泡空间、字号与画面关系合理。</p><p><span class="badge">Programmatic QA + Vision QA</span></p></div>
+</div>
+<h3>推荐的 Eval 结构</h3>
+<pre>
+Golden Set
+  ├── source_text
+  ├── reference_translation
+  ├── character / scene metadata
+  └── difficult_cases
+
+Candidate Translation
+        ↓
+┌──────────────────────────────────────┐
+│ Accuracy      1~5                     │
+│ Fluency       1~5                     │
+│ Consistency   pass/fail + violations │
+│ Readability   1~5                     │
+└──────────────────────────────────────┘
+        ↓
+Acceptance Policy
+        ↓
+PASS / FAIL
+</pre>
+<div class="note warn"><strong>不要把 BLEU 当核心指标。</strong>漫画翻译允许大量等价表达；字符串越像 Reference 不代表越自然。Reference-based 指标可以辅助，核心应是语义判断、Consistency 机械检查以及少量人工校准。</div>
+<div class="card"><h3>第一版建议</h3><p>先建立一个小而可靠的 Golden Set，而不是追求巨大数据集。优先覆盖：角色口癖、暧昧句、否定句、SFX、Touhou 固有名词、容易 OCR 混淆的词、跨页连续对白。</p></div>
+</section>
+
+<section id="guardrails">
+<h2>3. Guardrails：不是“一堆 Hook”，而是约束体系</h2>
+<p><strong>Guardrail = 限制 Agent 输入、行动、状态修改和输出的边界。</strong> Hook 只是其中一种执行方式。</p>
+<table>
+<tr><th>Guardrail 类型</th><th>漫画翻译例子</th><th>主要实现</th></tr>
+<tr><td><b>Input</b></td><td>page_id、text_id、坐标、原文候选必须存在</td><td>Schema / Validator</td></tr>
+<tr><td><b>Output</b></td><td>每个 text_id 必须有译文；不得凭空产生新的 text object</td><td>JSON Schema / Validator</td></tr>
+<tr><td><b>Knowledge</b></td><td>已确认的 豊姫 → 丰姬 不得静默改写</td><td>Glossary / State Policy</td></tr>
+<tr><td><b>Tool</b></td><td>OCR 冲突时可查 Vision；不是每句话都重复调用</td><td>Tool Contract / Policy</td></tr>
+<tr><td><b>State Mutation</b></td><td>“灵梦喜欢魔理沙”只能先作为 inferred/candidate，不能直接成为 canonical fact</td><td>Proposal → Validation → Commit</td></tr>
+<tr><td><b>Quality</b></td><td>Consistency 违规或语义分低于阈值不得通过</td><td>Eval + Acceptance Policy</td></tr>
+</table>
+<h3>Soft / Hard / Lifecycle 三层</h3>
+<div class="grid3">
+<div class="card"><div class="k">Soft</div><h3>告诉模型应该怎么做</h3><p>Prompt / Context：保持角色语气、优先利用上下文、不要过度解释。</p></div>
+<div class="card"><div class="k">Hard</div><h3>违反就 FAIL</h3><p>Schema、Glossary Validator、Coverage Check、State Mutation Rules。</p></div>
+<div class="card"><div class="k">Lifecycle</div><h3>不能跳过检查</h3><p>Hook / Script：进入 Translate 前检查输入，完成后强制跑 Validator 与 Eval。</p></div>
+</div>
+<div class="note good"><strong>一句话：</strong>Prompt 是“应该”；Guardrail 是“不能”；Hook 是“在什么时候自动执行这个约束”。</div>
+<h3>Translate Layer 真正需要的 Hook 很少</h3>
+<table><tr><th>Lifecycle</th><th>检查</th></tr>
+<tr><td><code>pre-translate</code></td><td>输入 Schema、page/text IDs、OCR candidates、State 文件完整性</td></tr>
+<tr><td><code>post-translate</code></td><td>输出 Schema、覆盖率、Glossary violations、State update schema</td></tr>
+<tr><td><code>on-failure</code></td><td>触发 repair/retry，并记录失败原因</td></tr></table>
+<p>其他规则直接写成 Validator / Test，不需要为了“看起来像 Harness”而全部 Hook 化。</p>
+</section>
+
+<section id="loop">
+<h2>4. Loop：翻译不是一次调用，而是受约束的验证—修复循环</h2>
+<pre>
+Build Context
+      ↓
+Translate
+      ↓
+Deterministic Validators
+      ↓
+Independent Evaluator
+      ↓
+   PASS?
+   /   \
+ NO     YES
+ │       │
+Diagnose Persist
+ │       │
+Repair  Update State
+ │
+Re-translate / Re-verify
+ │
+ └──────────────→ PASS
+</pre>
+<div class="card"><h3>失败必须有原因，而不是“再来一次”</h3><table>
+<tr><th>Failure</th><th>诊断</th><th>Repair</th></tr>
+<tr><td>Glossary violation</td><td>术语不一致</td><td>锁定 canonical term 后重译</td></tr>
+<tr><td>Missing text_id</td><td>输出覆盖不完整</td><td>补齐遗漏项</td></tr>
+<tr><td>Semantic score low</td><td>意义发生偏移</td><td>重新读取 source/context/vision 后重译</td></tr>
+<tr><td>Fluency low</td><td>机器翻译腔</td><td>保留语义约束，重写中文表达</td></tr>
+<tr><td>Character voice low</td><td>角色口吻不符</td><td>检索该角色 recent examples 后重译</td></tr>
+</table></div>
+<div class="note warn"><strong>设置 retry budget。</strong>例如同一 text/page 最多自动修复 2~3 次；仍失败则标记为 <code>needs_review</code>，不要无限循环。</div>
+<div class="grid"><div class="card"><div class="k">Eval</div><div class="big">“有多好？”</div><p>输出 Accuracy / Fluency / Readability 等分数或诊断。</p></div>
+<div class="card"><div class="k">Guardrail</div><div class="big">“能不能通过？”</div><p>把评估结果转换成明确的 acceptance policy：低于阈值、违反硬规则 → FAIL。</p></div></div>
+</section>
+
+<section id="state">
+<h2>5. Context 与 State：让 Agent 动态探索，而不是塞一大坨 Prompt</h2>
+<p>Context 的目的不是把整本漫画全部注入 DeepSeek，而是提供一个<strong>当前决策所需的最小上下文</strong>，并允许 Agent 通过 Tools 主动扩展观察范围。</p>
+<pre>
+                 Current Page
+                      │
+                      ↓
+               Context Builder
+                      │
+       ┌──────────────┼──────────────┐
+       ↓              ↓              ↓
+  Current Text    Recent Context   Work State
+       │              │              │
+       └──────────────┼──────────────┘
+                      ↓
+                  DeepSeek
+                      │
+             “我还缺什么信息？”
+                      │
+                ┌─────┴─────┐
+                ↓           ↓
+          lookup_term     vision
+                │           │
+                └─────┬─────┘
+                      ↓
+                Better Context
+                      ↓
+                  Translate
+</pre>
+<div class="card"><h3>State 不应该只有“事实”，而应该带置信度</h3>
+<pre>
+fact
+├── canonical       已确认事实
+├── observed        直接观察到
+├── inferred        模型推断
+└── candidate       待确认
+
+每个 State Update：
+subject
+predicate
+object
+status
+evidence
+source_page
+confidence
+</pre></div>
+<p>这样可以允许关系、称呼、角色身份、作品内设定随剧情发展而变化，而不会因为一次推断污染整个 Work State。</p>
+</section>
+
+<section id="implementation">
+<h2>6. 第一版代码结构：够用，不复杂化</h2>
+<pre>
+translate/
+├── context_builder.py
+├── translator.py
+├── tools.py
+├── validators.py
+├── evaluator.py
+├── loop.py
+└── state.py
+
+eval/
+├── golden_set.jsonl
+├── evaluate_translation.py
+└── reports/
+
+policies/
+├── glossary.json
+├── acceptance.yaml
+└── tool_policy.yaml
+</pre>
+<div class="card"><h3>最小运行接口</h3>
+<pre>
+result = translation_loop.run(page)
+
+# 内部：
+context = context_builder.build(page, state)
+draft = translator.translate(context, tools)
+validation = validators.run(draft, state)
+evaluation = evaluator.run(page, draft, context)
+
+if not acceptance_policy.pass_(validation, evaluation):
+    draft = repair(draft, validation, evaluation)
+    # bounded retry
+
+if passed:
+    state.commit(draft.state_updates)
+    return final_translation
+else:
+    return needs_review
+</pre></div>
+<h3>第一版不要做的事情</h3>
+<ul><li>不要建立 Planner / Translator / Reviewer / Researcher 四五个 Agent Team。</li><li>不要把所有 Guardrail 都实现成 Hook。</li><li>不要让 DeepSeek 自己修改 canonical knowledge。</li><li>不要用 BLEU 一个数字代表漫画翻译质量。</li><li>不要让模型自己决定“我已经验收通过”。</li><li>不要无限 Repair Loop。</li></ul>
+</section>
+
+<section id="roadmap">
+<h2>7. 建议实施顺序</h2>
+<div class="flow"><div class="node">① Golden Set</div><div class="arrow">→</div><div class="node">② Validators</div><div class="arrow">→</div><div class="node">③ Evaluator</div><div class="arrow">→</div><div class="node">④ Context Builder</div><div class="arrow">→</div><div class="node">⑤ Tools</div><div class="arrow">→</div><div class="node">⑥ Repair Loop</div><div class="arrow">→</div><div class="node">⑦ State Commit</div></div>
+<div class="card">
+<h3>Phase 1 — 先让“好坏”可测</h3><p>建立 Golden Set + 四维评分标准 + Acceptance Policy。没有这个，后面的 Harness 只能凭感觉优化。</p>
+<h3>Phase 2 — 先机械约束，再让模型发挥</h3><p>Schema、Coverage、Glossary、State Mutation、Output Validation。</p>
+<h3>Phase 3 — 让模型拥有按需探索能力</h3><p>Context Builder + lookup tools + Vision tool。默认给最小上下文，模型发现缺信息再查。</p>
+<h3>Phase 4 — 把失败变成 Repair Loop</h3><p>Validator/Evaluator 给出结构化 failure reason，DeepSeek 根据原因修复，限制 retry budget。</p>
+<h3>Phase 5 — 成功后才更新 State</h3><p>把 confirmed / observed / inferred / candidate 分层；只有符合规则的更新才能落盘。</p>
+</div>
+<div class="note good"><strong>最终目标：</strong>不是把 DeepSeek 管得越来越死，而是把“必须正确的部分”机械化，把“需要理解和判断的部分”留给模型。<br><strong>Mechanical where possible, agentic where necessary.</strong></div>
+<footer><strong>Translation Harness v1 — Design Summary</strong><br>适用于当前 Touhou Doujin Manga Translation 项目。核心结构：Context · Tools · Guardrails · Loop；外围由 Eval、State 和 Lifecycle Hooks 支撑。</footer>
+</section>
+</main>
+</body>
+</html>

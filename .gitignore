@@ -1,0 +1,28 @@
+# ============ 仓库根 = E:\manga translator agent ============
+# 本文件覆盖"父目录工作区"资产；amta/ 内部的忽略规则见 amta/.gitignore
+
+# ---- 密钥（绝不入库）----
+.env
+
+# ---- 会话记忆 / 工具缓存 / 运行时状态 ----
+.remember/
+.agent-teams/
+.firecrawl/
+.pytest_cache/
+.ruff_cache/
+
+# ---- worktree（嵌套仓库，不入库）----
+amta-cleanup-wt/
+
+# ---- 迁移期备份 / 临时验收脚本 ----
+_relocation_backup/
+_verify_relocation.ps1
+
+# ---- 一次性模板 ----
+teach-skill.zip
+
+# ---- 调研/参考的重资产（第三方克隆 / 探针产物，可再生成）----
+research/koharu-upstream/
+research/08-ocr-vlm-audit-probe/
+reference/_vendor/
+reference/other artifacts/

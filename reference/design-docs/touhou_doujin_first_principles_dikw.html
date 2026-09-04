@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Touhou Doujin Manga Translation — First Principles & DIKW</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#20242a;--muted:#68717c;--line:#dce1e7;--blue:#2f6feb;--bluebg:#edf3ff;--green:#18834b;--greenbg:#edf8f1;--orange:#a66b00;--orangebg:#fff5df}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.75 Inter,"Segoe UI","Microsoft YaHei",Arial,sans-serif}nav{position:sticky;top:0;z-index:10;background:#fffffff2;backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:7px;overflow:auto}nav button{border:1px solid var(--line);background:#fff;color:var(--text);padding:7px 11px;border-radius:8px;white-space:nowrap;cursor:pointer}nav button.active{background:var(--text);color:#fff}main{max-width:1140px;margin:auto;padding:38px 22px 72px}.page{display:none}.page.active{display:block}h1{font-size:42px;line-height:1.15;margin:0 0 14px}h2{font-size:30px;line-height:1.25;margin:0 0 18px}h3{margin:22px 0 8px}.lead{font-size:19px;color:#4c555f}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:21px;margin:15px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}@media(max-width:760px){.grid{grid-template-columns:1fr}h1{font-size:32px}}.callout{padding:15px 18px;background:var(--bluebg);border-left:4px solid var(--blue);border-radius:0 9px 9px 0;margin:18px 0}.good{background:var(--greenbg);border-left-color:var(--green)}.warn{background:var(--orangebg);border-left-color:var(--orange)}table{width:100%;border-collapse:collapse;background:#fff}th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{background:#f0f2f5}pre{background:#171a1f;color:#edf0f3;padding:16px;border-radius:10px;overflow:auto;font-size:13px;line-height:1.6}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.small{font-size:13px;color:var(--muted)}ul,ol{padding-left:22px}
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<main>
+
+<section class="page" data-title="结论"><h1>Touhou Doujin Manga Translation</h1><p class="lead">从第一性原理与 DIKW 出发，把“通用漫画翻译器”收缩成一个更同质化、更可验证的 Touhou Project 同人志翻译系统。</p><div class="callout good"><b>核心结论：</b>不是做一个无限泛化的漫画 Memory，而是把 <b>Touhou Canon Knowledge + 当前 Doujin Work State + Current Evidence</b> 组合成一个持续更新、可修正的翻译上下文。</div><div class="grid"><div class="card"><h3>机械层</h3><p>Text Detection、OCR Ensemble、OCR Arbitration、Segmentation、Inpainting、Typesetting、Programmatic QA。</p></div><div class="card"><h3>Agent 层</h3><p>DeepSeek 负责“现在知道什么、还缺什么、应该看什么、相信什么、怎么翻译、状态怎么更新”。</p></div></div></section>
+
+<section class="page" data-title="为什么缩域"><h2>1. 为什么从“通用漫画”缩到“同人志”</h2><div class="card"><h3>商业连载</h3><ul><li>长期连续</li><li>几十到几百话</li><li>大量角色与关系</li><li>剧情状态长期变化</li><li>早期信息可能长期影响后续翻译</li></ul></div><div class="card"><h3>同人志</h3><ul><li>通常更短、更局部</li><li>角色集合更小</li><li>常围绕一个冲突、关系或笑点</li><li>读者往往已经知道原作世界</li><li>作品自己的“新世界状态”通常比长篇商业连载简单</li></ul></div><div class="callout">通用漫画更需要完整世界模型；Doujinshi 可以优先研究“共享 IP 先验 + 当前本子状态”。</div></section>
+
+<section class="page" data-title="Touhou优势"><h2>2. 为什么 Touhou 又是一个特别好的实验场</h2><p>Touhou 的特殊性不是“它简单”，而是拥有大量高复用的共享语义知识。</p><pre>Touhou Knowledge
+├── Characters
+├── Locations
+├── Organizations / Groups
+├── Terms
+├── Canon relationships
+└── Common speech characteristics</pre><p>东方同人志往往不需要从零解释“霊夢是谁”“紅魔館是什么”。因此 Agent 可以从强先验状态开始，而不是每一本都从空白世界开始。</p><div class="callout good"><b>但是：</b>Canon Knowledge 只是 prior，不是当前作品的绝对真相。</div></section>
+
+<section class="page" data-title="Canon与Doujin"><h2>3. 最关键：Canon ≠ 当前 Doujin 的 Truth</h2><pre>Touhou Canon Knowledge
+        ↓
+      Prior
+        ↓
+Current Doujin Evidence
+        ↓
+     Work State
+        ↓
+Translation Decision</pre><p>同人志可能改变人物关系、语气、性格，甚至采用 IF / parody / AU。</p><div class="callout warn"><b>优先级建议：</b><br>当前作品直接证据 ＞ 当前 Work State ＞ Touhou Canon Prior ＞ LLM 单纯猜测。</div></section>
+
+<section class="page" data-title="DIKW-D"><h2>4. DIKW 第一层：Data</h2><p>最底层是漫画实际产生的数据。</p><pre>Raw image
+ ↓
+Text detection boxes
+ ↓
+OCR candidates
+ ↓
+Coordinates
+ ↓
+Page / region metadata
+ ↓
+Visual evidence</pre><p>你当前的 Text Detection、三路 OCR、OCR Arbitration 本质上属于 Data acquisition / normalization。</p><div class="callout">这一层应该尽量机械化，因为目标不是理解故事，而是可靠取得证据。</div></section>
+
+<section class="page" data-title="DIKW-I"><h2>5. DIKW 第二层：Information</h2><p>把 Data 组织成“当前页面发生了什么”。</p><pre>{
+  "speaker": "霊夢",
+  "target": "魔理沙",
+  "text": "……",
+  "type": "dialogue",
+  "page": 17,
+  "region": "r08"
+}</pre><p>这一层关心：谁说了什么、谁和谁同场、文本类型、空间关系和阅读顺序。</p></section>
+
+<section class="page" data-title="DIKW-K"><h2>6. DIKW 第三层：Knowledge</h2><div class="grid"><div class="card"><h3>Touhou Canon Knowledge</h3><p>长期稳定的 franchise knowledge。</p></div><div class="card"><h3>Current Work State</h3><p>这一本 Doujinshi 已经建立的角色、术语、关系和设定。</p></div></div><pre>Knowledge
+├── Canon Prior
+└── Work State
+    ├── confirmed characters
+    ├── canonical terms in this work
+    ├── current relationships
+    ├── current scene
+    └── established local facts</pre><p>两者不能混成一个表，否则同人作品的作者自定义会被“原作知识”压回去。</p></section>
+
+<section class="page" data-title="DIKW-W"><h2>7. DIKW 第四层：Wisdom</h2><p>在这个系统里，Wisdom 不是“知道更多”，而是：</p><div class="callout good"><b>知道什么时候应该相信什么，以及还缺什么证据。</b></div><pre>Canon says:
+Reimu is usually casual.
+
+Current doujin:
+Reimu suddenly speaks very formally.
+
+Weak model:
+“Reimu should be casual.”
+
+Better Agent:
+“当前作品表现可能是有意的人物状态变化。”
+↓
+use current evidence
+↓
+translate accordingly</pre><p>Wisdom = 证据优先级 + 状态判断 + 工具选择。</p></section>
+
+<section class="page" data-title="状态模型"><h2>8. 不需要大型 Story Graph：先做 Work State</h2><pre>work_state.json
+├── characters
+├── terms
+├── relationships
+├── current_scene
+├── recent_context
+└── open_questions</pre><p>第一版不需要完整 Entity Graph、复杂时间线、事件图谱或独立 Memory Service。</p><div class="callout good">目标是让状态随着作品推进自然增长，而不是提前构建一个“完美世界模型”。</div></section>
+
+<section class="page" data-title="动态发现"><h2>9. Dynamic Discovery：不要一次性把所有知识塞给模型</h2><pre>Unknown
+  ↓
+Candidate
+  ↓
+Observed again
+  ↓
+Confirmed
+  ↓
+Refined
+  ↓
+Possibly contradicted
+  ↓
+Revised</pre><div class="grid"><div class="card"><h3>角色</h3><p>第一次遇见可能只有视觉身份；出现名字后建立 canonical entity。</p></div><div class="card"><h3>术语</h3><p>第一次出现只是普通词；反复出现并成为世界观核心后才进入 glossary。</p></div><div class="card"><h3>关系</h3><p>从当前证据推断，而不是假设永久不变。</p></div><div class="card"><h3>场景</h3><p>随着页面推进持续更新，而不是开局定义完整剧情。</p></div></div></section>
+
+<section class="page" data-title="Evidence"><h2>10. Evidence Tracking：为什么要知道“我为什么这么认为”</h2><p>Story State 里的信息并不是同一种“真”。</p><table><tr><th>状态</th><th>例子</th><th>意义</th></tr><tr><td>Confirmed</td><td>页面明确写出“綿月豊姫”</td><td>强事实</td></tr><tr><td>Inferred</td><td>根据语气推测某角色正在怀疑另一角色</td><td>模型推断</td></tr><tr><td>Candidate</td><td>暂时无法确认身份</td><td>等待后续证据</td></tr></table><pre>{
+  "fact": "豊姫 is 永琳's disciple",
+  "status": "confirmed",
+  "source": ["page_4:text_13"]
+}
+
+{
+  "fact": "豊姫 distrusts 永琳",
+  "status": "inferred",
+  "confidence": 0.72,
+  "source": ["page_21:text_07"]
+}</pre><div class="callout">Evidence Tracking 不是给每句话加脚注，而是让 Agent 知道：哪些是证据确认的事实，哪些只是自己的当前信念。</div></section>
+
+<section class="page" data-title="状态变化"><h2>11. Relationship / Identity 都允许变化</h2><div class="card"><h3>Identity</h3><pre>unknown person
+   ↓
+candidate = 豊姫
+   ↓
+confirmed = 豊姫
+   ↓
+new evidence:
+“其实是伪装身份”
+   ↓
+同一 entity，更新 identity state</pre></div><div class="card"><h3>Relationship</h3><pre>friend
+  ↓
+suspicion
+  ↓
+conflict
+  ↓
+reconciliation</pre><p>关系变化会影响称呼、敬语、句尾、语气和措辞。</p></div></section>
+
+<section class="page" data-title="产品现实"><h2>12. 产品现实：用户不一定一次上传整本漫画</h2><table><tr><th>输入情况</th><th>产品模式</th></tr><tr><td>单页</td><td>Single-page mode：没有历史也可以运行。</td></tr><tr><td>连续几页</td><td>Incremental mode：逐步积累 Work State。</td></tr><tr><td>过几天继续</td><td>Resume mode：从持久 State 恢复。</td></tr><tr><td>补传旧页</td><td>Reconciliation mode：允许新证据修正旧状态。</td></tr><tr><td>乱序页</td><td>Out-of-order mode：依据 page identity，而不是上传顺序。</td></tr><tr><td>新作品</td><td>New-work mode：建立独立 Work State。</td></tr></table><div class="callout good"><b>完整漫画连续阅读</b>是增强能力，不是系统运行前提。</div></section>
+
+<section class="page" data-title="三层上下文"><h2>13. 最实用的上下文模型：三层就够</h2><pre>TOUHOU CANON
+    ↓
+Relevant Work State
+    ↓
+Current Evidence
+    ↓
+DeepSeek</pre><table><tr><th>层</th><th>内容</th></tr><tr><td>Touhou Canon</td><td>与当前人物/地点/术语相关的稳定先验。</td></tr><tr><td>Work State</td><td>当前本子已经确认或推断的局部状态。</td></tr><tr><td>Current Evidence</td><td>当前页 OCR、坐标、视觉 crop、最近对白。</td></tr></table><div class="callout">不是把整个 Touhou Wiki + 整本漫画一次性塞进 Prompt，而是只取当前任务需要的切片。</div></section>
+
+<section class="page" data-title="Vision Tool"><h2>14. Vision Model 的真正位置：Agent 的“眼睛”</h2><pre>Mechanical Vision
+→ 稳定完成 detector / OCR / image processing
+
+Agent Vision
+→ DeepSeek 按需调用
+→ 解决 semantic ambiguity</pre><div class="card"><h3>典型场景</h3><pre>OCR candidates:
+A = 豊姫
+B = 星姫
+C = 豊妃
+
+Work State:
+豊姫 = known character
+
+DeepSeek still uncertain
+        ↓
+Vision Tool
+        ↓
+inspect crop / page
+        ↓
+Arbitration</pre></div></section>
+
+<section class="page" data-title="核心Loop"><h2>15. 最底层的 Agent Loop</h2><pre>Current Request
+      ↓
+What do I already know?
+      ↓
+What do I need to know?
+      ↓
+Can I infer it?
+   /         \
+ YES          NO
+  ↓            ↓
+Act       Get evidence
+             ↓
+        Vision / tools
+             ↓
+         Update State
+             ↓
+             Act
+             ↓
+           Verify
+             ↓
+          Persist
+             ↓
+       Next Request</pre><div class="callout good"><b>这比“Memory 越大越好”更重要。</b> Agent 的核心能力是动态决定下一步需要什么信息。</div></section>
+
+<section class="page" data-title="完整Pipeline"><h2>16. 最终 Pipeline</h2><pre>RAW PAGE
+   │
+   ▼
+Text Detection
+   │
+   ├── OCR #1
+   ├── OCR #2
+   └── Qwen OCR
+   │
+   ▼
+OCR Arbitration
+   │
+   ▼
+════════════ AGENT TRANSLATION ════════════
+   │
+   │ DeepSeek
+   │  ├─ Touhou Canon retrieval
+   │  ├─ Work State retrieval
+   │  ├─ Recent Context
+   │  ├─ Vision Tool when necessary
+   │  ├─ Translation
+   │  └─ Work State update
+   │
+   ▼
+translation.json + updated state
+   │
+   ▼
+Segmentation / Mask
+   │
+   ▼
+Inpainting
+   │
+   ▼
+Typesetting
+   │
+   ▼
+Programmatic QA
+   │
+   ▼
+Vision QA
+   │
+   ▼
+Repair Loop</pre></section>
+
+<section class="page" data-title="OCR反向受益"><h2>17. Story State 还可以反过来帮助 OCR Arbitration</h2><pre>OCR A: 豊姫
+OCR B: 星姫
+OCR C: 豊妃
+
+Touhou Knowledge:
+綿月豊姫
+
+Work State:
+当前 speaker = 豊姫
+
+Vision crop:
+当前文字形状
+
+        ↓
+DeepSeek arbitration
+        ↓
+canonical source text</pre><div class="callout good">Story State 不只服务 Translation，它可以成为 OCR Arbitration 与 Translation 共用的语义状态层。</div></section>
+
+<section class="page" data-title="简化版存储"><h2>18. 第一版真正需要的文件</h2><pre>workspace/
+└── touhou_doujin_001/
+    ├── raw/
+    ├── artifacts/
+    │   ├── detection.json
+    │   ├── ocr_candidates.json
+    │   ├── canon_text.json
+    │   ├── translation.json
+    │   ├── mask.png
+    │   ├── cleaned.png
+    │   └── final.png
+    │
+    └── state/
+        ├── touhou_knowledge.json   # stable prior / curated
+        ├── work_state.json         # 当前本子状态
+        └── open_questions.json     # 尚未确定的信息
+</pre><div class="callout warn"><b>第一版不要做：</b>完整 Character DB、Relationship DB、Event Graph、Vector DB、Memory Service。</div></section>
+
+<section class="page" data-title="DIKW闭环"><h2>19. DIKW + Agent Loop 合并</h2><pre>D — Data
+图片 / OCR / coordinates / vision
+        ↓
+I — Information
+谁说了什么 / 当前场景 / spatial relations
+        ↓
+K — Knowledge
+Touhou Canon + Work State
+        ↓
+W — Wisdom
+当前应该相信什么？还缺什么证据？
+        ↓
+Translation Decision
+        ↓
+New Evidence
+        ↓
+Update Work State
+        ↺</pre><div class="callout good"><b>Wisdom 不是额外的数据库。</b>它是 Agent 在 Data、Information、Knowledge 与当前作品证据之间进行判断的能力。</div></section>
+
+<section class="page" data-title="MVP"><h2>20. MVP：把战线真正缩短</h2><p>第一版只验证：</p><ol><li>Touhou Canon Knowledge 能否减少基础设定注入。</li><li>Work State 能否逐页自动生长。</li><li>单页输入在没有历史时仍能翻译。</li><li>连续输入时翻译一致性是否提高。</li><li>补传旧页后系统是否能够修正错误状态。</li><li>OCR Arbitration 是否因为 Touhou / Work State 更可靠。</li></ol><div class="callout good">如果这些成立，你已经证明了真正的 Agentic 核心。之后再考虑更复杂的 entity resolution、relationship history、evidence graph。</div></section>
+
+<section class="page" data-title="最终定义"><h2>21. 最终定义</h2><div class="callout good"><b>你不是在做“一个更大的漫画翻译 Prompt”。</b></div><pre>Touhou Canon Knowledge
+        +
+Current Doujin Work State
+        +
+Current Page Evidence
+        ↓
+DeepSeek
+        ↓
+Decide what is known / unknown
+        ↓
+Retrieve / inspect / infer
+        ↓
+Translate
+        ↓
+Update Work State
+        ↓
+Next page / next user request</pre><p>表面上，这是一个 Touhou 同人志翻译器；从第一性原理看，它是在研究一个拥有强先验知识、面对不完整输入、能够持续构建局部世界状态，并根据新证据不断修正自身判断的长期 Agent。</p></section>
+
+<section class="page" data-title="设计底线"><h2>22. 当前设计底线</h2><table><tr><th>坚持</th><th>暂时不做</th></tr><tr><td>文件即状态</td><td>数据库化</td></tr><tr><td>脚本即工位</td><td>复杂 workflow engine</td></tr><tr><td>Touhou Canon 作为 prior</td><td>把 canon 当成当前漫画真相</td></tr><tr><td>Work State 渐进生长</td><td>预构建完整 Story Graph</td></tr><tr><td>Agent 按需看图</td><td>每一步都重新调用 Vision</td></tr><tr><td>单页可运行</td><td>要求用户一次上传整章</td></tr><tr><td>新证据可修正旧状态</td><td>把 Memory 当不可变事实</td></tr></table></section>
+
+</main>
+<script>
+const pages=[...document.querySelectorAll('.page')];
+const nav=document.getElementById('nav');
+pages.forEach((p,i)=>{const b=document.createElement('button');b.textContent=(i+1)+'. '+p.dataset.title;b.onclick=()=>{pages.forEach(x=>x.classList.remove('active'));p.classList.add('active');[...nav.children].forEach(x=>x.classList.remove('active'));b.classList.add('active');history.replaceState(null,'','#page-'+(i+1));window.scrollTo(0,0)};nav.appendChild(b)});
+let i=Math.max(0,Math.min(pages.length-1,parseInt((location.hash.match(/page-(\d+)/)||[])[1]||1,10)-1));nav.children[i].click();
+</script>
+</body>
+</html>

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detection Architecture Fix — Backward-Reasoning Engineering Guide</title>
+<style>
+:root{
+  --bg:#080c14;--panel:#0f172a;--panel2:#1e293b;--card:#172238;
+  --text:#e2e8f0;--muted:#94a3b8;--line:#334155;
+  --accent:#38bdf8;--accent2:#4ade80;--warn:#fbbf24;--danger:#f87171;--purple:#c084fc;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.65}
+nav{position:fixed;left:0;top:0;bottom:0;width:260px;background:#090e1a;border-right:1px solid var(--line);padding:24px 16px;overflow-y:auto}
+nav h1{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:0 0 4px}
+nav p{font-size:11px;color:var(--muted);margin:0 0 18px}
+nav a{display:block;color:var(--muted);text-decoration:none;padding:7px 10px;border-radius:6px;margin:2px 0;font-size:12.5px;transition:all .15s}
+nav a:hover{background:var(--panel2);color:var(--text)}
+main{margin-left:260px;max-width:1120px;padding:48px 50px 120px}
+section{margin-bottom:70px;scroll-margin-top:40px}
+h2{font-size:26px;line-height:1.3;margin:0 0 16px;color:#fff;border-bottom:1px solid var(--line);padding-bottom:10px}
+h3{font-size:18px;margin:24px 0 10px;color:var(--accent2)}
+h4{font-size:14.5px;margin:16px 0 6px;color:#cbd5e1}
+p{margin:10px 0;color:#cbd5e1}
+.lead{font-size:16px;color:#94a3b8;max-width:920px}
+.k{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700}
+.step-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-right:6px;background:var(--purple);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+code{font-family:var(--mono);color:#7dd3fc;background:#1e293b;padding:2px 5px;border-radius:4px;font-size:12.5px}
+pre{background:#030712;border:1px solid var(--line);padding:16px;border-radius:8px;overflow-x:auto;color:#e2e8f0;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+table{width:100%;border-collapse:collapse;margin:16px 0;background:var(--panel)}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:13px}
+th{color:#cbd5e1;background:var(--panel2);font-weight:600}
+.callout{padding:14px 18px;background:var(--panel2);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;margin:18px 0}
+.good{border-left-color:var(--accent2)}
+.warn{border-left-color:var(--warn)}
+.danger{border-left-color:var(--danger)}
+footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:12px}
+@media(max-width:900px){nav{position:static;width:auto}main{margin:0;padding:20px 14px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>Detection Fix Guide</h1>
+  <p>Backward-Reasoning Plan</p>
+  <a href="#backward-overview">00 逆向推导总览 (Backward Flow)</a>
+  <a href="#step5-target">Step 5: 最终产物与契约 (Target Artifact)</a>
+  <a href="#step4-acceptance">Step 4: 验收标准与断言 (Acceptance Criteria)</a>
+  <a href="#step3-clustering">Step 3: 聚类与阅读序 (Clustering Algorithm)</a>
+  <a href="#step2-fusion">Step 2: 分层包含度融合 (Hierarchical IoA)</a>
+  <a href="#step1-ingestion">Step 1: 模型选型与超参 (Ingestion & Conf)</a>
+  <a href="#implementation">07 生产级 Python 模块实现 (Code)</a>
+</nav>
+
+<main>
+
+<!-- SECTION 00 -->
+<section id="backward-overview">
+  <div class="k">Methodology</div>
+  <h2>00 逆向推导总览：从目标结果倒推实现逻辑</h2>
+  <p class="lead">不要从“怎么跑4个模型”开始写代码。必须从下游 Stage 2 (OCR) 和 Stage 3 (Translate) <strong>必须接收的完美数据形态</strong> 倒推，自底向上构建过滤与融合层。</p>
+
+  <div class="card">
+    <pre>
+【逆向推导链条 (Backward-Reasoning Chain)】
+
+[Step 5: 最终目标] ── 产出纯净的 DetectionArtifact (无重叠切片、段落级完整合并、高召回)
+       ▲
+       │ 倒推：如何保证下游不被伪检噪点干扰？
+[Step 4: 验收门禁] ── 设定召回率 ≥ 0.98、单气泡切片数 == 1、OCR 空字符看门狗剔除规则
+       ▲
+       │ 倒推：如何让多行无框独白成为单句？
+[Step 3: 语义组装] ── 日漫竖排空间邻近聚类 (Δx < 1.2W, Y_overlap > 50%, 从右向左排序)
+       ▲
+       │ 倒推：如何消除气泡大框与内部细长文字条的异构冲突？
+[Step 2: 结构融合] ── 分层包含度融合 (Hierarchical Containment Fusion, IoA ≥ 0.75)
+       ▲
+       │ 倒推：如何彻底捞出 25x80px 的极小手写字 (如「かっこいい」) 与细弱 SFX？
+[Step 1: 模型输入] ── 4 检测器并集 + 动态 2048px 高分输入 + 0.25 宽置信度门限</pre>
+  </div>
+</section>
+
+<!-- STEP 5 -->
+<section id="step5-target">
+  <div class="k">Step 5 (End State)</div>
+  <h2><span class="step-tag">Step 5</span> 目标产物契约：下游到底需要什么？</h2>
+  <p>下游 Stage 2 (OCR) 和 Stage 3 (Translate) <strong>绝对不能接收破碎的单行或重复切片</strong>。输出的 <code>DetectionArtifact</code> 必须满足以下 Schema：</p>
+
+  <div class="card">
+    <h3>`01_detection/page_xxx_det.json` 强类型规范</h3>
+    <pre>{
+  "page_id": "page_012",
+  "image_meta": { "width": 1654, "height": 2339 },
+  "regions": [
+    {
+      "region_id": "r_001",
+      "category": "overlay_text",        // "dialogue_bubble" | "overlay_text" | "sfx"
+      "bbox": [88, 120, 410, 580],      // [x_min, y_min, x_max, y_max] 聚类后的整体大框
+      "polygon": [[88, 120], [410, 120], [410, 580], [88, 580]],
+      "reading_direction": "vertical",   // "vertical" | "horizontal"
+      "sfx_triage": {
+        "action": "inpaint_and_render",  // "inpaint_and_render" | "side_annotation" | "skip"
+        "decided_by": "heuristic_rule"
+      },
+      "child_lines": [                   // 内部包含的具体文字行 (从右向左已严格排好序)
+        {"bbox": [330, 120, 410, 560], "order": 0},  // 最右侧第一行:「お、落ち着け…」
+        {"bbox": [210, 130, 290, 580], "order": 1},  // 中间第二行:「別に八意様が…」
+        {"bbox": [88, 125, 170, 570],  "order": 2}   // 最左侧第三行:「研究で行き詰った…」
+      ]
+    },
+    {
+      "region_id": "r_002",
+      "category": "overlay_text",        // 极小手写碎碎念 (如「かっこいい」)
+      "bbox": [450, 810, 485, 895],
+      "polygon": [[450, 810], [485, 810], [485, 895], [450, 895]],
+      "reading_direction": "vertical",
+      "sfx_triage": { "action": "inpaint_and_render", "decided_by": "heuristic_rule" },
+      "child_lines": []
+    }
+  ]
+}</pre>
+  </div>
+</section>
+
+<!-- STEP 4 -->
+<section id="step4-acceptance">
+  <div class="k">Step 4 (Verification)</div>
+  <h2><span class="step-tag">Step 4</span> 验收门禁与断言 (Acceptance Criteria)</h2>
+  <p>在代码实现完成后，使用以下 4 条硬性断言（Assertions）进行单元测试与流水线验证：</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="k">Gate 1: 召回率底线</div>
+      <h3>Recall ≥ 0.98</h3>
+      <p>在 1~10 页基准测试集上，目标文本检出数必须恢复至 <strong>≥ 99 / 101</strong>。单页检出框数必须恢复至 8~15 个，严禁回退至 3~4 个。</p>
+    </div>
+    <div class="card">
+      <div class="k">Gate 2: 零重复切片</div>
+      <h3>Zero Fragment Duplicates</h3>
+      <p>断言：气泡外部大框与其内部包含的单行，严禁在 <code>regions</code> 顶层同时存在。大框必须完整吸收小条。</p>
+    </div>
+    <div class="card">
+      <div class="k">Gate 3: 极小字感知</div>
+      <h3>Tiny Text Captured</h3>
+      <p>断言：样本页第 3 格帽子旁的 <code>かっこいい</code>（面积 &lt; 3000px²，手写体）必须被成功生成独立检测框。</p>
+    </div>
+    <div class="card">
+      <div class="k">Gate 4: OCR 伪检自净</div>
+      <h3>OCR Self-Pruning</h3>
+      <p>断言：因放宽检测门限产生的网点虚警，经 Manga-OCR 识别后若为空字符串或连续乱码，必须在进入 Stage 3 前被静默剔除。</p>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 3 -->
+<section id="step3-clustering">
+  <div class="k">Step 3 (Assembly)</div>
+  <h2><span class="step-tag">Step 3</span> 语义组装：竖排多行空间聚类算法</h2>
+  <p>为了让没有气泡包裹的长篇独白（如左上角压脸字）不被切成 3 句孤立台词，必须对孤立文字行执行**日漫空间聚类**：</p>
+
+  <div class="card">
+    <h3>聚类数学约束与算法逻辑</h3>
+    <pre>
+给定两个孤立竖排文本框 Box_A (x1, y1, x2, y2) 与 Box_B (x3, y3, x4, y4)：
+1. 竖排判定: (y2 - y1) > (x2 - x1) 且 (y4 - y3) > (x4 - x3)
+2. 水平间距: Δx = min(|x1 - x4|, |x3 - x2|) ≤ max(width_A, width_B) * 1.2
+3. 垂直投影重叠率: Overlap_Y = max(0, min(y2, y4) - max(y1, y3)) / min(h_A, h_B) ≥ 0.50
+4. 满足以上条件则合并为同一段落，且严格按 x_center 从大到小 (从右到左) 排序。</pre>
+  </div>
+</section>
+
+<!-- STEP 2 -->
+<section id="step2-fusion">
+  <div class="k">Step 2 (Fusion)</div>
+  <h2><span class="step-tag">Step 2</span> 结构融合：分层包含度挂靠 (IoA Fusion)</h2>
+  <p>彻底解决“气泡检测器输出大块、文字检测器输出细长条”导致传统 NMS 彻底失效的问题：</p>
+
+  <div class="card">
+    <h3>包含度 (IoA) 计算公式与归并决策</h3>
+    $$\text{IoA}(\text{Line}, \text{Container}) = \frac{\text{Area}(\text{Line} \cap \text{Container})}{\text{Area}(\text{Line})}$$
+
+    <table>
+      <thead>
+        <tr>
+          <th>条件分支</th>
+          <th>判定结果</th>
+          <th>动作 (Action)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>$\text{IoA} \ge 0.75$</td>
+          <td>文字行完全落在气泡内部</td>
+          <td><strong>气泡吞掉该文字行</strong>：将文字行挂载为气泡的 <code>child_lines</code>，不产生顶层独立框。</td>
+        </tr>
+        <tr>
+          <td>$\text{IoA} < 0.75$ 且无相交容器</td>
+          <td>孤立文字行 (图上字 / SFX)</td>
+          <td><strong>保留为独立孤立行</strong>：送入 Step 3 参与空间邻近聚类。</td>
+        </tr>
+        <tr>
+          <td>两个容器重叠 ($\text{IoU} \ge 0.6$)</td>
+          <td>同属气泡检测器的冗余框</td>
+          <td>标准 NMS 保留置信度更高的单一气泡容器。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- STEP 1 -->
+<section id="step1-ingestion">
+  <div class="k">Step 1 (Ingestion)</div>
+  <h2><span class="step-tag">Step 1</span> 模型输入超参：2048px 高分与 0.25 宽门限</h2>
+  <p>这是从源头保证 <code>かっこいい</code> 和细弱拟音词不被漏检的物理基础：</p>
+
+  <div class="card">
+    <h3>4 个检测器在 ONNX Runtime 下的执行配置</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>检测器模型</th>
+          <th>角色分工</th>
+          <th>输入分辨率 (Dynamic Size)</th>
+          <th>置信度门限 (conf_thresh)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>comic-text-bubble-detector</code></td>
+          <td>容器层 (气泡轮廓)</td>
+          <td>长边缩放至 <strong>1600px</strong></td>
+          <td><code>0.40</code></td>
+        </tr>
+        <tr>
+          <td><code>pp-doclayout-v3</code></td>
+          <td>容器层 (段落外框)</td>
+          <td>长边缩放至 <strong>1600px</strong></td>
+          <td><code>0.35</code></td>
+        </tr>
+        <tr>
+          <td><code>comic-text-detector (CTD)</code></td>
+          <td>文字层 (竖排行/手写字)</td>
+          <td>长边缩放至 <strong>2048px</strong> (保护小字)</td>
+          <td><strong><code>0.25</code></strong> (极限召回)</td>
+        </tr>
+        <tr>
+          <td><code>anime-text</code></td>
+          <td>文字层 (复杂背景字)</td>
+          <td>长边缩放至 <strong>2048px</strong></td>
+          <td><strong><code>0.25</code></strong> (极限召回)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- IMPLEMENTATION -->
+<section id="implementation">
+  <div class="k">Executable Implementation</div>
+  <h2>07 生产级 Python 模块实现（可直接给本地 AI 落地）</h2>
+  <p>以下是经过逆向推导完整闭环的 <code>stage1_detect.py</code> 核心代码实现：</p>
+
+  <pre># pipeline/stage1_detect.py
+import json
+import cv2
+import numpy as np
+from typing import List, Dict, Any
+
+def calculate_ioa(box_child: List[int], box_parent: List[int]) -> float:
+    """计算子框与父框的面积包含率 Intersection-over-Area(Child)"""
+    x1 = max(box_child[0], box_parent[0])
+    y1 = max(box_child[1], box_parent[1])
+    x2 = min(box_child[2], box_parent[2])
+    y2 = min(box_child[3], box_parent[3])
+    
+    inter_w = max(0, x2 - x1)
+    inter_h = max(0, y2 - y1)
+    inter_area = inter_w * inter_h
+    
+    child_area = (box_child[2] - box_child[0]) * (box_child[3] - box_child[1])
+    if child_area == 0:
+        return 0.0
+    return inter_area / child_area
+
+def cluster_vertical_orphan_lines(orphan_lines: List[Dict[str, Any]], max_dx_ratio=1.2, min_y_overlap=0.5) -> List[Dict[str, Any]]:
+    """对无气泡包裹的竖排文字行进行空间邻近聚类 (日漫从右向左序)"""
+    if not orphan_lines:
+        return []
+    
+    # 按照 X 坐标降序排序 (日漫从右向左读)
+    sorted_lines = sorted(orphan_lines, key=lambda b: (b['bbox'][0] + b['bbox'][2]) / 2, reverse=True)
+    clusters = []
+    
+    for line in sorted_lines:
+        bx1, by1, bx2, by2 = line['bbox']
+        bw = bx2 - bx1
+        bh = by2 - by1
+        
+        matched_cluster = None
+        for cluster in clusters:
+            cx1, cy1, cx2, cy2 = cluster['bbox']
+            # 计算水平间距
+            dx = abs(bx1 - cx2) if bx1 > cx2 else abs(cx1 - bx2)
+            # 计算垂直重叠
+            y_overlap = max(0, min(by2, cy2) - max(by1, cy1)) / max(1, min(bh, cy2 - cy1))
+            
+            if dx <= bw * max_dx_ratio and y_overlap >= min_y_overlap:
+                matched_cluster = cluster
+                break
+        
+        if matched_cluster:
+            # 扩展集群 BBox
+            matched_cluster['bbox'] = [
+                min(matched_cluster['bbox'][0], bx1),
+                min(matched_cluster['bbox'][1], by1),
+                max(matched_cluster['bbox'][2], bx2),
+                max(matched_cluster['bbox'][3], by2)
+            ]
+            matched_cluster['child_lines'].append(line)
+        else:
+            clusters.append({
+                'category': 'overlay_text',
+                'bbox': [bx1, by1, bx2, by2],
+                'reading_direction': 'vertical',
+                'child_lines': [line]
+            })
+            
+    return clusters
+
+def hierarchical_fusion(containers: List[Dict], text_lines: List[Dict], ioa_thresh=0.75) -> List[Dict]:
+    """分层包含度融合主入口"""
+    final_regions = []
+    unabsorbed_lines = []
+    
+    # 1. 遍历所有文本行，尝试挂靠到气泡容器
+    for line in text_lines:
+        absorbed = False
+        for container in containers:
+            if calculate_ioa(line['bbox'], container['bbox']) >= ioa_thresh:
+                if 'child_lines' not in container:
+                    container['child_lines'] = []
+                container['child_lines'].append(line)
+                absorbed = True
+                break
+        if not absorbed:
+            unabsorbed_lines.append(line)
+            
+    # 2. 已吸收子行的气泡直接作为 dialogue_bubble 区域
+    for container in containers:
+        if container.get('child_lines'):
+            # 内部行按从右向左排序
+            container['child_lines'].sort(key=lambda b: (b['bbox'][0] + b['bbox'][2]) / 2, reverse=True)
+            container['category'] = 'dialogue_bubble'
+            container['reading_direction'] = 'vertical'
+            final_regions.append(container)
+            
+    # 3. 未被吸收的孤立行进行日漫空间聚类
+    clustered_overlays = cluster_vertical_orphan_lines(unabsorbed_lines)
+    final_regions.extend(clustered_overlays)
+    
+    return final_regions
+
+def run_stage1_detect(page_id: str, image_path: str) -> Dict[str, Any]:
+    """Stage 1 调度函数"""
+    img = cv2.imread(image_path)
+    h, w = img.shape[:2]
+    
+    # Step 1: 以 2048px 高分与 0.25 宽门限运行 4 个 ONNX 检测器
+    # raw_containers = run_bubble_detectors(img, conf=0.35, size=1600)
+    # raw_lines = run_text_detectors(img, conf=0.25, size=2048)  # 能精准捞出「かっこいい」
+    
+    # Step 2: 分层融合与空间聚类
+    # final_regions = hierarchical_fusion(raw_containers, raw_lines, ioa_thresh=0.75)
+    
+    # Step 3: 输出规范 DetectionArtifact
+    artifact = {
+        "page_id": page_id,
+        "image_meta": {"width": w, "height": h},
+        "regions": [] # final_regions 带上 region_id 编号
+    }
+    return artifact</pre>
+</section>
+
+</main>
+
+<footer>
+  <p style="text-align:center">AMTA Manga Translation Pipeline — Detection Stage Architecture Fix Specification</p>
+</footer>
+
+</body>
+</html>

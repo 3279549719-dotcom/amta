@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Manga Translation Pipeline</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --text:#20242a; --muted:#69717d;
+  --line:#dfe3e8; --accent:#2f6fed; --soft:#edf3ff;
+  --good:#16834a; --warn:#a66b00; --bad:#b33a3a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"Segoe UI","Microsoft YaHei",Arial,sans-serif;line-height:1.7}
+nav{position:sticky;top:0;z-index:20;background:#ffffffee;backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;gap:10px;overflow:auto}
+nav button{border:1px solid var(--line);background:white;border-radius:8px;padding:7px 12px;white-space:nowrap;cursor:pointer;color:var(--text)}
+nav button.active{background:var(--text);color:white}
+main{max-width:1120px;margin:0 auto;padding:34px 22px 70px}
+.page{display:none}.page.active{display:block}
+h1{font-size:38px;line-height:1.2;margin:10px 0 14px}
+h2{font-size:28px;margin:0 0 18px}
+h3{font-size:20px;margin:26px 0 8px}
+.lead{font-size:18px;color:#424953;max-width:900px}
+.meta{color:var(--muted);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin:16px 0;box-shadow:0 2px 10px #00000006}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}h1{font-size:30px}}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--accent);font-size:13px;margin:2px 4px 2px 0}
+pre{background:#171a1f;color:#e9edf2;border-radius:12px;padding:18px;overflow:auto;font-size:13px;line-height:1.6}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:20px 0}
+.flow .node{background:white;border:1px solid #cfd5dd;border-radius:10px;padding:10px 13px;font-weight:600}
+.flow .arrow{color:var(--muted);font-weight:700}
+table{width:100%;border-collapse:collapse;background:white;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#f0f2f5}
+.callout{border-left:4px solid var(--accent);background:var(--soft);padding:14px 17px;border-radius:0 10px 10px 0;margin:18px 0}
+.good{border-left-color:var(--good);background:#edf8f2}.warn{border-left-color:var(--warn);background:#fff7e8}
+.small{font-size:14px}.center{text-align:center}
+.footer{margin-top:35px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+.kpi{font-size:27px;font-weight:700}.kpi-label{font-size:13px;color:var(--muted)}
+.metric{display:flex;gap:24px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<main>
+
+<section class="page active" data-title="总览">
+  <h1>Agentic Manga Translation Pipeline</h1>
+  <p class="lead">
+    一个面向日漫自动翻译的、以 DeepSeek/LLM 为“大脑”、以漫画 CV/OCR/Inpainting 模型为工具的自动化工作流。
+    核心目标不是制造一个“Multi-Agent Team”，而是把现成的专业模型编排成一个可验证、可重试的生产线。
+  </p>
+  <div class="callout">
+    <strong>核心结论：</strong>
+    这不是 Planner Agent + Coder Agent + Reviewer Agent 的多智能体组织。
+    更准确地说，是 <strong>一个具有视觉能力和工具调用能力的 LLM Agent</strong>，调用一组非 LLM 的专业模型完成漫画处理，再通过 QA 闭环决定是否重试。
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h3>LLM / Agent</h3>
+      <p>DeepSeek（也可以替换为其他 LLM）负责规划、上下文理解、翻译、决策、异常诊断和最终视觉验收。</p>
+      <span class="tag">Reasoning</span><span class="tag">Memory</span><span class="tag">Tool Calling</span><span class="tag">QA</span>
+    </div>
+    <div class="card">
+      <h3>专业模型 / Tools</h3>
+      <p>文字检测、OCR、气泡检测、文字分割、Inpainting 等模型负责确定性的视觉工作。它们不需要被包装成“Agent”。</p>
+      <span class="tag">CV</span><span class="tag">OCR</span><span class="tag">Segmentation</span><span class="tag">Image Restoration</span>
+    </div>
+  </div>
+  <h2>最终认可的 Workflow</h2>
+  <div class="flow">
+    <div class="node">CV 检测</div><div class="arrow">→</div>
+    <div class="node">专用 OCR</div><div class="arrow">→</div>
+    <div class="node">Story Memory</div><div class="arrow">→</div>
+    <div class="node">Scene-level Translation</div><div class="arrow">→</div>
+    <div class="node">Segmentation Mask</div><div class="arrow">→</div>
+    <div class="node">专用 Inpainting</div><div class="arrow">→</div>
+    <div class="node">Typesetting</div><div class="arrow">→</div>
+    <div class="node">Programmatic QA</div><div class="arrow">→</div>
+    <div class="node">Vision QA</div><div class="arrow">→</div>
+    <div class="node">自动 Repair Loop</div>
+  </div>
+</section>
+
+<section class="page" data-title="为什么不是 Multi-Agent">
+  <h2>1. 为什么这不是传统意义上的 Multi-Agent Team</h2>
+  <div class="card">
+    <p>传统 Multi-Agent Team 更像：</p>
+<pre>Planner Agent
+    ↓
+Coder Agent
+    ↓
+Research Agent
+    ↓
+Reviewer Agent
+    ↓
+Executor Agent</pre>
+    <p>每个节点本身都是 LLM Agent，拥有自己的推理、任务分解和工具调用能力。</p>
+  </div>
+  <div class="card">
+    <p>我们的漫画系统更像：</p>
+<pre>                 ┌──────────────────┐
+                 │ DeepSeek / LLM   │
+                 │  大脑 / 总控      │
+                 └────────┬─────────┘
+                          │
+       ┌──────────────────┼──────────────────┐
+       ↓                  ↓                  ↓
+  Manga Detector       OCR Model        Inpainting Model
+       ↓                  ↓                  ↓
+  “哪里有字？”       “写的什么？”      “背景怎么恢复？”
+       │                  │                  │
+       └──────────────────┴──────────────────┘
+                          ↓
+                    Typesetter / QA</pre>
+    <p>因此，更准确的名称是：</p>
+    <div class="callout good"><strong>LLM Agent + Specialized Vision Tools + Verification Loop</strong></div>
+  </div>
+  <div class="card">
+    <h3>为什么这样更合理？</h3>
+    <ul>
+      <li>OCR 不需要“思考”，需要稳定地识别字符。</li>
+      <li>文字检测不需要“规划”，需要尽可能高 Recall 地找出文字区域。</li>
+      <li>Segmentation 不需要“理解剧情”，需要生成精确 mask。</li>
+      <li>Inpainting 不需要“决定角色关系”，需要根据 mask 恢复背景。</li>
+      <li>真正需要推理的是：上下文、人物语气、歧义判断、工具选择、失败诊断和是否通过验收。</li>
+    </ul>
+  </div>
+</section>
+
+<section class="page" data-title="四个视觉概念">
+  <h2>2. Detection / OCR / Bubble / Segmentation 到底有什么区别？</h2>
+  <p class="lead">它们不是同一个东西。最简单的区分方式是：<strong>在哪里？是什么？气泡在哪里？哪些像素属于它？</strong></p>
+  <table>
+    <thead><tr><th>模块</th><th>回答的问题</th><th>输出</th><th>主要用途</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Text Detection</strong></td><td>哪里可能有文字？</td><td>Bounding Box / Polygon</td><td>发现文字区域</td></tr>
+      <tr><td><strong>OCR</strong></td><td>文字写的是什么？</td><td>字符串 + confidence</td><td>提取日文原文</td></tr>
+      <tr><td><strong>Speech Bubble Detection</strong></td><td>气泡在哪里？</td><td>Bubble Box / Polygon</td><td>建立文字与气泡/说话区域的关系</td></tr>
+      <tr><td><strong>Text Segmentation</strong></td><td>具体哪些像素属于文字？</td><td>Pixel-level Mask</td><td>精确擦字、给 Inpainting 提供 mask</td></tr>
+    </tbody>
+  </table>
+  <div class="card">
+    <h3>用一个“ドン！！”理解</h3>
+<pre>原图
+  ↓
+Text Detection
+  → [这里大概有文字]
+
+OCR
+  → “ドン！！”
+
+Segmentation
+  → [这些具体像素是“ドン！！”]
+
+Inpainting
+  → 把这些像素对应的原背景恢复回来</pre>
+  </div>
+  <div class="callout warn">
+    <strong>注意：</strong>“气泡”本身不是“文字”。气泡检测可以帮助判断对白区域，但框外 SFX、旁白、背景文字等可能完全没有传统气泡。
+  </div>
+</section>
+
+<section class="page" data-title="痛点与技术方案">
+  <h2>3. 四个核心痛点怎么解决</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>痛点 A：框外字容易漏</h3>
+      <p><strong>不要让 LLM 单独承担检测。</strong> 使用漫画专用 Text Detection + SFX/Onomatopoeia 检测 + 必要时让 VLM 复核。</p>
+      <p>目标是提高 Recall，而不是让一个 VLM 凭肉眼保证 100% 找全。</p>
+    </div>
+    <div class="card">
+      <h3>痛点 B：日语 OCR 错误</h3>
+      <p>使用 Manga OCR / Manga-specific OCR，而不是普通文档 OCR。对低 confidence、专有名词和角色名触发二次识别。</p>
+      <p>例如：<strong>豊姫 → 星姬</strong> 可以通过 Character DB + OCR alternatives + VLM 复核纠正。</p>
+    </div>
+    <div class="card">
+      <h3>痛点 C：翻译缺乏上下文</h3>
+      <p>不要只维护 Character Table。建立持续更新的 <strong>Story Memory</strong>，并按 Scene 而不是单页翻译。</p>
+      <p>Memory 包含人物、关系、语气、术语、当前地点、事件、近期对白等。</p>
+    </div>
+    <div class="card">
+      <h3>痛点 D：框外字与复杂背景难擦</h3>
+      <p>不要让 LLM 自己“修图”。先通过 Text Segmentation 得到 mask，再交给专用 Inpainting。</p>
+      <p>复杂 SFX 不一定强行删除：必要时可以选择保留原文 + 添加译注，以视觉自然为最终目标。</p>
+    </div>
+  </div>
+</section>
+
+<section class="page" data-title="完整 Workflow">
+  <h2>4. 完整 Workflow：每一步到底做什么</h2>
+  <div class="card">
+    <h3>① CV 检测</h3>
+    <p>扫描整页，寻找对白、旁白、SFX、框外字等可能的文字区域，并尽量建立区域之间的关系。</p>
+    <p><strong>输出：</strong> text regions / bubble regions / SFX candidates。</p>
+  </div>
+  <div class="card">
+    <h3>② 专用 OCR</h3>
+    <p>对检测出来的文字区域做日语 OCR。低置信度区域可以二次 OCR，并与 Character / Glossary 数据进行校正。</p>
+    <p><strong>输出：</strong> 原文、位置、confidence、候选结果。</p>
+  </div>
+  <div class="card">
+    <h3>③ Story Memory</h3>
+    <p>把当前漫画当成一个持续存在的“故事状态”，而不是一堆孤立页面。</p>
+<pre>{
+  "characters": {
+    "豊姫": {
+      "zh": "丰姬",
+      "speech_style": "温和、正式"
+    }
+  },
+  "glossary": {
+    "神社": "神社"
+  },
+  "current_scene": {
+    "location": "神社",
+    "event": "两人正在争论"
+  },
+  "recent_dialogue": ["...", "..."]
+}</pre>
+  </div>
+  <div class="card">
+    <h3>④ Scene-level Translation</h3>
+    <p>先识别连续场景，再把同一场景中的多页对白一起交给 LLM。这样可以保持上下文、人物关系、语气和指代一致。</p>
+  </div>
+  <div class="card">
+    <h3>⑤ Segmentation Mask</h3>
+    <p>翻译已经确定后，再生成用于擦字的精确文字 mask。这里关注的是“哪些像素属于原文字”，而不是“这句话是什么意思”。</p>
+  </div>
+  <div class="card">
+    <h3>⑥ 专用 Inpainting</h3>
+    <p>把文字 mask 交给漫画/图像 Inpainting 模型，恢复文字下面的背景、线稿、人物、速度线等。</p>
+  </div>
+  <div class="card">
+    <h3>⑦ Typesetting</h3>
+    <p>根据气泡大小、译文长度、人物语气和字体规则，把中文重新放入原页面。需要处理换行、字号、居中、描边、方向等。</p>
+  </div>
+  <div class="card">
+    <h3>⑧ Programmatic QA</h3>
+    <p>先用程序检查“机器可以确定”的错误：遗漏文本、翻译数量不匹配、文字溢出、残留日文、文件损坏等。</p>
+  </div>
+  <div class="card">
+    <h3>⑨ Vision QA</h3>
+    <p>把最终图片交给 VLM/DeepSeek Vision 检查程序难以量化的问题：擦除痕迹、背景破坏、文字遮挡人物、排版不自然、视觉异常等。</p>
+  </div>
+  <div class="card">
+    <h3>⑩ 自动 Repair Loop</h3>
+    <p>QA 不只是给一个分数，而是产生<strong>可执行的修复动作</strong>。</p>
+<pre>FAIL
+ ↓
+DeepSeek 判断原因
+ ↓
+OCR 错误？        → 重 OCR
+Mask 错误？       → 重分割
+Inpainting 错误？ → 重修复
+Translation 错误？→ 重翻译
+Typesetting 错误？→ 重排版
+ ↓
+再次 QA
+ ↓
+PASS</pre>
+  </div>
+</section>
+
+<section class="page" data-title="Agent 如何工作">
+  <h2>5. DeepSeek 在整个系统里到底干什么？</h2>
+  <div class="card">
+    <p>DeepSeek 不是负责每个视觉动作，而是负责<strong>控制流程和处理需要推理的问题</strong>。</p>
+    <table>
+      <tr><th>任务</th><th>DeepSeek 是否适合</th><th>原因</th></tr>
+      <tr><td>寻找所有文字像素</td><td>否</td><td>专业 CV 模型更稳定</td></tr>
+      <tr><td>日语字符识别</td><td>不作为主 OCR</td><td>专用 OCR 更适合</td></tr>
+      <tr><td>判断“豊姫”还是“星姫”</td><td>适合</td><td>需要结合视觉、角色表和上下文</td></tr>
+      <tr><td>场景理解</td><td>非常适合</td><td>LLM 的强项</td></tr>
+      <tr><td>人物语气与关系</td><td>非常适合</td><td>需要长上下文推理</td></tr>
+      <tr><td>决定复杂 SFX 如何处理</td><td>适合</td><td>属于策略判断</td></tr>
+      <tr><td>判断是否需要重试</td><td>非常适合</td><td>属于 Agent 控制逻辑</td></tr>
+      <tr><td>最终视觉验收</td><td>适合</td><td>VLM 可以理解整体视觉效果</td></tr>
+    </table>
+  </div>
+  <div class="callout">
+    <strong>一句话：</strong>专业模型负责“做”，DeepSeek 负责“决定什么时候做、为什么做、做完是否合格、失败以后做什么”。
+  </div>
+</section>
+
+<section class="page" data-title="QA 闭环">
+  <h2>6. “AI 自己验收”为什么必须分两层</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Programmatic QA</h3>
+      <p>机器硬规则，避免让 LLM 检查它本来就能精确判断的问题。</p>
+      <ul>
+        <li>检测区域是否都有 OCR</li>
+        <li>原文/译文数量是否一致</li>
+        <li>是否还有日文残留</li>
+        <li>译文是否溢出目标区域</li>
+        <li>图片尺寸、文件格式是否正确</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Vision QA</h3>
+      <p>交给 VLM 判断难以写成硬规则的视觉问题。</p>
+      <ul>
+        <li>人物脸/身体是否被破坏</li>
+        <li>Inpainting 是否留下明显痕迹</li>
+        <li>背景线稿是否异常</li>
+        <li>排版是否自然</li>
+        <li>人物语气是否与前文一致</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout warn">
+    <strong>关键原则：</strong>不要让 DeepSeek 只回答“看起来没问题”。QA 必须产生结构化结果，例如 <code>PASS / FAIL + issue + page + region + suggested_action</code>，这样 Harness 才能真正自动修复。
+  </div>
+</section>
+
+<section class="page" data-title="MVP">
+  <h2>7. MVP 应该怎么做</h2>
+  <p class="lead">不要一开始就做“一整章无人值守”。先证明最关键的技术链条。</p>
+  <div class="metric">
+    <div><div class="kpi">10–20</div><div class="kpi-label">页测试集</div></div>
+    <div><div class="kpi">4</div><div class="kpi-label">核心技术风险</div></div>
+    <div><div class="kpi">1</div><div class="kpi-label">LLM Agent</div></div>
+  </div>
+  <div class="card">
+    <h3>Benchmark A：检测</h3>
+    <p>重点统计：框内对白、框外对白、SFX、背景文字的 Recall。先回答“到底会漏多少”。</p>
+  </div>
+  <div class="card">
+    <h3>Benchmark B：OCR</h3>
+    <p>重点测试：人名、专有名词、竖排文字、艺术字体、手写字和低清页面。记录 CER / Exact Match / confidence。</p>
+  </div>
+  <div class="card">
+    <h3>Benchmark C：Inpainting</h3>
+    <p>挑选简单背景、复杂背景、人物头发、速度线、建筑等困难区域，比较现有 Inpainting 模型的恢复质量。</p>
+  </div>
+  <div class="card">
+    <h3>Benchmark D：上下文翻译</h3>
+    <p>同一个连续 Scene 分别测试“逐页翻译”和“Scene-level + Story Memory”，比较人物语气、术语、指代和整体通顺度。</p>
+  </div>
+  <div class="callout good">
+    <strong>MVP 成功标准：</strong>不是“所有漫画都能自动翻译”，而是证明这条链条可以稳定跑通，并且失败时能够定位到具体模块。
+  </div>
+</section>
+
+<section class="page" data-title="架构总结">
+  <h2>8. 最终架构</h2>
+  <pre>
+                         ┌─────────────────────────┐
+                         │     DeepSeek / LLM      │
+                         │                         │
+                         │  Planner / Reasoner     │
+                         │  Story Memory           │
+                         │  Translation            │
+                         │  Tool Calling           │
+                         │  Vision QA              │
+                         │  Repair Decision        │
+                         └────────────┬────────────┘
+                                      │
+                    ┌─────────────────┼─────────────────┐
+                    │                 │                 │
+                    ▼                 ▼                 ▼
+              Manga CV Tools      OCR Tools       Image Tools
+                    │                 │                 │
+             ┌──────┼──────┐          │          ┌──────┴──────┐
+             │      │      │          │          │             │
+          Detection Bubble SFX       OCR      Segmentation  Inpainting
+             │      │      │          │          │             │
+             └──────┴──────┴──────────┴──────────┴─────────────┘
+                                      │
+                                      ▼
+                                Typesetting
+                                      │
+                                      ▼
+                              Programmatic QA
+                                      │
+                                      ▼
+                                Vision QA
+                                      │
+                         ┌────────────┴────────────┐
+                         │                         │
+                       PASS                      FAIL
+                         │                         │
+                       EXPORT              DeepSeek Diagnose
+                                                   │
+                                                   ▼
+                                            Targeted Repair
+                                                   │
+                                                   └──────→ QA
+  </pre>
+  <div class="callout">
+    <strong>最终定义：</strong>
+    <br>
+    这是一个<strong>单 LLM Agent 驱动的漫画翻译流水线</strong>，而不是一个由多个 LLM Agent 组成的组织。
+    其价值在于：把成熟的漫画 CV/OCR/图像模型编排起来，让 LLM 负责上下文、策略和闭环控制。
+  </div>
+  <div class="footer">
+    参考方向：mayocream/koharu、Manga OCR、漫画专用 OCR / segmentation / inpainting 研究与工具。
+    本页面用于项目架构讨论，不代表其中任何单一工具在全部漫画类型上都能达到生产级效果。
+  </div>
+</section>
+
+</main>
+<script>
+const pages=[...document.querySelectorAll('.page')];
+const nav=document.getElementById('nav');
+pages.forEach((p,i)=>{
+  const b=document.createElement('button');
+  b.textContent=(i+1)+'. '+p.dataset.title;
+  b.onclick=()=>{
+    pages.forEach(x=>x.classList.remove('active'));
+    pages[i].classList.add('active');
+    [...nav.children].forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+    location.hash='page-'+(i+1);
+  };
+  nav.appendChild(b);
+});
+let idx=Math.max(0,Math.min(pages.length-1,(parseInt(location.hash.split('-')[1])||1)-1));
+nav.children[idx].click();
+</script>
+</body>
+</html>

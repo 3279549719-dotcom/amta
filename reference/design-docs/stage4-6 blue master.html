@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Doujin Manga Translation Pipeline — Master Blueprint & Artifact Contracts</title>
+<style>
+:root{
+  --bg:#090d16;--panel:#101726;--panel2:#162035;--card:#1a263e;
+  --text:#e6edfa;--muted:#8f9eb9;--line:#26354f;
+  --accent:#5b98ff;--accent2:#5fe3b3;--warn:#ffc857;--danger:#ff6b6b;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.65}
+nav{position:fixed;left:0;top:0;bottom:0;width:250px;background:#0b111e;border-right:1px solid var(--line);padding:24px 16px;overflow-y:auto}
+nav h1{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:0 0 4px}
+nav p{font-size:12px;color:var(--muted);margin:0 0 20px}
+nav a{display:block;color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px;margin:3px 0;font-size:13px;transition:all .15s}
+nav a:hover{background:var(--panel2);color:var(--text)}
+main{margin-left:250px;max-width:1160px;padding:48px 60px 120px}
+section{margin-bottom:80px;scroll-margin-top:40px}
+h2{font-size:28px;line-height:1.3;margin:0 0 16px;color:#fff;border-bottom:1px solid var(--line);padding-bottom:12px}
+h3{font-size:19px;margin:28px 0 12px;color:var(--accent2)}
+h4{font-size:15px;margin:18px 0 8px;color:#d7e2f6}
+p{margin:10px 0;color:#cdd7e8}
+.lead{font-size:17px;color:#b8c7df;max-width:960px}
+.k{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+code{font-family:var(--mono);color:#92c5ff;background:#141e33;padding:2px 6px;border-radius:4px;font-size:13px}
+pre{background:#070a12;border:1px solid var(--line);padding:18px;border-radius:10px;overflow-x:auto;color:#dce8ff;font-family:var(--mono);font-size:13px;line-height:1.55}
+table{width:100%;border-collapse:collapse;margin:16px 0;background:var(--panel);border-radius:8px;overflow:hidden}
+th,td{padding:11px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:13.5px}
+th{color:#d5e2f7;background:var(--panel2);font-weight:600}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.tag-blue{background:#1d3557;color:#8ecae6}
+.tag-green{background:#133c2a;color:#7ee0c2}
+.tag-warn{background:#3d2f0f;color:#ffd166}
+.callout{padding:14px 18px;background:var(--panel2);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;margin:18px 0}
+.good{border-left-color:var(--accent2)}
+.warn{border-left-color:var(--warn)}
+footer{border-top:1px solid var(--line);padding-top:24px;color:var(--muted);font-size:13px}
+@media(max-width:900px){nav{position:static;width:auto}main{margin:0;padding:24px 16px}.grid,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>Master Blueprint</h1>
+  <p>Manga Pipeline Specification</p>
+  <a href="#overview">01 顶层设计与流程图</a>
+  <a href="#hardware">02 算力适配与模型清单</a>
+  <a href="#stages">03 六大工位核心技术</a>
+  <a href="#contracts">04 工件契约 (Schemas)</a>
+  <a href="#rules">05 排版折行与质检算法</a>
+  <a href="#directory">06 文件系统与目录拓扑</a>
+  <a href="#references">07 GitHub SOTA 索引</a>
+</nav>
+
+<main>
+
+<!-- SECTION 1 -->
+<section id="overview">
+  <div class="k">Architecture Overview</div>
+  <h2>01 顶层设计与端到端全景流程</h2>
+  <p class="lead">将漫画汉化构筑为工业级“数字工厂”：机械加工工位（CV/Inpaint/排版）与智能工位（Translation Harness / Vision 裁决）完全解耦，以强类型 Artifact JSON 作为唯一物料契约，具备单节点失败隔离与单句反压自愈能力。</p>
+
+  <div class="card">
+    <pre>
+ ┌─────────────┐
+ │  PageAsset  │ (原始黑白/灰度同人志扫描图)
+ └──────┬──────┘
+        │
+        ▼ 【Stage 1: Detect & SFX Triage】
+ ┌──────────────────────┐  ── 启发式初筛 (面积/边缘密度)
+ │  DetectionArtifact   │  ── 模糊地带 Vision Tool 仲裁 (safe vs risky)
+ └──────────┬───────────┘  ── 输出: bubble / overlay / sfx 3大类及处理策略
+            │
+            ▼ 【Stage 2: OCR Ensemble & Arbitration】
+ ┌──────────────────────┐  ── Manga-OCR / PaddleOCR 双候选提取
+ │ CanonicalTextArtifact│  ── 标点规范化与竖排阅读顺序重构
+ └──────────┬───────────┘
+            │
+      ┌─────┴────────────────────────────────────────────────┐
+      ▼ 【Stage 3: Translation Harness】                     ▼ 【Stage 4: Mask & Inpainting】
+ ┌──────────────────────┐                               ┌──────────────────────┐
+ │ TranslationArtifact  │ (DeepSeek 云端推理)           │     MaskArtifact     │ (白底全遮罩 / 像素级分割+膨胀)
+ └──────────┬───────────┘                               └──────────┬───────────┘
+            │ 译文、字体分类、字数统计                             │
+            │                                                      ▼
+            │                                           ┌──────────────────────┐
+            │                                           │  CleanImageArtifact  │ (白底直填 / Anime-LaMa ONNX)
+            │                                           └──────────┬───────────┘
+            └─────────────────────────┬────────────────────────────┘
+                                      │
+                                      ▼ 【Stage 5: Typesetting Engine】
+                               ┌──────────────────────┐
+                               │   TypesetArtifact    │ ── 横排优先 + 椭圆内切安全区二分查找折行
+                               └──────────┬───────────┘ ── 避头尾规则 + 4级字体映射 + 压脸字白色描边
+                                          │
+                                          ▼ 【Stage 6: Programmatic QA Gate】
+                               ┌──────────────────────┐
+                               │     QAArtifact       │ ── 几何溢出检测 (font < 12px)
+                               └──────────┬───────────┘ ── 文本覆盖率守恒检测 (100%)
+                                          │
+                        ┌─────────────────┴─────────────────┐
+                        ▼ [PASS]                            ▼ [OVERFLOW (字数超标)]
+               ┌──────────────────┐               ┌─────────────────────────────────┐
+               │ Final Clean Page │               │ Backpressure Repair Loop (反压) │
+               │ (最终汉化成品图) │               │ 定向通知 Stage 3 压缩单句至限制字数  │
+               └──────────────────┘               │ (Retry budget: 2 次，防死循环)  │
+                                                  └─────────────────────────────────┘</pre>
+  </div>
+</section>
+
+<!-- SECTION 2 -->
+<section id="hardware">
+  <div class="k">Hardware & Execution Profile</div>
+  <h2>02 算力适配：针对 i5-1135G7 / Iris Xe 的轻量化工程</h2>
+  <p>本项目彻底抛弃体积庞大、依赖地狱的 PyTorch CUDA 环境，所有本地 CV 视觉模型全部固化为 <code>.onnx</code> 格式，利用 <code>onnxruntime</code> 驱动 Intel Tiger Lake 的 AVX-512 指令集，单页 CPU 端计算总耗时仅约 <strong>3~5 秒</strong>，内存占用 <strong>&lt; 1.8 GB</strong>。</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>工位阶段</th>
+        <th>选用模型 / 引擎</th>
+        <th>模型大小</th>
+        <th>运行环境</th>
+        <th>i5-1135G7 CPU 耗时</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1. Text Detect</strong></td>
+        <td>Comic-Text-Detector (CTD) / DBNet</td>
+        <td>~20 MB</td>
+        <td>本地 <code>onnxruntime</code></td>
+        <td>~0.25 s / 页</td>
+      </tr>
+      <tr>
+        <td><strong>2. Text OCR</strong></td>
+        <td>Manga-OCR (ViT+Seq2Seq)</td>
+        <td>~150 MB</td>
+        <td>本地 <code>onnxruntime</code></td>
+        <td>~0.4 s / 文本框</td>
+      </tr>
+      <tr>
+        <td><strong>3. Translate</strong></td>
+        <td>DeepSeek-V3 / Qwen2.5-72B</td>
+        <td>云端 API</td>
+        <td>HTTPS Rest API</td>
+        <td>~1.5 s / 页</td>
+      </tr>
+      <tr>
+        <td><strong>3b. SFX Arbiter</strong></td>
+        <td>Qwen2.5-VL-7B / GPT-4o-mini (Vision)</td>
+        <td>云端 API</td>
+        <td>按需 Tool Call</td>
+        <td>~1.0 s (仅20%边缘触发)</td>
+      </tr>
+      <tr>
+        <td><strong>4. Text Mask</strong></td>
+        <td>Manga-Text-Segmentation (U-Net)</td>
+        <td>~30 MB</td>
+        <td>本地 <code>onnxruntime</code></td>
+        <td>~0.3 s / 区域</td>
+      </tr>
+      <tr>
+        <td><strong>4b. Inpaint</strong></td>
+        <td>Anime-LaMa (FFC ResNet)</td>
+        <td>~190 MB</td>
+        <td>本地 <code>onnxruntime</code></td>
+        <td>~0.8 s / 局部裁剪块</td>
+      </tr>
+      <tr>
+        <td><strong>5. Typeset</strong></td>
+        <td>Pillow 自适应数学排版引擎</td>
+        <td>0 (纯算法)</td>
+        <td>本地 Python 纯脚本</td>
+        <td>&lt; 0.02 s / 页</td>
+      </tr>
+      <tr>
+        <td><strong>6. QA Gate</strong></td>
+        <td>几何与多边形内切求交校验</td>
+        <td>0 (纯算法)</td>
+        <td>本地 Python 纯脚本</td>
+        <td>&lt; 0.005 s / 页</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- SECTION 3 -->
+<section id="stages">
+  <div class="k">Pipeline Stages</div>
+  <h2>03 六大工位核心技术与决策实现</h2>
+
+  <div class="card">
+    <h3>Stage 1: Detection & SFX Triage (检测与拟音词分流)</h3>
+    <ul>
+      <li><strong>三级分类</strong>：<code>dialogue_bubble</code>（框内对白）、<code>overlay_text</code>（图上/压脸文字）、<code>sfx</code>（拟音词）。</li>
+      <li><strong>SFX 保护策略</strong>：
+        <ul>
+          <li><strong>快速初筛</strong>：面积极小且周围留白（如 <code>プチッ</code>）$\rightarrow$ 标记 <code>safe</code>，执行擦除重嵌；占全图 &gt; 15% 且极度扭曲 $\rightarrow$ 标记 <code>skip</code> 保全画风。</li>
+          <li><strong>Vision Tool 仲裁</strong>：灰色模糊地带（如穿过发丝的 <code>ビクッ</code>），向视觉模型发送 Crop 图裁决 <code>safe_to_inpaint</code> 或 <code>side_annotation</code>（旁注）。</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Stage 2: OCR & Canonical Arbitration (光学识别与文本规范化)</h3>
+    <ul>
+      <li>使用针对日漫竖排调优的 Manga-OCR 提取文字候选。</li>
+      <li>去除假名注音（Furigana）干扰，校正标点，输出规范化 <code>source_text</code>。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Stage 3: Translation Harness (受控翻译与状态机)</h3>
+    <ul>
+      <li>由 DeepSeek 作为 Translator，结合东方 Project 专有名词表（Glossary）与作品状态（Story State）。</li>
+      <li><strong>Guardrails 门禁</strong>：输出强制包含 <code>region_id</code>、<code>target_text</code>、<code>style_category</code>，字数必须精炼。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Stage 4: Mask & Inpainting (图像去字与底图修复)</h3>
+    <ul>
+      <li><strong>纯色气泡旁路（Bypass Invariant）</strong>：白底气泡直接连通域填充纯白（<code>#FFFFFF</code>），0 毫秒开销，彻底消除糊斑。</li>
+      <li><strong>图上文字像素级修复</strong>：对压脸字执行 U-Net 笔画提取 + $\max(2, \lfloor stroke \times 0.5 \rfloor)$ 像素自适应膨胀；裁剪小 Patch 丢给 Anime-LaMa ONNX 修复并贴回。</li>
+      <li><strong>色彩守恒（Grayscale Invariant）</strong>：贴回后强制色彩空间对齐，杜绝黑白漫产生彩色噪点。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Stage 5: Typesetting Engine (自适应椭圆嵌字排版)</h3>
+    <ul>
+      <li><strong>方向决策</strong>：中文默认首选<strong>横排居中</strong>；仅在长宽比 $H/W \ge 2.2$ 且字数 $\le 6$ 时切换为竖排。</li>
+      <li><strong>椭圆内切与避头尾折行</strong>：根据气泡内切安全区进行动态断行；禁止逗号、句号、感叹号顶格出现在行首。</li>
+      <li><strong>二分字号查找</strong>：在 $[12\text{px}, 52\text{px}]$ 区间搜索最佳容纳字号。</li>
+      <li><strong>4 类字体映射与描边</strong>：
+        <ul>
+          <li>普通对白 $\rightarrow$ 动漫黑体 / 方正准圆（无描边）</li>
+          <li>图上/独白 $\rightarrow$ 楷体（<strong>强制加 2.5px 白色描边</strong>）</li>
+          <li>呼喊/感叹 $\rightarrow$ 粗魏碑 / 力量黑</li>
+          <li>可修 SFX $\rightarrow$ 手写漫画体</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Stage 6: Programmatic QA & Repair Loop (自动化质检与反压闭环)</h3>
+    <ul>
+      <li><strong>100% 覆盖率检查</strong>：校验 <code>len(Rendered) == len(Detected)</code>，杜绝漏字。</li>
+      <li><strong>反压自愈回路</strong>：若排版字号触底（$&lt; 12\text{px}$），计算最大安全字数（如 8 字），向 Translation Harness 抛出单句重写请求（Retry Budget = 2 次），无需整页重跑。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- SECTION 4 -->
+<section id="contracts">
+  <div class="k">Artifact Schemas</div>
+  <h2>04 核心工件契约规范 (Artifact Contracts)</h2>
+
+  <h3>1. DetectionArtifact (`01_detection/page_001_det.json`)</h3>
+  <pre>{
+  "page_id": "page_001",
+  "image_meta": {"width": 1654, "height": 2339, "channels": 1},
+  "regions": [
+    {
+      "region_id": "r_001",
+      "category": "overlay_text",
+      "bbox": [88, 120, 410, 580],
+      "polygon": [[88, 120], [410, 120], [410, 580], [88, 580]],
+      "sfx_triage": {
+        "action": "inpaint_and_render",
+        "decided_by": "heuristic_rule",
+        "confidence": 0.95
+      }
+    },
+    {
+      "region_id": "r_002",
+      "category": "sfx",
+      "bbox": [520, 890, 680, 1050],
+      "polygon": [[520, 890], [680, 890], [680, 1050], [520, 1050]],
+      "sfx_triage": {
+        "action": "side_annotation",
+        "decided_by": "vision_tool",
+        "confidence": 0.88
+      }
+    }
+  ]
+}</pre>
+
+  <h3>2. CanonicalTextArtifact (`02_ocr/page_001_ocr.json`)</h3>
+  <pre>{
+  "page_id": "page_001",
+  "items": [
+    {
+      "region_id": "r_001",
+      "source_text": "お、落ち着け…別に八意様が心配とかではなく",
+      "reading_direction": "vertical",
+      "candidates": [
+        {"engine": "manga-ocr", "text": "お、落ち着け…別に八意様が心配とかではなく", "confidence": 0.96},
+        {"engine": "paddle-ocr", "text": "お、落ち着け…別に八意様が心配とかてはなく", "confidence": 0.89}
+      ]
+    }
+  ]
+}</pre>
+
+  <h3>3. TranslationArtifact (`03_translation/page_001_trans.json`)</h3>
+  <pre>{
+  "page_id": "page_001",
+  "translations": [
+    {
+      "region_id": "r_001",
+      "target_text": "冷、冷静点…才不是在担心八意大人",
+      "style_category": "overlay_text",
+      "speaker": "Inaba_Tewi",
+      "char_count": 16,
+      "state_updates": []
+    },
+    {
+      "region_id": "r_002",
+      "target_text": "(东张西望)",
+      "style_category": "sfx_annotation",
+      "speaker": "sound_effect",
+      "char_count": 6,
+      "state_updates": []
+    }
+  ]
+}</pre>
+
+  <h3>4. TypesetArtifact (`05_typeset/page_001_typeset.json`)</h3>
+  <pre>{
+  "page_id": "page_001",
+  "rendered_items": [
+    {
+      "region_id": "r_001",
+      "layout_direction": "horizontal",
+      "font_family": "monologue_kai.ttf",
+      "font_size": 24,
+      "line_height": 28,
+      "stroke_width": 2.5,
+      "stroke_color": "#FFFFFF",
+      "text_color": "#000000",
+      "anchor_pos": [249, 350],
+      "lines": [
+        "冷、冷静点…",
+        "才不是在担心八意大人"
+      ]
+    }
+  ]
+}</pre>
+
+  <h3>5. QAArtifact (`06_qa/page_001_qa.json`)</h3>
+  <pre>{
+  "page_id": "page_001",
+  "status": "PASS",
+  "coverage": {
+    "detected_count": 2,
+    "translated_count": 2,
+    "rendered_count": 2,
+    "is_complete": true
+  },
+  "issues": [],
+  "backpressure_requests": []
+}</pre>
+</section>
+
+<!-- SECTION 5 -->
+<section id="rules">
+  <div class="k">Algorithms & Invariants</div>
+  <h2>05 关键排版、去字算法与自愈硬约束</h2>
+
+  <div class="grid">
+    <div class="card">
+      <h3>自适应椭圆折行与字号二分查找</h3>
+      <pre>def fit_text_to_bubble(text, bbox, min_sz=12, max_sz=48):
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
+    safe_w = w * 0.85  # 内切安全宽
+    safe_h = h * 0.85  # 内切安全高
+    
+    best_font_size = None
+    best_lines = []
+    
+    low, high = min_sz, max_sz
+    while low <= high:
+        mid = (low + high) // 2
+        lines = wrap_with_kinsoku(text, mid, safe_w)
+        total_h = len(lines) * (mid * 1.2)
+        
+        # 校验菱形/椭圆边界与高度
+        if total_h <= safe_h and all(get_width(l, mid) <= safe_w for l in lines):
+            best_font_size = mid
+            best_lines = lines
+            low = mid + 1  # 尝试更大字号
+        else:
+            high = mid - 1
+            
+    return best_font_size, best_lines</pre>
+    </div>
+
+    <div class="card">
+      <h3>反压重修闭环 (Backpressure Loop)</h3>
+      <pre>def handle_qa_overflow(region_id, text, max_capacity, retry_budget=2):
+    for attempt in range(retry_budget):
+        repair_prompt = f"""
+        【排版溢出告警】
+        原文: {text}
+        当前字数超出气泡安全区。
+        硬约束: 请将译文精炼缩短至 {max_capacity} 个汉字以内，保持语气。
+        """
+        condensed_text = call_deepseek(repair_prompt)
+        font_sz, lines = fit_text(condensed_text)
+        if font_sz >= 12:
+            return condensed_text, "REPAIRED"
+            
+    return text, "FLAGGED_FOR_MANUAL_REVIEW"</pre>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 6 -->
+<section id="directory">
+  <div class="k">Directory Structure</div>
+  <h2>06 统一文件系统与目录布局 (Directory Blueprint)</h2>
+  <pre>manga_project/
+├── models_onnx/                 # 本地轻量 ONNX 视觉模型库 (总计 < 400MB)
+│   ├── text_detector.onnx       # Comic-Text-Detector (DBNet) (~20MB)
+│   ├── manga_ocr.onnx           # Manga-OCR Encoder/Decoder (~150MB)
+│   ├── text_seg.onnx            # U-Net 像素分割模型 (~30MB)
+│   └── anime_lama.onnx          # Anime-LaMa 局部修补模型 (~190MB)
+│
+├── fonts/                       # 4 类免费商用中文字体库
+│   ├── dialogue_round.ttf       # 对白: 方正准圆 / 动漫黑体
+│   ├── monologue_kai.ttf        # 独白/压脸: 楷体 / 仿宋
+│   ├── shout_weibei.ttf         # 大喊: 粗魏碑 / 力量黑
+│   └── sfx_handwrite.ttf        # 拟音词: 锐字手写 / 漫画体
+│
+├── policies/                    # 规则库与知识约束
+│   ├── font_map.json            # 字体与描边映射规则表
+│   ├── glossary.json            # 东方 Project 专有名词与角色术语表
+│   └── tool_policy.yaml         # Vision Tool 触发与重试预算配置
+│
+├── workspace/                   # 工作区 (支持多项目隔离与断点重跑)
+│   └── touhou_ch01/
+│       ├── pages/               # 用户上传的原始扫描图 (001.png, 002.png...)
+│       ├── artifacts/           # 生产工件目录
+│       │   ├── 01_detection/    # page_001_det.json
+│       │   ├── 02_ocr/          # page_001_ocr.json
+│       │   ├── 03_translation/  # page_001_trans.json
+│       │   ├── 04_mask/         # page_001_mask.png (二值掩码)
+│       │   ├── 04_clean/        # page_001_clean.png (去字底图)
+│       │   ├── 05_typeset/      # page_001_typeset.json
+│       │   └── 06_qa/           # page_001_qa.json (质检报告)
+│       └── output/              # 最终汉化成品图 (page_001.png)
+│
+├── pipeline/                    # 六大独立可执行工位脚本
+│   ├── stage1_detect.py         # CTD 检测 + 启发式 SFX 分流
+│   ├── stage2_ocr.py            # Manga-OCR 提取 + 候选整理
+│   ├── stage3_translate.py      # Translation Harness (DeepSeek + State)
+│   ├── stage4_inpaint.py        # 白底旁路 + U-Net 分割 + LaMa 局部贴回
+│   ├── stage5_typeset.py        # Pillow 椭圆内切避头尾排版引擎
+│   ├── stage6_qa.py             # 几何覆盖率质检 + 反压修复触发器
+│   └── orchestrator.py          # 端到端 CLI 调度总控
+│
+├── requirements.txt             # 仅需 onnxruntime, opencv-python, pillow, numpy, requests
+└── README.md</pre>
+</section>
+
+<!-- SECTION 7 -->
+<section id="references">
+  <div class="k">References & GitHub Ecosystem</div>
+  <h2>07 GitHub SOTA 开源项目与模型权重索引</h2>
+  <p>本项目汲取了以下开源项目在文字检测、日漫 OCR、笔画分割与背景修补领域的最佳工业实践：</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>领域 / 阶段</th>
+        <th>项目名称 / Repository</th>
+        <th>参考借鉴与权重获取</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Pipeline 架构参考</strong></td>
+        <td><a href="https://github.com/zyddnys/manga-image-translator" target="_blank" style="color:var(--accent)">zyddnys/manga-image-translator</a></td>
+        <td>业界最成熟的漫画翻译管线，参考其 ONNX 模型转换、坐标映射与去字逻辑。</td>
+      </tr>
+      <tr>
+        <td><strong>GUI 与工程参考</strong></td>
+        <td><a href="https://github.com/ogkalu2/comic-translate" target="_blank" style="color:var(--accent)">ogkalu2/comic-translate</a></td>
+        <td>多语言漫画翻译桌面工具，参考其气泡类型分类与排版自适应。</td>
+      </tr>
+      <tr>
+        <td><strong>日漫文本检测</strong></td>
+        <td><a href="https://github.com/burliEnterprises/comic-text-detector" target="_blank" style="color:var(--accent)">burliEnterprises/comic-text-detector</a></td>
+        <td>针对黑白漫高度优化的轻量 DBNet 检测模型，支持直接导出 ONNX。</td>
+      </tr>
+      <tr>
+        <td><strong>日漫专用 OCR</strong></td>
+        <td><a href="https://github.com/kha-white/manga-ocr" target="_blank" style="color:var(--accent)">kha-white/manga-ocr</a></td>
+        <td>基于 ViT 的绝佳日文竖排识别引擎，可转 ONNX 在 CPU 上毫秒级运行。</td>
+      </tr>
+      <tr>
+        <td><strong>去字修复算法</strong></td>
+        <td><a href="https://github.com/Sanster/IOPaint" target="_blank" style="color:var(--accent)">Sanster/IOPaint (Anime-LaMa)</a></td>
+        <td>SOTA 级去水印/擦字工具，提供动漫微调版 Anime-LaMa ONNX 权重文件。</td>
+      </tr>
+      <tr>
+        <td><strong>文字笔画分割</strong></td>
+        <td><a href="https://github.com/KUR-creative/Manga-Text-Segmentation" target="_blank" style="color:var(--accent)">KUR-creative/Manga-Text-Segmentation</a></td>
+        <td>像素级文本分割 U-Net，用于提取不伤及人脸线稿的高精度 Mask。</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  <p style="text-align:center">Doujin Manga Translation Pipeline — Master Blueprint v1.0 | Standardized Engineering Architecture</p>
+</footer>
+
+</body>
+</html>

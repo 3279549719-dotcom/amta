@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画翻译 · 文件即状态 · DIY工厂指南</title>
+    <!-- 引入 Mermaid -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg: #f4f6f9;
+            --card: #ffffff;
+            --text: #1e2329;
+            --muted: #5e6f7d;
+            --line: #dce2ea;
+            --blue: #2563eb;
+            --bluebg: #eff6ff;
+            --green: #16a34a;
+            --greenbg: #f0fdf4;
+            --orange: #d97706;
+            --orangebg: #fffbeb;
+            --red: #dc2626;
+            --codebg: #0f172a;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+        }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font: 17px/1.75 system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+            padding: 30px 20px 80px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 44px;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+        .subhead {
+            font-size: 20px;
+            color: var(--muted);
+            margin-bottom: 30px;
+            border-left: 5px solid var(--blue);
+            padding-left: 20px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin: 24px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        }
+        h2 {
+            font-size: 28px;
+            margin: 40px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--line);
+        }
+        h3 {
+            font-size: 20px;
+            margin: 28px 0 12px;
+            color: var(--blue);
+        }
+        h4 {
+            font-size: 17px;
+            margin: 20px 0 6px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 700px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 32px;
+            }
+        }
+
+        /* 代码块 */
+        pre {
+            background: var(--codebg);
+            color: #e2e8f0;
+            padding: 18px 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 12px 0;
+        }
+        code {
+            font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+            font-size: 0.9em;
+        }
+        .inline-code {
+            background: #eef2f6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1e293b;
+        }
+
+        /* 标签 */
+        .tag {
+            display: inline-block;
+            background: var(--bluebg);
+            color: var(--blue);
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        .tag.green {
+            background: var(--greenbg);
+            color: var(--green);
+        }
+        .tag.orange {
+            background: var(--orangebg);
+            color: var(--orange);
+        }
+
+        /* 提示框 */
+        .callout {
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin: 18px 0;
+            border-left: 5px solid var(--blue);
+            background: var(--bluebg);
+        }
+        .callout.good {
+            border-left-color: var(--green);
+            background: var(--greenbg);
+        }
+        .callout.warn {
+            border-left-color: var(--orange);
+            background: var(--orangebg);
+        }
+
+        /* 表格 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+            margin: 16px 0;
+        }
+        th,
+        td {
+            border: 1px solid var(--line);
+            padding: 10px 14px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #f1f4f9;
+        }
+
+        /* Mermaid 容器 */
+        .mermaid {
+            background: #ffffff;
+            padding: 10px 0;
+            text-align: center;
+            overflow-x: auto;
+        }
+
+        hr {
+            border: none;
+            border-top: 2px dashed var(--line);
+            margin: 40px 0;
+        }
+
+        .tree {
+            font-family: ui-monospace, monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            background: #f8fafc;
+            padding: 16px 24px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+        }
+        .tree .folder {
+            color: var(--blue);
+            font-weight: 600;
+        }
+        .tree .file {
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏭 漫画翻译 · DIY 数字工厂</h1>
+        <div class="subhead">「文件即状态 · 脚本即工位」—— 用硬盘上的文件夹，搭建可重跑的智能流水线</div>
+
+        <!-- ============================================================ -->
+        <!-- 1. 核心哲学 -->
+        <div class="card">
+            <h2>📌 核心哲学：为什么“文件即状态”最适合DIY？</h2>
+            <p>你不需要数据库、消息队列或微服务。你只需要 <strong>操作系统自带的文件系统</strong>。</p>
+            <div class="grid-2">
+                <div>
+                    <h4>✅ 传统脚本的痛点</h4>
+                    <ul style="padding-left:18px;color:var(--muted);">
+                        <li>内存传参，崩溃后一切重来</li>
+                        <li>改一个模型参数，整章重跑</li>
+                        <li>中间结果无法复用/调试</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>✅ “文件即状态”的优势</h4>
+                    <ul style="padding-left:18px;color:var(--green);">
+                        <li>每个步骤的<strong>输入/输出</strong>都是硬盘上的文件</li>
+                        <li>修改某步后，<strong>只删掉对应工件</strong>即可重跑</li>
+                        <li>JSON/PNG 随时打开检查，调试体验极佳</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="callout good">
+                <strong>🎯 终极目标：</strong>你的脚本不需要关心“状态管理”。文件存在 = 任务完成，文件不存在 = 需要执行。这就是最可靠的分布式状态机。
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 2. 目录结构 -->
+        <h2>📂 项目目录结构（黄金标准）</h2>
+        <div class="card">
+            <p>一个项目对应一个文件夹，所有中间产物（<strong>Artifacts</strong>）都存放在 <code>artifacts/</code> 下，完全可追溯。</p>
+            <div class="tree">
+                <div><span class="folder">manga_translator/</span></div>
+                <div>├── <span class="folder">workspace/</span></div>
+                <div>│   └── <span class="folder">my_manga/</span>               # 一个项目</div>
+                <div>│       ├── <span class="folder">raw/</span>                   # 原始输入图片</div>
+                <div>│       │   ├── <span class="file">page_001.png</span></div>
+                <div>│       │   └── <span class="file">page_002.png</span></div>
+                <div>│       ├── <span class="folder">artifacts/</span>              # ⚙️ 所有中间工件</div>
+                <div>│       │   ├── <span class="file">detection.json</span>       # 文字框坐标</div>
+                <div>│       │   ├── <span class="file">ocr_candidates.json</span> # 多OCR原始结果</div>
+                <div>│       │   ├── <span class="file">canon_text.json</span>     # 仲裁后原文</div>
+                <div>│       │   ├── <span class="file">translation.json</span>    # 翻译结果</div>
+                <div>│       │   ├── <span class="file">mask.png</span>            # 擦除蒙版</div>
+                <div>│       │   ├── <span class="file">cleaned.png</span>         # 净图</div>
+                <div>│       │   └── <span class="file">final.png</span>            # 🎉 成品</div>
+                <div>│       └── <span class="folder">state/</span>                  # 跨页持久化上下文</div>
+                <div>│           ├── <span class="file">glossary.json</span>        # 术语/角色表</div>
+                <div>│           └── <span class="file">open_questions.json</span>   # 待确认项</div>
+                <div>├── <span class="folder">scripts/</span>                       # 所有工位脚本</div>
+                <div>│   ├── <span class="file">01_detect.py</span></div>
+                <div>│   ├── <span class="file">02_ocr.py</span></div>
+                <div>│   ├── <span class="file">03_arbitrate.py</span></div>
+                <div>│   ├── <span class="file">04_translate.py</span>  # 🤖 核心：内含完整Harness</div>
+                <div>│   ├── <span class="file">05_inpaint.py</span></div>
+                <div>│   ├── <span class="file">06_typeset.py</span></div>
+                <div>│   └── <span class="file">00_run_all.py</span>      # 简易编排器</div>
+                <div>└── <span class="folder">requirements.txt</span></div>
+            </div>
+            <div class="callout good">
+                <strong>💡 关键洞察：</strong><code>artifacts/</code> 文件夹就是你的“数据库”。<br>
+                脚本之间通过读取和写入这些文件来协作，<strong>零内存耦合</strong>。
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 3. 全景数据流图 -->
+        <h2>🔁 全景数据流：从图片到成品</h2>
+        <div class="card">
+            <div class="mermaid">
+                flowchart LR
+                    subgraph Input[输入]
+                        R[raw/page_*.png]
+                    end
+
+                    subgraph Stages[工位脚本]
+                        D[01_detect.py<br/>文字检测] --> O[02_ocr.py<br/>多模型OCR]
+                        O --> A[03_arbitrate.py<br/>仲裁/智能裁决]
+                        A --> T[04_translate.py<br/>翻译 + Harness]
+                        D --> I[05_inpaint.py<br/>擦字/重绘]
+                        I --> Ty[06_typeset.py<br/>排版合成]
+                        T --> Ty
+                    end
+
+                    subgraph Artifacts[工件存储 artifacts/]
+                        D1[detection.json] --> O
+                        O1[ocr_candidates.json] --> A
+                        A1[canon_text.json] --> T
+                        T1[translation.json] --> Ty
+                        I1[cleaned.png] --> Ty
+                        Ty --> Final[final.png]
+                    end
+
+                    R --> D
+                    R --> I
+                    D -.->|写入| D1
+                    O -.->|写入| O1
+                    A -.->|写入| A1
+                    T -.->|写入| T1
+                    I -.->|写入| I1
+
+                    style T fill:#eff6ff,stroke:#2563eb,stroke-width:2px
+            </div>
+            <p style="text-align:center;color:var(--muted);font-size:15px;margin-top:8px;">
+                ⚡ 注意：<strong>04_translate.py</strong> 是唯一调用大语言模型（DeepSeek）的智能工位，它内部封装了完整的 Harness 四要素。
+            </p>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 4. 深入翻译工位 (Harness 四维度) -->
+        <h2>🧠 翻译工位详解：Harness 四维度落地</h2>
+        <p style="color:var(--muted);margin-top:-8px;">Anthropic 提出的 Harness 架构（Context / Guardrails / Loop / Tools）完全浓缩在 <code>04_translate.py</code> 中。</p>
+
+        <div class="grid-2">
+            <!-- 4.1 Context Management -->
+            <div class="card">
+                <h3 style="margin-top:0;">① Context Management</h3>
+                <p><span class="tag">上下文管理</span> 动态构建结构化Prompt</p>
+                <div class="mermaid" style="background:transparent;">
+                    graph TD
+                        subgraph Sources[数据源]
+                            CT[canon_text.json]
+                            GL[state/glossary.json]
+                            PT[前3页译文]
+                            OQ[open_questions.json]
+                        end
+                        CM[上下文构建器] -->|分层组装| SYS[System 指令]
+                        CM -->|当前页| CUR[Current 文本]
+                        CM -->|历史参考| HIS[History 译文]
+                        CM -->|知识库| KNO[Knowledge 术语]
+                        CM -->|待决| UNK[Uncertainty 疑点]
+                        Sources --> CM
+                </div>
+                <p class="inline-code" style="display:block;margin-top:12px;">👉 关键：不是塞超长Prompt，而是像搭积木一样组装结构化 JSON。</p>
+            </div>
+
+            <!-- 4.2 Guardrails -->
+            <div class="card">
+                <h3 style="margin-top:0;">② Guardrails</h3>
+                <p><span class="tag orange">护栏/校验</span> 防止LLM胡来</p>
+                <div class="mermaid" style="background:transparent;">
+                    graph LR
+                        IN[输入校验] -->|Schema/长度| API[调用LLM]
+                        API -->|超时/重试限制| OUT[输出校验]
+                        OUT -->|日文残留检测| CHECK{通过?}
+                        CHECK -->|✅| PASS[写入Artifact]
+                        CHECK -->|❌| FAIL[标记FAILED + 日志]
+                </div>
+                <p class="inline-code" style="display:block;margin-top:12px;">👉 必须校验：JSON格式、译文数量匹配、无未翻译日文残留。</p>
+            </div>
+
+            <!-- 4.3 Loop -->
+            <div class="card">
+                <h3 style="margin-top:0;">③ Loop</h3>
+                <p><span class="tag">循环/自修正</span> 失败后自动重试</p>
+                <div class="mermaid" style="background:transparent;">
+                    stateDiagram-v2
+                        [*] --> 首次翻译
+                        首次翻译 --> 校验
+                        校验 --> 写入Artifact: ✅ 通过
+                        校验 --> 分析错误: ❌ 失败
+                        分析错误 --> 构建修正Prompt
+                        构建修正Prompt --> 二次翻译
+                        二次翻译 --> 校验
+                        校验 --> 写入Artifact
+                        校验 --> 标记FAILED: 重试3次仍失败
+                        标记FAILED --> [*]
+                        写入Artifact --> [*]
+                </div>
+                <p class="inline-code" style="display:block;margin-top:12px;">👉 <code>for attempt in range(3):</code> 每次失败时把“错误原因”塞回上下文，要求LLM修正。</p>
+            </div>
+
+            <!-- 4.4 Tools -->
+            <div class="card">
+                <h3 style="margin-top:0;">④ Tools</h3>
+                <p><span class="tag green">工具调用</span> 让AI主动查询</p>
+                <div class="mermaid" style="background:transparent;">
+                    graph LR
+                        LLM[DeepSeek] -->|自主决策| CALL[Function Call]
+                        CALL --> LOOKUP[lookup_term<br/>查术语表]
+                        CALL --> PREV[get_prev_page<br/>取前几页]
+                        CALL --> SUGGEST[suggest_update<br/>建议更新术语]
+                        LOOKUP --> RESULT[结果返回LLM]
+                        PREV --> RESULT
+                        SUGGEST --> STATE[写入 suggestions.json]
+                </div>
+                <p class="inline-code" style="display:block;margin-top:12px;">👉 把 <code>lookup_term</code>、<code>suggest_update</code> 作为函数签名传给 DeepSeek API。</p>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 5. 各脚本职责与交互 -->
+        <h2>📜 各工位脚本职责（具体指引）</h2>
+
+        <div class="card">
+            <h3>🔹 01_detect.py —— 文字检测</h3>
+            <ul>
+                <li><strong>输入</strong>：<code>raw/*.png</code></li>
+                <li><strong>输出</strong>：<code>artifacts/detection.json</code>（包含每个文本框的 bbox 和多边形坐标）</li>
+                <li><strong>工具</strong>：PaddleOCR 或 YOLO 检测模型</li>
+                <li><strong>缓存逻辑</strong>：如果 <code>detection.json</code> 已存在且 <code>raw/*.png</code> 未修改，则跳过。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>🔹 02_ocr.py —— 多模型OCR</h3>
+            <ul>
+                <li><strong>输入</strong>：<code>detection.json</code> + <code>raw/*.png</code></li>
+                <li><strong>输出</strong>：<code>artifacts/ocr_candidates.json</code>（包含 PaddleOCR、EasyOCR、GOT-OCR 等多个模型的候选结果）</li>
+                <li><strong>关键点</strong>：每个候选都保留 <code>confidence</code> 和 <code>engine</code> 标签，供后续仲裁。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>🔹 03_arbitrate.py —— 智能仲裁（首次调用LLM）</h3>
+            <ul>
+                <li><strong>输入</strong>：<code>ocr_candidates.json</code> + <code>state/glossary.json</code></li>
+                <li><strong>输出</strong>：<code>artifacts/canon_text.json</code>（标准化的原文，带 region_id）</li>
+                <li><strong>智能点</strong>：当多个OCR结果冲突时，调用 DeepSeek 结合上下文（术语表、视觉crop）做裁决。</li>
+                <li><strong>注</strong>：此脚本也可视为 Harness 的迷你版，但为了聚焦，我们把最复杂的 Harness 留给翻译。</li>
+            </ul>
+        </div>
+
+        <div class="card" style="border:2px solid var(--blue);">
+            <h3 style="color:var(--blue);">⭐ 04_translate.py —— 翻译工位（完整Harness封装）</h3>
+            <p>这是整个流水线的大脑。它内部实现了前面提到的全部4个 Harness 维度。</p>
+            <p><strong>输入</strong>：<code>canon_text.json</code> + <code>state/glossary.json</code> + <code>state/open_questions.json</code> + 前3页译文</p>
+            <p><strong>输出</strong>：<code>artifacts/translation.json</code> + <code>state/suggestions.json</code>（AI建议的术语更新）</p>
+            <div style="background:#f8fafc;padding:12px;border-radius:8px;font-size:14px;">
+                <strong>🧩 代码骨架（Python 伪代码）</strong>
+                <pre style="margin:6px 0 0 0;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px;">
+def translate_page(page_id):
+    # 1. Context Management: 构建结构化上下文
+    context = {
+        "system": "你是漫画翻译专家...",
+        "current": load_canon_text(page_id),
+        "history": load_prev_translations(page_id, n=3),
+        "knowledge": load_glossary(),
+        "uncertainty": load_open_questions()
+    }
+
+    # 2. Guardrails + Loop: 带重试和校验的循环
+    for attempt in range(3):
+        try:
+            response = call_deepseek(context, tools=[lookup_term, suggest_update])
+            
+            # 3. 输出校验 (Guardrails)
+            validated = validate_translation(response) # 检查JSON/日文残留
+            
+            # 4. 保存结果
+            save_translation(validated)
+            save_suggestions(validated.get("suggestions", []))
+            return
+        except ValidationError as e:
+            # 把错误信息追加到上下文，进入下一次循环 (Loop)
+            context["correction_hint"] = str(e)
+            continue
+    
+    # 重试3次仍失败
+    mark_failed("translation", page_id)
+                </pre>
+            </div>
+            <div class="callout good" style="margin-top:12px;">
+                <strong>✨ 这就是Harness的精髓：</strong> 把“智能”封装在一个可重试、可校验、带工具函数的闭环中，而不需要外部复杂的编排系统。
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🔹 05_inpaint.py —— 擦字与重绘</h3>
+            <ul>
+                <li><strong>输入</strong>：<code>raw/*.png</code> + <code>detection.json</code></li>
+                <li><strong>输出</strong>：<code>artifacts/mask.png</code>（蒙版） + <code>artifacts/cleaned.png</code>（擦除文字后的净图）</li>
+                <li><strong>工具</strong>：LaMa 或 Stable Diffusion Inpainting。</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>🔹 06_typeset.py —— 排版合成</h3>
+            <ul>
+                <li><strong>输入</strong>：<code>cleaned.png</code> + <code>translation.json</code></li>
+                <li><strong>输出</strong>：<code>artifacts/final.png</code>（最终成品图）</li>
+                <li><strong>关键</strong>：根据原文坐标自动计算译文换行，选择合适字体大小。</li>
+            </ul>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 6. 编排器: 00_run_all.py -->
+        <h2>🎮 简易编排器：<code>00_run_all.py</code></h2>
+        <div class="card">
+            <p>你不需要 Airflow 或 Prefect。一个简单的 Python 脚本，通过检查文件是否存在来控制流程。</p>
+            <pre>
+import os
+import subprocess
+
+def should_run(output_file):
+    return not os.path.exists(output_file)
+
+def run_script(script_name, output_file):
+    if should_run(output_file):
+        print(f"▶️ 运行 {script_name}...")
+        subprocess.run(["python", script_name], check=True)
+        print(f"✅ {output_file} 已生成")
+    else:
+        print(f"⏭️ 跳过 {script_name} (文件已存在)")
+
+# 主流程
+if __name__ == "__main__":
+    run_script("scripts/01_detect.py", "workspace/my_manga/artifacts/detection.json")
+    run_script("scripts/02_ocr.py", "workspace/my_manga/artifacts/ocr_candidates.json")
+    run_script("scripts/03_arbitrate.py", "workspace/my_manga/artifacts/canon_text.json")
+    run_script("scripts/04_translate.py", "workspace/my_manga/artifacts/translation.json")
+    run_script("scripts/05_inpaint.py", "workspace/my_manga/artifacts/cleaned.png")
+    run_script("scripts/06_typeset.py", "workspace/my_manga/artifacts/final.png")
+
+    print("🎉 全部完成！")
+            </pre>
+            <div class="callout warn">
+                <strong>💡 断点续跑技巧：</strong> 如果 <code>04_translate.py</code> 运行失败，你只需要修好代码，然后 <strong>手动删除 <code>translation.json</code></strong>，再次运行 <code>00_run_all.py</code>，它会自动从翻译工位重新开始，而不会重跑检测和OCR。
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 7. 上下文演进：让AI“自由探索”但不失控 -->
+        <h2>🌱 上下文演进：如何让AI“自由探索”又不翻车</h2>
+        <div class="card">
+            <p>你之前担心的“只注入静态Prompt”，在这里被完美解决。我们通过 <strong>“建议-审批”</strong> 机制，让AI在翻译过程中持续学习。</p>
+            <div class="mermaid">
+                sequenceDiagram
+                    participant User
+                    participant Script as 04_translate.py
+                    participant AI as DeepSeek
+                    participant State as state/glossary.json
+
+                    Script->>AI: 提供当前页 + 现有术语表
+                    AI->>AI: 翻译中发现新角色 "豊姫"
+                    AI->>Script: 返回译文 + suggest_update("豊姫", "丰姬")
+                    Script->>State: 写入 suggestions.json
+                    Script->>User: 提示 "有1条术语建议待审核"
+                    User->>State: 手动确认，合并入 glossary.json
+                    Note over State: 下一轮翻译自动生效
+            </div>
+            <div class="grid-2">
+                <div>
+                    <h4>🔹 低风险建议（自动批准）</h4>
+                    <ul>
+                        <li>数字、日期、专有名词（如“1000年”）</li>
+                        <li>置信度 > 95% 的术语统一</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>🔸 高风险建议（人工审批）</h4>
+                    <ul>
+                        <li>核心角色名字（影响剧情理解）</li>
+                        <li>涉及文化背景的翻译（如“忍者”→“武士”）</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="callout good">
+                <strong>🏆 结果：</strong> 翻译10页后，<code>glossary.json</code> 越来越完善。AI不再“自由探索”互联网，而是在你给它划定的“知识圈”里高效工作，既保证了质量，又满足了“动态更新”的需求。
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 8. 总结与下一步 -->
+        <h2>🚀 总结与你的行动路线</h2>
+        <div class="card">
+            <table>
+                <tr>
+                    <th>阶段</th>
+                    <th>目标</th>
+                    <th>核心任务</th>
+                </tr>
+                <tr>
+                    <td><span class="tag">第1周</span></td>
+                    <td>跑通单张图</td>
+                    <td>实现 <code>01_detect</code> → <code>02_ocr</code> → <code>05_inpaint</code> → <code>06_typeset</code>，先不接LLM，看图片处理效果。</td>
+                </tr>
+                <tr>
+                    <td><span class="tag green">第2周</span></td>
+                    <td>接入智能仲裁</td>
+                    <td>实现 <code>03_arbitrate.py</code>，用DeepSeek解决OCR冲突。</td>
+                </tr>
+                <tr>
+                    <td><span class="tag orange">第3周</span></td>
+                    <td>实现完整Harness</td>
+                    <td>按上文骨架实现 <code>04_translate.py</code>，包含Context/Loop/Guardrails/Tools。</td>
+                </tr>
+                <tr>
+                    <td><span class="tag">第4周</span></td>
+                    <td>引入术语演进</td>
+                    <td>实现 <code>suggestions.json</code> 审批机制，让AI积累知识。</td>
+                </tr>
+            </table>
+            <div class="callout good" style="margin-top:16px;">
+                <strong>🎯 最重要的建议：</strong> 不要一次性写完所有代码。从 <code>00_run_all.py</code> 开始，每次只实现一个工位，确认它的输入输出符合Contract，再写下一个。这种“增量式”开发，会让你对每一个环节都有深刻理解。
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <hr>
+        <p style="text-align:center;color:var(--muted);font-size:14px;">
+            🧩 这份指南已经把“企业级架构”变成了“硬盘上的文件夹”。你现在拥有的，是一个<strong>可重跑、可调试、可演进</strong>的智能漫画翻译工厂。
+        </p>
+
+    </div>
+
+    <!-- 初始化 Mermaid -->
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                'primaryColor': '#eff6ff',
+                'primaryBorderColor': '#2563eb',
+                'lineColor': '#94a3b8',
+                'fontFamily': 'system-ui, sans-serif'
+            }
+        });
+    </script>
+</body>
+</html>

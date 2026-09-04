@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Factory Architecture — Manga Translation</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#20242a;--muted:#68717c;--line:#dce1e7;--blue:#2f6feb;--bluebg:#edf3ff;--green:#18834b;--greenbg:#edf8f1;--orange:#a66a00;--orangebg:#fff6e4;--red:#b63d3d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+nav{position:sticky;top:0;z-index:20;background:#ffffffef;backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:7px;overflow:auto}
+nav button{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:8px;padding:7px 11px;white-space:nowrap;cursor:pointer}nav button.active{background:var(--text);color:#fff}
+main{max-width:1180px;margin:auto;padding:36px 22px 80px}.page{display:none}.page.active{display:block}
+h1{font-size:42px;line-height:1.15;margin:0 0 14px}h2{font-size:30px;line-height:1.25;margin:0 0 18px}h3{margin:22px 0 8px}
+.lead{font-size:19px;color:#4e5660}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:21px;margin:15px 0;box-shadow:0 2px 10px #00000008}.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}h1{font-size:32px}}
+.callout{padding:15px 18px;background:var(--bluebg);border-left:4px solid var(--blue);border-radius:0 10px 10px 0;margin:18px 0}.good{background:var(--greenbg);border-left-color:var(--green)}.warn{background:var(--orangebg);border-left-color:var(--orange)}
+table{width:100%;border-collapse:collapse;background:#fff}th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}th{background:#f0f2f5}
+pre{background:#171a1f;color:#edf0f3;padding:16px;border-radius:10px;overflow:auto;font-size:13px;line-height:1.55}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.tag{display:inline-block;padding:3px 8px;margin:2px 4px 2px 0;border-radius:999px;background:var(--bluebg);color:var(--blue);font-size:13px}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:18px 0}.node{background:#fff;border:1px solid #ccd2da;border-radius:9px;padding:9px 12px;font-weight:650}.arrow{color:var(--muted);font-weight:700}.muted{color:var(--muted);font-size:13px}.small{font-size:14px}
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<main>
+<section class="page" data-title="总览">
+<h1>Digital Factory Architecture</h1>
+<p class="lead">把漫画自动翻译设计成一座数字工厂：稳定的机械加工线 + 可插拔的智能工位 + Artifact Contract + 可重跑的生产节点 + QA 闭环。</p>
+<div class="callout good"><b>核心结论：</b>不要把 Dynamic Story Workflow 当成唯一流程。它只是一个 selectable pattern。整个系统真正稳定的骨架应该是：<b>Assets → Artifacts → Processing Stages → State/Context → QA → Re-run</b>。</div>
+<div class="grid">
+<div class="card"><h3>稳定层</h3><p>Page Asset、Detection、OCR、Mask、Inpainting、Typesetting、QA 等都应该有清晰输入/输出，可以独立缓存和重跑。</p></div>
+<div class="card"><h3>智能层</h3><p>DeepSeek 负责需要推理的任务：OCR arbitration、上下文选择、翻译、State 更新、异常处理。Vision 是它可按需调用的工具。</p></div>
+</div>
+</section>
+
+<section class="page" data-title="架构原则">
+<h2>1. 工厂架构的六个原则</h2>
+<div class="grid">
+<div class="card"><h3>① Artifact First</h3><p>每个工位都生产正式 Artifact，而不是在内存里把结果直接塞给下一段代码。</p></div>
+<div class="card"><h3>② Single Responsibility</h3><p>一个 stage 解决一个主要问题，不让 OCR 顺便翻译，也不让 Inpainting 顺便做排版。</p></div>
+<div class="card"><h3>③ Re-runnable</h3><p>任何中间阶段失败，都应该能够从最近的有效 Artifact 重新执行，而不是整章重跑。</p></div>
+<div class="card"><h3>④ Optional Intelligence</h3><p>Agent/vision 是可以插入的智能工位，不是所有路径都必须经过它。</p></div>
+<div class="card"><h3>⑤ State Outside Context</h3><p>长期状态存为独立 Artifact，不依赖某次 LLM conversation 才能继续。</p></div>
+<div class="card"><h3>⑥ Verification at Boundaries</h3><p>每个重要 stage 的输出都可以 schema-check；最终结果再进行程序 QA + Vision QA。</p></div>
+</div>
+</section>
+
+<section class="page" data-title="宏观架构">
+<h2>2. 五层数字工厂</h2>
+<pre>┌──────────────────────────────────────────────────────────┐
+│  ① INGESTION                                            │
+│  User → Project → Page Assets                           │
+├──────────────────────────────────────────────────────────┤
+│  ② MATERIAL PROCESSING                                  │
+│  Detection → OCR Ensemble → Arbitration → Page Model   │
+├──────────────────────────────────────────────────────────┤
+│  ③ INTELLIGENT PRODUCTION                               │
+│  DeepSeek → Context/State → Translation                 │
+├──────────────────────────────────────────────────────────┤
+│  ④ IMAGE PRODUCTION                                     │
+│  Mask → Inpainting → Typesetting                        │
+├──────────────────────────────────────────────────────────┤
+│  ⑤ QUALITY / CONTROL                                    │
+│  Schema → Programmatic QA → Vision QA → Repair          │
+└──────────────────────────────────────────────────────────┘</pre>
+<div class="callout">这里的“智能生产”只有一个核心 Agent 工位，不需要把每一个视觉模型包装成 Agent。</div>
+</section>
+
+<section class="page" data-title="输入模式">
+<h2>3. 输入模式：连续、不连续、单页都能成立</h2>
+<pre>User
+ │
+ ├── one page ───────────────┐
+ │                            │
+ ├── several unrelated pages ├──→ Asset Registry
+ │                            │
+ └── whole chapter ──────────┘
+                              │
+                              ▼
+                     independent Page Assets
+                              │
+                     optional grouping
+                     ┌────────┴────────┐
+                     ▼                 ▼
+                 Project A         Project B
+                     │                 │
+                 Story State       Story State
+</pre>
+<p>产品层面不要假定用户提供完整章节。Story State 可以为空，也可以随着多个任务逐渐形成；输入图片本身永远是可独立处理的 Page Asset。</p>
+</section>
+
+<section class="page" data-title="Artifact Graph">
+<h2>4. Artifact Graph：真正的生产主干</h2>
+<pre>Source Image
+    │
+    ▼
+PageAsset
+    │
+    ▼
+DetectionArtifact
+    │
+    ▼
+OCRArtifact (A/B/C...)
+    │
+    ▼
+CanonicalTextArtifact
+    │
+    ├───────────────→ TranslationArtifact
+    │                         │
+    │                         ▼
+    │                    StoryStateUpdate
+    │                         │
+    │                         ▼
+    │                    StoryState
+    │
+    ▼
+MaskArtifact
+    │
+    ▼
+CleanImageArtifact
+    │
+    ▼
+TypesetArtifact
+    │
+    ▼
+QAArtifact
+    │
+    ▼
+FinalPage</pre>
+<div class="callout good"><b>Artifact Graph ≠ Agent Graph。</b>Artifact Graph 是长期稳定的生产骨架；Agent 是其中可以替换、升级、旁路调用的智能节点。</div>
+</section>
+
+<section class="page" data-title="Page Contract">
+<h2>5. 基础工件：PageAsset</h2>
+<pre>{
+  "project_id": "manga_001",
+  "page_id": "page_017",
+  "source": {
+    "path": "pages/017.png",
+    "sha256": "...",
+    "width": 1600,
+    "height": 2400
+  },
+  "sequence": {
+    "index": 17,
+    "known_order": true
+  }
+}</pre>
+<table><tr><th>字段</th><th>用途</th></tr><tr><td>project_id</td><td>把多个页面归属于一个生产项目</td></tr><tr><td>page_id</td><td>全系统稳定主键</td></tr><tr><td>sha256</td><td>判断源图是否发生变化，支持缓存</td></tr><tr><td>sequence</td><td>可选；不连续上传时仍允许 unknown</td></tr></table>
+</section>
+
+<section class="page" data-title="Detection OCR">
+<h2>6. Detection + OCR：机械材料加工</h2>
+<pre>PageAsset
+   │
+   ▼
+Text Detection
+   │
+   └── DetectionArtifact
+          ├── region_id
+          ├── bbox / polygon
+          ├── region_type
+          └── detector_version
+
+DetectionArtifact
+   │
+   ├──→ OCR-A ─┐
+   ├──→ OCR-B ─┼→ OCRArtifact
+   └──→ OCR-C ─┘
+</pre>
+<p>当前项目的实验已经说明：Vision + DeepSeek 在文字区域发现方面很强，而 OCR 可以由多个专用模型提供候选。最佳架构不是让一个模型独占真值，而是保留候选证据。</p>
+</section>
+
+<section class="page" data-title="Arbitration">
+<h2>7. OCR Arbitration：第一个智能工位</h2>
+<pre>OCR candidates
+     │
+     ├── OCR A: 豊姫
+     ├── OCR B: 星姫
+     └── OCR C: 豊妃
+          │
+          ▼
+   DeepSeek Arbiter
+          ↑
+    Story State (optional)
+          ↑
+     Vision Tool (optional)
+          │
+          ▼
+CanonicalTextArtifact
+</pre>
+<table><tr><th>为什么需要它</th><th>答案</th></tr><tr><td>OCR 可能冲突</td><td>DeepSeek 根据候选 + crop + 上下文做裁决</td></tr><tr><td>新项目没有 Story State</td><td>照样工作；context 是 optional</td></tr><tr><td>疑难字</td><td>Agent 可以主动调用 Vision Tool</td></tr></table>
+</section>
+
+<section class="page" data-title="Story State Pattern">
+<h2>8. Story State：一种可选 Pattern，而非必经工位</h2>
+<pre>                 ┌───────────────────┐
+                 │    Translation    │
+                 │       Agent       │
+                 └───────┬───────────┘
+                         │
+               optional context
+                         │
+                         ▼
+                ┌────────────────┐
+                │   Story State   │
+                │                │
+                │ Entities       │
+                │ Glossary       │
+                │ Relationships  │
+                │ Scene State     │
+                │ Recent Context │
+                │ Evidence       │
+                └────────────────┘</pre>
+<p>如果用户只上传一张图片，Story State 可以为空；如果用户持续上传同一作品，它可以逐渐成长。这样不会把产品锁死在“连续章节翻译”场景。</p>
+</section>
+
+<section class="page" data-title="Translation Agent">
+<h2>9. Translation Agent：只在需要推理的地方集中智能</h2>
+<pre>Input:
+  CanonicalTextArtifact
+  + PageAsset
+  + optional StoryState
+  + optional VisionTool
+
+Process:
+  1. determine relevant context
+  2. identify speaker / references
+  3. translate scene coherently
+  4. update state only when useful
+
+Output:
+  TranslationArtifact
+  + StateUpdateArtifact</pre>
+<div class="callout good"><b>关键：</b>Translation Agent 不负责检测、OCR、擦字、排版；它只负责语义生产和需要推理的决策。</div>
+</section>
+
+<section class="page" data-title="Image Pipeline">
+<h2>10. 图像生产线：完全可以机械化</h2>
+<pre>CanonicalTextArtifact
+        + coordinates
+             │
+             ▼
+      Segmentation / Mask
+             │
+             ▼
+       Inpainting Model
+             │
+             ▼
+      CleanImageArtifact
+             │
+             + TranslationArtifact
+             ▼
+         Typesetting
+             │
+             ▼
+      TypesetArtifact</pre>
+<p>这部分不需要为了“Agentic”而强行 Agent 化。模型、脚本和规则已经能承担大部分工作。</p>
+</section>
+
+<section class="page" data-title="QA与Repair">
+<h2>11. QA 是工厂的质检线</h2>
+<pre>TypesetArtifact
+     │
+     ├── Programmatic QA
+     │      ├── schema
+     │      ├── missing text
+     │      ├── overflow
+     │      ├── file integrity
+     │      └── residue checks
+     │
+     └── Vision QA
+            ├── bad inpainting
+            ├── face obstruction
+            ├── ugly typography
+            └── visual anomalies
+                 │
+                 ▼
+              RepairPlan
+                 │
+        ┌────────┼────────┐
+        ▼        ▼        ▼
+       OCR     Mask     Typeset
+        │        │        │
+        └────────┼────────┘
+                 ▼
+             re-run QA</pre>
+</section>
+
+<section class="page" data-title="Rerun与缓存">
+<h2>12. 可重跑与缓存：工厂设计里比 Agent 更重要</h2>
+<table><tr><th>Artifact</th><th>输入发生变化时才重跑</th></tr><tr><td>DetectionArtifact</td><td>source image / detector version / parameters</td></tr><tr><td>OCRArtifact</td><td>crop / OCR model version / parameters</td></tr><tr><td>CanonicalText</td><td>OCR candidates / arbitration policy / relevant state</td></tr><tr><td>Translation</td><td>canonical text / context / translation model / rules</td></tr><tr><td>Mask</td><td>source image / region / segmentation model</td></tr><tr><td>Inpainting</td><td>source + mask / inpainting model</td></tr><tr><td>Typesetting</td><td>clean image + translation + layout rules</td></tr></table>
+<div class="callout">这意味着换一个 OCR 模型，不必重跑 detection；改译文，也不必重新 inpaint。</div>
+</section>
+
+<section class="page" data-title="失败处理">
+<h2>13. Failure Isolation：让错误停在工位</h2>
+<pre>OCR-B failed
+   ↓
+OCRArtifact B = FAILED
+   ↓
+OCR-A / OCR-C remain VALID
+   ↓
+Arbitration can continue with available candidates
+
+Inpainting failed
+   ↓
+CleanImageArtifact = FAILED
+   ↓
+Translation remains VALID
+   ↓
+Retry inpainting only</pre>
+<p>每一个 stage 都需要状态：</p>
+<p><span class="tag">PENDING</span><span class="tag">RUNNING</span><span class="tag">VALID</span><span class="tag">FAILED</span><span class="tag">STALE</span></p>
+</section>
+
+<section class="page" data-title="不连续输入">
+<h2>14. 不连续图片：把“项目上下文”与“图片顺序”解耦</h2>
+<pre>Project
+ │
+ ├── Page 017  ─┐
+ ├── Page 033  ─┼──→ Story State A
+ └── Page 099  ─┘
+
+Another upload
+ │
+ ├── Page 003  ─┐
+ └── Page 004  ─┴──→ Story State B
+</pre>
+<p>系统不要根据文件名强行推断连续剧情。页面是否属于同一 Story State 可以是：</p><ul><li>用户指定</li><li>项目默认关联</li><li>Agent 根据视觉/文本证据提出候选</li><li>未来再由用户确认</li></ul>
+</section>
+
+<section class="page" data-title="Selectable Patterns">
+<h2>15. Dynamic Workflow 只是一个可选 Pattern</h2>
+<table><tr><th>Pattern</th><th>适合场景</th><th>特征</th></tr><tr><td>Single Page</td><td>用户只翻一页</td><td>无 Story State，直接 Page → Translate</td></tr><tr><td>Batch Pages</td><td>几张不连续图</td><td>并行 Page Pipeline，共享或不共享 State</td></tr><tr><td>Sequential Story</td><td>连续章节</td><td>Story State 持续更新</td></tr><tr><td>Review & Repair</td><td>高质量生产</td><td>QA → Repair → QA</td></tr><tr><td>Human-in-the-loop</td><td>困难页/重要作品</td><td>Agent 提交疑点，人确认后继续</td></tr></table>
+<div class="callout good"><b>产品架构应该支持这些 Pattern，而不是强迫所有输入都走 Dynamic Story Workflow。</b></div>
+</section>
+
+<section class="page" data-title="Orchestration层">
+<h2>16. Orchestration：不是“一个超级 Agent”，而是一个生产控制面</h2>
+<pre>                 Orchestrator
+                     │
+      ┌──────────────┼──────────────┐
+      ▼              ▼              ▼
+ Asset Registry   Job Queue      State Store
+      │              │              │
+      └──────────────┼──────────────┘
+                     ▼
+                 Executors
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+      CV/OCR       LLM/Vision    Image
+                     │
+                     ▼
+                 Artifacts
+                     │
+                     ▼
+                     QA</pre>
+<p>对你的个人 DIY 项目，这个 Orchestrator 一开始甚至可以只是 Python scripts + JSON metadata，而不是上消息队列、微服务和数据库。</p>
+</section>
+
+<section class="page" data-title="行业启发">
+<h2>17. 外部架构的共同点</h2>
+<div class="card"><h3>Google / Gemini</h3><p>Google 近期对生产级 Agent 的架构强调：Agent 的 Think→Act→Observe 循环之外，需要 orchestration layer 管理通信和数据流，并把 session state、memory、tool use 和安全/质量机制放在外围。Google 还强调 durable execution、checkpoint/resume 和状态机来支撑长期运行。citeturn793974search9turn793974search4turn793974search12</p></div>
+<div class="card"><h3>Anthropic</h3><p>Anthropic 的长期 Agent 研究强调用 structured artifacts 在不同 context windows/session 之间传递上下文；其 2026 年 harness 设计文章进一步展示了 planner/generator/evaluator 与 artifact handoff 的模式，同时提醒要持续删掉随着模型进步而变得多余的 harness 假设。citeturn793974search7turn793974search3turn793974search2</p></div>
+<div class="card"><h3>OpenAI</h3><p>OpenAI 的 Harness Engineering 强调 repository/environment、feedback loops、invariants、custom lint 和 structural tests；核心不是让 Agent 每一步都走固定脚本，而是把重要的工程不变量变成 Agent 能发现、工具能执行、测试能验证的环境能力。citeturn0search0</p></div>
+</section>
+
+<section class="page" data-title="架构比较">
+<h2>18. 对你的数字工厂最有价值的抽象</h2>
+<table><tr><th>外部实践</th><th>我们借什么</th><th>不照搬什么</th></tr><tr><td>Google Agent Platform</td><td>state、durability、orchestration、resume</td><td>企业级 runtime / microservice fleet</td></tr><tr><td>Anthropic long-running agents</td><td>structured artifacts、session handoff、evaluate/repair</td><td>多 Agent Team 不作为默认前提</td></tr><tr><td>OpenAI Harness Engineering</td><td>invariants、feedback loop、repository as environment</td><td>不直接复制其内部工程规模</td></tr><tr><td>传统数字工厂</td><td>工位、物料、工件、质量门、重工、生产状态</td><td>不把每个工位都智能化</td></tr></table>
+</section>
+
+<section class="page" data-title="MVP蓝图">
+<h2>19. 个人 DIY MVP 蓝图</h2>
+<pre>project/
+├─ input/
+├─ projects/
+│  └─ manga_001/
+│     ├─ pages/
+│     ├─ artifacts/
+│     │  ├─ detection/
+│     │  ├─ ocr/
+│     │  ├─ arbitration/
+│     │  ├─ translation/
+│     │  ├─ mask/
+│     │  ├─ inpainting/
+│     │  ├─ typesetting/
+│     │  └─ qa/
+│     ├─ state/
+│     │  └─ story_state.json
+│     └─ manifest.json
+├─ scripts/
+│  ├─ ingest
+│  ├─ detect
+│  ├─ ocr
+│  ├─ arbitrate
+│  ├─ translate
+│  ├─ render
+│  └─ qa
+└─ tests/
+</pre>
+<p>第一版不需要 Redis、消息队列、微服务或数据库。目录 + JSON manifest + 可重跑脚本就足以把工厂的核心概念建立起来。</p>
+</section>
+
+<section class="page" data-title="下一步">
+<h2>20. 真正的下一步：Artifact Contract</h2>
+<p>不要急着写完整系统。下一阶段先把每个工位的 contract 定下来。</p>
+<table><tr><th>Artifact</th><th>Producer</th><th>Consumer</th><th>核心字段</th><th>可否重跑</th></tr><tr><td>PageAsset</td><td>Ingestor</td><td>Detection</td><td>page_id, source hash, dimensions</td><td>—</td></tr><tr><td>DetectionArtifact</td><td>Detector</td><td>OCR / Arbiter</td><td>region_id, bbox, type, model_version</td><td>Yes</td></tr><tr><td>OCRArtifact</td><td>OCR engines</td><td>Arbiter</td><td>candidate text, confidence, engine</td><td>Yes</td></tr><tr><td>CanonicalText</td><td>Arbiter</td><td>Translation</td><td>source text, region, resolution</td><td>Yes</td></tr><tr><td>StoryState</td><td>Translation Agent</td><td>Translation Agent / Arbiter</td><td>entities, terms, scenes, relations</td><td>Versioned</td></tr><tr><td>TranslationArtifact</td><td>Translation Agent</td><td>Typesetter / QA</td><td>target text, region, speaker, style</td><td>Yes</td></tr><tr><td>QAArtifact</td><td>QA</td><td>Orchestrator</td><td>status, issue, severity, repair target</td><td>Yes</td></tr></table>
+<div class="callout good"><b>当这些 contract 定下来，DeepSeek、Qwen、PaddleOCR、任何 OCR 或 Inpainting 模型都可以替换，而工厂本身不需要重写。</b></div>
+</section>
+
+<section class="page" data-title="References">
+<h2>21. References</h2>
+<div class="card"><h3>OpenAI</h3><p><a href="https://openai.com/index/harness-engineering/" target="_blank">Harness engineering: leveraging Codex in an agent-first world</a></p><p class="muted">Harness、repository/environment、feedback loops、invariants、lint、structural tests。</p></div>
+<div class="card"><h3>Anthropic</h3><p><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents" target="_blank">Effective harnesses for long-running agents</a></p><p class="muted">Structured artifacts、cross-session context、initializer/coding loop。</p><p><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps" target="_blank">Harness design for long-running application development</a></p><p class="muted">任务分解、structured artifact handoff、planner/generator/evaluator、避免过度 harness。</p><p><a href="https://www.anthropic.com/engineering/managed-agents" target="_blank">Scaling Managed Agents: Decoupling the brain from the hands</a></p><p class="muted">稳定接口、brain/hands separation、长期 Agent 运行环境。</p></div>
+<div class="card"><h3>Google / Gemini</h3><p><a href="https://cloud.google.com/blog/products/ai-machine-learning/a-devs-guide-to-production-ready-ai-agents" target="_blank">A dev’s guide to production-ready AI agents</a></p><p class="muted">Think→Act→Observe、orchestration layer、state/memory/tools/governance。</p><p><a href="https://cloud.google.com/blog/products/ai-machine-learning/agent-executor-googles-distributed-agent-runtime" target="_blank">Introducing Agent Executor, Google’s distributed Agent Runtime</a></p><p class="muted">Durable execution、resume、checkpoint、long-running workflows。</p><p><a href="https://cloud.google.com/blog/products/ai-machine-learning/20-questions-for-the-agentic-enterprise" target="_blank">20 questions for the agentic enterprise</a></p><p class="muted">Deterministic guardrails、structured workflows、state management、evaluation。</p></div>
+<div class="card"><h3>Other architecture inspiration</h3><p><a href="https://martinfowler.com/articles/patterns-of-distributed-systems/" target="_blank">Martin Fowler — Patterns of Distributed Systems</a></p><p class="muted">用于传统数字系统中的 state、artifact、可靠性和分布式流程抽象。</p></div>
+</section>
+</main>
+<script>
+const pages=[...document.querySelectorAll('.page')],nav=document.getElementById('nav');
+pages.forEach((p,i)=>{const b=document.createElement('button');b.textContent=(i+1)+'. '+p.dataset.title;b.onclick=()=>{pages.forEach(x=>x.classList.remove('active'));p.classList.add('active');[...nav.children].forEach(x=>x.classList.remove('active'));b.classList.add('active');history.replaceState(null,'','#page-'+(i+1));scrollTo(0,0)};nav.appendChild(b)});
+let i=Math.max(0,Math.min(pages.length-1,parseInt((location.hash.match(/page-(\d+)/)||[])[1]||1,10)-1));nav.children[i].click();
+</script></body></html>

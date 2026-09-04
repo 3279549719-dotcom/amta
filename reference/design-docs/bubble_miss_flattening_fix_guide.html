@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detection Fix Guide — Resolving Bubble Under-Coverage in AMTA</title>
+<style>
+:root{
+  --bg:#090d16;--panel:#101726;--panel2:#162035;--card:#1a263e;
+  --text:#e6edfa;--muted:#8f9eb9;--line:#26354f;
+  --accent:#5b98ff;--accent2:#5fe3b3;--warn:#ffc857;--danger:#ff6b6b;--purple:#c084fc;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.65}
+nav{position:fixed;left:0;top:0;bottom:0;width:250px;background:#0b111e;border-right:1px solid var(--line);padding:24px 16px;overflow-y:auto}
+nav h1{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:0 0 4px}
+nav p{font-size:11px;color:var(--muted);margin:0 0 18px}
+nav a{display:block;color:var(--muted);text-decoration:none;padding:7px 10px;border-radius:6px;margin:2px 0;font-size:12.5px;transition:all .15s}
+nav a:hover{background:var(--panel2);color:var(--text)}
+main{margin-left:250px;max-width:1120px;padding:48px 50px 120px}
+section{margin-bottom:70px;scroll-margin-top:40px}
+h2{font-size:26px;line-height:1.3;margin:0 0 16px;color:#fff;border-bottom:1px solid var(--line);padding-bottom:10px}
+h3{font-size:18px;margin:24px 0 10px;color:var(--accent2)}
+h4{font-size:14.5px;margin:16px 0 6px;color:#cbd5e1}
+p{margin:10px 0;color:#cbd5e1}
+.lead{font-size:16px;color:#94a3b8;max-width:920px}
+.k{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700}
+.step-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-right:6px;background:var(--purple);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+code{font-family:var(--mono);color:#7dd3fc;background:#1e293b;padding:2px 5px;border-radius:4px;font-size:12.5px}
+pre{background:#030712;border:1px solid var(--line);padding:16px;border-radius:8px;overflow-x:auto;color:#e2e8f0;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+table{width:100%;border-collapse:collapse;margin:16px 0;background:var(--panel)}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:13px}
+th{color:#cbd5e1;background:var(--panel2);font-weight:600}
+.callout{padding:14px 18px;background:var(--panel2);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;margin:18px 0}
+.good{border-left-color:var(--accent2)}
+.warn{border-left-color:var(--warn)}
+.danger{border-left-color:var(--danger)}
+footer{border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:12px}
+@media(max-width:900px){nav{position:static;width:auto}main{margin:0;padding:20px 14px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>AMTA AI Fix Guide</h1>
+  <p>Residual Container Fallback</p>
+  <a href="#bug-analysis">01 案发现场与根因剖析</a>
+  <a href="#architecture-fix">02 核心算法：残差保底律</a>
+  <a href="#file-modifications">03 目标文件与代码重构</a>
+  <a href="#tracing">04 Tracing 原始框落盘改造</a>
+  <a href="#verification">05 单元测试与验证断言</a>
+</nav>
+
+<main>
+
+<!-- SECTION 1 -->
+<section id="bug-analysis">
+  <div class="k">Root Cause Diagnosis</div>
+  <h2>01 案发现场与“展平吞噬”根因剖析</h2>
+  <p class="lead"><strong>结论先行：</strong>在 15.jpg（「弟子だからね」）和 14.jpg（「では豊ちゃん…」）的漏检并不是上游模型没有识别出气泡，而是 <code>geometry.py</code> 在执行 <code>build_regions</code> 和 <code>flatten_regions</code> 时，发生了<strong>“容器吸收单子行后自身被灭口”</strong>的逻辑结构性吞噬。</p>
+
+  <div class="card">
+    <h3>案发现场还原 (15.jpg 左下气泡)</h3>
+    <pre>
+【气泡物理区域: [50, 2395, 210, 2698] (宽约 160px)】
+  ├── 右侧大字 (主台词): 「弟子だからね」 (宽约 100px)
+  └── 左侧小字 (碎碎念): 「落ち着きなさい」 (宽约 52px)
+
+【流水线内部执行时序追踪】
+1. comic-text-bubble-detector 成功检出大气泡容器:
+   Container = [50, 2395, 210, 2698] (width = 160px)
+2. anime-text / CTD 仅检出高密度小字行:
+   ChildLine = [145, 2395, 197, 2698] (width = 52px)
+3. build_regions 判定嵌套 (IoA >= 0.75):
+   ChildLine 被挂载到 Container.child_lines = [ChildLine]
+4. flatten_regions 执行展平 (致命 Bug 点):
+   规则: "容器自身不输出，只输出 child_lines"
+   ==> Container (160px) 被丢弃！
+   ==> 仅输出 ChildLine (52px「落ち着きなさい」)！
+   ==> 大字「弟子だからね」在没有被独立检出的情况下，其依托的母体容器被流水线自己杀死了！</pre>
+  </div>
+</section>
+
+<!-- SECTION 2 -->
+<section id="architecture-fix">
+  <div class="k">Algorithmic Solution</div>
+  <h2>02 核心算法：残差保底律 (Residual Container Fallback)</h2>
+  <p>不要试图在 Stage 1 强行切碎气泡。Manga-OCR（ViT 架构）具有极强的多行整气泡自回归识别能力。当子行未能覆盖整个气泡时，<strong>母体容器必须作为保底实体被保留并传递给下游</strong>。</p>
+
+  <div class="card">
+    <h3>覆盖率数学判定（Coverage Ratio）</h3>
+    <p>对于任意气泡容器 $C$ 及其吸收的所有子行集合 $\{L_1, L_2, \dots, L_k\}$：</p>
+    $$\text{Coverage}(C) = \frac{\text{Area}(\bigcup_{i=1}^k L_i)}{\text{Area}(C)}$$
+
+    <table>
+      <thead>
+        <tr>
+          <th>覆盖率阈值</th>
+          <th>物理状态判定</th>
+          <th>`flatten_regions` 展平处理动作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>$\text{Coverage} \ge 0.60$ 且 $k \ge 2$</td>
+          <td><strong>完全分解成功</strong><br>(大字与小字行均被各自检出)</td>
+          <td>按原有逻辑正常展平，输出各个 <code>child_lines</code> 进行分段排版。</td>
+        </tr>
+        <tr>
+          <td><strong>$\text{Coverage} < 0.60$</strong> 或 $k == 1$ (且 $W_C > 1.5 W_L$)</td>
+          <td><strong>严重残差漏检</strong><br>(气泡内存在大片未被子行覆盖的有效区域，如仅检出 52px 小条)</td>
+          <td><strong>【触发残差保底】禁止丢弃容器！</strong><br>丢弃细碎单子行，<strong>直接将母体气泡容器 $C$ 整体输出</strong>，送给 02_ocr 进行完整上下文识别。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SECTION 3 -->
+<section id="file-modifications">
+  <div class="k">Code Modifications</div>
+  <h2>03 目标文件与代码重构清单</h2>
+
+  <div class="card">
+    <h3>修改文件 1: `src/amta/geometry.py`</h3>
+    <p>重构 <code>flatten_regions</code> 与 <code>build_regions</code> 函数，增加覆盖率判定逻辑：</p>
+
+    <pre># src/amta/geometry.py
+
+def calculate_box_area(box: List[int]) -> int:
+    return max(0, box[2] - box[0]) * max(0, box[3] - box[1])
+
+def flatten_regions(regions: List[Dict[str, Any]], min_coverage_ratio: float = 0.60) -> List[Dict[str, Any]]:
+    """
+    将层级 regions 展平为供 02_ocr 裁框的扁平列表。
+    【核心修复】: 若容器内 child_lines 覆盖率不足 60%，说明存在内部大字漏检，
+    此时回退 (Fallback) 保留母体容器框，绝不丢弃母体。
+    """
+    flattened = []
+    
+    for reg in regions:
+        child_lines = reg.get("child_lines", [])
+        
+        # 1. 孤立区域 (无子行)，直接输出
+        if not child_lines:
+            flattened.append(reg)
+            continue
+            
+        # 2. 计算子行总面积对容器的覆盖率
+        container_area = calculate_box_area(reg["bbox"])
+        if container_area == 0:
+            continue
+            
+        child_total_area = sum(calculate_box_area(c["bbox"]) for c in child_lines)
+        coverage_ratio = child_total_area / container_area
+        
+        # 3. 覆盖率检查与残差保底决策
+        # 如果只有 1 根极窄子行，但容器很宽 (如 160px 容器只包了 52px 小字)
+        is_severely_undercovered = (coverage_ratio < min_coverage_ratio) or (
+            len(child_lines) == 1 and (reg["bbox"][2] - reg["bbox"][0]) > (child_lines[0]["bbox"][2] - child_lines[0]["bbox"][0]) * 1.5
+        )
+        
+        if is_severely_undercovered:
+            # 触发保底：丢弃不完全的子行，直接输出完整大气泡容器！
+            fallback_region = dict(reg)
+            fallback_region["child_lines"] = [] # 清空单子行，作为完整气泡送 OCR
+            fallback_region["fallback_triggered"] = True
+            flattened.append(fallback_region)
+        else:
+            # 正常多行完整覆盖，展平输出各子行
+            for child in child_lines:
+                flattened.append(child)
+                
+    return flattened</pre>
+  </div>
+</section>
+
+<!-- SECTION 4 -->
+<section id="tracing">
+  <div class="k">Tracing Enhancement</div>
+  <h2>04 Tracing 增强：`01_detect.py` 原始框落盘改造</h2>
+
+  <div class="card">
+    <h3>修改文件 2: `scripts/01_detect.py` 与 `src/amta/runner.py`</h3>
+    <p>在批量运行时，必须默认将 4 个检测器未去重的原始框落盘为 <code>01_detection_raw_engines.json</code>，杜绝出现无法排查的黑盒缺口：</p>
+
+    <pre># scripts/01_detect.py
+
+# 在执行 union_blocks 之前，增加保存原始 raw_blocks 的逻辑
+raw_engine_records = {
+    "page_id": page_id,
+    "engines": {} # 记录 pp-doclayout, comic-text, anime-text, bubble 的原始输出框
+}
+
+for step_name in DETECTOR_STEPS:
+    step_blocks = collect_detector_output(step_name, page_id)
+    raw_engine_records["engines"][step_name] = step_blocks
+
+# 落盘到 debug/raw 目录
+raw_dump_path = artifacts_dir / f"{page_id}_detect_raw_engines.json"
+with open(raw_dump_path, "w", encoding="utf-8") as f:
+    json.dump(raw_engine_records, f, indent=2, ensure_ascii=False)</pre>
+  </div>
+</section>
+
+<!-- SECTION 5 -->
+<section id="verification">
+  <div class="k">Verification & Test Suite</div>
+  <h2>05 单元测试断言与验证步骤</h2>
+
+  <div class="card">
+    <h3>Step 1: 先跑诊断探针确认案件事实 (P0)</h3>
+    <pre># 针对 15.jpg 运行诊断探针，验证 bubble-detector 是否输出了 [50, 2395, 210, 2698]
+python scripts/diag_detector_miss.py \
+  --raw "D:\我的汉化\汉化作品\东方\单翼停留之地\15.jpg" \
+  --out output/tmp/diag_p15.json
+
+# 针对 14.jpg 运行诊断探针
+python scripts/diag_detector_miss.py \
+  --raw "D:\我的汉化\汉化作品\东方\单翼停留之地\14.jpg" \
+  --out output/tmp/diag_p14.json</pre>
+  </div>
+
+  <div class="card">
+    <h3>Step 2: 自动化单元测试断言 (Unit Test)</h3>
+    <p>在 <code>tests/test_geometry_fallback.py</code> 中加入以下测试用例：</p>
+
+    <pre># tests/test_geometry_fallback.py
+from amta.geometry import flatten_regions
+
+def test_single_narrow_child_line_triggers_container_fallback():
+    # 模拟 15.jpg 案发现场
+    mock_container = {
+        "region_id": "c_001",
+        "bbox": [50, 2395, 210, 2698], # 宽 160px 的大气泡
+        "category": "dialogue_bubble",
+        "child_lines": [
+            {
+                "region_id": "l_001",
+                "bbox": [145, 2395, 197, 2698], # 宽 52px 的小字「落ち着きなさい」
+                "category": "dialogue_bubble"
+            }
+        ]
+    }
+    
+    # 执行展平
+    result = flatten_regions([mock_container], min_coverage_ratio=0.60)
+    
+    # 断言：必须输出 1 个框，且该框必须是宽 160px 的母体容器，绝不能是 52px 的窄条！
+    assert len(result) == 1
+    assert result[0]["bbox"] == [50, 2395, 210, 2698]
+    assert result[0].get("fallback_triggered") is True
+    print("✅ 单元测试通过：大字「弟子だからね」依托母体气泡成功自愈保留！")</pre>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p style="text-align:center">AMTA Manga Translation Pipeline — Architectural Guidance for Autonomous Coding Agent</p>
+</footer>
+
+</body>
+</html>

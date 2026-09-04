@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>工作流编排/LLM 观测/契约校验 — 开源项目调研存档</title>
+ <!-- Tailwind CSS 必选 -->
+ <script src="https://cdn.tailwindcss.com"></script>
+ <!-- Mermaid：本页未使用，保持注释 -->
+ <!-- <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script> -->
+ <!-- ECharts：本页未使用，保持注释 -->
+ <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script> -->
+ <script>
+ tailwind.config = {
+ theme: {
+ extend: {
+ colors: {
+ primary: '#165DFF',
+ neutral: '#1f2937'
+ }
+ }
+ }
+ }
+ </script>
+ <style>
+ html { scroll-behavior: smooth; }
+ </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<div class="flex flex-col lg:flex-row max-w-7xl mx-auto">
+ <aside class="lg:w-64 p-4 shrink-0 hidden lg:block sticky top-0 h-screen overflow-auto">
+ <div class="bg-white rounded-lg border p-3">
+ <h4 class="font-bold text-primary mb-2">目录</h4>
+ <nav id="toc" class="text-sm space-y-1"></nav>
+ </div>
+ </aside>
+
+ <main class="flex-1 p-4 lg:p-8">
+ <header class="mb-8">
+ <h1 class="text-3xl font-bold text-neutral">工作流编排 · LLM 观测 · 契约校验 — 开源项目调研存档</h1>
+ <div class="text-sm text-gray-500 mt-2">2026-08-26 · 3 个调研 subagent 并行 · 来源:GitHub README / 官方文档 / PyPI · 配套:reference/pipeline-observability-research-2026-08-26.md</div>
+ </header>
+
+ <!-- ============ 1 总览 ============ -->
+ <section id="section-overview" class="mb-10">
+ <h2 class="text-2xl font-semibold mb-4 border-l-4 border-primary pl-3">1 总览</h2>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <h3 class="font-semibold mb-2">一句话结论</h3>
+ <p class="text-sm text-gray-700"><b>8 个项目全部不引入依赖</b>——个人 DIY + 最小依赖哲学(第三方库仅 requests/pillow)下,自写 ~100 行编排器 + pipeline_log + LLM logger,<b>借鉴思想、不背行李</b>。</p>
+ </div>
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <h3 class="font-semibold mb-2">调研方法</h3>
+ <p class="text-sm text-gray-700">3 个并行 subagent:① Prefect/Metaflow ② OpenTelemetry/Dagster ③ LangSmith/LiteLLM/Pydantic。每个项目核实:依赖体积、本地运行是否强制服务、断点机制、tracing 导出、Windows 兼容。</p>
+ </div>
+ </div>
+ </section>
+
+ <!-- ============ 2 逐项结论 ============ -->
+ <section id="section-table" class="mb-10">
+ <h2 class="text-2xl font-semibold mb-4 border-l-4 border-primary pl-3">2 8 项目逐项结论</h2>
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <div class="overflow-x-auto"><table class="text-sm w-full">
+ <tr class="border-b bg-gray-50"><th class="text-left py-2 pr-3">项目</th><th class="text-left py-2 pr-3">Star</th><th class="text-left py-2 pr-3">类别</th><th class="text-left py-2 pr-3">结论</th><th class="text-left py-2">原因(关键事实)</th></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>Prefect</b></td><td class="py-2 pr-3">23.7k</td><td class="py-2 pr-3">工作流编排</td><td class="py-2 pr-3"><span class="text-red-600 font-semibold">❌ 不引</span></td><td class="py-2">pip 引入 ~60 直接依赖、数百 MB(fastapi/sqlalchemy/uvicorn…);断点是"整体重跑+缓存跳过"的弱化版;无本地 JSON 日志导出;起 server 才留历史</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>Metaflow</b></td><td class="py-2 pr-3">10.2k</td><td class="py-2 pr-3">工作流编排</td><td class="py-2 pr-3"><span class="text-red-600 font-semibold">❌ 不引</span></td><td class="py-2">功能完美(resume 断点/全本地/仅 2 依赖),但<b>官方不支持原生 Windows</b>(fcntl,要 WSL2)——出局</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>Dagster</b></td><td class="py-2 pr-3">10k+</td><td class="py-2 pr-3">工作流编排</td><td class="py-2 pr-3"><span class="text-red-600 font-semibold">❌ 不引</span></td><td class="py-2">比 Prefect 更企业级(webserver/DB),3 个线性脚本用它是杀鸡用牛刀</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>LangSmith</b></td><td class="py-2 pr-3">8k+</td><td class="py-2 pr-3">LLM 观测</td><td class="py-2 pr-3"><span class="text-red-600 font-semibold">❌ 不引</span></td><td class="py-2">数据强制上云(免费版传 LangSmith 云端,自托管是 Enterprise);14 个自带依赖——违反本地/不上云哲学</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>LiteLLM</b></td><td class="py-2 pr-3">10k+</td><td class="py-2 pr-3">LLM 网关</td><td class="py-2 pr-3"><span class="text-amber-600 font-semibold">⏸️ 观望</span></td><td class="py-2">依赖 ~100MB;价值=自动成本表 + fallback 一行切千问;单通道场景不值,<b>3+ 供应商(接千问 vision)时再考虑</b></td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>OpenTelemetry</b></td><td class="py-2 pr-3">18k+</td><td class="py-2 pr-3">可观测性</td><td class="py-2 pr-3"><span class="text-amber-600 font-semibold">借思想</span></td><td class="py-2">span 概念正是我们要的;但 JSON 文件导出仍需自写 exporter——直接手写 20 行装饰器 + json.dump 等价</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>Pydantic</b></td><td class="py-2 pr-3">19k+</td><td class="py-2 pr-3">契约校验</td><td class="py-2 pr-3"><span class="text-amber-600 font-semibold">⏸️ 观望</span></td><td class="py-2">最轻(3-5MB),但单一 JSON 契约 30 行手写够用(canon_schema 已有);<b>工具 schema 膨胀到 5+ 嵌套时再引</b></td></tr>
+ <tr><td class="py-2 pr-3"><b>Great Expectations</b></td><td class="py-2 pr-3">9.5k+</td><td class="py-2 pr-3">数据质量</td><td class="py-2 pr-3"><span class="text-red-600 font-semibold">❌ 不引</span></td><td class="py-2">Expectation Suite 体系对 10-20 页规模过重,Pydantic 都嫌多</td></tr>
+ </table></div>
+ </div>
+ </section>
+
+ <!-- ============ 3 借鉴映射 ============ -->
+ <section id="section-map" class="mb-10">
+ <h2 class="text-2xl font-semibold mb-4 border-l-4 border-primary pl-3">3 借鉴映射:借思想,不背行李</h2>
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <div class="overflow-x-auto"><table class="text-sm w-full">
+ <tr class="border-b bg-gray-50"><th class="text-left py-2 pr-3">借鉴对象</th><th class="text-left py-2 pr-3">借什么思想</th><th class="text-left py-2">AMTA 落地</th></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>Metaflow</b></td><td class="py-2 pr-3">resume 断点续跑(复用成功步骤产物,只重跑失败步)</td><td class="py-2">00_run_all:"文件存在=跳过" + 记录已完成步骤</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>Prefect</b></td><td class="py-2 pr-3">task 声明 + 结果缓存</td><td class="py-2">每步一个函数 + 产物落盘(artifacts/)</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>OpenTelemetry</b></td><td class="py-2 pr-3">span 概念(每步输入/输出/耗时/状态)</td><td class="py-2">pipeline_log:每步一条记录,append 到 JSON</td></tr>
+ <tr class="border-b"><td class="py-2 pr-3"><b>LiteLLM</b></td><td class="py-2 pr-3">调用日志(输入输出/成本) + fallback</td><td class="py-2">03 --trace:LLM/工具调用摘要落盘;fallback 留接口</td></tr>
+ <tr><td class="py-2 pr-3"><b>Pydantic</b></td><td class="py-2 pr-3">数据契约校验</td><td class="py-2">canon_schema.py + 机械护栏(已有,扩展 stage 间契约)</td></tr>
+ </table></div>
+ <p class="text-sm text-gray-600 mt-3">纪律:项目一贯做法(ADR-014)——借鉴 manga-image-translator/comic-translate 时"只借鉴设计不复制代码",GPL 兼容。</p>
+ </div>
+ </section>
+
+ <!-- ============ 4 最终方案 ============ -->
+ <section id="section-final" class="mb-10">
+ <h2 class="text-2xl font-semibold mb-4 border-l-4 border-primary pl-3">4 最终方案(自造,零新增依赖)</h2>
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <h3 class="font-semibold mb-2 text-primary">① 工作流编排</h3>
+ <p class="text-sm text-gray-700">00_run_all.py:~100 行。01_detect → 02_ocr → 03_translate → ③ 评审 → 自动修复。文件存在=跳过(断点),失败中止留 failed_step 锚点。</p>
+ </div>
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <h3 class="font-semibold mb-2 text-primary">② Task Tracing</h3>
+ <p class="text-sm text-gray-700">pipeline_log.json:每步一条 span(step/page/status/input/output/耗时/关键数字),run_id + git_head 记录,append 不覆盖。</p>
+ </div>
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <h3 class="font-semibold mb-2 text-primary">③ Agent 观测</h3>
+ <p class="text-sm text-gray-700">03 --trace:每页 LLM 调用摘要(model/token/工具调用次数/返回),探针代码转正,~60 行。</p>
+ </div>
+ </div>
+ <div class="bg-white p-5 rounded-lg border shadow-sm mt-4">
+ <h3 class="font-semibold mb-2">验收路径(已定)</h3>
+ <p class="text-sm text-gray-700">1 页冒烟(单翼第 1 页全链路)→ 把 1-10 页评测产物"转正"为流水线产物 → 从第 11 页起带 work_state 积累续翻(验证 state 跨页累积 + get_context 前页回溯 + 断点续跑)。</p>
+ </div>
+ </section>
+
+ <!-- ============ 5 存档 ============ -->
+ <section id="section-archive" class="mb-10">
+ <h2 class="text-2xl font-semibold mb-4 border-l-4 border-primary pl-3">5 调研存档清单</h2>
+ <div class="bg-white p-5 rounded-lg border shadow-sm">
+ <ul class="text-sm text-gray-700 list-disc ml-5 space-y-1">
+ <li>本文件:reference/pipeline-orchestration-research-report.html(8 项目结论)</li>
+ <li>reference/pipeline-observability-research-2026-08-26.md(第一轮:LLM 可观测性 + 数据管线 provenance)</li>
+ <li>deliver/llm-observability-official-docs.md(OpenAI Agents SDK Tracing + Anthropic multi-agent 原文)</li>
+ <li>调研链接:PrefectHQ/prefect · Netflix/metaflow · dagster-io/dagster · langchain-ai/langsmith-sdk · BerriAI/litellm · open-telemetry/opentelemetry-python · pydantic/pydantic · great-expectations/great_expectations</li>
+ </ul>
+ </div>
+ </section>
+ </main>
+</div>
+
+<script>
+// ---------------- ECharts实例管理(本页未用,保留模板能力) ----------------
+let echartInstances = {};
+function initEchart(domId, option){
+ const dom = document.getElementById(domId);
+ if(!dom) return;
+ if(echartInstances[domId]) echartInstances[domId].dispose();
+ echartInstances[domId] = echarts.init(dom);
+ echartInstances[domId].setOption(option);
+}
+window.addEventListener('resize',()=>{
+ Object.values(echartInstances).forEach(ins=>ins.resize?.());
+});
+
+// ---------------- 自动生成页面目录TOC ----------------
+(function buildToc(){
+ const tocDom = document.getElementById('toc');
+ document.querySelectorAll('section[id] > h2').forEach(h=>{
+ const link = document.createElement('a');
+ link.href = '#' + h.parentElement.id;
+ link.className = 'block py-1 hover:text-primary';
+ link.innerText = h.innerText;
+ tocDom.appendChild(link);
+ })
+})();
+</script>
+</body>
+</html>

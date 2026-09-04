@@ -1,0 +1,73 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Personal Harness — Finish Loop + Guardrails + Audit</title><style>
+body{margin:0;background:#f5f6f8;color:#20242a;font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif}nav{position:sticky;top:0;background:#fffffff2;border-bottom:1px solid #ddd;padding:10px;display:flex;gap:6px;overflow:auto}button{white-space:nowrap;border:1px solid #ddd;background:#fff;border-radius:8px;padding:7px 10px}button.active{background:#20242a;color:#fff}main{max-width:1050px;margin:auto;padding:36px 22px}.page{display:none}.page.active{display:block}h1{font-size:40px;line-height:1.15}h2{font-size:30px}.card{background:white;border:1px solid #ddd;border-radius:14px;padding:20px;margin:15px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.callout{padding:15px 18px;background:#edf3ff;border-left:4px solid #315fd3;border-radius:0 8px 8px 0;margin:18px 0}.good{background:#eaf7ef;border-left-color:#18834b}table{width:100%;border-collapse:collapse;background:white}th,td{border:1px solid #ddd;padding:10px;text-align:left;vertical-align:top}th{background:#f0f2f5}pre{background:#171a1f;color:#eee;padding:16px;border-radius:10px;overflow:auto}.muted{color:#68717c}@media(max-width:700px){.grid{grid-template-columns:1fr}h1{font-size:32px}}</style></head><body><nav id="nav"></nav><main>
+<section class="page" data-title="总览"><h1>Personal Harness</h1><p>本次讨论最终收敛为两个核心工程问题：<b>Finish / Learning Loop</b> 与 <b>Guardrails + Audit</b>。</p><div class="callout good"><b>核心原则：</b>不要让 AI 只“记住错误”；让 AI 把错误编译成系统约束。</div><div class="grid"><div class="card"><h3>目标 01</h3><p>每个任务结束后重新验收、检查 diff、运行验证、修复问题，并提炼真正值得长期保存的经验。</p></div><div class="card"><h3>目标 02</h3><p>通过编码中、pre-commit、pre-push 三层机械防线减少重复报错，再用周期性 audit 清理 Harness entropy。</p></div></div></section>
+<section class="page" data-title="四类知识"><h2>1. 四类落盘仍然成立</h2><table><tr><th>层</th><th>文件</th><th>回答的问题</th></tr><tr><td>State</td><td><code>progress.md</code></td><td>项目现在做到哪里？</td></tr><tr><td>Lessons</td><td><code>docs/lessons.md</code></td><td>过去遇到了什么可复用的问题？</td></tr><tr><td>Decisions</td><td><code>docs/decisions/</code></td><td>为什么采用当前架构/技术决策？</td></tr><tr><td>Rules</td><td><code>CLAUDE.md</code> / rules</td><td>Agent以后必须遵守什么？</td></tr></table><div class="callout">package.json 等项目配置属于 <b>machine facts</b>，不是 AI memory。</div></section>
+<section class="page" data-title="知识升级"><h2>2. Knowledge → Enforcement</h2><pre>一次事件 / 错误
+      ↓
+是否值得复用？
+ /          \
+NO           YES
+↓             ↓
+丢弃         lesson
+               ↓
+          是否会重复？
+           /       \
+         NO         YES
+         ↓           ↓
+      lesson       rule
+                     ↓
+             能否机械验证？
+                /       \
+              NO         YES
+              ↓           ↓
+            rule      test / lint / hook</pre><div class="callout good">系统不是越来越会写 memory，而是越来越多重复错误被转化为稳定规则和机械检查。</div></section>
+<section class="page" data-title="Finish Loop"><h2>3. Finish Loop</h2><pre>Task
+ ↓
+Acceptance Criteria
+ ↓
+Diff Review
+ ↓
+Programmatic Validation
+ ↓
+Repair if needed
+ ↓
+Reflection
+ ↓
+Persist useful knowledge
+ ↓
+Final Validation</pre><ol><li>重新读取任务与验收标准。</li><li>检查 git diff、无关修改、debug 残留、架构漂移。</li><li>运行 formatter、lint、typecheck、tests、build 等项目已有检查。</li><li>失败则诊断 → 修复 → 重跑。</li><li>判断是否产生可复用 lesson。</li><li>只在必要时更新 progress / lessons / rules / decisions。</li><li>判断稳定规则是否可以升级为 test/lint/hook。</li><li>最终验证后才宣布完成。</li></ol></section>
+<section class="page" data-title="职责边界"><h2>4. Finish 与 Hook 的边界</h2><div class="grid"><div class="card"><h3>Finish = Brain</h3><p>判断任务是否完成、为什么出错、是否形成 lesson、是否升级 rule、是否可以机械化。</p></div><div class="card"><h3>Hook = Enforcement</h3><p>自动运行 lint、阻止危险操作、执行固定检查、在生命周期节点触发确定性流程。</p></div></div><div class="callout">不要让 Hook 无脑把每次任务都写入所有 memory 文件。经验归纳属于 Agent 的 Finish 阶段。</div></section>
+<section class="page" data-title="Guardrails"><h2>5. 三层 Guardrails</h2><table><tr><th>阶段</th><th>目标</th><th>适合检查</th></tr><tr><td>During Coding</td><td>秒级发现廉价错误</td><td>format、syntax、轻量 lint、基础 schema check</td></tr><tr><td>pre-commit</td><td>阻止明显不合格代码进入 Git</td><td>format、lint、typecheck、相关 unit tests、架构检查</td></tr><tr><td>pre-push</td><td>离开本地前强验证</td><td>full tests、integration、build、E2E smoke、architecture tests</td></tr></table><div class="callout">不要每次编辑都跑完整测试：开发中快，commit 中等，push 更严格。</div></section>
+<section class="page" data-title="不变量"><h2>6. Guardrail 应保护项目不变量</h2><pre>source files must not be overwritten
+generated output must be separated from source
+module A must not import module C directly
+every pipeline stage must preserve page_id
+external API responses must be schema-validated</pre><table><tr><th>情况</th><th>落点</th></tr><tr><td>能机械判断</td><td>test / lint / structural test / hook</td></tr><tr><td>不能机械判断，但 Agent 必须知道</td><td>CLAUDE.md / scoped rules</td></tr><tr><td>属于程序性工作流</td><td>skill / /finish</td></tr></table></section>
+<section class="page" data-title="Audit"><h2>7. /audit：Harness Garbage Collection</h2><div class="grid"><div class="card"><h3>Memory</h3><p>CLAUDE.md 是否膨胀？规则重复/冲突？lesson 过时？哪些 lesson 可自动化？</p></div><div class="card"><h3>Architecture</h3><p>模块边界是否漂移？新增依赖是否合理？是否出现重复实现？</p></div><div class="card"><h3>Verification</h3><p>重复错误是否缺少 regression test？重要 invariant 是否仍只存在于 prose？</p></div><div class="card"><h3>Hygiene</h3><p>dead files、temporary artifacts、stale docs、错误提交的 generated files。</p></div></div><div class="callout good">Audit 的目标不是生成巨型报告，而是找到下一批可以“编译”为约束的东西。</div></section>
+<section class="page" data-title="完整闭环"><h2>8. 最终 Harness</h2><pre>LLM Agent
+   ↓
+During Coding / Fast Checks
+   ↓
+/finish
+   ↓
+Acceptance + Reflection
+   ↓
+pre-commit
+   ↓
+pre-push
+   ↓
+Git
+   │
+   └── periodic /audit
+            ↓
+      Harness cleanup
+            ↓
+     rules / tests / hooks
+            ↓
+      下一轮 Agent 更可靠</pre><div class="callout good">目标不是让 AI 永远不犯错，而是让同一种错误越来越难再次发生。</div></section>
+<section class="page" data-title="DeepSeek交接"><h2>9. 面向 DeepSeek 的实施任务</h2><pre>INSPECT → PLAN → SHOW PROPOSED CHANGES → IMPLEMENT → VERIFY</pre><p>先审计 CLAUDE.md/AGENTS.md、memory、scripts、项目配置、tests、lint、typecheck、hooks、Git、architecture、agent commands/skills。</p><p>然后报告：当前 Harness、缺失项、冗余项、Finish 生命周期、During Coding / pre-commit / pre-push 检查、Audit 范围与频率、lesson→rule→test/hook 晋升机制，以及 Phase 1/2/3 实施计划。</p><div class="callout">不要直接重写现有 Harness；已有有效机制优先保留并改进。</div></section>
+<section class="page" data-title="官方对应"><h2>10. 与 OpenAI / Anthropic 官方思路的对应</h2><table><tr><th>本方案</th><th>对应官方思想</th></tr><tr><td>Repository 作为知识载体</td><td>OpenAI 强调 repository 是 agent 工作环境，并把意图、工具和反馈回路工程化。</td></tr><tr><td>失败 → capability → constraint</td><td>OpenAI：失败时寻找缺失能力，并让它对 Agent 可见、可执行。</td></tr><tr><td>CLAUDE.md / rules</td><td>Anthropic：项目事实与稳定规则进入 CLAUDE.md / rules。</td></tr><tr><td>Finish / skill</td><td>Anthropic：程序性工作流适合 skill，而不是把长流程塞进 CLAUDE.md。</td></tr><tr><td>Hooks</td><td>Anthropic：确定性生命周期自动化适合 hooks。</td></tr><tr><td>Guardrails</td><td>Anthropic：真正必须遵守的规则应使用确定性 guardrail，而不是只依赖提示。</td></tr><tr><td>Audit</td><td>与 OpenAI 的持续质量治理、架构约束和减少系统熵增的思路一致。</td></tr></table></section>
+<section class="page" data-title="References"><h2>11. References — Official Sources</h2><div class="card"><h3>OpenAI</h3><p><a href="https://openai.com/index/harness-engineering/" target="_blank">Harness engineering: leveraging Codex in an agent-first world</a></p><p class="muted">OpenAI · February 11, 2026</p></div><div class="card"><h3>Anthropic</h3><p><a href="https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more" target="_blank">Steering Claude Code: when to use CLAUDE.md, skills, hooks, and subagents</a></p><p class="muted">Anthropic · June 18, 2026</p></div><div class="card"><h3>Anthropic — Claude Code Hooks</h3><p><a href="https://code.claude.com/docs/en/hooks" target="_blank">Hooks reference — Claude Code Docs</a></p><p class="muted">官方 Hooks 生命周期、配置、matcher、退出码与 hook 类型参考。</p></div></section>
+</main><script>
+const ps=[...document.querySelectorAll('.page')],n=document.getElementById('nav');ps.forEach((p,i)=>{let b=document.createElement('button');b.textContent=(i+1)+'. '+p.dataset.title;b.onclick=()=>{ps.forEach(x=>x.classList.remove('active'));p.classList.add('active');[...n.children].forEach(x=>x.classList.remove('active'));b.classList.add('active');history.replaceState(null,'','#page-'+(i+1));scrollTo(0,0)};n.appendChild(b)});let i=Math.max(0,Math.min(ps.length-1,Number((location.hash.match(/page-(\d+)/)||[])[1]||1)-1));n.children[i].click();
+</script></body></html>

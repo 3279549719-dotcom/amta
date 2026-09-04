@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMTA Architecture Blueprint — Infinite Canvas Edition</title>
+<style>
+:root{
+  --bg:#060911;--panel:#0d1424;--panel2:#131f38;--card:#182849;
+  --text:#e1e9f8;--muted:#7c8fa6;--line:#22365d;
+  --accent:#38bdf8;--accent2:#34d399;--warn:#fbbf24;--danger:#f87171;--purple:#a78bfa;
+  --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.7}
+.canvas{max-width:1440px;margin:0 auto;padding:48px 32px 140px}
+
+/* Top Hero Section */
+.hero{border-bottom:1px solid var(--line);padding-bottom:36px;margin-bottom:48px}
+.hero .k{font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--accent);font-weight:800}
+.hero h1{font-size:36px;margin:8px 0 16px;color:#fff;line-height:1.2}
+.hero p{font-size:17px;color:var(--muted);max-width:1080px;margin:0}
+
+/* Philosophy Callout */
+.philosophy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:32px 0 54px}
+.phi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+.phi-card h3{font-size:16px;margin:0 0 8px;color:var(--accent2)}
+.phi-card p{font-size:13px;color:#c3d1e8;margin:0;line-height:1.6}
+.phi-card .quote{font-style:italic;color:var(--muted);font-size:12px;margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
+
+/* Visual Pipeline Spine (Infinite Canvas Section) */
+.pipeline-canvas{position:relative;margin:48px 0;padding-left:48px}
+.pipeline-spine{position:absolute;left:18px;top:20px;bottom:40px;width:4px;background:linear-gradient(to bottom, var(--accent), var(--accent2), var(--purple))}
+
+.stage-node{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 32px;margin-bottom:40px;transition:border-color .2s}
+.stage-node:hover{border-color:var(--accent)}
+.stage-node::before{content:"";position:absolute;left:-36px;top:32px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:3px solid var(--accent)}
+
+.stage-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.stage-header .title-group{display:flex;align-items:center;gap:12px}
+.stage-badge{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:var(--panel2);color:var(--accent);font-family:var(--mono)}
+.stage-header h2{font-size:22px;margin:0;color:#fff}
+.stage-invariant{font-size:12.5px;color:var(--warn);background:#2c2009;padding:4px 10px;border-radius:6px;border:1px solid #5a4212}
+
+.grid2{display:grid;grid-template-columns:1.2fr 0.8fr;gap:24px}
+.node-desc{font-size:14px;color:#cdd8ea}
+.node-desc ul{margin:8px 0;padding-left:20px}
+.node-desc li{margin-bottom:6px}
+
+pre{background:#03060c;border:1px solid var(--line);padding:16px;border-radius:8px;overflow-x:auto;color:#d8e5ff;font-family:var(--mono);font-size:12px;line-height:1.5;margin:0}
+code{font-family:var(--mono);color:var(--accent);background:#131c31;padding:2px 5px;border-radius:4px;font-size:12px}
+
+/* References Section */
+.ref-section{margin-top:64px;border-top:1px solid var(--line);padding-top:40px}
+.ref-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.ref-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.ref-card h4{font-size:15px;margin:0 0 6px;color:#fff}
+.ref-card a{color:var(--accent);text-decoration:none;font-size:13px;word-break:break-all}
+.ref-card a:hover{text-decoration:underline}
+.ref-card p{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+
+@media(max-width:1024px){.grid2,.philosophy-grid,.ref-grid{grid-template-columns:1fr}.pipeline-canvas{padding-left:24px}.pipeline-spine{left:4px}.stage-node::before{left:-24px}}
+</style>
+</head>
+<body>
+
+<div class="canvas">
+
+  <!-- HERO SECTION -->
+  <header class="hero">
+    <div class="k">Architectural Epiphany & Global Reconstruction</div>
+    <h1>AMTA 数字工厂全景架构蓝图 (无限画布版)</h1>
+    <p>从过度微观的“分字号规则枷锁”中解脱，转向<strong>“粗粒度高召回采集（Stage 1）+ 多引擎会诊过滤（Stage 2）+ 语义级完整理解（Stage 3）+ 自适应包络排版（Stage 5）”</strong>的现代 AI Harness 范式。</p>
+  </header>
+
+  <!-- PHILOSOPHY JUSTIFICATION -->
+  <section class="philosophy-grid">
+    <div class="phi-card">
+      <div class="k">Core Principle 1</div>
+      <h3>The Bitter Lesson</h3>
+      <p><strong>苦涩的教训（Rich Sutton）</strong>：AI 历史上最大的教训是，任何试图将人类微观经验（如硬编码行宽比 1.4、硬切气泡大小字）写进前处理的算法，最终都会被通用大模型和粗粒度计算彻底击垮。</p>
+      <div class="quote">“粗粒度全量捕获 + 语义模型自然理解，永远胜过死板的启发式切分。”</div>
+    </div>
+
+    <div class="phi-card">
+      <div class="k">Core Principle 2</div>
+      <h3>Anthropic Harness Design</h3>
+      <p><strong>持续删除 Harness 假设</strong>：Anthropic 强调必须持续删除随着下游模型能力增强而变得多余的中间态。不要逼迫无语义的 CV 检测器去分辨主台词和碎碎念，那本就是 LLM 的本职工作。</p>
+      <div class="quote">“Avoid over-constraining the pipeline with brittle micro-processors.”</div>
+    </div>
+
+    <div class="phi-card">
+      <div class="k">Core Principle 3</div>
+      <h3>OpenAI Invariant Engineering</h3>
+      <p><strong>守住不变量，而非微观指令</strong>：OpenAI Harness 理论指出，系统应当定义清晰的边界不变量（Stage 1 绝不漏字，Stage 2 绝不过噪，Stage 5 绝不溢出），并在工件边界留出足够的自愈反馈回路。</p>
+      <div class="quote">“Guard boundary invariants, do not micromanage intermediate steps.”</div>
+    </div>
+  </section>
+
+  <!-- INFINITE PIPELINE CANVAS -->
+  <section class="pipeline-canvas">
+    <div class="pipeline-spine"></div>
+
+    <!-- STAGE 1 -->
+    <div class="stage-node">
+      <div class="stage-header">
+        <div class="title-group">
+          <span class="stage-badge">STAGE 01</span>
+          <h2>粗粒度高召回采集 (Coarse Ingestion)</h2>
+        </div>
+        <span class="stage-invariant">不变量: 召回率 ≥ 0.99，宁滥无缺，绝不微观切碎</span>
+      </div>
+      <div class="grid2">
+        <div class="node-desc">
+          <p><strong>彻底废除脆弱的 <code>sub_tier</code> 与单行强制剥离逻辑。</strong> Stage 1 退回其本质角色 —— “大功率采砂机”。</p>
+          <ul>
+            <li><strong>4 检测器并集 (2048px + conf=0.25)</strong>：确保包括 <code>かっこいい</code> 在内的所有微小字符被 100% 圈出。</li>
+            <li><strong>气泡容器整吞 (Container Preservation)</strong>：对于气泡（Bubble），直接输出<strong>整颗完整气泡框</strong>（如 160px 宽框），绝不因为只扫到 52px 小条而把母体丢弃！</li>
+            <li><strong>无框多行空间聚类</strong>：仅对裸露在外的背景独白按日漫从右向左拼接为单一多行段落。</li>
+          </ul>
+        </div>
+        <div>
+          <pre>// Output: DetectionArtifact
+{
+  "page_id": "page_015",
+  "regions": [
+    {
+      "region_id": "r_001",
+      "category": "dialogue_bubble",
+      "bbox": [50, 2395, 210, 2698], // 完整的整颗气泡！
+      "polygon": [[50,2395],[210,2395],[210,2698],[50,2698]]
+      // 没有任何多余脆弱的 sub_tier 字段！
+    }
+  ]
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAGE 2 -->
+    <div class="stage-node">
+      <div class="stage-header">
+        <div class="title-group">
+          <span class="stage-badge">STAGE 02</span>
+          <h2>多专家会诊与看门狗除噪 (Consensus & Sieve)</h2>
+        </div>
+        <span class="stage-invariant">不变量: 100% 阻断排线假框，输出纯净日文字符串</span>
+      </div>
+      <div class="grid2">
+        <div class="node-desc">
+          <p><strong>给下游洗净泥沙，将 0.25 宽门槛带来的排线噪点物理抹杀。</strong></p>
+          <ul>
+            <li><strong>Baberu-OCR 整气泡识别</strong>：直接对整颗气泡大框做 OCR，Manga-OCR 会自然按日文语法读出完整自然句：<code>弟子だからね 落ち着きなさい</code>。</li>
+            <li><strong>Pass 1 批量 VLM 差异提示 (ADR-022)</strong>：3 图/批，关闭推理思考，2.5s 秒级完成存在性校验。</li>
+            <li><strong>幽灵排线过滤筛 (Phantom Sieve)</strong>：若 Baberu 读出乱码（<code>エーマン</code>）且 VLM 陷入条纹幻觉（<code>こ、こ、こ...</code>），且两者重合度为 0，<strong>直接 DROP 该区域</strong>。</li>
+          </ul>
+        </div>
+        <div>
+          <pre>// Output: CanonicalTextArtifact
+{
+  "page_id": "page_015",
+  "items": [
+    {
+      "region_id": "r_001",
+      "source_text": "弟子だからね 落ち着きなさい",
+      "reading_direction": "vertical",
+      "confidence": 0.94
+    }
+  ]
+  // 伪检排线 page_13_u09 在本阶段被直接物理剔除！
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAGE 3 -->
+    <div class="stage-node">
+      <div class="stage-header">
+        <div class="title-group">
+          <span class="stage-badge">STAGE 03</span>
+          <h2>语义级受控翻译 (Translation Harness)</h2>
+        </div>
+        <span class="stage-invariant">不变量: 语义完整，专有名词锁定，自然保留语调层级</span>
+      </div>
+      <div class="grid2">
+        <div class="node-desc">
+          <p><strong>让 DeepSeek 在完整的语言上下文中进行人类级的语气分层。</strong></p>
+          <ul>
+            <li><strong>天然语调理解</strong>：DeepSeek 拿到 <code>弟子だからね 落ち着きなさい</code>，天然理解前半句是正式答复，后半句是安抚叮嘱。</li>
+            <li><strong>自然标点/分行格式化</strong>：模型直接输出带有自然断句或换行的中文译文：<code>因为是徒弟嘛。（冷静一点）</code>。</li>
+            <li><strong>零人工碎片拼接</strong>：告别了上下半句被切成两个任务的拼接灾难。</li>
+          </ul>
+        </div>
+        <div>
+          <pre>// Output: TranslationArtifact
+{
+  "page_id": "page_015",
+  "translations": [
+    {
+      "region_id": "r_001",
+      "target_text": "因为是徒弟嘛\n(冷静一点)",
+      "speaker": "Yagokoro_Eirin",
+      "char_count": 13
+    }
+  ]
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAGE 4 -->
+    <div class="stage-node">
+      <div class="stage-header">
+        <div class="title-group">
+          <span class="stage-badge">STAGE 04</span>
+          <h2>无损图像去字 (Clean Image Inpainting)</h2>
+        </div>
+        <span class="stage-invariant">不变量: 灰度守恒，白底 0 耗时，线稿网点无损</span>
+      </div>
+      <div class="grid2">
+        <div class="node-desc">
+          <p><strong>机械化底图处理，不引入多余模型。</strong></p>
+          <ul>
+            <li><strong>气泡连通域纯白直填 (Bypass)</strong>：整颗气泡内壁直接 `#FFFFFF` 覆盖，0 毫秒开销，绝不糊网点。</li>
+            <li><strong>压脸文字 U-Net 分割 + LaMa 局部修复</strong>：仅对无框字执行细粒度笔画膨胀与 Patch 局部贴回。</li>
+          </ul>
+        </div>
+        <div>
+          <pre>// Output: CleanImageArtifact
+// 生成与原图 100% 尺寸/色彩空间对齐的无损 PNG 底图
+// 气泡内部纯净如新，背景发丝自然接续</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAGE 5 -->
+    <div class="stage-node">
+      <div class="stage-header">
+        <div class="title-group">
+          <span class="stage-badge">STAGE 05</span>
+          <h2>智能自适应排版 (Adaptive Typography)</h2>
+        </div>
+        <span class="stage-invariant">不变量: 绝不戳破气泡边界，括号小字自动降级</span>
+      </div>
+      <div class="grid2">
+        <div class="node-desc">
+          <p><strong>把所谓的“大小字分级”彻底下放到排版引擎中用纯数学解决！</strong></p>
+          <ul>
+            <li><strong>括号/副句自适应缩放</strong>：排版引擎检测到译文中包含换行或括号 <code>(...)</code> 时，自动对括号内文本应用 <code>0.7x</code> 字号渲染！</li>
+            <li><strong>椭圆内切安全区二分折行</strong>：在气泡包络内二分搜索主字号，让整段文字完美贴合椭圆气泡。</li>
+            <li><strong>避头尾规则</strong>：禁止标点顶格掉落行首。</li>
+          </ul>
+        </div>
+        <div>
+          <pre>// Output: TypesetArtifact
+{
+  "region_id": "r_001",
+  "layout_direction": "horizontal",
+  "font_family": "dialogue_round.ttf",
+  "rendered_blocks": [
+    {"text": "因为是徒弟嘛", "font_size": 26, "anchor": [130, 2450]},
+    {"text": "(冷静一点)", "font_size": 18, "anchor": [130, 2580]}
+  ]
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAGE 6 -->
+    <div class="stage-node">
+      <div class="stage-header">
+        <div class="title-group">
+          <span class="stage-badge">STAGE 06</span>
+          <h2>质量门禁与反压自愈 (QA & Backpressure Loop)</h2>
+        </div>
+        <span class="stage-invariant">不变量: 发现字数溢出定向浓缩，2 次预算防死循环</span>
+      </div>
+      <div class="grid2">
+        <div class="node-desc">
+          <p><strong>工厂的最后一道质量闸门。</strong></p>
+          <ul>
+            <li><strong>溢出反压回路</strong>：若排版引擎即使压缩到最小字号仍溢出，向 Stage 3 抛出字数限制重写单句（Retry Budget = 2）。</li>
+            <li><strong>100% 覆盖率验证</strong>：校验最终图无遗漏气泡。</li>
+          </ul>
+        </div>
+        <div>
+          <pre>// Output: QAArtifact
+{
+  "page_id": "page_015",
+  "status": "PASS",
+  "coverage_ratio": 1.0,
+  "issues": []
+}</pre>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- REFERENCES SECTION -->
+  <section class="ref-section">
+    <div class="k">Industry Foundations & References</div>
+    <h2 style="border:none;margin-bottom:24px">御三家官方文献与核心架构出处</h2>
+    <div class="ref-grid">
+      <div class="ref-card">
+        <h4>OpenAI: Harness Engineering</h4>
+        <a href="https://openai.com/index/harness-engineering/" target="_blank">openai.com/index/harness-engineering/</a>
+        <p>论述了在 Agent 系统中构建结构化不变量（Invariants）与反馈回路，而非死板编写微观分支的重要性。</p>
+      </div>
+      <div class="ref-card">
+        <h4>Anthropic: Harness Design for Long-Running Apps</h4>
+        <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps" target="_blank">anthropic.com/engineering/harness-design-long-running-apps</a>
+        <p>明确提出“不断删除随着模型进步而变得多余的 Harness 假设”，避免在预处理阶段对数据过度切分。</p>
+      </div>
+      <div class="ref-card">
+        <h4>Google Cloud: Production-Ready AI Agents</h4>
+        <a href="https://cloud.google.com/blog/products/ai-machine-learning/a-devs-guide-to-production-ready-ai-agents" target="_blank">cloud.google.com/blog/.../production-ready-ai-agents</a>
+        <p>系统阐述了 Orchestration 层、分层状态管理与确定性安全阀在生产管线中的组合范式。</p>
+      </div>
+      <div class="ref-card">
+        <h4>Rich Sutton: The Bitter Lesson (2019)</h4>
+        <a href="http://www.incompleteideas.net/IncIdeas/BitterLesson.html" target="_blank">incompleteideas.net/IncIdeas/BitterLesson.html</a>
+        <p>AI 领域纲领性文献：人类自作聪明的复杂规则设计，永远会被粗粒度高召回+通用大模型的架构碾压。</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>
