@@ -13,7 +13,7 @@ AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化
 - **本地漫画 OCR**：`PaddleOCR-VL-For-Manga` GGUF（`models/paddle-manga/`）+ 独立 llama-server（`models/llama-cpp/llama-server.exe`，端口 8118，`--mmproj`）。koharu 内置 llama.cpp b8935 太旧，其 paddle/mit48px OCR 引擎全部不可用（MTMD 初始化失败），只 manga-ocr 可用；漫画 OCR 走独立 llama-server（OpenAI 兼容接口，prompt `OCR:`）。baberu-OCR（ONNX）作 fast path（1s/张，对白 CER 相当）。
 - **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
 - **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
-- **工具面**：`src/amta/koharu_client.py`（REST 适配器，清单见 koharu-drive skill）+ `src/amta/koharu_blocks.py`（scene 节点→blocks 纯整形）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/chat_client.py`（OpenAI 兼容 HTTP 深模块，翻译/OCR 共用接缝）+ `src/amta/ocr_engines.py`（本地/DashScope/baberu OCR 引擎）+ `src/amta/translate.py`（翻译编排：minimal 路径 VLM refine + LLM 翻译 + 机械护栏，ADR-014/016）+ `src/amta/stage3_minimal.py`（Stage 3 核心：VLM contact sheet refine + LLM 翻译 + build_semantic_context 前页上下文，ADR-023）+ `src/amta/guardrails.py`（机械护栏：结构/日文残留）+ `src/amta/canon_schema.py`（Input gate）/`glossary.py`（Knowledge guardrail）/`suggestions.py`（片假名术语提取+追加+合并）/`evalkit.py`（评测聚合 CER/EM + TEXT_CLASSES，benchmark 共用）+ `src/amta/workstate.py`（per-work workspace + work_state 四层，ADR-013/016）+ `src/amta/tickets.py`（needs_review 工单状态机 + 判例库回写，ADR-017）+ `src/amta/paths.py`（路径/JSON/UTF-8 IO）/`metrics.py`/`geometry.py`/`images.py`（共享库）+ `src/amta/artifacts.py`（产物契约单一事实源，ADR-024）/`config.py`（密钥 env/.env 唯一归属）+ `src/amta/detect_station.py`/`ocr_station.py`/`translate_station.py`（Stage 1-3 深工位，脚本薄 CLI）+ `src/amta/inpaint_strategy.py`/`fonts.py`/`typeset_engine.py`/`typeset_render.py`（Stage 4-6，ADR-019/020/021）+ `src/amta/memory/`（agent 记忆机制：estate/tools/lint，ADR-025）+ `src/amta/report/`（深接口 HTML 报告引擎：区域对齐→图层叠加→HTML生成，commit 57b225c，CLI=`scripts/gen_report.py --work-id X --src-dir Y --pages 1-5 --out report.html`，已在 main）。
+- **工具面**：`src/amta/koharu_client.py`（REST 适配器，清单见 koharu-drive skill）+ `src/amta/koharu_blocks.py`（scene 节点→blocks 纯整形）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/chat_client.py`（OpenAI 兼容 HTTP 深模块，翻译/OCR 共用接缝）+ `src/amta/ocr_engines.py`（本地/DashScope/baberu OCR 引擎）+ `src/amta/translate.py`（翻译编排：minimal 路径 VLM refine + LLM 翻译 + 机械护栏，ADR-014/016）+ `src/amta/stage3_minimal.py`（Stage 3 核心：VLM contact sheet refine + LLM 翻译 + build_semantic_context 前页上下文，ADR-023）+ `src/amta/guardrails.py`（机械护栏：结构/日文残留）+ `src/amta/canon_schema.py`（Input gate）/`glossary.py`（Knowledge guardrail）/`suggestions.py`（片假名术语提取+追加+合并）/`evalkit.py`（评测聚合 CER/EM + TEXT_CLASSES，benchmark 共用）+ `src/amta/workstate.py`（per-work workspace + work_state 四层，ADR-013/016）+ `src/amta/tickets.py`（needs_review 工单状态机 + 判例库回写，ADR-017）+ `src/amta/paths.py`（路径/JSON/UTF-8 IO）/`metrics.py`/`geometry.py`/`images.py`（共享库）+ `src/amta/artifacts.py`（产物契约单一事实源，ADR-024）/`config.py`（密钥 env/.env 唯一归属）+ `src/amta/detect_station.py`/`ocr_station.py`/`translate_station.py`（Stage 1-3 深工位，脚本薄 CLI）+ `src/amta/inpaint_strategy.py`/`fonts.py`/`typeset_engine.py`/`typeset_render.py`（Stage 4-6，ADR-019/020/021）+ `src/amta/memory/`（agent 记忆机制：estate/tools/lint，ADR-025）+ `src/amta/report/`（深接口 HTML 报告引擎：行=文字框/列=stage，6阶段可插拔 detect/ocr/filter/translate/inpaint/typeset，区域对齐→图层叠加→HTML生成，统一入口 `scripts/gen_report.py --type {pipeline,final,stage4,inpaint_ab,ab}`，已在 main）。
 - **Stage 4-6（2026-08-27，ADR-019/020/021）**：01/02 契约升级（category 三级分类 + sub_tier 透传 + image_meta；canon 落盘 = doc 信封 schema 2.1，旧裸 list 由 load_canon 兼容读，ADR-024）；`04_inpaint` 工位（category→fill_white/inpaint/skip，koharu lama-manga：`run_inpaint`（双 mask PNG）+ `fetch_inpainted`（WEBP blob 取回），探针定案）；`05_typeset` 工位（自研 Pillow 引擎：方向/折行/字号二分（overlay 强制竖排）+ 渲染 + 4 级字体映射）；00_run_all 新增 `--with-inpaint`/`--with-typeset`。
 - **技能根三路径**：`.dsh/skills`=项目维护根（git 钉版/唯一事实源，包技能一律钉此）；`~/.agents/skills`=只读下载根（`npx skills add` 落点，update 后需重复制同步钉版）；`~/.dsh/skills`=个人跨项目。包技能勿只放 `~/.agents/skills`（ADR-009）。
 
@@ -31,7 +31,7 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 |---|---|
 | 任何报错 / 测试失败 / 行为异常 | `python scripts/memory_grep.py --query "<关键词>"`（先搜 lessons，别重踩） |
 | 接手任务 / 不知道停在哪 | `python scripts/memory_recent.py` |
-| 管线运行完成 / 翻译测试结束 / 任何阶段产物落盘后 | **自动调用 `scripts/gen_report.py` 生成 HTML 报告**（`--work-id <id> --src-dir <原图目录> --pages <范围> --out <workspace>/report.html`），无需用户提醒；报告=原图+检测框+OCR+译文四列对齐，是验收唯一视觉载体 |
+| 管线运行完成 / 翻译测试结束 / 任何阶段产物落盘后 | **自动调用 `scripts/gen_report.py --type pipeline` 生成 HTML 报告**（`--work-id <id> --src-dir <原图目录> --pages <范围> --out <workspace>/report.html`），无需用户提醒；报告=原图叠加+每行一个文字框+每列一个stage（detect/ocr/translate/inpaint/typeset 全显示），是验收唯一视觉载体 |
 | 架构 / 选型决策前 | `python scripts/memory_grep.py --scope decisions --query "<主题>"` |
 | 改 prompt 模板 / 翻译护栏前 | `python scripts/memory_read.py --entry L24`（L21-L23 同查） |
 | 写评测 / 基准数字前 | `python scripts/memory_grep.py --query "评测 坐标 GT" --scope lessons` |
@@ -68,6 +68,16 @@ Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读
 - **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。
 
 ---
+
+## HTML 报告工具强制规范（违反=造轮子）
+
+**生成任何 HTML 报告必须用 `src/amta/report/` 深接口，禁止在 scripts/ 下新建独立 HTML 生成脚本。**
+
+- 数据模型铁律：`PageReport` = 原图 + `list[StageOutput]`；**行=文字框(region_id)，列=stage**。引擎自动跨阶段按 region_id + bbox IoU 对齐，新增 stage 只需加一个适配器。
+- 统一入口：`scripts/gen_report.py --type {pipeline,final,stage4,inpaint_ab,ab}`。pipeline 类型自动加载 workspace 下全部 6 阶段 artifact（缺哪个自动少一列，不报错）。
+- 新增报告类型 = 在 `src/amta/report/stages/` 加适配器（`from_xxx(data) -> StageOutput`）+ assembler 接一行 + `__init__.py` 导出，**不是**新写一个 `gen_xxx_report.py`。
+- 一次性实验脚本（A/B 探针、验证脚本）归档到 `scripts/probes/`，不占 scripts/ 根目录。
+- 报告规范全文见 `src/amta/report/__init__.py` 文档字符串。
 
 ## Python 运行规范（强制）
 

@@ -1,4 +1,4 @@
-"""报告收敛测试 — 验证 amta.report 各报告模块的公共接口。
+﻿"""报告收敛测试 — 验证 amta.report 各报告模块的公共接口。
 
 TDD 接缝：每个报告模块的 render_*() 函数是公共接口，
 测试通过构造 fake artifacts 断言 HTML 输出，不碰真实数据。
@@ -367,3 +367,128 @@ class TestInpaintAbReport:
         html = render_inpaint_ab_report(exp, src, pages=[11], out_path=out)
         assert out.exists()
         assert out.read_text(encoding="utf-8") == html
+
+
+# ---------- typeset adapter ----------
+
+class TestTypesetAdapter:
+    def test_from_typeset_returns_stageoutput(self):
+        from amta.report.stages.typeset import from_typeset
+        data = {"layout": {"r0": {"layout_direction": "horizontal",
+               "font_size": 18, "lines": ["你好"], "anchor_pos": [50, 30]}}}
+        stage = from_typeset(data)
+        assert stage.key == "typeset"
+        assert stage.label == "排版"
+        assert stage.cells["r0"]["font_size"] == 18
+
+    def test_render_cell_shows_text(self):
+        from amta.report.stages.typeset import render_cell
+        html = render_cell({"layout_direction": "vertical", "font_size": 16,
+                            "lines": ["再见"], "anchor_pos": [10, 10]})
+        assert "再见" in html and "vertical" in html and "16" in html
+
+    def test_render_cell_empty(self):
+        from amta.report.stages.typeset import render_cell
+        assert "无" in render_cell(None).lower()
+
+
+def _make_full_pipeline_artifacts(art_dir, page_idx):
+    page = f"page_{page_idx}"
+    _make_page_artifacts(art_dir, page_idx)
+    Image.new("RGB", (100, 100), (200, 200, 200)).save(art_dir / f"{page}_clean.png")
+    (art_dir / f"{page}_inpaint.json").write_text(json.dumps({
+        "clean_image": f"{page}_clean.png",
+        "masks": {f"r{page_idx}": [[10, 10], [100, 50]]},
+        "plan": [{"region_id": f"r{page_idx}", "action": "fill_white",
+                  "bbox": [10, 10, 100, 50]}],
+    }), encoding="utf-8")
+    Image.new("RGB", (100, 100), (240, 240, 240)).save(art_dir / f"{page}_final.png")
+    (art_dir / f"{page}_typeset.json").write_text(json.dumps({
+        "final_image": f"{page}_final.png",
+        "layout": {f"r{page_idx}": {"layout_direction": "horizontal",
+                     "font_size": 14, "lines": ["译0"], "anchor_pos": [50, 30]}},
+    }), encoding="utf-8")
+
+
+class TestAssemblerFullPipeline:
+    def test_load_page_includes_inpaint_and_typeset(self, tmp_path):
+        from amta.report.assembler import load_page_report
+        art_dir = tmp_path / "art"; art_dir.mkdir()
+        src_dir = tmp_path / "src"
+        _make_full_pipeline_artifacts(art_dir, 0)
+        _make_raw_image(src_dir, 0)
+        page = load_page_report(0, src_dir / "0.jpg",
+            detection_path=art_dir / "page_0_detection.json",
+            canon_path=art_dir / "page_0_canon.json",
+            translation_path=art_dir / "page_0_translation.json",
+            inpaint_path=art_dir / "page_0_inpaint.json",
+            typeset_path=art_dir / "page_0_typeset.json",
+            artifacts_dir=art_dir)
+        keys = [s.key for s in page.stages]
+        assert "inpaint" in keys and "typeset" in keys
+
+    def test_load_from_workspace_includes_all_stages(self, tmp_path):
+        from amta.report.assembler import load_from_workspace
+        ws = tmp_path / "workspace" / "tf" / "artifacts"; ws.mkdir(parents=True)
+        src_dir = tmp_path / "src"
+        _make_full_pipeline_artifacts(ws, 0)
+        _make_raw_image(src_dir, 0)
+        page = load_from_workspace("tf", 0, src_dir, tmp_path / "workspace")
+        keys = [s.key for s in page.stages]
+        assert "inpaint" in keys and "typeset" in keys
+
+    def test_missing_inpaint_typeset_skipped(self, tmp_path):
+        from amta.report.assembler import load_page_report
+        art_dir = tmp_path / "art"; art_dir.mkdir()
+        src_dir = tmp_path / "src"
+        _make_page_artifacts(art_dir, 0)
+        _make_raw_image(src_dir, 0)
+        page = load_page_report(0, src_dir / "0.jpg",
+            detection_path=art_dir / "page_0_detection.json",
+            canon_path=art_dir / "page_0_canon.json",
+            translation_path=art_dir / "page_0_translation.json")
+        keys = [s.key for s in page.stages]
+        assert "inpaint" not in keys and "typeset" not in keys
+
+
+class TestEngineFullPipeline:
+    def test_render_html_has_all_columns(self, tmp_path):
+        from amta.report.assembler import load_from_workspace
+        from amta.report.engine import render_report
+        ws = tmp_path / "workspace" / "tf" / "artifacts"; ws.mkdir(parents=True)
+        src_dir = tmp_path / "src"
+        _make_full_pipeline_artifacts(ws, 0)
+        _make_raw_image(src_dir, 0)
+        page = load_from_workspace("tf", 0, src_dir, tmp_path / "workspace")
+        result = render_report(page)
+        assert "inpaint" in result.html
+        assert "排版" in result.html or "typeset" in result.html
+        assert "译0" in result.html
+
+    def test_stats_generic_per_stage(self, tmp_path):
+        from amta.report.assembler import load_from_workspace
+        from amta.report.engine import _compute_stats
+        ws = tmp_path / "workspace" / "tf" / "artifacts"; ws.mkdir(parents=True)
+        src_dir = tmp_path / "src"
+        _make_full_pipeline_artifacts(ws, 0)
+        _make_raw_image(src_dir, 0)
+        page = load_from_workspace("tf", 0, src_dir, tmp_path / "workspace")
+        stats = _compute_stats(page, [])
+        stat_labels = [s["lbl"] for s in stats]
+        for s in page.stages:
+            assert s.label in stat_labels, f"missing stat: {s.label}"
+
+    def test_result_stages_rendered_all(self, tmp_path):
+        from amta.report.assembler import load_from_workspace
+        from amta.report.engine import render_report
+        ws = tmp_path / "workspace" / "tf" / "artifacts"; ws.mkdir(parents=True)
+        src_dir = tmp_path / "src"
+        _make_full_pipeline_artifacts(ws, 0)
+        _make_raw_image(src_dir, 0)
+        page = load_from_workspace("tf", 0, src_dir, tmp_path / "workspace")
+        result = render_report(page)
+        assert "inpaint" in result.stages_rendered
+        assert "typeset" in result.stages_rendered
+
+
+
