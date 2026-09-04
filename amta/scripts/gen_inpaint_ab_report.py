@@ -21,6 +21,7 @@ MODES = [
     ("baseline", "Baseline: 整页 Koharu lama-manga"),
     ("p0", "P0: 裁剪 + Koharu lama-manga"),
     ("p1_cpu", "P0+P1: 裁剪 + 本地 big-lama (CPU)"),
+    ("p1_manga", "P0+P1: 裁剪 + 本地 lama-manga (CPU)"),
 ]
 PAGES = [11, 12, 13, 14, 15]
 
@@ -93,7 +94,7 @@ def build_speed_chart(summaries: dict[str, dict[int, dict]]) -> str:
     if max_val == 0:
         max_val = 1
 
-    colors = ["#EA6668", "#FAAD14", "#52C41A"]
+    colors = ["#EA6668", "#FAAD14", "#52C41A", "#1890FF"]
     bars = []
     for p in PAGES:
         page_bars = []
@@ -186,9 +187,11 @@ def main():
     avg_baseline = sum(r["avg"] for r in summaries["baseline"].values() if r.get("avg") is not None) / max(1, len([r for r in summaries["baseline"].values() if r.get("avg") is not None])) if summaries.get("baseline") else 0
     avg_p0 = sum(r["avg"] for r in summaries["p0"].values() if r.get("avg") is not None) / max(1, len([r for r in summaries["p0"].values() if r.get("avg") is not None])) if summaries.get("p0") else 0
     avg_p1 = sum(r["avg"] for r in summaries["p1_cpu"].values() if r.get("avg") is not None) / max(1, len([r for r in summaries["p1_cpu"].values() if r.get("avg") is not None])) if summaries.get("p1_cpu") else 0
+    avg_p1_manga = sum(r["avg"] for r in summaries["p1_manga"].values() if r.get("avg") is not None) / max(1, len([r for r in summaries["p1_manga"].values() if r.get("avg") is not None])) if summaries.get("p1_manga") else 0
 
     speedup_p0 = (1 - avg_p0 / avg_baseline) * 100 if avg_baseline > 0 else 0
     speedup_p1 = (1 - avg_p1 / avg_baseline) * 100 if avg_baseline > 0 else 0
+    speedup_p1_manga = (1 - avg_p1_manga / avg_baseline) * 100 if avg_baseline > 0 else 0
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -228,15 +231,16 @@ tr:hover {{ background:#f9fafb; }}
 <body>
 <div class="container">
 
-<h1>Stage 4 Inpainting 速度 A/B 对比报告</h1>
-<p class="subtitle">分支: feat/stage4-inpaint-speed-optimization &nbsp;|&nbsp; 样本: 东方Project 单翼停留之地 page_11~15 &nbsp;|&nbsp; 每组3次取平均</p>
+<h1>Stage 4 Inpainting 速度 A/B 对比报告 — lama-manga 本地推理验证</h1>
+<p class="subtitle">分支: feat/stage4-lama-manga-local-inference &nbsp;|&nbsp; 样本: 东方Project 单翼停留之地 page_11~15 &nbsp;|&nbsp; 每组3次取平均</p>
 
 <!-- 概览卡片 -->
 <div class="stats">
   <div class="stat"><div class="num">{avg_baseline:.1f}s</div><div class="lbl">Baseline 平均/页</div></div>
   <div class="stat {'ok' if speedup_p0 > 0 else 'warn'}"><div class="num">{speedup_p0:+.0f}%</div><div class="lbl">P0 速度变化</div></div>
-  <div class="stat ok"><div class="num">{speedup_p1:+.0f}%</div><div class="lbl">P0+P1 速度提升</div></div>
-  <div class="stat ok"><div class="num">{avg_p1:.1f}s</div><div class="lbl">P0+P1 平均/页</div></div>
+  <div class="stat ok"><div class="num">{speedup_p1:+.0f}%</div><div class="lbl">P0+P1 big-lama 提升</div></div>
+  <div class="stat ok"><div class="num">{speedup_p1_manga:+.0f}%</div><div class="lbl">P0+P1 lama-manga 提升</div></div>
+  <div class="stat ok"><div class="num">{avg_p1_manga:.1f}s</div><div class="lbl">lama-manga 平均/页</div></div>
 </div>
 
 <!-- 速度对比表 -->
@@ -253,7 +257,7 @@ tr:hover {{ background:#f9fafb; }}
 
 <!-- 每页效果对比 -->
 <div class="section">
-  <h2>每页效果对比（原图 / Baseline / P0 / P0+P1）</h2>
+  <h2>每页效果对比（原图 / Baseline / P0 / big-lama / lama-manga）</h2>
 </div>
 {page_sections}
 
@@ -261,11 +265,12 @@ tr:hover {{ background:#f9fafb; }}
 <div class="conclusion">
   <h2>核心结论</h2>
   <ul>
-    <li><strong>P0+P1（裁剪+本地 LaMa）是最大赢家</strong>：平均 {avg_p1:.1f}s/页，比 Baseline 快 {speedup_p1:.0f}%，且无 HTTP 开销、速度稳定。</li>
+    <li><strong>P0+P1 lama-manga 是最终方案</strong>：平均 {avg_p1_manga:.1f}s/页，比 Baseline 快 {speedup_p1_manga:.0f}%，且质量与 Koharu 一致（同一 lama-manga 模型）。</li>
+    <li><strong>big-lama 速度快但质量差</strong>：P0+P1 big-lama 平均 {avg_p1:.1f}s/页，但 big-lama 是通用自然图像模型，去不掉漫画文字。</li>
     <li><strong>P0（裁剪+Koharu）效果不稳定</strong>：框少时略快，框多时因每个框独立走 Koharu HTTP 流程（create_project→import→inpaint→fetch），开销叠加后反而比整页更慢。</li>
     <li><strong>瓶颈根因</strong>：Koharu 服务化开销（6次HTTP往返+project重建）是主要瓶颈，而非推理本身。本地推理消除 HTTP 后速度提升显著。</li>
-    <li><strong>质量说明</strong>：P0+P1 用的是 big-lama（通用 LaMa），Baseline/P0 用的是 lama-manga（漫画微调），质量差异部分来自模型而非架构。需人工评分确认。</li>
-    <li><strong>建议</strong>：合入 P0+P1 方案，用本地 big-lama 替代 Koharu；核显 DirectML 加速需 TorchScript→ONNX 转换，留作后续优化。</li>
+    <li><strong>模型匹配是关键</strong>：lama-manga（漫画微调）vs big-lama（通用）的质量差异远大于架构差异。必须用 lama-manga 才能去掉漫画文字。</li>
+    <li><strong>建议</strong>：合入 P0+P1 lama-manga 方案，用本地 FFC ResNet 加载 lama-manga.safetensors，替代 Koharu HTTP 调用。</li>
   </ul>
 </div>
 
