@@ -13,6 +13,7 @@ import os
 import time
 from pathlib import Path
 
+import cv2
 import numpy as np
 import torch
 from PIL import Image
@@ -91,9 +92,21 @@ class _LamaMangaModel:
         with torch.inference_mode():
             output = self.model(img_t, mask_t)
 
-        # 后处理: 只在 mask 区域用模型输出, 非 mask 区域保留原图
+        # 后处理:
+        # 1. clamp 到 [-1, 1]
+        # 2. 输出灰度化 (漫画是黑白的, 模型 RGB 输出会产生彩色噪点, 取亮度 Y)
+        # 3. mask 边缘羽化 (Gaussian blur), 消除方框感, 让修复区域平滑融入背景
         output = output.clamp(-1, 1)
-        result = img_t * (1 - mask_t) + output * mask_t
+        r, g, b = output[0, 0], output[0, 1], output[0, 2]
+        y = 0.299 * r + 0.587 * g + 0.114 * b
+        output_gray = torch.stack([y, y, y], dim=0).unsqueeze(0)
+
+        # mask 羽化: 对二值 mask 做 Gaussian blur
+        mask_np_blur = mask_t[0, 0].cpu().numpy()
+        mask_np_blur = cv2.GaussianBlur(mask_np_blur, (11, 11), 0)
+        mask_blur = torch.from_numpy(mask_np_blur).unsqueeze(0).unsqueeze(0).to(self.device)
+
+        result = img_t * (1 - mask_blur) + output_gray * mask_blur
 
         # 裁剪回原图尺寸
         if pad_h > 0 or pad_w > 0:
