@@ -159,7 +159,7 @@ def refine_text_mask(img_rgb: np.ndarray, bboxes: list[list[float]],
 def build_rect_mask(img_size: tuple[int, int], bboxes: list[list[float]],
                     pad: int = 4) -> np.ndarray:
     """矩形 mask (当前默认方案, 用于对比和回退)。"""
-    h, w = img_size
+    w, h = img_size
     mask = np.zeros((h, w), dtype=np.uint8)
     for bb in bboxes:
         x1, y1, x2, y2 = [int(v) for v in bb]
