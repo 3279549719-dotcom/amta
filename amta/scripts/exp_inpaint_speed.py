@@ -183,7 +183,7 @@ def run_p1(page_num: int, repeat: int = 3, inpainter: LocalLamaInpainter | None 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", required=True, choices=["baseline", "p0", "p1_cpu", "p1_rect", "p1_gpu", "all"])
+    ap.add_argument("--mode", required=True, choices=["baseline", "p0", "p1_cpu", "p1_rect", "p1_manga", "p1_gpu", "all"])
     ap.add_argument("--pages", default="11-15")
     ap.add_argument("--repeat", type=int, default=3)
     a = ap.parse_args()
@@ -199,10 +199,11 @@ def main() -> int:
 
     for mode in modes:
         print(f"\n=== MODE: {mode} ===")
-        if mode in ("p1_cpu", "p1_rect", "p1_gpu") and inpainter is None:
+        if mode in ("p1_cpu", "p1_rect", "p1_manga", "p1_gpu") and inpainter is None:
             device = "cpu"  # GPU not supported for TorchScript
-            print(f"[exp] Loading local LaMa model ({device})...")
-            inpainter = LocalLamaInpainter(device=device)
+            model_type = "lama-manga" if mode == "p1_manga" else "big-lama"
+            print(f"[exp] Loading local LaMa model ({device}, {model_type})...")
+            inpainter = LocalLamaInpainter(device=device, model_type=model_type)
             print(f"[exp] Model loaded in {inpainter.load_time_s:.1f}s")
 
         for p in pages:
@@ -215,6 +216,8 @@ def main() -> int:
                 elif mode == "p1_cpu":
                     r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=True)
                 elif mode == "p1_rect":
+                    r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=False)
+                elif mode == "p1_manga":
                     r = run_p1(p, a.repeat, inpainter=inpainter, mode_name=mode, refine=False)
                 else:
                     continue
