@@ -170,3 +170,68 @@
 3. **可维护性**：本地推理依赖（simple-lama + onnxruntime）可接受，不引入过重依赖
 
 若满足以上条件，将 P0+P1 整合进 `04_inpaint.py` 主线；否则保留 Koharu 方案，仅合入 P0 裁剪优化。
+
+---
+
+## 十一、实验结果与关键发现（2026-09-04 执行后更新）
+
+### 11.1 速度数据（5页×3次取平均）
+
+| 页 | free框 | Baseline（整页Koharu） | P0（裁剪+Koharu） | P0+P1 精修mask | P0+P1 矩形mask |
+|---|---|---|---|---|---|
+| 11 | 3 | 111.7s | 37.5s | 10.0s | 7.0s |
+| 12 | 1 | 38.0s | 20.3s | 4.6s | 2.8s |
+| 13 | 3 | 275.3s | 141.1s | 12.4s | 7.4s |
+| 14 | 4 | 185.1s | 101.3s | 13.1s | 7.8s |
+| 15 | 4 | 超时>600s | 518.8s | 20.8s | 12.1s |
+| **平均** | - | **152.5s** | **75.1s** | **12.2s** | **7.4s** |
+
+- P0+P1 矩形 mask 比 Baseline 快 **95%**，比 P0 快 **90%**
+- P0 在框多时反而更慢（每个框独立走 Koharu 6次HTTP，开销叠加）
+
+### 11.2 关键发现一：refine_text_mask 在裁剪图上失效
+
+- `refine_text_mask` 依赖整页上下文做颜色聚类，裁剪成小图后上下文丢失
+- 表现：mask 过度收缩，box 2 只剩 20% 白色像素（11340→2313）
+- 后果：大量文字像素没被圈进 mask，inpaint 后文字残留
+- 解决方案：裁剪场景用矩形 mask（refine=False），不用精修
+
+### 11.3 关键发现二：big-lama 模型不适合漫画（更根本的问题）
+
+矩形 mask 解决了 mask 覆盖问题，但暴露了更根本的模型不匹配：
+
+| 模型 | 训练数据 | 漫画效果 |
+|---|---|---|
+| lama-manga（Koharu用） | 漫画数据微调 | 文字能去掉 |
+| big-lama（本地用） | 自然图像（照片/风景） | 文字完全去不掉 |
+
+- 像素级验证：LaMa 确实做了修改（33374像素有差异），但差异>10的只有4136像素
+- 本质：big-lama 把漫画文字当成"线条的一部分"，认为不需要修复
+- 结论：**P0+P1 用 big-lama 方向走不通，必须用 lama-manga 模型本地推理**
+
+### 11.4 环境约束记录
+
+- `simple-lama-inpainting` pip 包装不上（Python 3.13 构建隔离失败），改为直接复制源码到 `src/amta/_lama_model.py` + `_lama_util.py`
+- big-lama.pt 从 GitHub release 下载成功（196.3MB，TorchScript格式）
+- lama-manga.safetensors 已在本地 Koharu 目录（`D:\我的汉化\workflow\koharu_data\models\...`，194.9MB）
+- 核显 DirectML 不可用：TorchScript 模型只能用 PyTorch 推理，PyTorch 不支持 DirectML；转 ONNX 需原始模型定义，暂不做
+
+### 11.5 下一步：选项 B — 加载 lama-manga 权重到本地推理
+
+**目标**：写 PyTorch FFC ResNet 模型定义，加载 lama-manga.safetensors 权重，实现本地漫画级 inpaint。
+
+**预估工作量**：1-2小时
+
+**关键步骤**：
+1. 解析 lama-manga.safetensors 的权重键名和形状（989个参数）
+2. 参考 LaMa 官方源码（`saicinpainting`）写 FFC ResNet 模型定义
+3. 加载权重，验证前向传播输出尺寸正确
+4. 替换 `LocalLamaInpainter` 里的 big-lama 为 lama-manga
+5. 重新跑5页验证质量和速度
+
+**成功标准**：本地推理能去掉框外字，速度 < 30s/页
+
+**commit 记录**：
+- `e563dc6` 设计文档
+- `6048214` 实验代码 + A/B 报告
+- `6523a97` p1_rect 模式 + 模型不匹配发现
