@@ -75,12 +75,19 @@ class _LamaMangaModel:
         return img, pad_h, pad_w
 
     def __call__(self, image: Image.Image, mask: Image.Image) -> Image.Image:
-        """推理: image (RGB), mask (L) -> inpainted RGB Image。"""
+        """推理: image (RGB), mask (L) -> inpainted RGB Image。
+
+        完全对齐 Koharu 的预处理/后处理流程 (参考 koharu-ml/src/lama/):
+        - 输入归一化到 [0, 1] (不是 [-1, 1]!)
+        - mask 二值化 (>0 = 1)
+        - 模型输出过 sigmoid (Koharu 在 FFCResNetGenerator 最后加了 sigmoid)
+        - 用 mask 做硬混合: mask 区域用模型输出, 非 mask 区域保留原图
+        """
         orig_w, orig_h = image.size
 
-        # 归一化: image -> [-1, 1], mask -> {0, 1}
-        img_np = np.array(image).astype(np.float32) / 127.5 - 1.0
-        mask_np = (np.array(mask).astype(np.float32) > 127.5).astype(np.float32)
+        # 归一化: image -> [0, 1], mask -> {0, 1}
+        img_np = np.array(image).astype(np.float32) / 255.0
+        mask_np = (np.array(mask).astype(np.float32) > 0).astype(np.float32)
 
         img_t = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).to(self.device)
         mask_t = torch.from_numpy(mask_np).unsqueeze(0).unsqueeze(0).to(self.device)
@@ -92,28 +99,18 @@ class _LamaMangaModel:
         with torch.inference_mode():
             output = self.model(img_t, mask_t)
 
-        # 后处理:
-        # 1. clamp 到 [-1, 1]
-        # 2. 输出灰度化 (漫画是黑白的, 模型 RGB 输出会产生彩色噪点, 取亮度 Y)
-        # 3. mask 边缘羽化 (Gaussian blur), 消除方框感, 让修复区域平滑融入背景
-        output = output.clamp(-1, 1)
-        r, g, b = output[0, 0], output[0, 1], output[0, 2]
-        y = 0.299 * r + 0.587 * g + 0.114 * b
-        output_gray = torch.stack([y, y, y], dim=0).unsqueeze(0)
+        # 输出过 sigmoid (Koharu 在模型最后加了 sigmoid, 限制到 [0, 1])
+        output = torch.sigmoid(output)
 
-        # mask 羽化: 对二值 mask 做 Gaussian blur
-        mask_np_blur = mask_t[0, 0].cpu().numpy()
-        mask_np_blur = cv2.GaussianBlur(mask_np_blur, (11, 11), 0)
-        mask_blur = torch.from_numpy(mask_np_blur).unsqueeze(0).unsqueeze(0).to(self.device)
-
-        result = img_t * (1 - mask_blur) + output_gray * mask_blur
+        # 用 mask 做硬混合: mask 区域用模型输出, 非 mask 区域保留原图
+        result = img_t * (1 - mask_t) + output * mask_t
 
         # 裁剪回原图尺寸
         if pad_h > 0 or pad_w > 0:
             result = result[:, :, :orig_h, :orig_w]
 
         # 转回 [0, 255] uint8
-        result_np = (result[0].permute(1, 2, 0).cpu().numpy() + 1.0) * 127.5
+        result_np = result[0].permute(1, 2, 0).cpu().numpy() * 255.0
         result_np = np.clip(result_np, 0, 255).astype(np.uint8)
         return Image.fromarray(result_np)
 
