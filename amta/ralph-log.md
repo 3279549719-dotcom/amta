@@ -75,3 +75,12 @@
 - 经验/教训：① 脚本下移一层 = 所有 __file__ 锚定 ROOT/SCRIPT_DIR 深度常量 + sys.path 指向全要跟着改（L44）② probes/ 与 archive/ 语义不同——probes 豁免 lint 但活着（测试仍 import），depguard 要补本地识别而非清 importer（L44 承接 L37）
 - 下一步：等待人类验收：L6 审核（scripts/review.py --base main）+ 合并回 main
 ---
+
+## 2026-09-05 00:51:35 RALPH COMPLETE
+- 完成迭代: 2 / 5
+- 最终状态: 见 loop_state.json
+- 迭代日志: E:\manga translator agent\amta\output\logs\iteration-2-20260905-005135.txt
+- trace 统计:
+
+---
+
