@@ -24,9 +24,18 @@
 所有 Python 命令必须用 `uv run python`，禁止直接用 `python`。
 
 ### 5. 跑质量检查
-执行 `uv run python scripts/fastcheck.py`。这是你的质量门。
+执行 `uv run python scripts/fastcheck.py`。这是你的机械质量底线（compile+ruff+pyright+pytest+depguard+memory）。
 
-如果本次改动涉及**引擎面**（`koharu_client.py` / `koharu_blocks.py` / `pipeline.py` / `runner.py` / `smoke_test.py` 等）：额外执行 `uv run python scripts/fastcheck.py --with-e2e` —— koharu :4000 可达则必跑 smoke（必须 PASS）；不可达但改引擎面会判 FAIL（按第 6 步处理）；不可达且不涉引擎面打印 SKIPPED（不算失败，但要在 loop_state 注明"未跑 smoke"）。
+然后**按你本次改动的具体内容，自选对应的端到端验证**跑一遍（验证跟着改动走，不是一刀切）：
+- 改 detect → 跑 `scripts/01_detect.py` 在测试页上真跑一遍（或 `run_pipeline.py --stages detect --pages 1-1`）
+- 改 ocr → 跑 `scripts/02_ocr.py`（或 `--stages ocr`）真跑一遍
+- 改 translate → 跑 `scripts/03_translate.py`（或 `--stages translate`）真跑一遍
+- 改 inpaint → 跑 `scripts/04_inpaint.py` 一页真通路（或 `--stages inpaint`）
+- 改 typeset → 跑 `scripts/05_typeset.py` 排版渲染（或 `--stages typeset`）
+- 只有真动了 `koharu_client.py` / `runner.py` / 引擎适配层 → 才需要 koharu smoke（`npm start` 启动后跑 `scripts/smoke_test.py`）
+- 纯逻辑/共享库改动 → 单测已覆盖，说明即可，不需要真通路
+
+把"**验证了什么 + 为什么选它 + 结果**"写进 `loop_state.last_verified`。
 
 ### 6. 处理失败
 如果 fastcheck 失败：
@@ -91,6 +100,13 @@ git commit -m "ralph: <一句话描述本次迭代>"
 - **不要问人问题**。除非遇到完全无法推进的死胡同，否则自己做决定，记录在 escalation 里。真的需要人裁决时：写 `status=BLOCKED` 停止（第 10 步），不要空转等下一轮。
 - **不要改 prompt.md 和 ralph.ps1**。这是循环控制文件，改了会破坏外层循环。
 - **不要动 main 分支**。在当前分支上工作。
+
+## 合入前（L6 独立审核，非本迭代步骤）
+
+合入 main 是"人类验收"决策点（AGENTS.md 规则 3）。人类合入前跑一次独立第二模型审核：
+`uv run python scripts/review.py --base main --mission "<本次验收标准>"` —— spawn 一个不知道你做了什么
+的独立 claude 会话审 diff，输出 VERDICT: PASS/FAIL/CONCERN + 证据。门是否还可靠可用
+`uv run python scripts/review.py --selfcheck` 复检。它不在你本次迭代的 10 步里，属合入前人工检查的辅助工具。
 
 ## 你现在的起点
 

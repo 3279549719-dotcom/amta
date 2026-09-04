@@ -1,5 +1,6 @@
 #!/bin/sh
-# Level 3 pre-push gate: fastcheck --with-e2e（L1-L4 + L5 端到端门；引擎未启动但改动涉引擎面 → FAIL）。
+# Level 3 pre-push gate: fastcheck（L1-L4 机械底线）+ 可选 smoke（koharu 可达才跑，不硬绑）。
+# 端到端验证的"选哪个"由 agent 按改动自选（ADR-030），push 钩子不猜、不强制 koharu。
 # Install: scripts/install_hooks.ps1 (git config core.hooksPath .githooks)
 set -e
 cd "$(dirname "$0")/.."
@@ -9,7 +10,14 @@ elif command -v py >/dev/null 2>&1 && py -3.13 -c "import pytest, ruff" >/dev/nu
 elif command -v python >/dev/null 2>&1 && python -c "import pytest, ruff" >/dev/null 2>&1; then PY=python
 else echo "[pre-push] ERROR: need Python 3.13 with pytest/ruff (AutoClaw python lacks them)" >&2; exit 1; fi
 
-echo "[pre-push] fastcheck --with-e2e (L1-L4 + L5 端到端门：koharu 可达必跑 smoke；改动涉引擎面但引擎未启动 → FAIL)..."
-$PY scripts/fastcheck.py --with-e2e
+echo "[pre-push] fastcheck (compile + ruff + pyright + unit tests)..."
+$PY scripts/fastcheck.py
+
+echo "[pre-push] optional smoke (only if koharu reachable)..."
+if $PY -c "import requests,sys; sys.exit(0 if requests.get('http://127.0.0.1:4000/', timeout=2).ok else 1)" 2>/dev/null; then
+    $PY scripts/smoke_test.py
+else
+    echo "[pre-push] koharu unreachable, skip smoke (push continues; run npm start when needed)"
+fi
 
 echo "[pre-push] OK"

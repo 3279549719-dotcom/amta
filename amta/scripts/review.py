@@ -138,6 +138,111 @@ def _locate_session_jsonl(since: float | None = None) -> str:
     return str(newest[0]) if newest else ""
 
 
+def _spawn_review(prompt: str, timeout: int, model: str | None) -> tuple[str, int]:
+    """spawn 独立 claude -p 审 prompt。返回 (review_text, rc)：rc=0 成功 / 1 超时 / 2 启动失败。
+
+    Windows 下 claude 是 claude.cmd / claude.ps1，Python subprocess 不能直接执行，
+    必须经 cmd /c 走 PATHEXT 解析（Linux/macOS 直接调 claude）。大 prompt 走 stdin 管道
+    以绕开 Windows 命令行长度限制（L43）。"""
+    if os.name == "nt":
+        cmd = ["cmd", "/c", "claude", "-p", "--output-format", "text", "--allowedTools", "Read, Grep, Glob"]
+    else:
+        cmd = ["claude", "-p", "--output-format", "text", "--allowedTools", "Read, Grep, Glob"]
+    if model:
+        cmd += ["--model", model]
+    try:
+        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=timeout, cwd=str(ROOT))
+    except subprocess.TimeoutExpired:
+        return "", 1
+    except OSError:
+        return "", 2
+    text = (r.stdout or "").strip() or "(无输出)"
+    if r.stderr:
+        text += "\n[stderr]\n" + r.stderr.strip()
+    return text, 0
+
+
+def _parse_verdict(text: str) -> str:
+    """从 review 输出解析 VERDICT 行，找不到返回 CONCERN。"""
+    for line in text.splitlines():
+        s = line.strip().upper()
+        if s.startswith("VERDICT:"):
+            v = s.split(":", 1)[1].strip()
+            if v in ("PASS", "FAIL", "CONCERN"):
+                return v
+    return "CONCERN"
+
+
+# --selfcheck 用：给 L6 门本身"体检"的固定样例。
+# 坏样例 = 含明确缺陷的 diff，门必须抓出（VERDICT=FAIL/CONCERN 且命中预设缺陷词）；
+# 干净样例 = 无缺陷的纯函数 diff，门不得误报（VERDICT 非 FAIL）。
+SELFCHECK_FIXTURES = [
+    {
+        "name": "bad-divide-index",
+        "criteria": "验收：提供安全的 divide（除零返回 None）和 get_first（空列表返回 None），并有测试覆盖。",
+        "diff": (
+            "diff --git a/src/amta/calc.py b/src/amta/calc.py\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n"
+            "+++ b/src/amta/calc.py\n"
+            "@@ -0,0 +1,12 @@\n"
+            "+def divide(a, b):\n"
+            "+    return a / b  # b=0 时会抛 ZeroDivisionError，未处理\n"
+            "+\n"
+            "+def get_first(items):\n"
+            "+    return items[0]  # 空列表会 IndexError，未处理\n"
+        ),
+        "expect_fail": True,
+        "must_mention": ["除零", "ZeroDivision", "IndexError", "空列表"],
+    },
+    {
+        "name": "clean-title",
+        "criteria": "验收：提供 title(s) = 去首尾空白 + 标题化，纯函数无副作用。",
+        "diff": (
+            "diff --git a/src/amta/format.py b/src/amta/format.py\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n"
+            "+++ b/src/amta/format.py\n"
+            "@@ -0,0 +1,4 @@\n"
+            "+def title(s):\n"
+            "+    return s.strip().title()\n"
+        ),
+        "expect_fail": False,
+        "must_mention": [],
+    },
+]
+
+
+def _run_selfcheck(timeout: int, model: str | None) -> int:
+    """L6 门有效性自检：坏样例必须被抓到，干净样例必须不误报。0 = 门有效，1 = 门失灵。"""
+    print("== [review:selfcheck] L6 门有效性体检：坏样例必须被抓到，干净样例必须不误报 ==")
+    ok = True
+    for fx in SELFCHECK_FIXTURES:
+        prompt = PROMPT_TEMPLATE.format(criteria=fx["criteria"], base="(selfcheck fixture)",
+                                        worktree_note="", diff=fx["diff"])
+        print(f"== [review:selfcheck] fixture: {fx['name']}（expect_fail={fx['expect_fail']}）spawn claude...")
+        text, rc = _spawn_review(prompt, timeout, model)
+        if rc != 0:
+            print(f"== [review:selfcheck] {fx['name']}: claude 调用失败 rc={rc}（超时或启动错误）→ FAIL ==")
+            ok = False
+            continue
+        verdict = _parse_verdict(text)
+        mention = [kw for kw in fx["must_mention"] if kw in text]
+        if fx["expect_fail"]:
+            caught = verdict in ("FAIL", "CONCERN") and bool(mention)
+            status = "PASS（抓到缺陷）" if caught else "FAIL（漏报）"
+            print(f"== [review:selfcheck] {fx['name']}: VERDICT={verdict} 命中缺陷词={mention} → {status} ==")
+            ok = ok and caught
+        else:
+            false_pos = verdict == "FAIL"
+            status = "PASS（无误报）" if not false_pos else "FAIL（误报干净样例）"
+            print(f"== [review:selfcheck] {fx['name']}: VERDICT={verdict} → {status}（期望非 FAIL）==")
+            ok = ok and not false_pos
+    print("== [review:selfcheck] 总结:", "ALL PASS（L6 门有效）" if ok else "存在 FAIL（L6 门失灵，需排查）", "==")
+    return 0 if ok else 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="L6 独立 model 审核门（spawn 独立 claude -p 审 diff）")
     ap.add_argument("--base", default="main", help="diff 基准 ref（默认 main，用三点 ...HEAD 比较）")
@@ -147,11 +252,16 @@ def main() -> int:
     ap.add_argument("--model", default=None, help="claude 模型别名（如 sonnet/opus；缺省用默认模型）")
     ap.add_argument("--no-worktree", action="store_true", help="只审已提交 diff，不含工作区改动")
     ap.add_argument("--timeout", type=int, default=300, help="claude 会话超时秒数（默认 300）")
+    ap.add_argument("--selfcheck", action="store_true",
+                    help="L6 门有效性自检：用内置坏/好样例验证门真能抓错、不误报，不读真实 diff")
     args = ap.parse_args()
 
     if not shutil.which("claude"):
         print("review: 找不到 claude CLI（ralph.ps1 同款依赖），无法启动独立审核", file=sys.stderr)
         return 2
+
+    if args.selfcheck:
+        return _run_selfcheck(args.timeout, args.model)
 
     base = args.base
     commits, stat, diff_text = _collect_diff(base, not args.no_worktree, args.max_diff)
@@ -172,38 +282,16 @@ def main() -> int:
     print(f"== [review] 验收标准来源: {'--mission' if args.mission else 'loop_state.json'} ==")
     print("== [review] spawn 独立 claude -p（只读 Read/Grep/Glob，不知道你做了什么）== ")
 
-    # Windows 下 claude 是 claude.cmd / claude.ps1，Python subprocess 不能直接执行，
-    # 必须经 cmd /c 走 PATHEXT 解析（Linux/macOS 直接调 claude）。
-    if os.name == "nt":
-        cmd = ["cmd", "/c", "claude", "-p", "--output-format", "text", "--allowedTools", "Read, Grep, Glob"]
-    else:
-        cmd = ["claude", "-p", "--output-format", "text", "--allowedTools", "Read, Grep, Glob"]
-    if args.model:
-        cmd += ["--model", args.model]
-
     t0 = time.time()  # review 会话定位基准：只认该时刻之后有写入的 jsonl
-    try:
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=args.timeout, cwd=str(ROOT))
-    except subprocess.TimeoutExpired:
+    review_text, rc = _spawn_review(prompt, args.timeout, args.model)
+    if rc == 1:
         print(f"== [review] FAIL: claude 会话超时（>{args.timeout}s）==")
         return 1
-    except OSError as e:
-        print(f"== [review] ERROR: claude 启动失败: {e} ==")
+    if rc == 2:
+        print("== [review] ERROR: claude 启动失败 ==")
         return 2
 
-    review_text = (r.stdout or "").strip() or "(无输出)"
-    if r.stderr:
-        review_text += "\n[stderr]\n" + r.stderr.strip()
-
-    verdict = "CONCERN"
-    for line in review_text.splitlines():
-        s = line.strip().upper()
-        if s.startswith("VERDICT:"):
-            v = s.split(":", 1)[1].strip()
-            if v in ("PASS", "FAIL", "CONCERN"):
-                verdict = v
-            break
+    verdict = _parse_verdict(review_text)
 
     lines = [
         "# L6 独立 model 审核报告",

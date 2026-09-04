@@ -38,4 +38,4 @@
 - [027 — 记忆层 v2：注入瘦身 + loop_state 接续 + MCP 字典](./027-memory-dictionary-mcp.md)
 - [028 — Ralph Loop：外层循环 + 文件状态的无人值守开发循环](./028-ralph-loop-autonomous-development.md)
 - [029 — Lama-Manga 本地推理 + 整页模式：替代 Koharu HTTP Inpaint](./029-lama-manga-local-inference.md)
-- [030 — 验证阶梯补全：L5 端到端门（fastcheck --with-e2e）+ L6 独立 model 审核（review.py）](./030-verification-ladder-l5-l6.md)
+- [030 — 验证阶梯补全：L5 按改动自选交给 agent + L6 独立 model 审核（review.py，含 --selfcheck 自检）](./030-verification-ladder-l5-l6.md)
