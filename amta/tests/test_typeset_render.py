@@ -41,4 +41,21 @@ def test_vertical_render_multi_column():
 def test_render_returns_meta_shape():
     img = Image.new("RGB", (100, 100), "white")
     meta = render_item(img, "短", FONT, [10, 10, 90, 90], stroke=0)
-    assert set(meta) == {"layout_direction", "font_size", "lines", "anchor_pos"}
+    assert set(meta) == {"layout_direction", "font_size", "lines", "anchor_pos", "preferred_direction"}
+    assert meta["preferred_direction"] is None  # 接近方形的框推断为 None
+
+
+def test_render_auto_infers_horizontal_for_wide_box():
+    """横长框应自动推断为横排首选方向。"""
+    img = Image.new("RGB", (500, 200), "white")
+    meta = render_item(img, "比起那个还是研究研究", FONT, [50, 50, 430, 170], stroke=0)
+    assert meta["preferred_direction"] == "horizontal"
+    assert meta["layout_direction"] == "horizontal"
+
+
+def test_render_auto_infers_vertical_for_tall_box():
+    """窄长框应自动推断为竖排首选方向。"""
+    img = Image.new("RGB", (200, 600), "white")
+    meta = render_item(img, "冷静点并不是担心八意大人什么的", FONT, [50, 50, 150, 550], stroke=0)
+    assert meta["preferred_direction"] == "vertical"
+    assert meta["layout_direction"] == "vertical"

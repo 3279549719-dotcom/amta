@@ -2,6 +2,7 @@
 
 ADR-031 决策C：render_item 不再接收 direction，由 fit_font_size 双方向选优返回。
 竖排支持多列（从右到左排列，每列从上到下），与横排多行对称。
+方向推断：从 bbox 长宽比推断原文方向，作为 preferred_direction 传入 fit_font_size。
 """
 from __future__ import annotations
 
@@ -9,20 +10,30 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from amta.typeset_engine import fit_font_size, CHAR_WIDTH_RATIO, LINE_HEIGHT_RATIO
+from amta.typeset_engine import (CHAR_WIDTH_RATIO, LINE_HEIGHT_RATIO,
+                                 fit_font_size, infer_direction_from_bbox)
 
 
 def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
-                stroke: int, color=(0, 0, 0)) -> dict:
+                stroke: int, color=(0, 0, 0),
+                preferred_direction: str | None = None) -> dict:
     """渲染一条译文到 img(就地修改)。
 
-    返回 {layout_direction, font_size, lines, anchor_pos}。
+    preferred_direction: 首选排版方向（"horizontal"|"vertical"|None）。
+        若为 None，自动从 bbox 长宽比推断。
+        传入显式值时覆盖自动推断。
+
+    返回 {layout_direction, font_size, lines, anchor_pos, preferred_direction}。
     横排: 多行居中于 bbox 中心; 竖排: 多列从右到左排列，每列从上到下。
-    方向由 fit_font_size 双方向计算自动选择（字号更大者）。
     """
     x1, y1, x2, y2 = [int(v) for v in bbox]
     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-    font_size, direction, lines = fit_font_size(text, Path(font_path), bbox)
+    # 未指定首选方向时，从 bbox 长宽比自动推断
+    if preferred_direction is None:
+        preferred_direction = infer_direction_from_bbox(bbox)
+    font_size, direction, lines = fit_font_size(
+        text, Path(font_path), bbox, preferred_direction=preferred_direction
+    )
     font = ImageFont.truetype(font_path, font_size)
     draw = ImageDraw.Draw(img)
     lh = int(font_size * LINE_HEIGHT_RATIO)
@@ -52,4 +63,5 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
             y += lh
 
     return {"layout_direction": direction, "font_size": font_size,
-            "lines": lines, "anchor_pos": [cx, cy]}
+            "lines": lines, "anchor_pos": [cx, cy],
+            "preferred_direction": preferred_direction}
