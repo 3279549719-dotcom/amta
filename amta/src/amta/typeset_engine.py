@@ -17,6 +17,31 @@ SAFE_RATIO = 0.85
 LINE_HEIGHT_RATIO = 1.2   # 行高 = 字号 * 1.2
 CHAR_WIDTH_RATIO = 1.15   # 字宽 = 字号 * 1.15（中文等宽近似）
 
+# 方向推断阈值：高宽比 >= 1.5 视为竖排框，宽高比 >= 1.5 视为横排框
+DIRECTION_RATIO_THRESHOLD = 1.5
+
+
+def infer_direction_from_bbox(bbox: list) -> str | None:
+    """从文本框长宽比推断原文排版方向。
+
+    日漫排版规律：窄长框（高>>宽）通常是竖排，横长框（宽>>高）通常是横排。
+    接近方形的框返回 None，表示不强制方向，回退到字号选优。
+
+    Args:
+        bbox: [x1, y1, x2, y2]
+
+    Returns:
+        "vertical" | "horizontal" | None
+    """
+    x1, y1, x2, y2 = bbox
+    w = max(1, x2 - x1)
+    h = max(1, y2 - y1)
+    if h / w >= DIRECTION_RATIO_THRESHOLD:
+        return "vertical"
+    if w / h >= DIRECTION_RATIO_THRESHOLD:
+        return "horizontal"
+    return None
+
 
 def wrap_text(text: str, font, max_width: float) -> list[str]:
     """贪心按字折行（横排）; 溢出字符为禁行首标点且当前行非空 → 并入当前行(避头尾)。"""
@@ -92,15 +117,34 @@ def _max_size_for_direction(text: str, font_path: Path, bbox: list,
 
 
 def fit_font_size(text: str, font_path: Path, bbox: list,
-                  min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE
+                  min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE,
+                  preferred_direction: str | None = None
                   ) -> tuple[int, str, list[str]]:
     """同时计算横排和竖排的最大可行字号，返回 (字号, 方向, 折行/分列)。
 
     第一性原理：在给定矩形内放给定文字，字号最大化且不溢出。
-    两种方向约束方程一致（宽高互换），选字号更大者。零人为阈值。
+    两种方向约束方程一致（宽高互换），选字号更大者。
+
+    preferred_direction: 首选方向（"horizontal"|"vertical"|None）。
+        - 若指定，优先在该方向最大化字号；
+        - 仅当首选方向字号 < 次选方向字号 * 0.70 时才切换到次选方向；
+        - None 时纯字号选优（旧行为）。
     """
     h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
     v_size, v_lines = _max_size_for_direction(text, font_path, bbox, "vertical", min_sz, max_sz)
+
+    if preferred_direction == "horizontal":
+        # 首选横排：横排字号不小于竖排70%就选横排
+        if h_size >= v_size * 0.70:
+            return h_size, "horizontal", h_lines
+        return v_size, "vertical", v_lines
+    if preferred_direction == "vertical":
+        # 首选竖排：竖排字号不小于横排70%就选竖排
+        if v_size >= h_size * 0.70:
+            return v_size, "vertical", v_lines
+        return h_size, "horizontal", h_lines
+
+    # 无首选方向：纯字号选优，平局偏向竖排（旧行为）
     if v_size >= h_size:
         return v_size, "vertical", v_lines
     return h_size, "horizontal", h_lines
