@@ -98,7 +98,9 @@ def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
         # 竖排：列数 * 字宽 <= 框宽；最长列字数 * 行高 <= 框高
         max_col_chars = max(len(col) for col in lines) if lines else 0
         total_w = len(lines) * font.size * CHAR_WIDTH_RATIO
-        return total_w <= w and max_col_chars * font.size * LINE_HEIGHT_RATIO <= h
+        # 容忍避头尾导致的轻微溢出（最多2个字符高度），与横排 wrap_text 容忍溢出对称
+        vertical_tolerance = 2 * font.size * LINE_HEIGHT_RATIO
+        return total_w <= w and (max_col_chars * font.size * LINE_HEIGHT_RATIO) <= h + vertical_tolerance
     # 横排：最长行像素宽 <= 框宽；行数 * 行高 <= 框高
     max_line = max(font.getlength(ln) for ln in lines) if lines else 0
     return max_line <= w and len(lines) * font.size * LINE_HEIGHT_RATIO <= h
