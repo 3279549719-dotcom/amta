@@ -1,9 +1,8 @@
 {
-  "mission": "候选4探针归档：scripts/probes/ 目录已存在且 ruff/pyright 已 exclude。把 scripts/ 根目录下 6 个实验探针移到 scripts/probes/：probe_fill_white.py、probe_flux2.py、probe_refine_mask_batch.py、probe_seg_mask.py、exp_inpaint_speed.py、compare_inpaint_engines.py。移动后更新所有引用：tests/test_exp_p1_manga.py 的 import exp_inpaint_speed、docs/ 下文档里的脚本路径、脚本自身 docstring。_*.py（旧版生产脚本）这次不动。完成标准：fastcheck ALL PASS，6个文件都在 scripts/probes/ 下。",
-  "current_step": "候选4探针归档完成：6 探针已移至 scripts/probes/（probe_fill_white/probe_flux2/probe_refine_mask_batch/probe_seg_mask/exp_inpaint_speed/compare_inpaint_engines），引用全同步（test_exp_p1_manga sys.path→probes、docs 两处路径、脚本自身 ROOT 深度+docstring、gen_fill_white_report footer、depguard._is_local_module 认 probes 本地）",
-  "next_action": "等待人类验收：L6 审核（scripts/review.py --base main）+ 合并回 main",
-  "last_verified": "2026-09-05 py -3.13 scripts/fastcheck.py → ALL PASS（ruff All checks passed / pyright 0 errors 0 warnings / pytest 362 passed 3 skipped / depguard OK / memory OK）。tests/test_exp_p1_manga.py 2 passed（含 exp_inpaint_speed import 通路）。grep 确认无残留旧路径 scripts/<探针名>.py 引用。新增 L44。",
+  "mission": "退役 v0 记忆轨道（docs/INDEX.md + src/amta/memory/project_memory.py + memory.py 的 search/add/stats 子命令 + read 的 v0 回落分支），estate 单一事实源；顺手修好 memory.py read <ID> 断裂读路径。前置 harness 已就位（loop_state schema v2 plan + prompt.md v2 mission 模式）。首轮先读 research/11-retire-v0-memory-track-mission-brief.md（全量证据/删除授权/验收口径/关键陷阱），据此拆 plan chunk，勿重做调研。删除清单内文件 = 已授权，勿 BLOCK。跑在 feat/retire-v0-memory-track。验收=简报 §7 全过 + fastcheck ALL PASS。",
+  "current_step": "mission 已 seed（harness v2 + 简报已 commit），等待首轮拆 plan。",
+  "next_action": "",
+  "last_verified": "基线绿：main fastcheck ALL PASS 368 + schema v2/plan CLI 20 测试；read L19/ADR-016 已改 estate 命中。",
   "escalation": "无",
-  "updated_at": "2026-09-05T00:50",
-  "status": ""
+  "updated_at": "2026-09-05T15:02"
 }
