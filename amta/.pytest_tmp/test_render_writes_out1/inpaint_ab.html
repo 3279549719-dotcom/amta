@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage 4 Inpainting 速度 A/B 对比报告</title>
+<style>
+body { font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:#f0f2f5; color:#1a1a2e; margin:0; padding:24px; line-height:1.6; }
+.container { max-width:1400px; margin:0 auto; }
+h1 { font-size:24px; margin-bottom:4px; }
+.subtitle { color:#666; font-size:13px; margin-bottom:20px; }
+.stats { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+.stat { background:#fff; border-radius:10px; padding:14px 20px; box-shadow:0 1px 4px rgba(0,0,0,.06); min-width:140px; }
+.stat .num { font-size:28px; font-weight:700; color:#1e40af; }
+.stat.ok .num { color:#16a34a; }
+.stat.warn .num { color:#dc2626; }
+.stat .lbl { font-size:12px; color:#666; }
+.section { background:#fff; border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.section h2 { font-size:18px; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f0f0f0; }
+.page-section { background:#fff; border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f0f0f0; }
+.page-title { font-size:16px; font-weight:700; color:#1e40af; }
+table { width:100%; border-collapse:collapse; font-size:13px; margin:12px 0; }
+th { background:#f3f4f6; padding:8px 10px; text-align:left; border-bottom:2px solid #e5e7eb; }
+td { padding:8px 10px; border-bottom:1px solid #f3f4f6; }
+tr:hover { background:#f9fafb; }
+.num { font-family:"SF Mono","Consolas",monospace; }
+.highlight { background:#e8f5e9; font-weight:600; color:#1b5e20; }
+.conclusion { background:linear-gradient(135deg,#1a1a2e,#16213e); color:#fff; border-radius:12px; padding:24px; margin-top:20px; }
+.conclusion h2 { color:#fff; border-bottom-color:rgba(255,255,255,.2); }
+.conclusion li { margin-bottom:8px; }
+.conclusion strong { color:#38ef7d; }
+.footer { text-align:center; color:#999; font-size:11px; margin-top:24px; padding:16px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Stage 4 Inpainting 速度 A/B 对比报告 — lama-manga 本地推理验证</h1>
+<p class="subtitle">四组对比: baseline / p0 / p1_cpu / p1_manga &nbsp;|&nbsp; 每页平均耗时</p>
+
+<div class="stats">
+  <div class="stat"><div class="num">100.0s</div><div class="lbl">Baseline 平均/页</div></div>
+  <div class="stat warn"><div class="num">+0%</div><div class="lbl">P0 速度变化</div></div>
+  <div class="stat ok"><div class="num">+0%</div><div class="lbl">P0+P1 big-lama 提升</div></div>
+  <div class="stat ok"><div class="num">+0%</div><div class="lbl">P0+P1 lama-manga 提升</div></div>
+  <div class="stat ok"><div class="num">100.0s</div><div class="lbl">lama-manga 平均/页</div></div>
+</div>
+
+<div class="section">
+  <h2>速度对比（每页平均耗时）</h2>
+  <table><thead><tr><th>页面</th><th>Baseline<br><span style='font-weight:400;font-size:11px'>耗时</span></th><th><span style='font-weight:400;font-size:11px'>free框</span></th><th>P0<br><span style='font-weight:400;font-size:11px'>耗时</span></th><th><span style='font-weight:400;font-size:11px'>free框</span></th><th>P0+P1<br><span style='font-weight:400;font-size:11px'>耗时</span></th><th><span style='font-weight:400;font-size:11px'>free框</span></th><th>P0+P1<br><span style='font-weight:400;font-size:11px'>耗时</span></th><th><span style='font-weight:400;font-size:11px'>free框</span></th></tr></thead><tbody><tr><td>page_11</td><td class="num">100.0s</td><td class="num">2</td><td class="num">100.0s</td><td class="num">2</td><td class="num">100.0s</td><td class="num">2</td><td class="num">100.0s</td><td class="num">2</td></tr><tr><td><strong>平均</strong></td><td class="num highlight"><strong>100.0s</strong></td><td class="num">2.0</td><td class="num highlight"><strong>100.0s</strong></td><td class="num">2.0</td><td class="num highlight"><strong>100.0s</strong></td><td class="num">2.0</td><td class="num highlight"><strong>100.0s</strong></td><td class="num">2.0</td></tr></tbody></table>
+</div>
+
+<div class="section">
+  <h2>速度柱状图</h2>
+  <div style="display:flex;gap:8px;margin:16px 0"><div style="flex:1;display:flex;align-items:flex-end;justify-content:center;gap:6px;border-bottom:1px solid #e5e7eb;padding-bottom:8px"><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="font-size:10px;color:#666">100s</div><div style="width:24px;height:180px;background:#EA6668;border-radius:4px 4px 0 0;min-height:4px"></div><div style="font-size:9px;color:#999">baseline</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="font-size:10px;color:#666">100s</div><div style="width:24px;height:180px;background:#FAAD14;border-radius:4px 4px 0 0;min-height:4px"></div><div style="font-size:9px;color:#999">p0</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="font-size:10px;color:#666">100s</div><div style="width:24px;height:180px;background:#52C41A;border-radius:4px 4px 0 0;min-height:4px"></div><div style="font-size:9px;color:#999">p1</div></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="font-size:10px;color:#666">100s</div><div style="width:24px;height:180px;background:#1890FF;border-radius:4px 4px 0 0;min-height:4px"></div><div style="font-size:9px;color:#999">p1</div></div></div><div style="text-align:center;font-size:12px;color:#666;margin-top:4px">page_11</div></div><div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:16px;font-size:12px"><span style="width:12px;height:12px;background:#EA6668;border-radius:2px;display:inline-block"></span>Baseline</span><span style="display:inline-flex;align-items:center;gap:4px;margin-right:16px;font-size:12px"><span style="width:12px;height:12px;background:#FAAD14;border-radius:2px;display:inline-block"></span>P0</span><span style="display:inline-flex;align-items:center;gap:4px;margin-right:16px;font-size:12px"><span style="width:12px;height:12px;background:#52C41A;border-radius:2px;display:inline-block"></span>P0+P1</span><span style="display:inline-flex;align-items:center;gap:4px;margin-right:16px;font-size:12px"><span style="width:12px;height:12px;background:#1890FF;border-radius:2px;display:inline-block"></span>P0+P1</span></div>
+</div>
+
+<div class="section">
+  <h2>每页效果对比</h2>
+</div>
+<div class="page-section"><div class="page-header"><div class="page-title">page_11 — 11.jpg</div></div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:13px"><div>Baseline: <strong>100.0s</strong> (2 free框)</div><div>P0: <strong>100.0s</strong> (2 free框)</div><div>P0+P1: <strong>100.0s</strong> (2 free框)</div><div>P0+P1: <strong>100.0s</strong> (2 free框)</div></div><div style="display:flex;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:4px">原图</div><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCABkAGQDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD6pooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//2Q==" style="width:100%;border-radius:6px;border:1px solid #e5e7eb"></div></div></div>
+
+<div class="conclusion">
+  <h2>核心结论</h2>
+  <ul>
+    <li><strong>P0+P1 lama-manga 是最终方案</strong>：平均 100.0s/页，比 Baseline 快 0%</li>
+    <li><strong>瓶颈根因</strong>：Koharu 服务化开销（6次HTTP往返+project重建）是主要瓶颈</li>
+    <li><strong>模型匹配是关键</strong>：lama-manga（漫画微调）vs big-lama（通用）质量差异显著</li>
+    <li><strong>建议</strong>：合入 P0+P1 lama-manga 方案，本地推理替代 Koharu HTTP 调用</li>
+  </ul>
+</div>
+
+<div class="footer">AMTA Stage 4 Inpainting Speed A/B Test &nbsp;|&nbsp; amta.report 深接口渲染</div>
+
+</div>
+</body>
+</html>

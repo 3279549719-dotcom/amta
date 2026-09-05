@@ -1,4 +1,4 @@
-"""三阶段最终选型集成测试 — 验证接口契约与数据格式（不实际调用模型/API）。
+﻿"""三阶段最终选型集成测试 — 验证接口契约与数据格式（不实际调用模型/API）。
 
 最终选型:
 - 检测: RT-DETR-v2 (scripts/detect_rtdetr.py, 输出 label/score)
@@ -179,9 +179,7 @@ class TestTranslationStage3Minimal:
 class TestDeprecatedCodeRemoved:
     """验证废弃的实验代码已删除。"""
 
-    @pytest.mark.parametrize("path", [
-        "src/amta/detect_station.py",      # koharu 4-detector 并集
-        "src/amta/pipeline.py",             # DETECTOR_STEPS 常量
+    @pytest.mark.parametrize("path", [        "src/amta/pipeline.py",             # DETECTOR_STEPS 常量
         "scripts/ctd_detector.py",          # CTD 检测器（方案B实验）
         "scripts/ocr_detect.py",            # 旧 OCR 检测脚本
         "scripts/translate_semantic_check.py",  # 语义护栏（已废弃）
@@ -213,3 +211,4 @@ class TestDeprecatedCodeRemoved:
         content = (ROOT / "scripts" / "00_run_all.py").read_text(encoding="utf-8")
         assert "--ocr-engine" not in content
         assert "ocr_engine" not in content
+

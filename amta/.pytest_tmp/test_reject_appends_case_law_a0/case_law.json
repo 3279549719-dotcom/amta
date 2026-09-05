@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "region_id": "page_7_u05",
+      "source": "永琳がよく話すのよ",
+      "translation": "永琳经常说起你哦",
+      "verdict": "pass",
+      "scores": {},
+      "reason": "辉夜在场，语境补全合理",
+      "suggestion": "",
+      "lesson": "工单 9fcd39cfff6e（false_positive）：评审误报驳回，维持原译",
+      "ticket_id": "page_7_u05"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"clean_image": "page_0_clean.png", "masks": {"r0": [[10, 10], [100, 50]]}, "plan": [{"region_id": "r0", "action": "fill_white", "bbox": [10, 10, 100, 50]}]}

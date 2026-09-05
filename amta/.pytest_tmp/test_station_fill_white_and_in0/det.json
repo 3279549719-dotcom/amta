@@ -1,0 +1,1 @@
+{"work_id": "w", "page": "page_1", "image_meta": {"width": 200, "height": 100, "channels": 3}, "blocks": [{"region_id": "r00", "bubble_type": "text_bubble", "bbox": [10, 10, 90, 40]}, {"region_id": "r01", "bubble_type": "text_free", "bbox": [110, 50, 190, 80]}]}

@@ -1,0 +1,40 @@
+{
+  "work_id": "w",
+  "page": "page_1",
+  "actions": [
+    {
+      "region_id": "r00",
+      "category": "dialogue_bubble",
+      "action": "fill_white",
+      "bbox": [
+        10,
+        10,
+        90,
+        40
+      ]
+    },
+    {
+      "region_id": "r01",
+      "category": "overlay_text",
+      "action": "inpaint",
+      "bbox": [
+        110,
+        50,
+        190,
+        80
+      ]
+    }
+  ],
+  "checks": {
+    "filled": 1,
+    "inpainted": 1,
+    "skipped": 0,
+    "size_ok": true,
+    "refine_mask": false,
+    "inpaint_engine": "lama-manga",
+    "pixel_diff_ratio": 0.29
+  },
+  "clean_image": "clean/page_1_clean.png",
+  "dry_run": false,
+  "generated_at": "2026-09-05T12:07:09"
+}

@@ -42,7 +42,7 @@
     注意：一次超长工具调用（如长测试/安装）期间 JSONL 不增长，可能误杀——按需调大。
 
 .PARAMETER TraceProjectsDir
-    claude 会话目录，默认 ~/.claude/projects。改过 CLAUDE_CONFIG_DIR 时需同步指定。
+    claude 会话目录。默认自动取 $env:CLAUDE_CONFIG_DIR\projects（若设了该变量），否则 ~/.claude/projects。
 
 .EXAMPLE
     .\ralph.ps1
@@ -67,7 +67,14 @@ $LogFile = Join-Path $ProjectRoot "ralph-log.md"
 $IterationLogDir = Join-Path $ProjectRoot "output\logs"
 $LoopStatePath = Join-Path $ProjectRoot "loop_state.json"
 $LoopStateCli = Join-Path $ProjectRoot "scripts\loop_state.py"
-if (-not $TraceProjectsDir) { $TraceProjectsDir = Join-Path $env:USERPROFILE ".claude\projects" }
+if (-not $TraceProjectsDir) {
+    # CLAUDE_CONFIG_DIR 改道时（本机 = E:\claude\.claude，见 lessons L35），transcript 落在其 projects/ 下而非 ~/.claude
+    if ($env:CLAUDE_CONFIG_DIR) {
+        $TraceProjectsDir = Join-Path $env:CLAUDE_CONFIG_DIR "projects"
+    } else {
+        $TraceProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
+    }
+}
 $PollIntervalSeconds = 30
 
 # 确保迭代日志目录存在
@@ -156,20 +163,26 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     Write-Output "[ralph] Spawning fresh agent (timeout: $IterationTimeoutSeconds s, heartbeat: $HeartbeatStallSeconds s)..."
     Write-Output "--- agent output start ---"
 
-    $output = @()
     $timedOut = $false
     $heartbeatMiss = $false
     $stallJsonl = ""
     $spawnIso = Get-Date -Format "o"
+    $ts = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $iterationLogFile = Join-Path $IterationLogDir "iteration-$i-$ts.txt"
 
     try {
+        # claude -p 默认 stdout 只出最终文本（工具过程不上屏），Start-Job/Receive-Job 还会二次缓冲且 GBK 解码乱码。
+        # 改：stream-json 逐事件直写日志文件（UTF-8），ralph 盯文件 mtime 做心跳，卡住/完成都能翻全量实时 trace。
         $job = Start-Job -ScriptBlock {
-            param($prompt, $workDir)
+            param($prompt, $workDir, $logFile)
             Set-Location $workDir
-            claude -p $prompt 2>&1
-        } -ArgumentList $promptWithContext, $ProjectRoot
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+            $OutputEncoding = [System.Text.Encoding]::UTF8
+            & claude -p $prompt --output-format stream-json --verbose --include-partial-messages 2>&1 |
+                Out-File -FilePath $logFile -Encoding utf8
+        } -ArgumentList $promptWithContext, $ProjectRoot, $iterationLogFile
 
-        # --- 心跳监测：spawn 后每 30s 查一次本次会话 JSONL 的 mtime，连续失守即杀 ---
+        # --- 心跳监测：spawn 后每 30s 查一次 实时流文件 mtime（transcript JSONL 兜底），连续失守即杀 ---
         $jobCompleted = $false
         $elapsed = 0
         $lastHeartbeatSeen = $null
@@ -185,51 +198,46 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
                 $stallJsonl = Get-LiveSessionJsonl -AfterIso $spawnIso
                 break
             }
+            # 主探针 = 实时流文件（claude 每发一个事件就落一行）；transcript 异步写可能滞后，作兜底
             $live = Get-LiveSessionJsonl -AfterIso $spawnIso
-            if ($live) {
-                $mt = (Get-Item $live).LastWriteTime
-                if ($null -ne $lastHeartbeatSeen -and ((Get-Date) - $mt).TotalSeconds -ge $HeartbeatStallSeconds) {
+            $probe = $null
+            if (Test-Path $iterationLogFile) { $probe = (Get-Item $iterationLogFile).LastWriteTime }
+            elseif ($live) { $probe = (Get-Item $live).LastWriteTime }
+            if ($null -ne $probe) {
+                if ($null -ne $lastHeartbeatSeen -and ((Get-Date) - $probe).TotalSeconds -ge $HeartbeatStallSeconds) {
                     $heartbeatMiss = $true
-                    $stallJsonl = $live
+                    $stallJsonl = if ($live) { $live } else { $iterationLogFile }
                     break
                 }
-                $lastHeartbeatSeen = $mt
+                $lastHeartbeatSeen = $probe
             }
         }
 
         if (-not $jobCompleted) {
-            # 卡死/超时：杀掉，收集部分输出
+            # 卡死/超时：杀掉，从实时流文件翻部分输出
             Stop-Job $job
-            $partialOutput = Receive-Job $job
             if ($heartbeatMiss) {
                 Write-Output ""
-                Write-Output "[ralph] HEARTBEAT MISS: session JSONL unchanged for $HeartbeatStallSeconds s, killed."
+                Write-Output "[ralph] HEARTBEAT MISS: no output for $HeartbeatStallSeconds s, killed."
             } else {
                 Write-Output ""
                 Write-Output "[ralph] TIMEOUT: iteration $i exceeded $IterationTimeoutSeconds seconds, killed."
             }
-            Write-Output "[ralph] Partial output (last 30 lines):"
-            $partialOutput | Select-Object -Last 30 | ForEach-Object { Write-Output $_ }
-            $output = $partialOutput
+            $partial = if (Test-Path $iterationLogFile) { Get-Content $iterationLogFile -Encoding UTF8 } else { @() }
+            Write-Output "[ralph] Partial output (last 10 lines):"
+            $partial | Select-Object -Last 10 | ForEach-Object { Write-Output $_ }
             $timedOut = $true
-        } else {
-            $output = Receive-Job $job
-            $output | ForEach-Object { Write-Output $_ }
         }
         Remove-Job $job -Force -ErrorAction SilentlyContinue
     } catch {
         Write-Output "[ralph] Agent error: $_"
-        $output = "ERROR: $_"
     }
 
     Write-Output "--- agent output end ---"
 
-    # 迭代输出存盘（卡住了能翻日志看在干嘛）
-    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $iterationLogFile = Join-Path $IterationLogDir "iteration-$i-$timestamp.txt"
-    $output | Out-File -FilePath $iterationLogFile -Encoding UTF8
+    # 卡死/超时：日志文件（已含全部实时 trace）追加 KILLED 标记
     if ($timedOut) {
-        $killReason = if ($heartbeatMiss) { "HEARTBEAT MISS (jsonl $HeartbeatStallSeconds s 无写入)" } else { "TIMEOUT ($IterationTimeoutSeconds s)" }
+        $killReason = if ($heartbeatMiss) { "HEARTBEAT MISS (无输出 $HeartbeatStallSeconds s)" } else { "TIMEOUT ($IterationTimeoutSeconds s)" }
         Add-Content -Path $iterationLogFile -Value "`n--- RALPH KILLED ($killReason) ---`nIteration $i killed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')." -Encoding UTF8
     }
     Write-Output "[ralph] Iteration log saved to: $iterationLogFile"
@@ -283,8 +291,9 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
         exit 2
     }
 
-    # 检查完成信号
-    if ($output -match '<promise>COMPLETE</promise>') {
+    # 检查完成信号（从实时流日志文件读；$output 已被文件取代）
+    $completeText = if (Test-Path $iterationLogFile) { Get-Content $iterationLogFile -Raw -Encoding UTF8 } else { "" }
+    if ($completeText -match '<promise>COMPLETE</promise>') {
         Write-Output ""
         Write-Output "==============================================================="
         Write-Output "  RALPH COMPLETE at iteration $i"

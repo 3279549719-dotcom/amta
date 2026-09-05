@@ -1,0 +1,64 @@
+{
+ "runs": [
+  {
+   "run_id": "d40a74ea28e9",
+   "git_head": "e35bf5a",
+   "started_at": "2026-09-05T04:07:22+00:00",
+   "trigger": "pages 1-1",
+   "steps": [
+    {
+     "step": "01_detect",
+     "page": "page_1",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\src\\1.jpg",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_detection.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-09-05T04:07:22+00:00"
+    },
+    {
+     "step": "02_ocr",
+     "page": "page_1",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_detection.json",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_canon.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-09-05T04:07:22+00:00"
+    },
+    {
+     "step": "03_translate",
+     "page": "page_1",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_canon.json",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_translation.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-09-05T04:07:22+00:00"
+    },
+    {
+     "step": "04_inpaint",
+     "page": "page_1",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_detection.json",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_inpaint.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-09-05T04:07:22+00:00"
+    },
+    {
+     "step": "05_typeset",
+     "page": "page_1",
+     "status": "ok",
+     "input": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\clean\\page_1_clean.png",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_run_all_with_typeset_flag0\\ws\\t\\artifacts\\page_1_typeset.json",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-09-05T04:07:22+00:00"
+    }
+   ],
+   "failed_step": null,
+   "ended_at": "2026-09-05T04:07:22+00:00"
+  }
+ ]
+}

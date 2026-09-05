@@ -1,4 +1,4 @@
-"""ocr 工位适配器 — StationContext → ocr_station.ocr_page → StationResult。"""
+﻿"""ocr 工位适配器 — StationContext → ocr_station.ocr_page → StationResult。"""
 from __future__ import annotations
 
 import time
@@ -30,7 +30,7 @@ def run(ctx: StationContext) -> StationResult:
             raw_page=ctx.raw_image,
             artifacts_dir=ctx.artifacts_dir,
             page_idx=ctx.page_idx,
-            engine=ctx.config.get("engine", "auto"),
+            engine=ctx.config.get("engine", "hayai"),
             vlm_enabled=ctx.config.get("vlm_enabled", False),
             # rule_filter 由 ocr_station 内部消费（如果已支持）
         )
@@ -56,3 +56,4 @@ def run(ctx: StationContext) -> StationResult:
             duration_s=round(duration, 2),
             error=f"{type(e).__name__}: {str(e)[:200]}",
         )
+
