@@ -1,6 +1,8 @@
-"""排版引擎核心纯函数(Stage 5, Spec §3): 方向决策/折行/避头尾/字号二分。
+"""排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。
 
-蓝图 fit_text_to_bubble 算法 + §2 漏洞修复(overlay_text 强制竖排)。
+ADR-031 决策C：删除 decide_direction，fit_font_size 同时计算横/竖排最大字号选最优。
+第一性原理：在给定矩形内放给定文字，字号最大化且不溢出；横竖排只是两种排列方式。
+竖排支持多列（与横排多行完全对称），窄长框长文本不再被压成极小字号。
 """
 from __future__ import annotations
 
@@ -12,21 +14,12 @@ NO_START_PUNCT = "，。！？、）》】"
 MIN_SIZE = 12
 MAX_SIZE = 52
 SAFE_RATIO = 0.85
-
-
-def decide_direction(category: str | None, bbox: list, char_count: int) -> str:
-    """排版方向: overlay_text 强制竖排(漏洞修复); 其余 bbox 高宽比 ≥2.2 且字数≤6 竖排。"""
-    if category == "overlay_text":
-        return "vertical"
-    x1, y1, x2, y2 = bbox
-    w, h = x2 - x1, y2 - y1
-    if w > 0 and h / w >= 2.2 and char_count <= 6:
-        return "vertical"
-    return "horizontal"
+LINE_HEIGHT_RATIO = 1.2   # 行高 = 字号 * 1.2
+CHAR_WIDTH_RATIO = 1.15   # 字宽 = 字号 * 1.15（中文等宽近似）
 
 
 def wrap_text(text: str, font, max_width: float) -> list[str]:
-    """贪心按字折行; 溢出字符为禁行首标点且当前行非空 → 并入当前行(避头尾)。"""
+    """贪心按字折行（横排）; 溢出字符为禁行首标点且当前行非空 → 并入当前行(避头尾)。"""
     lines: list[str] = []
     cur = ""
     for ch in text:
@@ -43,35 +36,71 @@ def wrap_text(text: str, font, max_width: float) -> list[str]:
     return lines
 
 
+def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
+    """竖排按列分割，返回列列表（每列是一个字符串）。"""
+    return [text[i:i + chars_per_col] for i in range(0, len(text), chars_per_col)]
+
+
 def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
           direction: str) -> bool:
+    """检查折行/分列结果是否放入框内。"""
     x1, y1, x2, y2 = bbox
     w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
     if direction == "vertical":
-        return font.size * 1.2 <= w and len("".join(lines)) * font.size * 1.2 <= h
-    max_line = max(font.getlength(ln) for ln in lines)
-    return max_line <= w and len(lines) * font.size * 1.2 <= h
+        # 竖排：列数 * 字宽 <= 框宽；最长列字数 * 行高 <= 框高
+        max_col_chars = max(len(col) for col in lines) if lines else 0
+        total_w = len(lines) * font.size * CHAR_WIDTH_RATIO
+        return total_w <= w and max_col_chars * font.size * LINE_HEIGHT_RATIO <= h
+    # 横排：最长行像素宽 <= 框宽；行数 * 行高 <= 框高
+    max_line = max(font.getlength(ln) for ln in lines) if lines else 0
+    return max_line <= w and len(lines) * font.size * LINE_HEIGHT_RATIO <= h
 
 
-def fit_font_size(text: str, font_path: Path, bbox: list, direction: str,
-                  min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE
-                  ) -> tuple[int, list[str]]:
-    """字号二分找最大可容纳。触底仍放不下 → (min_sz, 当前行) 溢出由工位/QA 处理。"""
+def _max_size_for_direction(text: str, font_path: Path, bbox: list,
+                            direction: str, min_sz: int, max_sz: int
+                            ) -> tuple[int, list[str]]:
+    """对指定方向做字号二分，返回 (最大字号, 折行/分列结果)。"""
     if not text:
         return min_sz, []
+    x1, y1, x2, y2 = bbox
+    w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
     lo, hi = min_sz, max_sz
     best, best_lines = min_sz, []
     while lo <= hi:
         mid = (lo + hi) // 2
         font = ImageFont.truetype(str(font_path), mid)
-        lines = wrap_text(text, font, (bbox[2] - bbox[0]) * SAFE_RATIO)
+        if direction == "vertical":
+            # 竖排：每列字数 = 框高 / 行高，按列分割
+            chars_per_col = max(1, int(h / (mid * LINE_HEIGHT_RATIO)))
+            lines = wrap_vertical(text, chars_per_col)
+        else:
+            lines = wrap_text(text, font, w)
         if lines and _fits(lines, font, bbox, direction):
             best, best_lines = mid, lines
             lo = mid + 1
         else:
             hi = mid - 1
-    if not best_lines:  # 12px 也放不下
+    if not best_lines:  # min_sz 也放不下
         font = ImageFont.truetype(str(font_path), min_sz)
-        best_lines = wrap_text(text, font, (bbox[2] - bbox[0]) * SAFE_RATIO)
+        if direction == "vertical":
+            chars_per_col = max(1, int(h / (min_sz * LINE_HEIGHT_RATIO)))
+            best_lines = wrap_vertical(text, chars_per_col)
+        else:
+            best_lines = wrap_text(text, font, w)
         return min_sz, best_lines
     return best, best_lines
+
+
+def fit_font_size(text: str, font_path: Path, bbox: list,
+                  min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE
+                  ) -> tuple[int, str, list[str]]:
+    """同时计算横排和竖排的最大可行字号，返回 (字号, 方向, 折行/分列)。
+
+    第一性原理：在给定矩形内放给定文字，字号最大化且不溢出。
+    两种方向约束方程一致（宽高互换），选字号更大者。零人为阈值。
+    """
+    h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
+    v_size, v_lines = _max_size_for_direction(text, font_path, bbox, "vertical", min_sz, max_sz)
+    if v_size >= h_size:
+        return v_size, "vertical", v_lines
+    return h_size, "horizontal", h_lines

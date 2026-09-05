@@ -47,7 +47,9 @@ def test_station_renders_all_and_checks_coverage(tmp_path):
     assert len(data["layout"]) == 2
     assert data["final_image"] == "final/page_1_final.png"
     overlay = [r for r in data["rendered_items"] if r["region_id"] == "page_0_u01"][0]
-    assert overlay["layout_direction"] == "vertical"
+    # ADR-031: 方向由双方向计算选最优，不再强制overlay_text竖排
+    assert overlay["layout_direction"] in ("horizontal", "vertical")
+    assert overlay["font_size"] >= 25
     assert final.exists()
     final_img = Image.open(final)
     inked = any(final_img.getpixel((x, y)) != (255, 255, 255)
@@ -65,4 +67,3 @@ def test_station_skips_missing_bbox(tmp_path):
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["checks"]["skipped_no_bbox"] == ["page_0_u00"]
     assert data["checks"]["coverage_complete"] is False
-

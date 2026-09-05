@@ -2,6 +2,7 @@
 
 从 scripts/05_typeset.py 抽取，canon 用 load_canon 规范化（兼容信封格式）。
 bbox 关联: canon.node_id → detection.blocks[].node_id（零契约改动，ADR-019 不变）。
+ADR-031 决策C：删除 decide_direction，方向由 fit_font_size 双方向选优自动决定。
 """
 from __future__ import annotations
 
@@ -13,7 +14,6 @@ from PIL import Image
 from amta.artifacts import load_canon
 from amta.fonts import resolve_font
 from amta.paths import read_json, write_json
-from amta.typeset_engine import decide_direction
 from amta.typeset_render import render_item
 
 
@@ -44,8 +44,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
             continue
         category = item.get("category")
         font_path, stroke = resolve_font(category or "dialogue_bubble", text)
-        direction = decide_direction(category, bbox, len(text))
-        meta = render_item(img, text, str(font_path), bbox, direction, stroke=stroke)
+        meta = render_item(img, text, str(font_path), bbox, stroke=stroke)
         meta["region_id"] = rid
         meta["font_family"] = font_path.name
         meta["stroke_width"] = stroke
@@ -66,7 +65,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         rid = item.get("region_id", "")
         if rid:
             layout[rid] = {
-                "layout_direction": item.get("direction", ""),
+                "layout_direction": item.get("layout_direction", ""),
                 "font_size": item.get("font_size", 0),
                 "lines": item.get("lines", []),
                 "anchor_pos": item.get("anchor_pos", []),
@@ -89,6 +88,3 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     }
     write_json(out_path, doc)
     return doc
-
-
-
