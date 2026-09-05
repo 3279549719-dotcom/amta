@@ -368,6 +368,14 @@
 - **Prevention**：移动后跑 `py -3.13 scripts/fastcheck.py`（ruff/pyright 已豁免 probes，红债只在 depguard + 引用它的测试）；任何"归档进豁免目录"先分清是 archive/（清 importer）还是 probes/（depguard 补本地识别）。
 - **Regression**：6 探针已在 scripts/probes/，depguard 已认 probes 为本地模块，fastcheck ALL PASS。[已自动化：fastcheck pytest 覆盖 test_exp_p1_manga import 通路]
 
+## L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
+
+- **Problem**：`.claude/settings.json` 的 PreToolUse hook（hook_pretooluse.py）用 legacy 输出 `{"decision":"allow/block",...}`。claude 2.1.220 对每次工具调用校验 hook 输出：Read/Grep 等非 git 工具报 "Hook JSON output validation failed — (root): Invalid input"（噪音），而 git commit/merge 的 fastcheck FAIL 分支**根本不拦**——AGENTS.md"fastcheck FAIL 阻止 commit"的 guard 从未真正生效。
+- **Root cause**：Claude Code 升级到 `hookSpecificOutput` 包装 schema（决策在 `permissionDecision` 字段）；legacy 根级 `decision` 被 Ajv 严格校验整体拒绝，且**校验失败 = 非阻断 allow 兜底**（工具照跑，只记 hook 错误）。噪音显性于 Read/Grep（每工具必撞无效 allow 分支），git 类**静默**（deny 同样无效 → 拦不住）——bug 存在很久无人察觉。
+- **Durable lesson**：hook 输出 schema 有版本断裂风险，症状是 "hook JSON output validation failed" + 工具仍能跑（allow 兜底）。凡"靠 hook 当 guard"：**allow 分支失效只产生噪音，deny/block 分支失效是静默的 guard 死亡**——schema 升级后必须复测 deny 真能拦。诊断：往 hook 喂 PreToolUse stdin 样例看输出形状，对照官方 schema。
+- **Prevention**：hook_pretooluse.py 已改 `hookSpecificOutput` 包装（allow/deny + permissionDecisionReason），settings 加 `matcher: "Bash"` 收窄触发面（Read/Grep/Edit 不再触发）。新写 hook 一律用 hookSpecificOutput + matcher。
+- **Regression**：`claude -p` 冒烟 Bash 命令无 hook error（allow 路径，2026-09-05）；deny 真拦 + ralph 无头下 deny 是否 end turn，待一次故意 fastcheck FAIL 的 commit 实测。
+
 ## 模板（新增时复制）
 
 ```

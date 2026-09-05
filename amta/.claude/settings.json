@@ -9,6 +9,7 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "py -3.13 scripts/hook_pretooluse.py" }
         ]

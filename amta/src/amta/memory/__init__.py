@@ -1,17 +1,8 @@
-"""amta.memory — agent 记忆机制包（ADR-025）。
+"""amta.memory — agent 记忆机制包（ADR-025/027）。
 
-两层并存、职责分立：
-- 项目记忆检索 v0（原 src/amta/memory.py → project_memory）：parse_index/search/read/add/stats/main，
-  索引优先 + 全文兜底，读写 docs/INDEX.md（Stage 2-d 引入）。
-- 记忆机制四层闭环（ADR-025）：estate（只读解析层）/ tools（检索核心）/ lint（检查引擎），
-  服务 memory_* 工具族与 SessionStart 注入包。
+estate 单一事实源：docs/lessons.md / docs/decisions/ / .remember 动态解析，
+服务 memory_* 工具族、MCP 字典、ralph 注入与 SessionStart 注入包
+（estate 解析 / tools 检索 / lint 检查 / gc 清理 / inject 注入 / loop_state 接续）。
+
+v0 轨道（INDEX 记忆索引 + 独立解析模块）已退役，本包只保留 estate 系符号。
 """
-from amta.memory.project_memory import (  # noqa: F401
-    INDEX_PATH,
-    add,
-    main,
-    parse_index,
-    read,
-    search,
-    stats,
-)
