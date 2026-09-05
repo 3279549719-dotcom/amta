@@ -20,9 +20,3 @@ _verify_relocation.ps1
 
 # ---- 一次性模板 ----
 teach-skill.zip
-
-# ---- 调研/参考的重资产（第三方克隆 / 探针产物，可再生成）----
-research/koharu-upstream/
-research/08-ocr-vlm-audit-probe/
-reference/_vendor/
-reference/other artifacts/

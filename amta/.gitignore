@@ -1,4 +1,4 @@
-# ---- Node / npm ----
+﻿# ---- Node / npm ----
 node_modules/
 
 # ---- Python ----
@@ -67,3 +67,9 @@ research_tmp_*.md
 # workspace 运行时数据（全量不入库）
 workspace/
 
+
+# ---- 调研/参考的重资产（从根级移入：第三方克隆 / 探针产物 / 模板，可再生成）----
+reference/_vendor/
+reference/other artifacts/
+research/koharu-upstream/
+research/08-ocr-vlm-audit-probe/
