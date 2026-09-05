@@ -125,6 +125,12 @@ def artifact_paths(artifacts_dir: Path, page: str) -> dict[str, Path]:
     }
 
 
+
+def fingerprint_paths(artifacts_dir: Path, page: str) -> dict[str, Path]:
+    """返回各 artifact 对应的 fingerprint 文件路径（增量构建缓存用）。"""
+    paths = artifact_paths(artifacts_dir, page)
+    return {k: Path(str(v) + ".fingerprint") for k, v in paths.items() if k != "crops"}
+
 def trace_path(artifacts_dir: Path, page: str, station: str) -> Path:
     return Path(artifacts_dir) / f"{page}_{station}_trace.json"
 
