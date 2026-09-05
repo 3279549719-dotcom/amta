@@ -4,6 +4,7 @@
 机制来源（ADR-014）：
 - glossary 相关条目提取 — 借鉴 manga-image-translator (GPL-3.0) 设计
 - 分层拆分重试 — 借鉴 manga-image-translator (GPL-3.0) 数量校验+二分拆分设计
+- 数组契约加固 — LLM 输出按位置绑定的 JSON 数组，长度严格校验，防止拆条挤占 region_id
 """
 from __future__ import annotations
 
@@ -62,7 +63,10 @@ def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
 
 
 def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str]:
-    """解析 LLM 输出为 {region_id: 译文}；容忍 markdown 代码块包裹与额外键。"""
+    """解析 LLM 输出为 {region_id: 译文}；容忍 markdown 代码块包裹与额外键。
+
+    保留供旧测试/外部调用；translate_plain 内部已改用数组契约 parse_translation_array。
+    """
     text = (raw or "").strip()
     text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
     try:
@@ -74,15 +78,36 @@ def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str
     return {k: str(v).strip() for k, v in data.items() if k in region_ids and str(v).strip()}
 
 
+def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
+    """解析 LLM 输出为按输入顺序排列的译文数组。
+
+    数组契约（ADR-014 加固）：LLM 必须返回 JSON 数组，长度严格等于输入条数。
+    长度不符 → 返回 None（触发重试或二分拆分），从契约层面防止 LLM 拆条挤占 region_id。
+    """
+    text = (raw or "").strip()
+    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, list):
+        return None
+    if len(data) != expected_count:
+        return None
+    return [str(v).strip() for v in data]
+
+
 def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
                     context_prefix: str = "", max_retries: int = 1) -> dict[str, str]:
     """Plain-text batch translate — zero tools, zero loops, one call per batch.
 
-    Copies mit's _assemble_prompts pattern: all regions in one prompt with
-    region_id tags, JSON response, 1 retry on guardrail failure, then binary split.
+    输出契约：LLM 返回 JSON 数组 ["译文1", "译文2", ...]，按输入顺序、同长度。
+    代码侧按位置绑定 region_id，长度不符直接失败 → 重试 → 二分拆分。
     """
     def _build_content(batch: list[dict]) -> str:
-        instr = 'Translate the following Japanese text to Chinese. Output STRICT JSON: {"r01": "译文", ...}. region_id must match input exactly.\n'
+        instr = ('Translate the following Japanese text to Chinese. '
+                 'Output STRICT JSON ARRAY: ["译文1", "译文2", ...]. '
+                 'Must be same order and same count as input lines. One translation per line, do NOT split.\n')
         blocks = []
         for r in batch:
             rid = r["region_id"]
@@ -93,14 +118,18 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        system = f"你是专业日文→中文漫画翻译专家，输出严格 JSON，不要输出任何额外文字。\n{system_extra}".strip()
+        system = f"你是专业日文→中文漫画翻译专家，输出严格 JSON 数组，不要输出任何额外文字。\n{system_extra}".strip()
         for _ in range(max_retries + 1):
             messages = [
                 {"role": "system", "content": system},
                 {"role": "user", "content": _build_content(batch)},
             ]
             raw = llm(messages)
-            parsed = parse_translation_response(raw, region_ids)
+            arr = parse_translation_array(raw, len(batch))
+            if arr is None:
+                continue  # 长度不符或解析失败 → 重试
+            # 按位置绑定 region_id
+            parsed = {rid: arr[i] for i, rid in enumerate(region_ids) if arr[i]}
             if not mechanical_guardrails(batch, parsed):
                 return parsed
         if len(batch) > 1:

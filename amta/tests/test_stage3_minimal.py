@@ -10,7 +10,7 @@ import json
 
 
 def test_translate_plain_batch():
-    """translate_plain sends all regions in ONE call, no tools, parses by region_id."""
+    """translate_plain sends all regions in ONE call, no tools, parses by position."""
     from amta.translate import translate_plain
     canon = [
         {"region_id": "r01", "baberu_text": "こんにちは"},
@@ -19,7 +19,7 @@ def test_translate_plain_batch():
     calls = []
     def fake_llm(messages, tools=None):
         calls.append(messages)
-        return json.dumps({"r01": "你好", "r02": "谢谢"})
+        return json.dumps(["你好", "谢谢"])
     result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
     assert result == {"r01": "你好", "r02": "谢谢"}
     assert len(calls) == 1, "should make exactly one LLM call"
@@ -149,7 +149,7 @@ def test_translate_page_minimal_contract():
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
 
     def fake_text(messages, tools=None):
-        return json.dumps({"r01": "你好"})
+        return json.dumps(["你好"])
 
     result = translate_page_minimal("test-work", canon, llm_text=fake_text, vlm_enabled=False)
     assert "translations" in result
@@ -251,7 +251,7 @@ def test_vlm_default_closure_temperature_zero(monkeypatch, tmp_path):
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
 
     def fake_text(messages, tools=None):
-        return json.dumps({"r01": "你好"})
+        return json.dumps(["你好"])
 
     translate_page_minimal("test-work", canon, raw_image_path=_write_fake_jpg(tmp_path),
                            llm_text=fake_text, vlm_enabled=True)
@@ -267,7 +267,7 @@ def test_translate_station_minimal_mode():
     from amta.translate_station import translate_page
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
     def fake_text(messages, tools=None):
-        return json.dumps({"r01": "你好"})
+        return json.dumps(["你好"])
     result = translate_page("test", canon, llm_text=fake_text, vlm_enabled=False)
     assert result["translations"] == {"r01": "你好"}
 
@@ -276,16 +276,17 @@ def test_translate_station_minimal_mode():
 
 
 def test_translate_plain_binary_split():
-    """translate_plain splits batch on persistent guardrail failure."""
+    """translate_plain splits batch on persistent array-length mismatch."""
     from amta.translate import translate_plain
     canon = [{"region_id": f"r{i:02d}", "baberu_text": f"テキスト{i}"} for i in range(4)]
     call_count = [0]
     def fake_llm(messages, tools=None):
         call_count[0] += 1
-        # Return only first half to trigger guardrail failure on full batch
+        # 前2次 full batch (4条) 返回长度2的数组 → 长度不符 → 重试 → 二分
         if call_count[0] <= 2:
-            return json.dumps({f"r{i:02d}": f"訳{i}" for i in range(2)})
-        return json.dumps({f"r{i:02d}": f"訳{i}" for i in range(4)})
+            return json.dumps(["訳0", "訳1"])
+        # 二分后子 batch (2条) 返回正确长度 → 成功
+        return json.dumps(["訳0", "訳1"])
     result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
     assert len(result) == 4
     assert all(v for v in result.values())
@@ -294,7 +295,7 @@ def test_translate_plain_binary_split():
 def test_translate_plain_empty_canon():
     """translate_plain with empty canon returns empty dict."""
     from amta.translate import translate_plain
-    result = translate_plain([], lambda m: "{}", system_extra="", context_prefix="")
+    result = translate_plain([], lambda m: "[]", system_extra="", context_prefix="")
     assert result == {}
 
 

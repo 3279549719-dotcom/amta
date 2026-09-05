@@ -14,7 +14,7 @@ CANON = [
 
 
 def _llm_ok(messages, tools=None):
-    return '{"page_0_u00": "你好"}' 
+    return '["你好"]'
 
 
 def _state(tmp_path):

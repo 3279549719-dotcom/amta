@@ -2,16 +2,35 @@
 
 注意：translate_page 只返回 dict 不落盘，落盘逻辑在适配器里（与 03_translate.py 一致）。
 canon 输入用 artifacts.load_canon 规范化（兼容旧裸 list 格式 + validate）。
+pre_scan 自动接入：work_state.terms 为空时扫描已有 canon 锁定术语（纯机械，无 LLM 调用）。
 """
 from __future__ import annotations
 
 import time
 
-from amta import artifacts
+from amta import artifacts, workstate
 from amta.paths import write_json
 from amta.translate_station import translate_page
 
 from ..context import StationContext, StationResult
+
+
+def _ensure_terms(work_id: str, artifacts_dir) -> int:
+    """确保术语表存在：为空时自动跑 pre_scan 扫描已有 canon。返回锁定的术语数。
+
+    pre_scan 是纯机械匹配（无 LLM 调用），失败不阻塞翻译（降级为无术语替换）。
+    逐页流水线下增量生效：第一页只有第一页 canon，越往后扫描到的术语越多。
+    """
+    try:
+        state = workstate.load_state(work_id)
+        if state.get("terms"):
+            return len(state["terms"])
+        from amta.pre_scan import run_pre_scan
+        matched = run_pre_scan(work_id, artifacts_dir)
+        return len(matched)
+    except Exception as e:  # noqa: BLE001 — pre_scan 失败降级，不阻塞翻译
+        print(f"[translate] pre_scan skipped ({type(e).__name__}: {str(e)[:80]})")
+        return 0
 
 
 def run(ctx: StationContext) -> StationResult:
@@ -29,6 +48,9 @@ def run(ctx: StationContext) -> StationResult:
 
         # load_canon: normalize + validate + 兼容旧裸 list 格式（与 03_translate.py 一致）
         canon = artifacts.load_canon(canon_path)
+
+        # pre_scan 自动接入：术语表为空时扫描已有 canon
+        n_terms = _ensure_terms(ctx.work_id, ctx.artifacts_dir)
 
         # mode 参数已从 translate_page 移除（translate_station.py:18 注释），与 03_translate.py 一致不传
         doc = translate_page(
@@ -59,6 +81,7 @@ def run(ctx: StationContext) -> StationResult:
                 "n_holes": sum(1 for v in translations.values() if not v.strip()),
                 "n_residue": len(doc.get("residue", [])),
                 "n_glossary_violations": len(doc.get("glossary_violations", [])),
+                "n_locked_terms": n_terms,
                 "vlm_refine_count": (doc.get("vlm_refine") or {}).get("refinement_count", 0),
             },
         )
