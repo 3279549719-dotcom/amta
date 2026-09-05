@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-NO_START_PUNCT = "，。！？、）》】"
+NO_START_PUNCT = "，。！？、）》】……—"
 MIN_SIZE = 12
 MAX_SIZE = 52
 SAFE_RATIO = 0.85
@@ -62,8 +62,31 @@ def wrap_text(text: str, font, max_width: float) -> list[str]:
 
 
 def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
-    """竖排按列分割，返回列列表（每列是一个字符串）。"""
-    return [text[i:i + chars_per_col] for i in range(0, len(text), chars_per_col)]
+    """竖排按列分割，返回列列表（每列是一个字符串）。
+
+    避头尾规则：列首不能是禁则标点（，。！？、）》】……—），
+    若分割点后第一个字符是标点，则将该标点挤到上一列末尾。
+    与横排 wrap_text() 的 NO_START_PUNCT 逻辑对称。
+    """
+    if chars_per_col <= 0:
+        return [text] if text else []
+
+    lines: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        end = min(i + chars_per_col, n)
+        # 检查下一列的第一个字符是否是禁则标点
+        if end < n and text[end] in NO_START_PUNCT:
+            # 把标点挤到当前列（容忍轻微超出）
+            # 找到连续的标点，全部挤过来
+            punct_end = end
+            while punct_end < n and text[punct_end] in NO_START_PUNCT:
+                punct_end += 1
+            end = punct_end
+        lines.append(text[i:end])
+        i = end
+    return lines
 
 
 def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,

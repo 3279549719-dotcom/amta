@@ -45,13 +45,30 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
         total_w = n_cols * col_width
         # 最右列的 x 坐标（列中心）
         x_start = cx + total_w / 2 - col_width / 2
+        # 需要旋转的横向标点（在竖排中应垂直显示）
+        ROTATE_CHARS = set("……—–")
         for col_idx, col_text in enumerate(lines):
             x = x_start - col_idx * col_width
             col_h = len(col_text) * lh
             y = cy - col_h // 2
             for ch in col_text:
-                draw.text((x, y), ch, font=font, fill=color,
-                          stroke_width=int(stroke), stroke_fill="white")
+                if ch in ROTATE_CHARS:
+                    # 横向标点旋转90度后绘制
+                    # 先创建一个透明小图画字符，再旋转，再粘贴到主图
+                    char_img = Image.new("RGBA", (font_size * 2, font_size * 2),
+                                          (0, 0, 0, 0))
+                    char_draw = ImageDraw.Draw(char_img)
+                    char_draw.text((font_size // 2, font_size // 2), ch,
+                                   font=font, fill=color,
+                                   stroke_width=int(stroke), stroke_fill="white")
+                    rotated = char_img.rotate(90, expand=True)
+                    # 计算粘贴位置（居中对齐）
+                    paste_x = int(x - rotated.width / 2)
+                    paste_y = int(y - rotated.height / 2 + lh / 2)
+                    img.paste(rotated, (paste_x, paste_y), rotated)
+                else:
+                    draw.text((x, y), ch, font=font, fill=color,
+                              stroke_width=int(stroke), stroke_fill="white")
                 y += lh
     else:
         total_h = len(lines) * lh

@@ -145,3 +145,49 @@ def test_preferred_direction_vertical_short_text():
     )
     assert direction == "vertical", f"短文本窄长框首选竖排，实际选了{direction}"
     assert font_size >= 20
+
+
+
+# === wrap_vertical 避头尾测试 ===
+
+def test_wrap_vertical_avoid_punctuation_at_col_start():
+    """竖排避头尾：标点不能出现在列首，应挤到上一列末尾。"""
+    from amta.typeset_engine import wrap_vertical
+    text = "一二三四五六七八九十，"
+    chars_per_col = 10
+    lines = wrap_vertical(text, chars_per_col)
+    assert len(lines) == 1
+    assert lines[0] == "一二三四五六七八九十，"
+
+
+def test_wrap_vertical_avoid_multiple_punctuation():
+    """多个连续标点都不落列首。"""
+    from amta.typeset_engine import wrap_vertical
+    text = "一二三四五六七八九十……"
+    chars_per_col = 10
+    lines = wrap_vertical(text, chars_per_col)
+    assert len(lines) == 1
+    assert lines[0] == "一二三四五六七八九十……"
+
+
+def test_wrap_vertical_no_punctuation_normal_split():
+    """没有标点时正常分割。"""
+    from amta.typeset_engine import wrap_vertical
+    text = "一二三四五六七八九十一二三四五六七八九十"
+    chars_per_col = 10
+    lines = wrap_vertical(text, chars_per_col)
+    assert len(lines) == 2
+    assert lines[0] == "一二三四五六七八九十"
+    assert lines[1] == "一二三四五六七八九十"
+
+
+def test_wrap_vertical_punctuation_in_middle_unchanged():
+    """标点在列中间时不影响分割。"""
+    from amta.typeset_engine import wrap_vertical
+    text = "一二三四五，六七八九十一二三四五六七八九十"
+    chars_per_col = 10
+    lines = wrap_vertical(text, chars_per_col)
+    assert len(lines) == 3
+    assert lines[0] == "一二三四五，六七八九"
+    assert lines[1] == "十一二三四五六七八九"
+    assert lines[2] == "十"

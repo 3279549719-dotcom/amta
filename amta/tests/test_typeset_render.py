@@ -59,3 +59,35 @@ def test_render_auto_infers_vertical_for_tall_box():
     meta = render_item(img, "冷静点并不是担心八意大人什么的", FONT, [50, 50, 150, 550], stroke=0)
     assert meta["preferred_direction"] == "vertical"
     assert meta["layout_direction"] == "vertical"
+
+
+
+def test_render_vertical_ellipsis_rotated():
+    """竖排渲染时，省略号等横向标点应旋转90度绘制。"""
+    from amta.typeset_render import render_item
+    img = Image.new("RGB", (400, 800), "white")
+    bbox = [100, 100, 300, 700]  # 窄长框 → 竖排
+    text = "测试省略号……"
+    result = render_item(img, text, "msyh.ttc", bbox, stroke=0,
+                         preferred_direction="vertical")
+    assert result["layout_direction"] == "vertical"
+    # 验证图片不是全白（有内容被绘制）
+    bbox_region = img.crop((100, 100, 300, 700))
+    pixels = list(bbox_region.getdata())
+    non_white = sum(1 for p in pixels if p != (255, 255, 255))
+    assert non_white > 100  # 有足够多的文字像素
+
+
+def test_render_vertical_dash_rotated():
+    """竖排渲染时，破折号应旋转90度绘制。"""
+    from amta.typeset_render import render_item
+    img = Image.new("RGB", (400, 800), "white")
+    bbox = [100, 100, 300, 700]
+    text = "破折号测试——"
+    result = render_item(img, text, "msyh.ttc", bbox, stroke=0,
+                         preferred_direction="vertical")
+    assert result["layout_direction"] == "vertical"
+    bbox_region = img.crop((100, 100, 300, 700))
+    pixels = list(bbox_region.getdata())
+    non_white = sum(1 for p in pixels if p != (255, 255, 255))
+    assert non_white > 100
