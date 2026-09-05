@@ -26,6 +26,10 @@ dependencies = [
 ]
 
 [tool.uv]
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
 # 严格解析：锁定最小传递依赖，禁止意外引入未声明包。
 # 工具链（ruff/pyright/pytest）不在 uv 管理内，走全局安装（ADR-004/ADR-015）。
 
@@ -54,3 +58,8 @@ pythonpath = ["src", "."]
 # amta.pipeline/amta.detect_station（见 test_final_integration::TestDeprecatedCodeRemoved），
 # import 必然失败，故从收集排除；git 历史可随时找回。
 norecursedirs = ["tests/archive"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

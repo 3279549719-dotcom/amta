@@ -62,3 +62,86 @@ def test_empty_text_returns_min_size():
     font_size, direction, lines = fit_font_size("", FONT_PATH, [0, 0, 100, 100])
     assert font_size >= 12
     assert lines == []
+
+
+# === infer_direction_from_bbox 测试 ===
+
+def test_infer_direction_tall_narrow_box_is_vertical():
+    """高宽比 >= 1.5 的窄长框推断为竖排。"""
+    from amta.typeset_engine import infer_direction_from_bbox
+    bbox = [0, 0, 166, 691]  # 高宽比 4.16
+    assert infer_direction_from_bbox(bbox) == "vertical"
+
+
+def test_infer_direction_wide_short_box_is_horizontal():
+    """宽高比 >= 1.5 的横长框推断为横排。"""
+    from amta.typeset_engine import infer_direction_from_bbox
+    bbox = [0, 0, 380, 222]  # 宽高比 1.71
+    assert infer_direction_from_bbox(bbox) == "horizontal"
+
+
+def test_infer_direction_square_box_returns_none():
+    """接近方形的框返回 None（不强制方向，回退到字号选优）。"""
+    from amta.typeset_engine import infer_direction_from_bbox
+    bbox = [0, 0, 200, 200]  # 1:1
+    assert infer_direction_from_bbox(bbox) is None
+
+
+def test_infer_direction_boundary_ratio():
+    """高宽比刚好 1.5 的框推断为竖排。"""
+    from amta.typeset_engine import infer_direction_from_bbox
+    bbox = [0, 0, 100, 150]  # 高宽比 1.5
+    assert infer_direction_from_bbox(bbox) == "vertical"
+
+
+def test_infer_direction_near_square_returns_none():
+    """高宽比 1.3（<1.5）的框返回 None。"""
+    from amta.typeset_engine import infer_direction_from_bbox
+    bbox = [0, 0, 100, 130]  # 高宽比 1.3
+    assert infer_direction_from_bbox(bbox) is None
+
+
+# === fit_font_size preferred_direction 测试 ===
+
+def test_preferred_direction_horizontal_for_wide_box():
+    """横长框指定 preferred_direction='horizontal' 时，应选横排。"""
+    from amta.typeset_engine import fit_font_size
+    bbox = [0, 0, 380, 222]  # 横长框
+    text = "比起那个还是研究研究"
+    font_size, direction, lines = fit_font_size(
+        text, FONT_PATH, bbox, preferred_direction="horizontal"
+    )
+    assert direction == "horizontal", f"横长框首选横排，实际选了{direction}"
+
+
+def test_preferred_direction_vertical_for_tall_box():
+    """窄长框指定 preferred_direction='vertical' 时，应选竖排。"""
+    from amta.typeset_engine import fit_font_size
+    bbox = [0, 0, 166, 691]  # 窄长框
+    text = "冷、冷静点……并不是担心八意大人什么的"
+    font_size, direction, lines = fit_font_size(
+        text, FONT_PATH, bbox, preferred_direction="vertical"
+    )
+    assert direction == "vertical", f"窄长框首选竖排，实际选了{direction}"
+
+
+def test_no_preferred_direction_matches_old_behavior():
+    """不传 preferred_direction 时行为与旧版一致（纯字号选优）。"""
+    from amta.typeset_engine import fit_font_size
+    bbox = [0, 0, 200, 200]
+    text = "测试文本"
+    font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
+    assert direction in ("horizontal", "vertical")
+    assert font_size >= 12
+
+
+def test_preferred_direction_vertical_short_text():
+    """短文本窄长框首选竖排，应选竖排且字号合理。"""
+    from amta.typeset_engine import fit_font_size
+    bbox = [0, 0, 100, 400]  # 窄长框
+    text = "太好了！"
+    font_size, direction, lines = fit_font_size(
+        text, FONT_PATH, bbox, preferred_direction="vertical"
+    )
+    assert direction == "vertical", f"短文本窄长框首选竖排，实际选了{direction}"
+    assert font_size >= 20
