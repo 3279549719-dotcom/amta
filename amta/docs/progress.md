@@ -277,3 +277,23 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 **测试**：删除 10 个 legacy 测试文件；test_shared_lib.py 移除 15 个死函数测试方法（345→166 行）；test_context_semantic_transfer.py 11 处 execute_tool('get_context') 改为 build_semantic_context 直接调用。compileall 全绿。
 
 **统计**：6 commits，源码净减 ~6000 行，scripts/ 从 72 文件减至 39 文件（+33 archive）。
+
+## 2026-09-05 首个 text-free mission 复盘（feat/retire-v0-memory-track：退役 v0 记忆轨道）
+
+**跑了什么**：第一个 ralph text-free mission。loop_state 只放 mission 指针，全量上下文在 `research/11` 简报；agent 首轮自拆 plan C1-C4（与简报 §6 逐字一致），18 分钟单迭代吞完 4 chunk，每 chunk 独立 commit（C2/C3/C4），C4 端到端验收 §7 全过，ralph BLOCKED 干净停在人门。L6 独立审核 PASS（独立模型自跑 pytest 367 / git grep / read / index），唯一发现 = read CLI 缺回归测试（已补进 test_memory_cli.py）。
+
+**真有用的新机制**：
+- **文字简报预传递**：agent 零调研、精确执行简报 §5 授权边界、plan 与 §6 一致 → 单发跑完，调研时间折叠为 0（本次最值钱）。
+- **BLOCKED 停循环**：停在人类合入门，无 blocked-on-human 空转（ADR-028 旧病未复发）。
+- **每 chunk 独立 commit**：C2/C3/C4 可逐块复核。
+
+**没用 / 未实证的**：
+- **多轮自续机制**（schema v2 plan + prompt 每轮推一个 chunk）：简报够全 → 单迭代吞 4 chunk，跨轮接续从未被触发；要等下一个大到一轮装不下的 mission 才证得出来。
+- **COMPLETE 判据有洞**：plan 4/4 时 agent 写 next_action 退出而非 COMPLETE，逼出浪费的 iteration 2 才 BLOCKED。
+- **ralph trace 复盘尾空**：RALPH COMPLETE 的 trace 统计段没产出。
+
+**hook 教训**：PreToolUse legacy schema 在 2.1.220 静默失效 → guard 假死（见 lessons L45），已修为 hookSpecificOutput + matcher Bash。
+
+**定案（复盘后收敛，prompt.md v3 已实现）**：
+- **收尾自主化** = prompt.md v3 新增第 11 步收尾轮：plan 全 done → agent 自己跑 /finish（反思+知识晋升五路分流+Finish Report+终态 commit）→ 再 COMPLETE。人不用喊 /finish，只在合 main 时看报告。防误收尾：只收尾干净跑完；中途 BLOCKED 绝不收尾；宁缺毋滥，没真货（纯执行/无新坑 mission）零 lesson 是正常的。收尾轮引用现成 cycle-close 协议，不另造轮子。
+- **L6 独立审核** = 合 main 前**人按需拉闸**（动 main/删除/契约变更等要紧改动才值得），不做成每 mission 自动路费。本轮 L6 已证明能抓真洞（read CLI 缺回归测试 → 已补）。

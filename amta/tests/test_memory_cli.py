@@ -52,3 +52,13 @@ def test_inject_stdout_non_empty() -> None:
     r = _run("inject", "--stdout")
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip()
+
+
+def test_read_positional_hits_estate_not_v0_miss() -> None:
+    # 回归门（L6 review 2026-09-05 发现）：read <positional> 必须直走 estate。
+    # 历史 bug 恰在 CLI 路由层（positional L19 回落 v0 INDEX 报 [miss]），库层测试拦不到。
+    r = _run("read", "L19")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip()
+    assert "[miss]" not in r.stdout
+

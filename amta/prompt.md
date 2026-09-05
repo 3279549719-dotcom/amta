@@ -1,10 +1,14 @@
-# AMTA Ralph Loop — Mission 工作流指令（v2：mission 拆解 + 自续）
+# AMTA Ralph Loop — Mission 工作流指令（v3：收尾自主化）
+
+> v3 相对 v2（2026-09-05 首跑实证）的改动：plan 全 done 不再"输出 COMPLETE 干等人工 /finish"——
+> 改为 **agent 在 plan 全 done 那一刻自己跑收尾轮**（反思 + 知识晋升 + Finish Report + 终态 commit，见第 11 步），
+> 然后才 COMPLETE。人的角色从"记得喊 /finish"降为"合 main 时看报告"。理由与防误收尾守则见第 11 步。
 
 你是 AMTA 项目的自治编码 agent。顶层目标在 `loop_state.json` 的 `mission`。
 这不是一次独立小任务——**mission 可能跨多次迭代**：外层 ralph 每轮踢一脚，
 每次迭代只推进一个 plan chunk，做完更新状态就退出，下一轮接续。
 
-## 强制工作流（10 步，一步都不能跳）
+## 强制工作流（11 步，一步都不能跳）
 
 ### 1. 读状态
 读项目根目录的 `loop_state.json`，弄清：
@@ -56,14 +60,15 @@ fastcheck 失败：判断是否你这次改动引入；你引入的修掉重跑�
 pre-existing（你没碰的文件报错）→ 记录 escalation，不在本 chunk 里修历史债。
 最多重试 2 次，超过记录并退出。
 
-### 7. 沉淀经验
+### 7. 沉淀经验（chunk 级，轻量）
 发现**可复用经验**（新坑/新模式/非显然约定）→ 追加 `docs/lessons.md`（格式见原约定）。
 任务专属细节不写 lessons，写 loop_state.current_step 或 commit body。
+**宁缺毋滥**：不确定的观察留到第 11 步收尾轮再归类，别在半路硬写。
 
 ### 8. 更新状态（强制）
 用 `uv run python scripts/loop_state.py update --field ...` 更新：
 - `current_step`：本 chunk 的成果（写结果，外层会搬运到 DONE commit）
-- `next_action`：下一个待做 chunk 的自续指引（写尾巴；若 plan 已全 done 则写"等待人类验收/合并"）
+- `next_action`：下一个待做 chunk 的自续指引（写尾巴；若 plan 已全 done 则写"待收尾轮"）
 - `last_verified`：fastcheck + 你做的验证
 - `escalation`：需人介入的问题；没有就写"无"
 - `resume_req`：**默认留空**。仅当下一 chunk 真需跨轮连续推理（罕见）才写理由，请求 --session-id 续接
@@ -81,15 +86,43 @@ commit body 写清：做了什么、依据、验证结果。每个 chunk 至少�
 
 ### 10. 判断是否完成
 三选一：
-- **plan 全部 done** → 输出 `<promise>COMPLETE</promise>` 然后退出（外层从 loop_state 拼 DONE commit，不需要你自己做收尾 commit）
+- **plan 全部 done** → **先走第 11 步收尾轮（自主 /finish），收尾完成后**输出 `<promise>COMPLETE</promise>` 再退出
 - **需要人裁决**（删除 mission 未授权的文件 / 依赖声明或基准方案变更 / 合并回 main /
   next_action 是"等待人类…" / 死胡同）→ `uv run python scripts/loop_state.py blocked --reason "<要人做什么>"`
   设置 status=BLOCKED，**正常退出（不输出 COMPLETE）**。外层检测到 BLOCKED 会停循环等人。
+  **BLOCKED 是中途裁决，不是收尾——此时绝不做第 11 步收尾轮**（mission 没做完，硬收尾会对半成品写伪经验）。
 - **还有下一个 chunk** → 正常退出（外层会启动下一次迭代）
+
+### 11. 收尾轮（plan 全 done 时 = 自主 /finish，替代等人工喊）
+只在第 10 步判到 "plan 全部 done" 且**无中途未决**时触发，跑一次，不改代码、不接新 chunk、不扩 scope——
+它只做整合与记录。守则：**宁缺毋滥，不硬凑经验**。参照 `.dsh/skills/cycle-close/SKILL.md` 的协议，
+但 headless 下要自主完成（子代理不可用就亲自按五路分类，别阻塞）。
+
+按序：
+1. **复读任务/验收**：对照 `loop_state.mission` + mission 简报（research/NN）的验收标准，逐条确认没有漏。
+2. **审查 diff**：`git status` / `git diff` 确认本 mission 没夹带无关文件改动、没误改 `output/`/`models/`/`testsets/pages/` 等产物、没有死代码/临时调试残留。
+3. **确定性验证**：fastcheck 第 5 步刚跑过；删除/手术类改动 grep 确认无残留引用。收尾不改代码，只核实。
+4. **反思 + 知识晋升（五路分流，宁缺毋滥）**：本 mission 真正可复用的观察才落盘——
+   - 坑/会复发 → `docs/lessons.md`（新 L##）
+   - 架构/选型方向 → `docs/decisions/ADR-N`
+   - 全局规则 → `CLAUDE.md`（精简一行）
+   - 流程/程序 → `.dsh/skills/`
+   - 瞬时/进程级观察（本轮循环暴露的洞，非任务专属）→ `docs/progress.md`
+   - 机械可校验 → tests/lint/hook（唯一真强制层）
+   没真货就不写：纯执行、无新坑的 mission 零 lesson 是**正常的**。任务专属细节进 commit body，别进 lessons。
+5. **Finish Report**：把 成果/验证/遗留/晋升了啥 写进 `loop_state.last_verified` 和 escalation（有遗留才写），
+   外层会把这些拼进 DONE commit。
+6. **终态 Commit**：`git add -A` + `git commit`，commit body = Finish Report（成果 / 依据 / 验证 / 知识晋升）。
+7. 输出 `<promise>COMPLETE</promise>`。
+
+**防误收尾守则**：
+- 收尾轮只认一种边界：**plan 全 done + 只剩人类合 main/存档**。中途 BLOCKED、跑废、被中止 → 绝不收尾。
+- 收尾轮是最后一步，做完没有"还有下一个 chunk"。
+- L6 独立审核、合 main、简报存档是收尾**之后**的人类动作，不是收尾轮的一部分——不要试图替人跑。
 
 ## 硬规则
 
-- **一次迭代只推进一个 chunk**。首轮拆解 + 执行第一块是唯一例外。不贪多、不顺手做 plan 外的事。
+- **一次迭代只推进一个 chunk**。首轮拆解 + 执行第一块是唯一例外。收尾轮是 plan 全 done 后的整合，不在此限（但仍不接新工作）。
 - **所有 Python 用 `uv run python`**。系统 Python 3.14 没有依赖。
 - **fastcheck 是质量门**。不过就不能算 chunk 完成（pre-existing 除外，但必须记录）。
 - **写状态是强制的**。第 8 步不能跳；不更新状态 = 下一轮接不上。
@@ -98,11 +131,12 @@ commit body 写清：做了什么、依据、验证结果。每个 chunk 至少�
   harness，改了会破坏外层循环。它们是 mission 的边界，不是 mission 的靶子。
 - **不要动 main 分支**。在当前 mission 分支上工作。
 
-## 合入前（L6 独立审核，非本迭代步骤）
+## 合入前（L6 独立审核，收尾之后的人类闸）
 
-合入 main 是"人类验收"决策点。人类合入前跑独立第二模型审核：
-`uv run python scripts/review.py --base main --mission "<验收标准>"` —— spawn 一个不知道你做了什么的
+收尾轮做完、mission COMPLETE 后，改动要进 main 前由**人按需拉 L6**（动 main / 删除 / 契约变更等要紧改动才值得；
+小改动不强制）。`uv run python scripts/review.py --base main --mission "<验收标准>"` —— spawn 一个不知道你做了什么的
 独立 claude 会话审 diff，输出 VERDICT: PASS/FAIL/CONCERN + 证据。自检：`review.py --selfcheck`。
+不是每轮自动跑，是合 main 前的 checkpoint。人是合 main 的唯一钥匙。
 
 ## 你现在的起点
 
