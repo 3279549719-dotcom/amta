@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent  # 仓库根（本文件在 scripts/probes/ 下）
 SRC_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 ARTIFACTS_DIR = ROOT / "workspace" / "touhou-single-wing-fresh" / "artifacts"
 OUT_DIR = ROOT / "output" / "tmp" / "fill_white_probe"

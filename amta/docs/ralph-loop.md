@@ -31,10 +31,10 @@
 | `loop_state.json` | 任务状态（mission/next_action/last_verified/escalation） | agent（每步更新） | agent（每步读取）+ memory_inject |
 | `ralph-log.md` | append-only 学习日志 | agent（每步追加） | 人（复盘） |
 | `docs/lessons.md` | 可复用经验库（L1-L37+） | agent（第 7 步沉淀） | agent（memory_search） |
-| `.claude/settings.json` | SessionStart hook（`uv run python scripts/memory_inject.py`） | 人 | claude |
+| `.claude/settings.json` | SessionStart hook（`uv run python scripts/memory.py inject`） | 人 | claude |
 | `scripts/trace_probe.py` | claude 会话 JSONL 探针（心跳定位 / 卡死诊断 / trace 统计） | ralph.ps1 | ralph.ps1 |
 | `scripts/loop_state.py` | loop_state 读写 CLI（含 `blocked` 快捷命令，写 status=BLOCKED） | agent / ralph | agent / ralph |
-| `CLAUDE.local.md` | 自动注入的记忆包（loop_state 摘要 + 字典规则） | memory_inject.py | agent（会话启动） |
+| `CLAUDE.local.md` | 自动注入的记忆包（loop_state 摘要 + 字典规则） | memory.py inject | agent（会话启动） |
 
 ## prompt.md 10 步工作流
 
@@ -54,7 +54,7 @@
 ## 记忆机制（读 + 写）
 
 ### 读记忆（自动）
-- SessionStart hook 跑 `memory_inject.py`，把 `loop_state.json` 摘要注入 `CLAUDE.local.md`
+- SessionStart hook 跑 `memory.py inject`，把 `loop_state.json` 摘要注入 `CLAUDE.local.md`
 - agent 会话启动时自动看到当前任务状态
 - 需要历史经验时用 `memory_search` 查 `docs/lessons.md`
 
@@ -74,7 +74,7 @@
 ## 常见问题
 
 **Q: hook 不生效怎么办？**
-A: 检查 `.claude/settings.json` 的 SessionStart command 是不是 `uv run python scripts/memory_inject.py`。系统 Python 3.14 无 requests，用 `python` 会静默失败。
+A: 检查 `.claude/settings.json` 的 SessionStart command 是不是 `uv run python scripts/memory.py inject`。系统 Python 3.14 无 requests，用 `python` 会静默失败。
 
 **Q: agent 不写记忆怎么办？**
 A: 检查 prompt.md 第 7-9 步是否还在。写记忆是工作流指令，不是 hook。如果 agent 跳过，加强 prompt 措辞。

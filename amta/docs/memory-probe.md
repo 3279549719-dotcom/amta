@@ -10,5 +10,5 @@
 | 3 | "为什么 koharu 的 paddle OCR 引擎不能用？" | 引用 L9 / ADR-008（llama.cpp b8935 MTMD 初始化失败，走独立 llama-server） |
 
 ## 判定
-- 3/3 PASS = 记忆机制有效；≤1 PASS = 失效，先跑 `python scripts/memory_status.py` 排查注入与地产健康。
+- 3/3 PASS = 记忆机制有效；≤1 PASS = 失效，先跑 `python scripts/memory.py status` 排查注入与地产健康。
 - 探针结果记入当次 audit 报告（docs/decisions/022 的 audit probe 流程追加本节）。

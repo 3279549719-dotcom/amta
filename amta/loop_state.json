@@ -1,9 +1,9 @@
 {
   "mission": "候选4探针归档：scripts/probes/ 目录已存在且 ruff/pyright 已 exclude。把 scripts/ 根目录下 6 个实验探针移到 scripts/probes/：probe_fill_white.py、probe_flux2.py、probe_refine_mask_batch.py、probe_seg_mask.py、exp_inpaint_speed.py、compare_inpaint_engines.py。移动后更新所有引用：tests/test_exp_p1_manga.py 的 import exp_inpaint_speed、docs/ 下文档里的脚本路径、脚本自身 docstring。_*.py（旧版生产脚本）这次不动。完成标准：fastcheck ALL PASS，6个文件都在 scripts/probes/ 下。",
-  "current_step": "待开始",
-  "next_action": "Ralph自主执行探针归档",
-  "last_verified": "2026-09-04 最终验证：py -3.13 scripts/fastcheck.py → ALL PASS（compile OK / ruff All checks passed / pyright 0 errors 0 warnings / pytest 315 passed 3 skipped / depguard OK / memory lint+gc+inject OK）。SessionStart hook 正常输出项目状态。PreToolUse hook 正常工作：非 commit 命令 allow，commit 命令跑 fastcheck，FAIL 则 block。",
+  "current_step": "候选4探针归档完成：6 探针已移至 scripts/probes/（probe_fill_white/probe_flux2/probe_refine_mask_batch/probe_seg_mask/exp_inpaint_speed/compare_inpaint_engines），引用全同步（test_exp_p1_manga sys.path→probes、docs 两处路径、脚本自身 ROOT 深度+docstring、gen_fill_white_report footer、depguard._is_local_module 认 probes 本地）",
+  "next_action": "等待人类验收：L6 审核（scripts/review.py --base main）+ 合并回 main",
+  "last_verified": "2026-09-05 py -3.13 scripts/fastcheck.py → ALL PASS（ruff All checks passed / pyright 0 errors 0 warnings / pytest 362 passed 3 skipped / depguard OK / memory OK）。tests/test_exp_p1_manga.py 2 passed（含 exp_inpaint_speed import 通路）。grep 确认无残留旧路径 scripts/<探针名>.py 引用。新增 L44。",
   "escalation": "无",
-  "updated_at": "2026-09-05T00:24",
+  "updated_at": "2026-09-05T00:50",
   "status": ""
 }

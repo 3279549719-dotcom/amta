@@ -360,6 +360,14 @@
 - **Prevention**：review.py 已用 `os.name == "nt"` 分支切 `cmd /c claude`；新写 spawn 外部 CLI 的脚本沿用此模式。
 - **Regression**：`claude -p` 经 stdin 管道回 "OK"（实测，见 review.py L6 门）。
 
+## L44 — 归档探针到 scripts/probes/（豁免但活着的目录）：ROOT 深度 + depguard 本地识别两处必改
+
+- **Problem**：把 `scripts/exp_inpaint_speed.py` 等 6 个探针 `git mv` 到 `scripts/probes/` 后，脚本内部 `ROOT = Path(__file__).parent.parent` 全部少算一层（probes 比 scripts 深一级，仓库根需 `.parent.parent.parent`）；`tests/test_exp_p1_manga.py` 经 `sys.path.insert(..., "scripts")` import `exp_inpaint_speed` 也失效，需改指 `scripts/probes`。
+- **Root cause**：① 探针用 `Path(__file__).resolve().parent` 锚定仓库根/兄弟脚本目录，目录下移一层后所有深度常量静默错位（不报错、只在真跑时找错路径）。② probes/ 与 archive/ 语义不同：archive/ 是"已死代码"（importer 硬死，depguard 报未声明 = 死代码侧写，L37），probes/ 是"豁免 lint 但活着的实验脚本"——测试仍合法 import 它，而 depguard `_is_local_module()` 只查 src/scripts/tests 活动目录，probes/ 下的模块名会被当第三方顶层名 → 报"未声明"假阳。
+- **Durable lesson**：凡把 scripts 下脚本下移一层（scripts/X.py → scripts/probes/X.py）：① 全文搜 `Path(__file__)` 锚定的 ROOT/SCRIPT_DIR/SRC_DIR 深度常量与 `sys.path.insert`（深一层 = ROOT 多一个 `.parent`；要 import 的兄弟模块若留在 scripts/ 根，路径插 `SCRIPT_DIR.parent` 而非 `SCRIPT_DIR`）；② 若仍有测试/代码 import 它，去 `scripts/depguard.py::_is_local_module()` 加一条 `scripts/probes/` 检查（与 src/scripts/tests 并列），而不是清 importer——probes 模块不是死代码。
+- **Prevention**：移动后跑 `py -3.13 scripts/fastcheck.py`（ruff/pyright 已豁免 probes，红债只在 depguard + 引用它的测试）；任何"归档进豁免目录"先分清是 archive/（清 importer）还是 probes/（depguard 补本地识别）。
+- **Regression**：6 探针已在 scripts/probes/，depguard 已认 probes 为本地模块，fastcheck ALL PASS。[已自动化：fastcheck pytest 覆盖 test_exp_p1_manga import 通路]
+
 ## 模板（新增时复制）
 
 ```

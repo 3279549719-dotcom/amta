@@ -86,8 +86,8 @@
 - 框内字涂白完全可行
 
 **产物**：
-- `scripts/probe_fill_white.py`
-- `scripts/gen_fill_white_report.py`
+- `scripts/probes/probe_fill_white.py`
+- `scripts/probes/gen_fill_white_report.py`
 - `output/tmp/fill_white_probe/`
 
 ---

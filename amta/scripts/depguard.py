@@ -50,6 +50,9 @@ def _is_local_module(top: str) -> bool:
     for sub in SCAN_DIRS:
         if (ROOT / sub / f"{top}.py").is_file():
             return True
+    # scripts/probes/ 归档探针：ruff/pyright 已 exclude，但被 tests 引用时仍是本地模块（非第三方）
+    if (ROOT / "scripts" / "probes" / f"{top}.py").is_file():
+        return True
     return False
 
 

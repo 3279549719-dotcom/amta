@@ -65,7 +65,7 @@ def _cmd_preamble(args: argparse.Namespace) -> int:
         import subprocess as _sp
 
         mi = _sp.run(
-            [sys.executable, str(root / "scripts" / "memory_index.py")],
+            [sys.executable, str(root / "scripts" / "memory.py"), "index"],
             capture_output=True, text=True, cwd=str(root), timeout=30,
         )
         memory_index = mi.stdout

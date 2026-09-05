@@ -7,8 +7,8 @@
   p1_gpu   : 裁剪 + 本地 big-lama DirectML (可选, 不支持则跳过)
 
 用法:
-  python scripts/exp_inpaint_speed.py --mode baseline --pages 11,12,13 --repeat 3
-  python scripts/exp_inpaint_speed.py --mode all --pages 11-15 --repeat 3
+  python scripts/probes/exp_inpaint_speed.py --mode baseline --pages 11,12,13 --repeat 3
+  python scripts/probes/exp_inpaint_speed.py --mode all --pages 11-15 --repeat 3
 """
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ from pathlib import Path
 
 from PIL import Image
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-ROOT = SCRIPT_DIR.parent
+SCRIPT_DIR = Path(__file__).resolve().parent  # scripts/probes
+ROOT = SCRIPT_DIR.parent.parent  # 仓库根
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SCRIPT_DIR.parent))  # 04_inpaint 位于 scripts/ 根
 
 from importlib import import_module  # noqa: E402
 mod = import_module("04_inpaint")

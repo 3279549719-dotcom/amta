@@ -134,7 +134,7 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
 
     # 迭代前刷新记忆注入（确保 CLAUDE.local.md 是最新的 loop_state）
     Write-Output "[ralph] Refreshing memory injection..."
-    uv run python scripts/memory_inject.py 2>&1 | ForEach-Object { Write-Output "  [memory_inject] $_" }
+    uv run python scripts/memory.py inject 2>&1 | ForEach-Object { Write-Output "  [memory] inject $_" }
 
     # 显示当前状态（含 status）
     if (Test-Path $LoopStatePath) {

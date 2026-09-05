@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-ROOT = SCRIPT_DIR.parent
+ROOT = SCRIPT_DIR.parent.parent  # 仓库根（本文件在 scripts/probes/ 下）
 sys.path.insert(0, str(ROOT / "src"))
 
 from amta.text_mask_refiner import build_rect_mask, refine_text_mask  # noqa: E402

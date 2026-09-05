@@ -14,7 +14,7 @@
 
 ### 2. 读经验（外层已注入，扫清单自选）
 外层 ralph 已把「记忆清单（lessons + ADR 全标题）+ 最近 git 脉络」注入到 prompt 开头。扫一遍清单，挑出和本次任务相关的条目，用 `uv run python scripts/memory.py read <ID>` 读详情。
-不要用 memory_grep 猜关键词（74 条全扫，召回天然 100%；关键词匹配实测只有 25%）。git 脉络里的 `ralph: DONE` 标记是上次 run 的边界和遗留。
+不要用 memory.py grep 猜关键词（74 条全扫，召回天然 100%；关键词匹配实测只有 25%）。git 脉络里的 `ralph: DONE` 标记是上次 run 的边界和遗留。
 
 ### 3. 确认分支
 确认你在正确的分支上（`git branch --show-current`）。如果 `loop_state.json` 里指定了分支但你不在，切换过去。
