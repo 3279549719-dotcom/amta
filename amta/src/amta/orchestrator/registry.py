@@ -1,4 +1,4 @@
-"""阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。
+﻿"""阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。
 
 这是编排器的 Seam（接缝）所在：编排器只依赖这里的 StageSpec 声明，
 不需要知道每个工位具体做什么。新增阶段 = 写一个工位函数 + 在这里加一行注册。
@@ -56,7 +56,7 @@ def _build_registry() -> dict[str, StageSpec]:
             consumes=["detect"],
             produces="canon",
             default_config={
-                "engine": "auto",
+                "engine": "hayai",
                 "vlm_enabled": False,
                 "rule_filter": False,
             },
@@ -130,3 +130,4 @@ def get_stage(name: str) -> StageSpec:
 
 def available_stages() -> list[str]:
     return list(get_registry().keys())
+
