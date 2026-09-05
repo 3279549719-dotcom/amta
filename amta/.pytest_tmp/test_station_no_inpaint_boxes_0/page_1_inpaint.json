@@ -1,0 +1,29 @@
+{
+  "work_id": "w",
+  "page": "page_1",
+  "actions": [
+    {
+      "region_id": "r00",
+      "category": "dialogue_bubble",
+      "action": "fill_white",
+      "bbox": [
+        10,
+        10,
+        50,
+        50
+      ]
+    }
+  ],
+  "checks": {
+    "filled": 1,
+    "inpainted": 0,
+    "skipped": 0,
+    "size_ok": true,
+    "refine_mask": false,
+    "inpaint_engine": "lama-manga",
+    "pixel_diff_ratio": 0.1681
+  },
+  "clean_image": "page_1_clean.png",
+  "dry_run": false,
+  "generated_at": "2026-09-05T11:19:03"
+}

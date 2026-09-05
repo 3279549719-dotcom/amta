@@ -1,0 +1,122 @@
+{
+ "runs": [
+  {
+   "run_id": "b09ade1ed7b0",
+   "git_head": "f88d71f",
+   "started_at": "2026-09-05T03:19:01+00:00",
+   "trigger": "pages 1-3 stages=[detect,ocr,translate]",
+   "steps": [
+    {
+     "step": "detect",
+     "page": "page_1",
+     "status": "ok",
+     "input": "{}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_1_detection.json",
+     "detail": {
+      "calls": 1
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "ocr",
+     "page": "page_1",
+     "status": "ok",
+     "input": "{'detect': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_basic_pipeline0/test-smoke/artifacts/page_1_detection.json')}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_1_canon.json",
+     "detail": {
+      "calls": 1
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "translate",
+     "page": "page_1",
+     "status": "ok",
+     "input": "{'ocr': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_basic_pipeline0/test-smoke/artifacts/page_1_canon.json')}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_1_translation.json",
+     "detail": {
+      "calls": 1
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "detect",
+     "page": "page_2",
+     "status": "ok",
+     "input": "{}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_2_detection.json",
+     "detail": {
+      "calls": 2
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "ocr",
+     "page": "page_2",
+     "status": "ok",
+     "input": "{'detect': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_basic_pipeline0/test-smoke/artifacts/page_2_detection.json')}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_2_canon.json",
+     "detail": {
+      "calls": 2
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "translate",
+     "page": "page_2",
+     "status": "ok",
+     "input": "{'ocr': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_basic_pipeline0/test-smoke/artifacts/page_2_canon.json')}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_2_translation.json",
+     "detail": {
+      "calls": 2
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "detect",
+     "page": "page_3",
+     "status": "ok",
+     "input": "{}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_3_detection.json",
+     "detail": {
+      "calls": 3
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "ocr",
+     "page": "page_3",
+     "status": "ok",
+     "input": "{'detect': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_basic_pipeline0/test-smoke/artifacts/page_3_detection.json')}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_3_canon.json",
+     "detail": {
+      "calls": 3
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "translate",
+     "page": "page_3",
+     "status": "ok",
+     "input": "{'ocr': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_basic_pipeline0/test-smoke/artifacts/page_3_canon.json')}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_basic_pipeline0\\test-smoke\\artifacts\\page_3_translation.json",
+     "detail": {
+      "calls": 3
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    }
+   ],
+   "failed_step": null,
+   "ended_at": "2026-09-05T03:19:01+00:00"
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-"""Stage 4 Inpainting 速度 A/B 实验脚本。
+﻿"""Stage 4 Inpainting 速度 A/B 实验脚本。
 
 四组对比:
   baseline : 整页送 Koharu lama-manga (当前方案)
@@ -27,8 +27,7 @@ ROOT = SCRIPT_DIR.parent.parent  # 仓库根
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(SCRIPT_DIR.parent))  # 04_inpaint 位于 scripts/ 根
 
-from importlib import import_module  # noqa: E402
-mod = import_module("04_inpaint")
+from amta.inpaint_station import _apply_fill_white, _build_mask, run as inpaint_run  # noqa: E402
 
 from amta.koharu_client import KoharuClient  # noqa: E402
 from amta.local_lama_inpainter import LocalLamaInpainter  # noqa: E402
@@ -72,7 +71,7 @@ def fill_bubbles(img: Image.Image, det_path: Path) -> None:
     blocks = det.get("blocks") or det.get("regions") or []
     for b in blocks:
         if b.get("bubble_type") == "text_bubble":
-            mod._apply_fill_white(img, b["bbox"])
+            _apply_fill_white(img, b["bbox"])
 
 
 def crop_box(img: Image.Image, bbox: list, padding: int = PADDING):
@@ -88,7 +87,7 @@ def crop_box(img: Image.Image, bbox: list, padding: int = PADDING):
 def build_crop_mask(crop_img: Image.Image, bbox: list, crop_origin: tuple, refine: bool = True) -> bytes:
     ox, oy = crop_origin[0], crop_origin[1]
     local_bbox = [bbox[0] - ox, bbox[1] - oy, bbox[2] - ox, bbox[3] - oy]
-    return mod._build_mask(crop_img, [local_bbox], pad=4, refine=refine)
+    return _build_mask(crop_img, [local_bbox], pad=4, refine=refine)
 
 
 def koharu_inpaint(image: Image.Image, mask_bytes: bytes, engine: str = "lama-manga") -> Image.Image | None:
@@ -118,7 +117,7 @@ def run_baseline(page_num: int, repeat: int = 3) -> dict:
         out = OUT_DIR / "baseline" / f"page_{page_num}_run{i}_inpaint.json"
         clean = OUT_DIR / "baseline" / "clean"
         out.parent.mkdir(parents=True, exist_ok=True)
-        mod.run(
+        inpaint_run(
             work_id=f"exp-baseline-p{page_num}-r{i}",
             det_path=det, raw_page=raw, out_path=out,
             clean_dir=clean, refine_mask=True, inpaint_engine="lama-manga",
@@ -304,3 +303,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+

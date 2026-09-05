@@ -1,0 +1,40 @@
+{
+ "runs": [
+  {
+   "run_id": "7638b34017a1",
+   "git_head": "f88d71f",
+   "started_at": "2026-09-05T03:19:01+00:00",
+   "trigger": "pages 1-1 stages=[detect,ocr,translate]",
+   "steps": [
+    {
+     "step": "detect",
+     "page": "page_1",
+     "status": "ok",
+     "input": "{}",
+     "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_stage_failure_stops0\\test-fail\\artifacts\\page_1_detection.json",
+     "detail": {
+      "calls": 1
+     },
+     "duration_s": 0.01,
+     "at": "2026-09-05T03:19:01+00:00"
+    },
+    {
+     "step": "ocr",
+     "page": "page_1",
+     "status": "failed",
+     "input": "{'detect': WindowsPath('E:/manga translator agent/amta/.pytest_tmp/test_stage_failure_stops0/test-fail/artifacts/page_1_detection.json')}",
+     "output": "None",
+     "detail": {},
+     "duration_s": 0.0,
+     "at": "2026-09-05T03:19:01+00:00"
+    }
+   ],
+   "failed_step": {
+    "step": "ocr",
+    "page": "page_1",
+    "reason": "fake ocr failure"
+   },
+   "ended_at": "2026-09-05T03:19:01+00:00"
+  }
+ ]
+}

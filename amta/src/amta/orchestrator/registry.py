@@ -5,7 +5,7 @@
 
 设计原则（codebase-design）：
 - One adapter means a hypothetical seam. Two adapters means a real one.
-  这里已经有 detect / ocr / translate 三个 adapter，后续还有 inpaint / typeset / segment，
+  这里有 detect / ocr / translate / inpaint / typeset 五个 adapter，
   所以这个 seam 是真实存在的，不是假设的。
 - 阶段之间的依赖关系用 consumes / produces 声明，编排器自动解析上游产物路径。
 """
@@ -32,25 +32,18 @@ class StageSpec:
     default_config: dict[str, Any] = field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# 阶段注册表 — 所有阶段在这里声明
-# ---------------------------------------------------------------------------
-# 注意：这里 import 的是适配器（adapters），不是原始工位函数。
-# 适配器把统一的 StationContext 转换成原始工位的参数，把原始返回值转换成 StationResult。
-# 这样原始工位不需要改，编排器也不需要知道原始工位的签名差异。
-
 def _build_registry() -> dict[str, StageSpec]:
     """延迟构建注册表，避免循环 import。"""
+    from .adapters.detect import run as detect_run
+    from .adapters.inpaint import run as inpaint_run
     from .adapters.ocr import run as ocr_run
     from .adapters.translate import run as translate_run
+    from .adapters.typeset import run as typeset_run
 
     return {
-        # detect 尚未接入当前检测路径（scripts/01_detect.py 本地 ONNX RTDetrDetector）。
-        # 旧适配器对着已删除的 amta.detect_station（koharu 4-detector 并集）写，从未可用；
-        # 按 inpaint/typeset/segment 同款占位处理，等 detect 作为库的 seam 定案后再接线。
         "detect": StageSpec(
             name="detect",
-            station=_not_implemented("detect"),
+            station=detect_run,
             consumes=[],
             produces="detection",
             default_config={
@@ -78,29 +71,22 @@ def _build_registry() -> dict[str, StageSpec]:
                 "vlm_enabled": True,
             },
         ),
-        # ------------------------------------------------------------------
-        # 后续阶段预留 — 工位函数待实现，这里先声明依赖关系和默认配置
-        # 实现后把 station 换成真实的适配器即可，编排器不需要改
-        # ------------------------------------------------------------------
         "inpaint": StageSpec(
             name="inpaint",
-            station=_not_implemented("inpaint"),
+            station=inpaint_run,
             consumes=["detect"],
             produces="inpaint",
             default_config={
-                "engine": "lama",
-                "fill_white_bubbles": True,
+                "refine_mask": False,
+                "inpaint_engine": "lama-manga",
             },
         ),
         "typeset": StageSpec(
             name="typeset",
-            station=_not_implemented("typeset"),
-            consumes=["translate", "inpaint"],
+            station=typeset_run,
+            consumes=["detect", "ocr", "translate", "inpaint"],
             produces="typeset",
-            default_config={
-                "font": "auto",
-                "direction": "auto",
-            },
+            default_config={},
         ),
         "segment": StageSpec(
             name="segment",
@@ -125,12 +111,10 @@ def _not_implemented(stage_name: str) -> StationFn:
     return _placeholder
 
 
-# 全局注册表实例（延迟初始化）
 _REGISTRY: dict[str, StageSpec] | None = None
 
 
 def get_registry() -> dict[str, StageSpec]:
-    """获取阶段注册表（单例，延迟初始化）。"""
     global _REGISTRY
     if _REGISTRY is None:
         _REGISTRY = _build_registry()
@@ -138,7 +122,6 @@ def get_registry() -> dict[str, StageSpec]:
 
 
 def get_stage(name: str) -> StageSpec:
-    """获取单个阶段的声明。"""
     reg = get_registry()
     if name not in reg:
         raise ValueError(f"未知阶段 {name!r}，可用阶段: {sorted(reg.keys())}")
@@ -146,5 +129,4 @@ def get_stage(name: str) -> StageSpec:
 
 
 def available_stages() -> list[str]:
-    """列出所有可用阶段名。"""
     return list(get_registry().keys())

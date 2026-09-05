@@ -1,0 +1,16 @@
+﻿....F...............................                                     [100%]
+================================== FAILURES ===================================
+_________________________ test_p1_manga_runs_one_page _________________________
+tests\test_exp_p1_manga.py:40: in test_p1_manga_runs_one_page
+    result = exp.run_p1(11, repeat=1, inpainter=inpainter, mode_name="p1_manga", refine=False)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\probes\exp_inpaint_speed.py:167: in run_p1
+    mask_bytes = build_crop_mask(crop, box["bbox"], origin, refine=refine)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\probes\exp_inpaint_speed.py:90: in build_crop_mask
+    return mod._build_mask(crop_img, [local_bbox], pad=4, refine=refine)
+           ^^^
+E   NameError: name 'mod' is not defined
+=========================== short test summary info ===========================
+FAILED tests/test_exp_p1_manga.py::test_p1_manga_runs_one_page - NameError: n...
+1 failed, 35 passed in 3.35s
