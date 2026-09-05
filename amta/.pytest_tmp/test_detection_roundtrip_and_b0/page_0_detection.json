@@ -1,0 +1,18 @@
+{
+  "work_id": "w",
+  "blocks": [
+    {
+      "region_id": "page_0_u00",
+      "bbox": [
+        0,
+        0,
+        5,
+        5
+      ]
+    }
+  ],
+  "n_boxes": 1,
+  "page": "page_0",
+  "schema_version": "2.1",
+  "generated_at": "2026-09-05T12:06:49"
+}

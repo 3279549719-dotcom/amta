@@ -1,0 +1,1 @@
+{"actions": [{"action": "inpaint", "region_id": "free11", "bbox": [10, 20, 100, 80]}, {"action": "fill_white", "region_id": "bubble11", "bbox": [200, 200, 300, 240]}]}

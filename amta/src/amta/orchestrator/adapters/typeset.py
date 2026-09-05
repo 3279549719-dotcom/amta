@@ -41,7 +41,7 @@ def run(ctx: StationContext) -> StationResult:
         clean_image_name = inpaint_doc.get("clean_image", "")
         if not clean_image_name:
             raise ValueError("inpaint.json 中缺少 clean_image 字段，inpaint 阶段可能未生成 clean 图")
-        clean_path = ctx.artifacts_dir / "clean" / clean_image_name
+        clean_path = ctx.artifacts_dir / clean_image_name
         if not clean_path.exists():
             raise FileNotFoundError(f"clean 图不存在: {clean_path}")
 
@@ -84,4 +84,5 @@ def run(ctx: StationContext) -> StationResult:
             duration_s=round(duration, 2),
             error=f"{type(e).__name__}: {str(e)[:200]}",
         )
+
 

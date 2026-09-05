@@ -54,7 +54,7 @@ def test_station_fill_white_and_inpaint(tmp_path, monkeypatch):
     assert data["checks"]["filled"] == 1
     assert data["checks"]["inpainted"] == 1
     assert data["checks"]["pixel_diff_ratio"] > 0
-    assert data["clean_image"] == "page_1_clean.png"
+    assert data["clean_image"] == "clean/page_1_clean.png"
     clean = Image.open(clean_dir / "page_1_clean.png")
     assert clean.size == (200, 100)
     assert clean.getpixel((50, 25)) == (255, 255, 255)  # bubble 区域已涂白
@@ -102,4 +102,5 @@ def test_station_no_inpaint_boxes_only_fill_white(tmp_path, monkeypatch):
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["checks"]["filled"] == 1
     assert data["checks"]["inpainted"] == 0
+
 

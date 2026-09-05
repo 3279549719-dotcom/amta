@@ -1,9 +1,9 @@
 {
  "runs": [
   {
-   "run_id": "32d57f0ca8c9",
-   "git_head": "f88d71f",
-   "started_at": "2026-09-05T03:19:01+00:00",
+   "run_id": "00b93fb6e3c5",
+   "git_head": "e35bf5a",
+   "started_at": "2026-09-05T04:07:21+00:00",
    "trigger": "pages 1-1 stages=[detect,ocr,translate]",
    "steps": [
     {
@@ -16,7 +16,7 @@
       "calls": 1
      },
      "duration_s": 0.01,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     },
     {
      "step": "ocr",
@@ -28,7 +28,7 @@
       "calls": 1
      },
      "duration_s": 0.01,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     },
     {
      "step": "translate",
@@ -40,16 +40,16 @@
       "calls": 1
      },
      "duration_s": 0.01,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     }
    ],
    "failed_step": null,
-   "ended_at": "2026-09-05T03:19:01+00:00"
+   "ended_at": "2026-09-05T04:07:21+00:00"
   },
   {
-   "run_id": "e0b95feba317",
-   "git_head": "f88d71f",
-   "started_at": "2026-09-05T03:19:01+00:00",
+   "run_id": "8ff1672f02d9",
+   "git_head": "e35bf5a",
+   "started_at": "2026-09-05T04:07:21+00:00",
    "trigger": "pages 1-1 stages=[detect,ocr,translate]",
    "steps": [
     {
@@ -60,7 +60,7 @@
      "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_skip_existing0\\test-skip\\artifacts\\page_1_detection.json",
      "detail": {},
      "duration_s": 0.0,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     },
     {
      "step": "ocr",
@@ -70,7 +70,7 @@
      "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_skip_existing0\\test-skip\\artifacts\\page_1_canon.json",
      "detail": {},
      "duration_s": 0.0,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     },
     {
      "step": "translate",
@@ -80,11 +80,11 @@
      "output": "E:\\manga translator agent\\amta\\.pytest_tmp\\test_skip_existing0\\test-skip\\artifacts\\page_1_translation.json",
      "detail": {},
      "duration_s": 0.0,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     }
    ],
    "failed_step": null,
-   "ended_at": "2026-09-05T03:19:01+00:00"
+   "ended_at": "2026-09-05T04:07:21+00:00"
   }
  ]
 }

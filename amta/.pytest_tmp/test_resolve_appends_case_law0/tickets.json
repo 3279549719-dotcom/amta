@@ -1,0 +1,19 @@
+{
+ "tickets": [
+  {
+   "id": "4388bfb337b0",
+   "work_id": "w1",
+   "region_id": "page_2_u08",
+   "kind": "term_conflict",
+   "source": "カチャ",
+   "translation": "咔嗒",
+   "reason": "术语表与评审冲突",
+   "auto_rounds": 3,
+   "status": "resolved",
+   "created_at": "2026-09-05T04:07:22+00:00",
+   "updated_at": "2026-09-05T04:07:22+00:00",
+   "action": "更新术语表 カチャ→咔嗒",
+   "resolution": "术语表校准后自动修复 1 轮通过"
+  }
+ ]
+}

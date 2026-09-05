@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "region_id": "page_2_u08",
+      "source": "カチャ",
+      "translation": "咔嗒",
+      "verdict": "pass",
+      "scores": {},
+      "reason": "术语表校准后自动修复 1 轮通过",
+      "suggestion": "",
+      "lesson": "工单 4388bfb337b0（term_conflict）：更新术语表 カチャ→咔嗒 → 术语表校准后自动修复 1 轮通过",
+      "ticket_id": "page_2_u08"
+    }
+  ]
+}

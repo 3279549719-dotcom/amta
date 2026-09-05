@@ -116,7 +116,7 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
             page_key = out_path.stem.removesuffix("_inpaint")
             clean_path = clean_dir / f"{page_key}_clean.png"
             img.save(clean_path)
-            clean_image_rel = clean_path.name
+            clean_image_rel = f"clean/{clean_path.name}"
 
     doc = {
         "work_id": work_id,
@@ -137,4 +137,5 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
     }
     write_json(out_path, doc)
     return doc
+
 

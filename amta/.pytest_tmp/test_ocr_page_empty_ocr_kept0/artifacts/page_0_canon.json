@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "region_id": "page_0_u01",
+      "bbox": [
+        110,
+        50,
+        190,
+        80
+      ],
+      "baberu_text": "",
+      "text": "",
+      "ocr_engine": "hayai",
+      "vlm_text": null,
+      "contained_in": null,
+      "source_engines": [],
+      "vlm_status": "skipped",
+      "page": 0
+    }
+  ],
+  "n_regions": 1,
+  "ocr_engine": "hayai",
+  "rule_filter_enabled": false,
+  "rule_filter": {
+    "enabled": false,
+    "raw": 1,
+    "kept": 1,
+    "removed": 0,
+    "removed_by_reason": {}
+  },
+  "vlm_status": "skipped",
+  "work_id": "w1",
+  "page": "page_0",
+  "schema_version": "2.1",
+  "generated_at": "2026-09-05T12:07:20"
+}

@@ -1,0 +1,16 @@
+{
+  "n_blocks_raw": 1,
+  "n_blocks_kept": 1,
+  "n_blocks_rule_removed": 0,
+  "rule_filter_enabled": false,
+  "rule_removed_by_reason": {},
+  "rule_removed_details": [],
+  "ocr_engine": "hayai",
+  "ocr_elapsed": 0.0,
+  "vlm_status": "skipped",
+  "vlm_elapsed": 0.0,
+  "vlm_retries": 0,
+  "station": "02_ocr",
+  "page": "page_0",
+  "generated_at": "2026-09-05T12:07:20"
+}

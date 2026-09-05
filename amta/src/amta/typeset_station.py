@@ -1,4 +1,4 @@
-"""typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。
+﻿"""typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。
 
 从 scripts/05_typeset.py 抽取，canon 用 load_canon 规范化（兼容信封格式）。
 bbox 关联: canon.node_id → detection.blocks[].node_id（零契约改动，ADR-019 不变）。
@@ -24,8 +24,8 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     canon_items = canon_doc["items"]
     trans = read_json(trans_path).get("translations") or {}
     det = read_json(det_path)
-    bbox_by_node = {b.get("node_id"): b.get("bbox")
-                    for b in (det.get("blocks") or []) if b.get("node_id")}
+    bbox_by_rid = {b.get("region_id"): b.get("bbox")
+                    for b in (det.get("blocks") or []) if b.get("region_id")}
 
     img = Image.open(clean_path).convert("RGB")
     rendered_items = []
@@ -38,7 +38,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         text = trans.get(rid)
         if text is None:
             continue
-        bbox = bbox_by_node.get(item.get("node_id"))
+        bbox = bbox_by_rid.get(item.get("region_id"))
         if not bbox:
             skipped_no_bbox.append(rid)
             continue
@@ -60,10 +60,24 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         img.save(final_path)
 
     translated = [rid for rid in trans if rid in canon_ids]
+    # layout 字典（按 region_id 索引，供报告模块消费）
+    layout = {}
+    for item in rendered_items:
+        rid = item.get("region_id", "")
+        if rid:
+            layout[rid] = {
+                "layout_direction": item.get("direction", ""),
+                "font_size": item.get("font_size", 0),
+                "lines": item.get("lines", []),
+                "anchor_pos": item.get("anchor_pos", []),
+            }
+    page_key = det.get("page", out_path.stem.removesuffix("_typeset")); final_image_rel = f"final/{page_key}_final.png" if final_path else ""
     doc = {
         "work_id": work_id,
         "page": det.get("page", ""),
         "rendered_items": rendered_items,
+        "layout": layout,
+        "final_image": final_image_rel,
         "checks": {
             "rendered": len(rendered_items),
             "translated": len(translated),
@@ -75,3 +89,6 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     }
     write_json(out_path, doc)
     return doc
+
+
+

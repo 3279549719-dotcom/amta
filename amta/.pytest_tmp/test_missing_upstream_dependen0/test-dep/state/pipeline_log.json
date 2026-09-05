@@ -1,9 +1,9 @@
 {
  "runs": [
   {
-   "run_id": "7cc5c1fd4f1b",
-   "git_head": "f88d71f",
-   "started_at": "2026-09-05T03:19:01+00:00",
+   "run_id": "d3e6d2cdca40",
+   "git_head": "e35bf5a",
+   "started_at": "2026-09-05T04:07:21+00:00",
    "trigger": "pages 1-1 stages=[ocr,translate]",
    "steps": [
     {
@@ -16,7 +16,7 @@
       "error": "上游阶段缺失: ['detect']（前序阶段可能失败或被跳过）"
      },
      "duration_s": 0.0,
-     "at": "2026-09-05T03:19:01+00:00"
+     "at": "2026-09-05T04:07:21+00:00"
     }
    ],
    "failed_step": {
@@ -24,7 +24,7 @@
     "page": "page_1",
     "reason": "上游阶段缺失: ['detect']（前序阶段可能失败或被跳过）"
    },
-   "ended_at": "2026-09-05T03:19:01+00:00"
+   "ended_at": "2026-09-05T04:07:21+00:00"
   }
  ]
 }
