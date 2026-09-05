@@ -84,12 +84,12 @@ def _depguard() -> int:
 
 def _memory_lint() -> int:
     """记忆机制活性门（ADR-025）：staleness/幽灵路径/注入预算。strict：FAIL → 1。"""
-    return _run([sys.executable, str(ROOT / "scripts" / "memory_lint.py"), "--strict"], "memory lint (ADR-025)")
+    return _run([sys.executable, str(ROOT / "scripts" / "memory.py"), "lint", "--strict"], "memory lint (ADR-025)")
 
 
 def _memory_gc() -> int:
     """记忆地产 GC 活性检查：dry-run 验证 GC 可用、不真改文件（腐坏由 CLAUDE.md 协议在收尾时真跑清理）。"""
-    return _run([sys.executable, str(ROOT / "scripts" / "memory_gc.py"), "--dry-run"], "memory gc (dry-run)")
+    return _run([sys.executable, str(ROOT / "scripts" / "memory.py"), "gc", "--dry-run"], "memory gc (dry-run)")
 
 
 def _memory_inject() -> int:
@@ -97,7 +97,7 @@ def _memory_inject() -> int:
 
     写模式：幂等重跑，只刷新 .gitignore 已覆盖（*.local）的生成文件，不碰 docs/ 权威源。
     既验证记忆包可构建，又保证每轮验证后注入包保持新鲜。"""
-    return _run([sys.executable, str(ROOT / "scripts" / "memory_inject.py")], "memory inject (CLAUDE.local.md)")
+    return _run([sys.executable, str(ROOT / "scripts" / "memory.py"), "inject"], "memory inject (CLAUDE.local.md)")
 
 
 def main() -> int:

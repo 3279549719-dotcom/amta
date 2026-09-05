@@ -1,7 +1,7 @@
 """
 Claude Code SessionStart hook: 新会话自动加载项目状态。
 
-1. 先跑 memory_inject.py（更新 CLAUDE.local.md）
+1. 先跑 memory.py inject（更新 CLAUDE.local.md）
 2. 输出当前分支、git status、最近 3 条 commit、loop_state 摘要
 
 配置：.claude/settings.json -> hooks.SessionStart -> command: "py -3.13 scripts/hook_sessionstart.py"
@@ -18,7 +18,7 @@ def run(cmd):
 def main():
     # 1. 先跑 memory_inject
     subprocess.run(
-        ["uv", "run", "python", "scripts/memory_inject.py"],
+        ["uv", "run", "python", "scripts/memory.py", "inject"],
         capture_output=True,
     )
 

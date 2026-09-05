@@ -91,6 +91,6 @@ Ralph Loop 全自主推进，但以下三个节点必须暂停，等人类确认
 
 ### Hook 配置
 
-- **SessionStart hook**：新会话自动跑 `memory_inject.py` + 输出项目状态（分支、git status、最近 commit、loop_state 摘要）。脚本：`scripts/hook_sessionstart.py`
+- **SessionStart hook**：新会话自动跑 `memory.py inject` + 输出项目状态（分支、git status、最近 commit、loop_state 摘要）。脚本：`scripts/hook_sessionstart.py`
 - **PreToolUse hook**：git commit/merge 前自动跑快速 fastcheck，FAIL 阻止。脚本：`scripts/hook_pretooluse.py`
 - 配置文件：`.claude/settings.json`（随 git 提交，团队共享）
