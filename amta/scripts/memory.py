@@ -61,13 +61,18 @@ def _cmd_search(a: argparse.Namespace) -> int:
 
 
 def _cmd_read(a: argparse.Namespace) -> int:
-    if a.entry:  # 知识地产条目聚焦读（L19 / ADR-016 / remember 文件名）
-        print(memory_tools.do_read(estate_root(), entry=a.entry, section=a.section))
-        return 0
-    if a.rid:  # 项目级索引 ID 深读（L-007）
+    if a.rid:  # positional ID：先按地产条目解析（L##/ADR-N/remember —— 与注入清单同命名空间）
+        try:
+            print(memory_tools.do_read(estate_root(), entry=a.rid, section=a.section))
+            return 0
+        except SystemExit:
+            pass  # 地产无此条目 → 回落 v0 索引（L-0xx 旧式；退役 v0 轨道时删此回落分支）
         print(project_memory.read(a.rid))
         return 0
-    print("[memory] read 需要 rid（索引 ID）或 --entry（地产条目）")
+    if a.entry:  # 显式 --entry：地产条目聚焦读（L19 / ADR-016 / remember 文件名，可配 --section）
+        print(memory_tools.do_read(estate_root(), entry=a.entry, section=a.section))
+        return 0
+    print("[memory] read 需要条目 ID（L##/ADR-N，positional 或 --entry）")
     return 1
 
 
