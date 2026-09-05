@@ -14,8 +14,8 @@ FINAL_DIR = Path("amta/workspace/touhou-e2e-orchestrator/artifacts/final")
 OUT_DIR = Path("amta/output/comparison_after_fix")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# page 11 = 10.jpg (off-by-one)
-PAGE_TO_FILE = {11: "10.jpg", 12: "11.jpg", 13: "12.jpg", 14: "13.jpg", 15: "14.jpg"}
+# pipeline page N = file N.jpg（detection/canon 阶段的映射，无 off-by-one）
+PAGE_TO_FILE = {11: "11.jpg", 12: "12.jpg", 13: "13.jpg", 14: "14.jpg", 15: "15.jpg"}
 
 
 def main():
