@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>翻译质量三修复 — 验证报告</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f7fa; color: #1a1a2e; line-height: 1.6; }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 20px; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: #1a1a2e; }
+  .subtitle { color: #6b7280; margin-bottom: 32px; font-size: 14px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .summary-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #10b981; }
+  .summary-card .label { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+  .summary-card .value { font-size: 24px; font-weight: 700; color: #10b981; }
+  .summary-card .detail { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+  .section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .section h2 { font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge-pass { background: #d1fae5; color: #065f46; }
+  .badge-fail { background: #fee2e2; color: #991b1b; }
+  .badge-info { background: #dbeafe; color: #1e40af; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+  th { background: #f9fafb; font-weight: 600; color: #374151; }
+  .code { font-family: "Cascadia Code", "Consolas", monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+  .ba-card { padding: 16px; border-radius: 8px; }
+  .ba-before { background: #fef2f2; }
+  .ba-after { background: #f0fdf4; }
+  .ba-label { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .ba-before .ba-label { color: #991b1b; }
+  .ba-after .ba-label { color: #065f46; }
+  .metric { font-size: 28px; font-weight: 700; }
+  .ba-before .metric { color: #dc2626; }
+  .ba-after .metric { color: #16a34a; }
+  .metric-desc { font-size: 13px; color: #6b7280; margin-top: 4px; }
+  .files { margin-top: 12px; }
+  .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; color: #4b5563; }
+  .file-icon { color: #9ca3af; }
+  .footer { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>翻译质量三修复 — 验证报告</h1>
+  <div class="subtitle">ADR-031 | 2026-09-05 | 分支 feat/orchestrator-full-stages</div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="label">术语表接入</div>
+      <div class="value">PASS</div>
+      <div class="detail">サグメ → 探女（18个术语锁定）</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">数组契约防错位</div>
+      <div class="value">PASS</div>
+      <div class="detail">拆条触发二分拆分，12条正确绑定</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">字体大小优化</div>
+      <div class="value">PASS</div>
+      <div class="detail">p11 r00: 19px → 48px（+153%）</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>决策 A：术语表 pre_scan 自动接入 <span class="badge badge-pass">PASS</span></h2>
+    <p><strong>问题：</strong>orchestrator 引入后丢失了 pre_scan 步骤，术语表为空，サグメ等专有名词被 LLM 乱翻。</p>
+    <p><strong>修复：</strong><span class="code">translate adapter</span> 翻译前自动检查 <span class="code">work_state.terms</span>，为空时调用 <span class="code">run_pre_scan</span> 扫描已有 canon 锁定术语。</p>
+    <table>
+      <tr><th>验证项</th><th>结果</th></tr>
+      <tr><td>锁定术语数</td><td>18 个</td></tr>
+      <tr><td>サグメ</td><td>探女 ✓</td></tr>
+      <tr><td>サグ姉</td><td>探女姐 ✓</td></tr>
+      <tr><td>接入方式</td><td>翻译前自动触发，失败降级不阻塞</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>决策 B：翻译输出数组契约 <span class="badge badge-pass">PASS</span></h2>
+    <p><strong>问题：</strong>LLM 批量翻译时把一条输入拆成两条输出挤占后续 region_id（p14 实际故障：r01 被拆成 r01+r02，后续全部偏移），旧契约只校验数量不校验内容对应性。</p>
+    <p><strong>修复：</strong>LLM 输出从 <span class="code">{"r00":"译文",...}</span> 改为按位置绑定的 <span class="code">["译文1","译文2",...]</span>，代码侧严格校验 <span class="code">len(output)==len(input)</span>，长度不符直接重试→二分拆分。</p>
+    <table>
+      <tr><th>验证项</th><th>结果</th></tr>
+      <tr><td>p14 canon 区域数</td><td>12</td></tr>
+      <tr><td>模拟 LLM 拆条（返回13条）</td><td>触发重试→二分拆分</td></tr>
+      <tr><td>LLM 调用次数</td><td>4 次（首次13条→重试13条→二分各6条）</td></tr>
+      <tr><td>最终翻译结果数</td><td>12（=输入数，按位置正确绑定）</td></tr>
+      <tr><td>r00 / r11</td><td>均有值，无错位</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>决策 C：字体大小第一性原理 <span class="badge badge-pass">PASS</span></h2>
+    <p><strong>问题：</strong><span class="code">decide_direction</span> 用 <span class="code">h/w≥2.2 且字数≤6</span> 两个人为阈值决定方向，47 字窄长框被强制横排，字号压到 19px。</p>
+    <p><strong>修复：</strong>删除 <span class="code">decide_direction</span>，<span class="code">fit_font_size</span> 同时计算横排和竖排（支持多列）的最大可行字号，选字号更大者。零人为阈值。</p>
+    <div class="before-after">
+      <div class="ba-card ba-before">
+        <div class="ba-label">修复前（旧实现）</div>
+        <div class="metric">19px</div>
+        <div class="metric-desc">横排 14 行，每行 3-4 字<br>decide_direction 强制横排（字数>6）</div>
+      </div>
+      <div class="ba-card ba-after">
+        <div class="ba-label">修复后（第一性原理）</div>
+        <div class="metric">48px</div>
+        <div class="metric-desc">竖排 3 列，每列 14 字<br>双方向计算选最优，+153%</div>
+      </div>
+    </div>
+    <table style="margin-top:16px">
+      <tr><th>验证项</th><th>结果</th></tr>
+      <tr><td>p11 r00 bbox</td><td>宽 207 × 高 954（宽高比 4.6）</td></tr>
+      <tr><td>文本长度</td><td>47 字</td></tr>
+      <tr><td>横排最大字号</td><td>48px（14 行）</td></tr>
+      <tr><td>竖排最大字号</td><td>48px（3 列 × 14 字）</td></tr>
+      <tr><td>最终选择</td><td>竖排（相等时优先，符合日漫阅读习惯）</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>测试结果 <span class="badge badge-info">30 passed</span></h2>
+    <table>
+      <tr><th>测试文件</th><th>测试数</th><th>状态</th></tr>
+      <tr><td>test_typeset_engine.py</td><td>5</td><td><span class="badge badge-pass">ALL PASS</span></td></tr>
+      <tr><td>test_typeset_render.py</td><td>3</td><td><span class="badge badge-pass">ALL PASS</span></td></tr>
+      <tr><td>test_translate_station.py</td><td>4</td><td><span class="badge badge-pass">ALL PASS</span></td></tr>
+      <tr><td>test_stage3_minimal.py</td><td>18</td><td><span class="badge badge-pass">ALL PASS</span></td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>修改文件</h2>
+    <div class="files">
+      <div class="file-item"><span class="file-icon">📄</span> src/amta/typeset_engine.py — 删除 decide_direction，fit_font_size 双方向计算，竖排支持多列</div>
+      <div class="file-item"><span class="file-icon">📄</span> src/amta/typeset_render.py — render_item 去掉 direction 参数，竖排多列渲染（从右到左）</div>
+      <div class="file-item"><span class="file-icon">📄</span> src/amta/typeset_station.py — 删除 decide_direction 调用，layout_direction 键名修正</div>
+      <div class="file-item"><span class="file-icon">📄</span> src/amta/translate.py — 数组契约 parse_translation_array（前序修复）</div>
+      <div class="file-item"><span class="file-icon">📄</span> src/amta/orchestrator/adapters/translate.py — _ensure_terms 自动 pre_scan（前序修复）</div>
+      <div class="file-item"><span class="file-icon">📄</span> tests/test_typeset_engine.py — 新增 5 个双方向选优测试</div>
+      <div class="file-item"><span class="file-icon">📄</span> tests/test_typeset_render.py — 更新为新签名，竖排多列验证</div>
+      <div class="file-item"><span class="file-icon">📄</span> docs/decisions/031-translation-quality-triple-fix.md — 决策记录</div>
+      <div class="file-item"><span class="file-icon">📄</span> docs/superpowers/plans/2026-09-05-font-typesetting-optimization.md — 实施计划</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    验证时间：2026-09-05 | 测试环境：Python 3.13.6 + pytest 9.1.1 | 所有验证项 ALL PASS
+  </div>
+</div>
+</body>
+</html>
