@@ -27,7 +27,7 @@ from amta.paths import ROOT
 from amta.workstate import ensure_workspace
 
 from .context import PipelineConfig, PipelineResult, StationContext, StationResult
-from .registry import get_stage
+from .registry import StageSpec, get_stage
 
 # src/amta/ 目录 — code_files 都是相对于这个目录的路径
 _SRC_DIR = ROOT / "src" / "amta"
@@ -58,7 +58,7 @@ def _build_context(
     raw_path: Path,
     artifacts_dir: Path,
     state_dir: Path,
-    stage_name: str,
+    stage: StageSpec,
     page_results: dict[str, StationResult],
 ) -> StationContext:
     """为某个阶段构建 StationContext。
@@ -66,8 +66,6 @@ def _build_context(
     - inputs: 从该阶段的 consumes 声明中，查找上游阶段的 output_artifact
     - config: 合并 registry 中的 default_config 和 config.stage_configs 中的覆盖
     """
-    stage = get_stage(stage_name)
-
     # 上游产物路径：从已完成的阶段结果中查找
     inputs = {}
     for dep_name in stage.consumes:
@@ -77,8 +75,8 @@ def _build_context(
 
     # 配置合并：默认配置 + 调用方覆盖
     merged_config = dict(stage.default_config)
-    if stage_name in config.stage_configs:
-        merged_config.update(config.stage_configs[stage_name])
+    if stage.name in config.stage_configs:
+        merged_config.update(config.stage_configs[stage.name])
 
     return StationContext(
         work_id=config.work_id,
@@ -92,9 +90,8 @@ def _build_context(
     )
 
 
-def _stage_code_paths(stage_name: str) -> list[Path | str]:
-    """把 StageSpec.code_files（相对路径）转成绝对路径列表。"""
-    stage = get_stage(stage_name)
+def _stage_code_paths(stage: StageSpec) -> list[Path | str]:
+    """把 StageSpec.code_files（相对 src/amta/ 的路径）转成绝对路径列表。"""
     return [_SRC_DIR / f for f in stage.code_files]
 
 
@@ -109,40 +106,92 @@ def _stage_input_files(ctx: StationContext) -> dict[str, Path | str]:
     return input_files
 
 
-def _is_cache_fresh(
+def _fail_result(
+    page_key: str,
     stage_name: str,
-    ctx: StationContext,
-    output_path: Path,
-) -> bool:
-    """增量缓存判断：产物存在且指纹匹配（输入/代码/配置都没变）→ 可以跳过。
-
-    比旧的 _artifact_exists（只看文件在不在）更精准：
-    - 改了翻译代码 → translation 阶段自动重跑，下游 typeset 也跟着重跑
-    - 改了排版代码 → typeset 自动重跑，上游不动
-    - 只改了配置 → 对应阶段重跑
-    """
-    if not output_path.exists():
-        return False
-    input_files = _stage_input_files(ctx)
-    code_files = _stage_code_paths(stage_name)
-    config = ctx.config
-    return is_fresh(output_path, input_files, code_files, config)
+    error: str,
+    log: PipelineLog,
+    run_id: str,
+) -> StationResult:
+    """构造 failed StationResult 并记录（上游缺失 / 工位失败统一收口）。"""
+    result = StationResult(page=page_key, stage=stage_name, status="failed", error=error)
+    log.add_span(run_id, step=stage_name, page=page_key, status="failed",
+                 detail={"error": error})
+    print(f"[pipeline] {page_key} {stage_name} FAILED — {error}")
+    return result
 
 
-def _save_stage_fingerprint(
+def _run_stage(
+    config: PipelineConfig,
+    log: PipelineLog,
+    run_id: str,
+    artifacts_dir: Path,
+    state_dir: Path,
     stage_name: str,
-    ctx: StationContext,
-    output_path: Path,
-) -> None:
-    """工位执行成功后，保存当前指纹到 .fingerprint 文件。
+    page_idx: int,
+    page_key: str,
+    raw_path: Path,
+    page_results: dict[str, StationResult],
+) -> StationResult:
+    """跑单个页面上单个阶段：上下文 → 依赖检查 → 增量缓存 → 调工位 → 存指纹 → 记日志。
 
-    下次运行时对比这个指纹判断是否可以跳过。
+    返回该阶段的 StationResult（skipped / ok / failed）。失败与否的页面级处理由
+    run_pipeline 统一接管，这里不做 break 决策。
     """
+    stage = get_stage(stage_name)
+    out_path = artifacts.artifact_paths(artifacts_dir, page_key).get(stage.produces)
+
+    ctx = _build_context(
+        config, page_idx, page_key, raw_path,
+        artifacts_dir, state_dir, stage, page_results,
+    )
+
+    # 上游依赖检查：consumes 声明的阶段必须有成功产物
+    missing_deps = [d for d in stage.consumes if d not in ctx.inputs]
+    if missing_deps:
+        return _fail_result(
+            page_key, stage_name,
+            f"上游阶段缺失: {missing_deps}（前序阶段可能失败或被跳过）",
+            log, run_id,
+        )
+
+    # 指纹输入清单（一次组装，缓存判断与成功后保存共用）— 改了其中任一个都会触发重跑
     input_files = _stage_input_files(ctx)
-    code_files = _stage_code_paths(stage_name)
-    config = ctx.config
-    fingerprint = compute_fingerprint(input_files, code_files, config)
-    save_fingerprint(output_path, stage_name, ctx.page, fingerprint)
+    code_files = _stage_code_paths(stage)
+
+    # 增量缓存判断：不强制重跑 + 产物存在 + 指纹匹配 → 跳过
+    if not config.force_rerun and out_path is not None and out_path.exists() \
+            and is_fresh(out_path, input_files, code_files, ctx.config):
+        result = StationResult(
+            page=page_key, stage=stage_name, status="skipped",
+            output_artifact=out_path, duration_s=0.0,
+            stats={"cache_hit": True},
+        )
+        log.add_span(run_id, step=stage_name, page=page_key, status="skipped",
+                     output=str(out_path), detail={"cache_hit": True})
+        print(f"[pipeline] {page_key} {stage_name} cache hit (skipped)")
+        return result
+
+    # 调用工位
+    print(f"[pipeline] {page_key} {stage_name} running...")
+    result = stage.station(ctx)
+
+    # 执行成功 → 保存指纹（供下次增量判断用）
+    if result.status == "ok" and out_path is not None and out_path.exists():
+        fingerprint = compute_fingerprint(input_files, code_files, ctx.config)
+        save_fingerprint(out_path, stage_name, ctx.page, fingerprint)
+
+    # 记录日志
+    log.add_span(
+        run_id, step=stage_name, page=page_key, status=result.status,
+        input=str(ctx.inputs), output=str(result.output_artifact),
+        detail=result.stats, duration_s=result.duration_s,
+    )
+    if result.status == "failed":
+        print(f"[pipeline] {page_key} {stage_name} FAILED — {result.error}")
+    else:
+        print(f"[pipeline] {page_key} {stage_name} ok ({result.duration_s}s)")
+    return result
 
 
 def run_pipeline(config: PipelineConfig) -> PipelineResult:
@@ -199,68 +248,16 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
         page_failed = False
 
         for stage_name in config.stages:
-            stage = get_stage(stage_name)
-            out_path = artifacts.artifact_paths(artifacts_dir, page_key).get(stage.produces)
-
-            # 4a. 构建上下文（需要先有 ctx 才能做缓存判断，因为缓存需要 inputs/config）
-            ctx = _build_context(
-                config, page_idx, page_key, raw_path,
-                artifacts_dir, state_dir, stage_name, page_results,
+            result = _run_stage(
+                config, log, run_id, artifacts_dir, state_dir,
+                stage_name, page_idx, page_key, raw_path, page_results,
             )
-
-            # 4b. 上游依赖检查：consumes 声明的阶段必须有成功产物
-            missing_deps = [d for d in stage.consumes if d not in ctx.inputs]
-            if missing_deps:
-                result = StationResult(
-                    page=page_key, stage=stage_name, status="failed",
-                    error=f"上游阶段缺失: {missing_deps}（前序阶段可能失败或被跳过）",
-                )
-                page_results[stage_name] = result
-                log.add_span(run_id, step=stage_name, page=page_key, status="failed",
-                             detail={"error": result.error})
-                print(f"[pipeline] {page_key} {stage_name} FAILED — {result.error}")
-                page_failed = True
-                if first_failure is None:
-                    first_failure = {"page": page_key, "stage": stage_name, "reason": result.error}
-                break
-
-            # 4c. 增量缓存判断：不强制重跑 + 产物存在 + 指纹匹配 → 跳过
-            if not config.force_rerun and out_path is not None and _is_cache_fresh(stage_name, ctx, out_path):
-                result = StationResult(
-                    page=page_key, stage=stage_name, status="skipped",
-                    output_artifact=out_path, duration_s=0.0,
-                    stats={"cache_hit": True},
-                )
-                page_results[stage_name] = result
-                log.add_span(run_id, step=stage_name, page=page_key, status="skipped",
-                             output=str(out_path), detail={"cache_hit": True})
-                print(f"[pipeline] {page_key} {stage_name} cache hit (skipped)")
-                continue
-
-            # 4d. 调用工位
-            print(f"[pipeline] {page_key} {stage_name} running...")
-            result = stage.station(ctx)
             page_results[stage_name] = result
-
-            # 4e. 执行成功 → 保存指纹（供下次增量判断用）
-            if result.status == "ok" and out_path is not None and out_path.exists():
-                _save_stage_fingerprint(stage_name, ctx, out_path)
-
-            # 4f. 记录日志
-            log.add_span(
-                run_id, step=stage_name, page=page_key, status=result.status,
-                input=str(ctx.inputs), output=str(result.output_artifact),
-                detail=result.stats, duration_s=result.duration_s,
-            )
-
             if result.status == "failed":
-                print(f"[pipeline] {page_key} {stage_name} FAILED — {result.error}")
                 page_failed = True
                 if first_failure is None:
                     first_failure = {"page": page_key, "stage": stage_name, "reason": result.error}
                 break
-            else:
-                print(f"[pipeline] {page_key} {stage_name} ok ({result.duration_s}s)")
 
         all_results[page_key] = page_results
         if page_failed:
