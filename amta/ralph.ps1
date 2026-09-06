@@ -1,62 +1,43 @@
 ﻿<#
 .SYNOPSIS
-    AMTA Ralph Loop — 自治迭代外层循环（Windows 版）
+    AMTA Ralph Runner v4 — 一次 claude -p 跑完整使命（Windows）
 
 .DESCRIPTION
-    每次迭代启动一个新鲜的 claude -p 会话，用 prompt.md 作为强制工作流指令。
-    agent 读完 loop_state.json → 执行 next_action → 跑 fastcheck → 更新状态 → 写日志 → commit。
-    外层循环负责"踢下一脚"，直到 agent 输出 <promise>COMPLETE</promise>、写入 status=BLOCKED、或达到最大迭代次数。
+    v4（2026-09-06 教训重构）相对 v3 的根本变化：**去掉"分片迭代 + 冷重启"**。
+    - claude -p 会自压紧上下文（v2.1.218+ 实证）→ 单个会话就能跑完跨多 commit 的整段使命，
+      不需要"每 chunk 一个新 claude -p"。每 chunk 冷启动 = 全量上下文重读 = 纯空耗 token。
+    - 墙钟迭代超时**删除**（v3 默认 900s 掐死过 productive agent）。不再按时间杀。
+    - 真卡死兜底 = 心跳失守（transcript 长时间无新写入）→ 翻 transcript 尾部**按行为判**
+      （productive 中途编辑 → 继续等；重复同一失败 = churn → 停）。
+    - attempt 循环 = 崩溃/异常退出后的**整使命重试**（从最后 commit 续），不是分片续跑。
 
-    v3 新增（trace 驱动）：
-    - 心跳监测：spawn 前记下 claude 会话 JSONL（~/.claude/projects/<slug>/<uuid>.jsonl）基准，
-      迭代中每 30 秒查一次该文件 mtime，HeartbeatStallSeconds（默认 180s）无新写入即判定卡死并杀进程
-      ——比 v2 的 15 分钟"倒计时炸弹"早 5 倍止损。
-    - 卡死/超时诊断：杀进程后读 JSONL 尾部（scripts/trace_probe.py tail），
-      把"最后一次工具调用 + 卡住位置"写进 ralph-log.md 和 loop_state.escalation，供下轮 agent 接续（不失忆）。
-    - BLOCKED 暂停：agent 在 loop_state.json 写 status=BLOCKED（需人裁决）时，
-      ralph 停止循环并退出（exit 2），等人裁决后清 status / 改 next_action 再继续——不再空转烧迭代。
-    - COMPLETE 时 trace 统计：用 scripts/trace_probe.py stats 汇总本次会话
-      （工具调用数 / 最大停顿 / 重复调用），追加到 ralph-log.md——"用 Trace 反查 Harness 哪里待完善"。
-
-    v2 保留：
-    - 每次迭代输出存盘到 output/logs/iteration-N-timestamp.txt
-    - 迭代超时机制（默认 15 分钟），超时自动杀掉 claude 进程并记录部分输出
-
-    记忆机制：progress lives in files, NOT in LLM context.
-    - loop_state.json = 任务状态（agent 每次读写，status=BLOCKED 表示需人裁决）
-    - ralph-log.md = append-only 学习日志
-    - docs/lessons.md = 可复用经验
-    - git = 代码历史
-
-.PARAMETER MaxIterations
-    最大迭代次数，默认 10
+    记忆机制不变（progress lives in files）：
+    - loop_state.json = mission/plan/status（agent 边界处读写）
+    - git = 代码进度 ground truth（agent 每自然单元 commit）
+    - 使命书 prompt.md = 契约（agent 只在 COMPLETE / BLOCKED / 死胡同退出）
 
 .PARAMETER PromptFile
-    工作流指令文件路径，默认 prompt.md
+    使命书文件路径，默认 prompt.md
 
-.PARAMETER IterationTimeoutSeconds
-    单次迭代墙钟超时秒数，默认 900（15分钟）。超时后自动杀掉 claude 进程，记录部分输出。
+.PARAMETER MaxAttempts
+    整使命最多尝试次数（含首跑；仅崩溃/异常退出才触发重试），默认 2
 
 .PARAMETER HeartbeatStallSeconds
-    心跳失守阈值：claude 会话 JSONL 连续 N 秒无新写入即判定卡死，默认 180（3 分钟）。
-    注意：一次超长工具调用（如长测试/安装）期间 JSONL 不增长，可能误杀——按需调大。
+    心跳失守阈值：claude transcript JSONL 连续 N 秒无新写入才查一次"是否 churn"。
+    默认 1800（30 分钟）——本机 CPU-only，一次长 pytest/fastcheck 可数分钟无新行，别误杀。
 
 .PARAMETER TraceProjectsDir
-    claude 会话目录。默认自动取 $env:CLAUDE_CONFIG_DIR\projects（若设了该变量），否则 ~/.claude/projects。
+    claude 会话目录。默认取 $env:CLAUDE_CONFIG_DIR\projects，否则 ~/.claude/projects。
 
 .EXAMPLE
     .\ralph.ps1
-    .\ralph.ps1 -MaxIterations 5
-    .\ralph.ps1 -MaxIterations 20 -PromptFile my-prompt.md
-    .\ralph.ps1 -IterationTimeoutSeconds 1800
-    .\ralph.ps1 -HeartbeatStallSeconds 300
+    .\ralph.ps1 -PromptFile my-mission.md -MaxAttempts 3
 #>
 
 param(
-    [int]$MaxIterations = 10,
     [string]$PromptFile = "prompt.md",
-    [int]$IterationTimeoutSeconds = 900,
-    [int]$HeartbeatStallSeconds = 180,
+    [int]$MaxAttempts = 2,
+    [int]$HeartbeatStallSeconds = 1800,
     [string]$TraceProjectsDir = ""
 )
 
@@ -64,11 +45,9 @@ $ErrorActionPreference = "Continue"
 $ProjectRoot = $PSScriptRoot
 $PromptPath = Join-Path $ProjectRoot $PromptFile
 $LogFile = Join-Path $ProjectRoot "ralph-log.md"
-$IterationLogDir = Join-Path $ProjectRoot "output\logs"
 $LoopStatePath = Join-Path $ProjectRoot "loop_state.json"
-$LoopStateCli = Join-Path $ProjectRoot "scripts\loop_state.py"
+$OutDir = Join-Path $ProjectRoot "output\ralph"
 if (-not $TraceProjectsDir) {
-    # CLAUDE_CONFIG_DIR 改道时（本机 = E:\claude\.claude，见 lessons L35），transcript 落在其 projects/ 下而非 ~/.claude
     if ($env:CLAUDE_CONFIG_DIR) {
         $TraceProjectsDir = Join-Path $env:CLAUDE_CONFIG_DIR "projects"
     } else {
@@ -76,37 +55,23 @@ if (-not $TraceProjectsDir) {
     }
 }
 $PollIntervalSeconds = 30
+if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
 
-# 确保迭代日志目录存在
-if (-not (Test-Path $IterationLogDir)) {
-    New-Item -ItemType Directory -Path $IterationLogDir -Force | Out-Null
-}
+# 前置条件
+if (-not (Test-Path $PromptPath)) { Write-Error "Prompt file not found: $PromptPath"; exit 1 }
+if (-not (Test-Path $LoopStatePath)) { Write-Error "loop_state.json not found"; exit 1 }
 
-# 检查前置条件
-if (-not (Test-Path $PromptPath)) {
-    Write-Error "Prompt file not found: $PromptPath"
-    exit 1
-}
-if (-not (Test-Path $LoopStatePath)) {
-    Write-Error "loop_state.json not found. Create it first with current mission and next_action."
-    exit 1
-}
-
-# 轻量追加 ralph-log
 function Add-RalphLog {
     param([string]$Text)
     Add-Content -Path $LogFile -Value $Text -Encoding UTF8
 }
 
-# 调 scripts/trace_probe.py（uv run python，stdlib only），返回行数组
 function Invoke-TraceProbe {
     param([string[]]$ProbeArgs)
     $script = Join-Path $ProjectRoot "scripts\trace_probe.py"
-    $raw = & uv run python $script @ProbeArgs 2>&1
-    return ,@($raw)
+    return ,@(& uv run python $script @ProbeArgs 2>&1)
 }
 
-# 找当前迭代的 claude 会话 JSONL（spawn 后出现、mtime >= after 的最新者）
 function Get-LiveSessionJsonl {
     param([string]$AfterIso)
     $lines = @(Invoke-TraceProbe @("live", $TraceProjectsDir, "--after", $AfterIso))
@@ -117,223 +82,126 @@ function Get-LiveSessionJsonl {
 }
 
 Write-Output "==============================================================="
-Write-Output "  AMTA Ralph Loop starting (v3: trace heartbeat + BLOCKED pause)"
-Write-Output "  Project: $ProjectRoot"
-Write-Output "  Max iterations: $MaxIterations"
-Write-Output "  Iteration timeout: $IterationTimeoutSeconds seconds"
-Write-Output "  Heartbeat stall: $HeartbeatStallSeconds seconds"
+Write-Output "  AMTA Ralph Runner v4 (single claude -p per mission)"
+Write-Output "  Project: $ProjectRoot | Prompt: $PromptFile"
+Write-Output "  Max attempts: $MaxAttempts | Heartbeat stall: $HeartbeatStallSeconds s"
 Write-Output "  Trace projects dir: $TraceProjectsDir"
-Write-Output "  Prompt: $PromptFile"
 Write-Output "==============================================================="
 
-# 读 prompt 内容（每次迭代重新读，允许运行中修改）
-$promptContent = Get-Content $PromptPath -Raw -Encoding UTF8
+# BLOCKED 即等人类，不开跑
+$st = Get-Content $LoopStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($st.status -eq "BLOCKED") {
+    Write-Output "RALPH: loop_state.status=BLOCKED — waiting for human decision. escalation=$($st.escalation)"
+    exit 2
+}
 
-for ($i = 1; $i -le $MaxIterations; $i++) {
+$attempt = 0
+$exitCode = 1
+while ($attempt -lt $MaxAttempts) {
+    $attempt++
     Write-Output ""
-    Write-Output "==============================================================="
-    Write-Output "  Iteration $i of $MaxIterations"
-    Write-Output "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-    Write-Output "==============================================================="
+    Write-Output "--- Mission attempt $attempt / $MaxAttempts ($(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) ---"
 
-    # 整个迭代都在项目目录下运行（memory inject + claude -p 都需要项目上下文）
     Push-Location $ProjectRoot
-
-    # 迭代前刷新记忆注入（确保 CLAUDE.local.md 是最新的 loop_state）
-    Write-Output "[ralph] Refreshing memory injection..."
-    uv run python scripts/memory.py inject 2>&1 | ForEach-Object { Write-Output "  [memory] inject $_" }
-
-    # 显示当前状态（含 status）
-    if (Test-Path $LoopStatePath) {
-        $state = Get-Content $LoopStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-        Write-Output "[ralph] Current state:"
-        Write-Output "  mission: $($state.mission)"
-        Write-Output "  next_action: $($state.next_action)"
-        Write-Output "  last_verified: $($state.last_verified)"
-        Write-Output "  status: $($state.status)"
-    }
-
-    # 开工注入：跑 memory_index + git log，拼进 prompt（agent 一睁眼就看到最新清单和脉络，实时）
-    Write-Output "[ralph] Building preamble (memory_index + git log)..."
+    uv run python scripts/memory.py inject 2>&1 | Out-Null
     $preamble = & uv run python scripts/ralph_context.py preamble --root $ProjectRoot 2>&1 | Out-String
-    $promptWithContext = $promptContent + "`n`n" + $preamble
-
-    # 启动新鲜 agent 会话
-    Write-Output ""
-    Write-Output "[ralph] Spawning fresh agent (timeout: $IterationTimeoutSeconds s, heartbeat: $HeartbeatStallSeconds s)..."
-    Write-Output "--- agent output start ---"
-
-    $timedOut = $false
-    $heartbeatMiss = $false
-    $stallJsonl = ""
-    $spawnIso = Get-Date -Format "o"
-    $ts = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $iterationLogFile = Join-Path $IterationLogDir "iteration-$i-$ts.txt"
-
-    try {
-        # claude -p 默认 stdout 只出最终文本（工具过程不上屏），Start-Job/Receive-Job 还会二次缓冲且 GBK 解码乱码。
-        # 改：stream-json 逐事件直写日志文件（UTF-8），ralph 盯文件 mtime 做心跳，卡住/完成都能翻全量实时 trace。
-        $job = Start-Job -ScriptBlock {
-            param($prompt, $workDir, $logFile)
-            Set-Location $workDir
-            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-            $OutputEncoding = [System.Text.Encoding]::UTF8
-            & claude -p $prompt --output-format stream-json --verbose --include-partial-messages 2>&1 |
-                Out-File -FilePath $logFile -Encoding utf8
-        } -ArgumentList $promptWithContext, $ProjectRoot, $iterationLogFile
-
-        # --- 心跳监测：spawn 后每 30s 查一次 实时流文件 mtime（transcript JSONL 兜底），连续失守即杀 ---
-        $jobCompleted = $false
-        $elapsed = 0
-        $lastHeartbeatSeen = $null
-
-        while (-not $jobCompleted) {
-            if (Wait-Job $job -Timeout $PollIntervalSeconds) {
-                $jobCompleted = $true
-                break
-            }
-            $elapsed += $PollIntervalSeconds
-            if ($elapsed -ge $IterationTimeoutSeconds) {
-                $timedOut = $true
-                $stallJsonl = Get-LiveSessionJsonl -AfterIso $spawnIso
-                break
-            }
-            # 主探针 = 实时流文件（claude 每发一个事件就落一行）；transcript 异步写可能滞后，作兜底
-            $live = Get-LiveSessionJsonl -AfterIso $spawnIso
-            $probe = $null
-            if (Test-Path $iterationLogFile) { $probe = (Get-Item $iterationLogFile).LastWriteTime }
-            elseif ($live) { $probe = (Get-Item $live).LastWriteTime }
-            if ($null -ne $probe) {
-                if ($null -ne $lastHeartbeatSeen -and ((Get-Date) - $probe).TotalSeconds -ge $HeartbeatStallSeconds) {
-                    $heartbeatMiss = $true
-                    $stallJsonl = if ($live) { $live } else { $iterationLogFile }
-                    break
-                }
-                $lastHeartbeatSeen = $probe
-            }
-        }
-
-        if (-not $jobCompleted) {
-            # 卡死/超时：杀掉，从实时流文件翻部分输出
-            Stop-Job $job
-            if ($heartbeatMiss) {
-                Write-Output ""
-                Write-Output "[ralph] HEARTBEAT MISS: no output for $HeartbeatStallSeconds s, killed."
-            } else {
-                Write-Output ""
-                Write-Output "[ralph] TIMEOUT: iteration $i exceeded $IterationTimeoutSeconds seconds, killed."
-            }
-            $partial = if (Test-Path $iterationLogFile) { Get-Content $iterationLogFile -Encoding UTF8 } else { @() }
-            Write-Output "[ralph] Partial output (last 10 lines):"
-            $partial | Select-Object -Last 10 | ForEach-Object { Write-Output $_ }
-            $timedOut = $true
-        }
-        Remove-Job $job -Force -ErrorAction SilentlyContinue
-    } catch {
-        Write-Output "[ralph] Agent error: $_"
+    $resumeNote = ""
+    if ($attempt -gt 1) {
+        $head = (git -C $ProjectRoot rev-parse --short HEAD 2>&1).Trim()
+        $resumeNote = "`n`n[resume] 上次 attempt 异常中断。git HEAD = $head（工作的 ground truth 在 commit 里）。从 loop_state.json 的 plan/next_action 续：先 git status / git log --oneline -5 核实现场再继续，别重做已完成 chunk。"
     }
-
-    Write-Output "--- agent output end ---"
-
-    # 卡死/超时：日志文件（已含全部实时 trace）追加 KILLED 标记
-    if ($timedOut) {
-        $killReason = if ($heartbeatMiss) { "HEARTBEAT MISS (无输出 $HeartbeatStallSeconds s)" } else { "TIMEOUT ($IterationTimeoutSeconds s)" }
-        Add-Content -Path $iterationLogFile -Value "`n--- RALPH KILLED ($killReason) ---`nIteration $i killed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')." -Encoding UTF8
-    }
-    Write-Output "[ralph] Iteration log saved to: $iterationLogFile"
-
+    $promptWithContext = (Get-Content $PromptPath -Raw -Encoding UTF8) + "`n`n" + $preamble + $resumeNote
     Pop-Location
 
-    # --- 卡死/超时：trace 诊断写 ralph-log + loop_state.escalation（下轮不失忆） ---
-    if ($timedOut) {
-        $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $killReason = if ($heartbeatMiss) { "心跳丢失（session jsonl $HeartbeatStallSeconds 秒未更新）" } else { "迭代超时 $IterationTimeoutSeconds 秒" }
-        $diagText = ""
-        if ($stallJsonl -and (Test-Path $stallJsonl)) {
-            $diagLines = @(Invoke-TraceProbe @("tail", $stallJsonl, "--lines", "60"))
-            $diagText = ($diagLines | ForEach-Object { "  $_" }) -join "`n"
-        } else {
-            $diagText = "  （未能定位本次会话 JSONL）"
-        }
-        $stallLog = "`n## $ts RALPH ITERATION STOPPED`n- 迭代: $i / $MaxIterations`n- 原因: $killReason`n- 现场诊断:`n$diagText`n- 部分输出: 见 $iterationLogFile`n- 处理: 自动杀掉，继续下一次迭代`n---`n"
-        Add-RalphLog $stallLog
+    # 启动单个 claude -p（默认 stdout 只出最终文本；liveness 看 transcript JSONL）
+    $ts = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $stdoutFile = Join-Path $OutDir "mission-$ts-attempt-$attempt.txt"
+    $spawnIso = Get-Date -Format "o"
+    $job = Start-Job -ScriptBlock {
+        param($prompt, $workDir, $outFile)
+        Set-Location $workDir
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $OutputEncoding = [System.Text.Encoding]::UTF8
+        & claude -p $prompt 2>&1 | Out-File -FilePath $outFile -Encoding utf8
+    } -ArgumentList $promptWithContext, $ProjectRoot, $stdoutFile
 
-        # escalation 写一行（压成单行），供下轮 agent 接续
-        $diagOneLine = (($diagText -replace "`r?`n", " ") -replace "\s+", " ").Trim()
-        $escalationMsg = "迭代 $i $killReason；现场：$diagOneLine"
-        uv run python $LoopStateCli --root $ProjectRoot update --field "escalation=$escalationMsg" 2>&1 | Out-Null
-
-        Write-Output "[ralph] Iteration $i stopped, continuing to next iteration..."
-        Start-Sleep -Seconds 3
-        continue
-    }
-
-    # --- 检查 BLOCKED（agent 标记需人裁决）→ 停止循环，不等下一轮 ---
-    $blocked = $false
-    $blockedReason = ""
-    if (Test-Path $LoopStatePath) {
-        $st = Get-Content $LoopStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($st.status -eq "BLOCKED") {
-            $blocked = $true
-            $blockedReason = [string]$st.escalation
-        }
-    }
-    if ($blocked) {
-        Write-Output ""
-        Write-Output "==============================================================="
-        Write-Output "  RALPH BLOCKED at iteration $i — waiting for human decision"
-        Write-Output "  Reason: $blockedReason"
-        Write-Output "  Resume: clear status (or set next_action) in loop_state.json, re-run ralph.ps1"
-        Write-Output "==============================================================="
-        $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $blockedLog = "`n## $ts RALPH BLOCKED`n- 迭代: $i / $MaxIterations`n- 原因: $blockedReason`n- 处理: 停止循环，等人裁决后清 status 继续`n---`n"
-        Add-RalphLog $blockedLog
-        exit 2
-    }
-
-    # 检查完成信号（从实时流日志文件读；$output 已被文件取代）
-    $completeText = if (Test-Path $iterationLogFile) { Get-Content $iterationLogFile -Raw -Encoding UTF8 } else { "" }
-    if ($completeText -match '<promise>COMPLETE</promise>') {
-        Write-Output ""
-        Write-Output "==============================================================="
-        Write-Output "  RALPH COMPLETE at iteration $i"
-        Write-Output "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        Write-Output "==============================================================="
-
-        # 追加完成日志 + trace 统计（全绿：工具调用数/最大停顿/重复调用 → 反查 Harness）
-        $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $traceStatsText = ""
+    # --- 心跳监测：不按时间杀；只查"卡死 + churn" ---
+    $jobDone = $false
+    $lastSeen = $null
+    while (-not $jobDone) {
+        if (Wait-Job $job -Timeout $PollIntervalSeconds) { $jobDone = $true; break }
         $live = Get-LiveSessionJsonl -AfterIso $spawnIso
-        if ($live) {
-            $statLines = @(Invoke-TraceProbe @("stats", $live))
-            $traceStatsText = ($statLines | ForEach-Object { "  $_" }) -join "`n"
+        $probe = if ($live) { (Get-Item $live).LastWriteTime } else { $null }
+        if ($null -ne $probe) {
+            if ($null -ne $lastSeen -and ((Get-Date) - $probe).TotalSeconds -ge $HeartbeatStallSeconds) {
+                # 心跳失守：翻 transcript 尾部判断是 productive 还是 churn
+                $diagLines = @(Invoke-TraceProbe @("tail", $live, "--lines", "40"))
+                $diagText = ($diagLines | ForEach-Object { $_ }) -join "`n"
+                if ($diagText -match "(?i)is_error=True") {
+                    Write-Output "[ralph] STALL with errors (churn) after $HeartbeatStallSeconds s — stopping."
+                    Stop-Job $job
+                    Add-Content -Path $stdoutFile -Value "`n--- RALPH STOPPED (churn) ---`n$diagText" -Encoding UTF8
+                    break
+                } else {
+                    # 无错误迹象 = 可能在跑长工具（fastcheck）或长思考 —— 不杀，重置观察窗
+                    Write-Output "[ralph] Transcript quiet $HeartbeatStallSeconds s but no error pattern — extending (likely long tool/think)."
+                    $lastSeen = $probe
+                }
+            }
+            if ($null -eq $lastSeen) { $lastSeen = $probe }
         }
-        $completeLog = "`n## $ts RALPH COMPLETE`n- 完成迭代: $i / $MaxIterations`n- 最终状态: 见 loop_state.json`n- 迭代日志: $iterationLogFile`n- trace 统计:`n$traceStatsText`n---`n"
-        Add-RalphLog $completeLog
+    }
+    Remove-Job $job -Force -ErrorAction SilentlyContinue
 
-        # 收尾 DONE：从 loop_state 搬运 agent 写好的成果/遗留，空 commit 标记 run 结束（git log 可扫到 run 边界）
-        Write-Output "[ralph] Writing DONE commit (from loop_state)..."
+    # --- 判定结果 ---
+    $outText = if (Test-Path $stdoutFile) { Get-Content $stdoutFile -Raw -Encoding UTF8 } else { "" }
+    $ts2 = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+
+    # 1) COMPLETE
+    if ($outText -match '<promise>COMPLETE</promise>') {
+        Write-Output ""
+        Write-Output "==============================================================="
+        Write-Output "  RALPH COMPLETE (attempt $attempt)"
+        Write-Output "  $ts2"
+        Write-Output "==============================================================="
+        Add-RalphLog "`n## $ts2 RALPH COMPLETE (v4, attempt $attempt)`n- 输出: $stdoutFile`n---`n"
+        # DONE commit：把 loop_state 成果搬运成空 commit（git log 扫得到 run 边界）
         $doneMsg = & uv run python scripts/ralph_context.py done-msg --root $ProjectRoot 2>&1 | Out-String
         git -C $ProjectRoot add -A 2>&1 | Out-Null
-        git -C $ProjectRoot commit --allow-empty -m $doneMsg 2>&1 | ForEach-Object { Write-Output "  [ralph] $_" }
-
+        git -C $ProjectRoot commit --allow-empty -m $doneMsg 2>&1 | Out-Null
         exit 0
     }
 
-    # 迭代间短暂休息（给文件系统和 git 喘息时间）
-    Write-Output "[ralph] Iteration $i complete. Continuing..."
-    Start-Sleep -Seconds 3
+    # 2) BLOCKED（agent 已写 status=BLOCKED 等人）
+    $st2 = Get-Content $LoopStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($st2.status -eq "BLOCKED") {
+        Write-Output ""
+        Write-Output "  RALPH BLOCKED (attempt $attempt) — waiting for human"
+        Write-Output "  escalation: $($st2.escalation)"
+        Add-RalphLog "`n## $ts2 RALPH BLOCKED (v4, attempt $attempt)`n- 原因: $($st2.escalation)`n---`n"
+        exit 2
+    }
+
+    # 3) 异常/崩溃/无信号 → 诊断 + 重试
+    Write-Output "[ralph] Attempt $attempt ended without COMPLETE/BLOCKED. Diagnosing..."
+    $diagText = ""
+    $live = Get-LiveSessionJsonl -AfterIso $spawnIso
+    if ($live -and (Test-Path $live)) {
+        $dl = @(Invoke-TraceProbe @("tail", $live, "--lines", "40"))
+        $diagText = ($dl | ForEach-Object { "  $_" }) -join "`n"
+    }
+    Add-RalphLog "`n## $ts2 RALPH ATTEMPT $attempt FAILED (no COMPLETE/BLOCKED)`n- 输出: $stdoutFile`n- 现场:`n$diagText`n---`n"
+    if ($attempt -ge $MaxAttempts) {
+        Write-Output ""
+        Write-Output "==============================================================="
+        Write-Output "  RALPH gave up after $MaxAttempts attempts — needs human."
+        Write-Output "  See ralph-log.md + output\ralph\mission-*.txt"
+        Write-Output "==============================================================="
+        $exitCode = 3
+        break
+    }
+    Write-Output "[ralph] Retrying whole mission from last commit (attempt $($attempt+1))..."
+    Start-Sleep -Seconds 5
 }
 
-# 达到最大迭代次数
-Write-Output ""
-Write-Output "==============================================================="
-Write-Output "  RALPH reached max iterations ($MaxIterations) without COMPLETE signal"
-Write-Output "  Check loop_state.json and ralph-log.md for status"
-Write-Output "==============================================================="
-
-$ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-$maxLog = "`n## $ts RALPH MAX ITERATIONS`n- 达到最大迭代次数: $MaxIterations`n- 未收到 COMPLETE 信号`n- 最终状态: 见 loop_state.json`n---`n"
-Add-RalphLog $maxLog
-
-exit 1
+exit $exitCode

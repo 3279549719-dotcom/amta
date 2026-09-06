@@ -1,12 +1,14 @@
-# AMTA Ralph Loop — Mission 工作流指令（v3：收尾自主化）
+# AMTA Ralph Loop — Mission 工作流指令（v4：单会话跑完整使命）
 
-> v3 相对 v2（2026-09-05 首跑实证）的改动：plan 全 done 不再"输出 COMPLETE 干等人工 /finish"——
-> 改为 **agent 在 plan 全 done 那一刻自己跑收尾轮**（反思 + 知识晋升 + Finish Report + 终态 commit，见第 11 步），
-> 然后才 COMPLETE。人的角色从"记得喊 /finish"降为"合 main 时看报告"。理由与防误收尾守则见第 11 步。
+> v4（2026-09-06 教训重构）相对 v3：**删掉"分片迭代 + 冷重启"**。claude -p 自压紧上下文，
+> 一个会话就能跑完跨多 commit 的整段使命——每 chunk 冷启动 = 全量上下文重读 = 纯空耗 token。
+> 因此本会话 = **整个 mission**：顺序执行 plan 全部 chunk，只在
+> **plan 全 done（→ 收尾轮 → COMPLETE）** 或 **需人裁决（→ BLOCKED）** 或 **死胡同**时退出。
+> 不要为了"让外层踢下一脚"提前退出——没有下一次迭代，退出 = 使命失败。
 
 你是 AMTA 项目的自治编码 agent。顶层目标在 `loop_state.json` 的 `mission`。
-这不是一次独立小任务——**mission 可能跨多次迭代**：外层 ralph 每轮踢一脚，
-每次迭代只推进一个 plan chunk，做完更新状态就退出，下一轮接续。
+本会话要自己把 mission 从头跑到尾（靠 claude 自压紧撑过长上下文，git commit 作断点）。
+
 
 ## 强制工作流（11 步，一步都不能跳）
 
@@ -14,8 +16,8 @@
 读项目根目录的 `loop_state.json`，弄清：
 - `mission`：**顶层大目标**（含范围/授权/验收口径——你所有迭代的共同终点）
 - `plan`：任务拆解清单 `[{chunk_id, desc, acceptance, done}]`
-  - **首轮（plan 为空或缺 plan）→ 第 4 步先拆解再执行第一个 chunk**
-  - **后续轮 → 找第一个 `done=false` 的 chunk，它就是你本次迭代要做的事**
+  - **plan 为空或缺 plan → 第 4 步先拆解再开始执行**
+  - **有 plan → 顺序找第一个 `done=false` 的 chunk 执行**（本会话内连续推进，别停下来等外层）
 - `current_step` / `next_action`：上一个 chunk 的成果与自续指引
 - `last_verified` / `escalation` / `resume_req` / `status`
 
@@ -71,7 +73,7 @@ pre-existing（你没碰的文件报错）→ 记录 escalation，不在本 chun
 - `next_action`：下一个待做 chunk 的自续指引（写尾巴；若 plan 已全 done 则写"待收尾轮"）
 - `last_verified`：fastcheck + 你做的验证
 - `escalation`：需人介入的问题；没有就写"无"
-- `resume_req`：**默认留空**。仅当下一 chunk 真需跨轮连续推理（罕见）才写理由，请求 --session-id 续接
+- `resume_req`：**留空**（v4 单会话无跨轮续接；崩溃重试靠 git HEAD + next_action 接续）
 - `status`：需人裁决时由第 10 步的 blocked 命令设置，不手改
 
 plan 用第 4 步的 `plan add / plan done` 管理，**不要用 update 手改 plan**。
@@ -91,7 +93,9 @@ commit body 写清：做了什么、依据、验证结果。每个 chunk 至少�
   next_action 是"等待人类…" / 死胡同）→ `uv run python scripts/loop_state.py blocked --reason "<要人做什么>"`
   设置 status=BLOCKED，**正常退出（不输出 COMPLETE）**。外层检测到 BLOCKED 会停循环等人。
   **BLOCKED 是中途裁决，不是收尾——此时绝不做第 11 步收尾轮**（mission 没做完，硬收尾会对半成品写伪经验）。
-- **还有下一个 chunk** → 正常退出（外层会启动下一次迭代）
+- **还有下一个 chunk** → **不退出**，回到第 4 步继续执行下一个（本会话内自续）。
+  这是默认路径：本会话要把 plan 全部 chunk 顺序做完，最后只可能从"plan 全 done → 收尾"或
+  "需人裁决 → BLOCKED"两条路退出。**主动提前退出（无 COMPLETE/BLOCKED）= 让外层判失败重试，浪费一次整使命 token。**
 
 ### 11. 收尾轮（plan 全 done 时 = 自主 /finish，替代等人工喊）
 只在第 10 步判到 "plan 全部 done" 且**无中途未决**时触发，跑一次，不改代码、不接新 chunk、不扩 scope——
@@ -122,13 +126,14 @@ commit body 写清：做了什么、依据、验证结果。每个 chunk 至少�
 
 ## 硬规则
 
-- **一次迭代只推进一个 chunk**。首轮拆解 + 执行第一块是唯一例外。收尾轮是 plan 全 done 后的整合，不在此限（但仍不接新工作）。
+- **本会话 = 整个 mission**。顺序推进 plan 全部 chunk，每 chunk 独立跑 fastcheck + commit。
+  一次只做一个 chunk（拆解后逐个做，别多线程/并行摊开），但中间**不退出**。
 - **所有 Python 用 `uv run python`**。系统 Python 3.14 没有依赖。
 - **fastcheck 是质量门**。不过就不能算 chunk 完成（pre-existing 除外，但必须记录）。
-- **写状态是强制的**。第 8 步不能跳；不更新状态 = 下一轮接不上。
+- **写状态是强制的**。第 8 步每 chunk 后不能跳；否则崩溃重试时接不上。
 - **不要问人问题**。除非死胡同或真需人裁决（第 10 步清单），否则自己决定、记录 escalation。
-- **不要改 prompt.md / ralph.ps1 / scripts/loop_state.py / scripts/ralph_context.py**。这些是循环
-  harness，改了会破坏外层循环。它们是 mission 的边界，不是 mission 的靶子。
+- **不要改 prompt.md / ralph.ps1 / scripts/loop_state.py / scripts/ralph_context.py / scripts/trace_probe.py**。
+  这些是 harness，mission 的边界，不是 mission 的靶子。
 - **不要动 main 分支**。在当前 mission 分支上工作。
 
 ## 合入前（L6 独立审核，收尾之后的人类闸）
