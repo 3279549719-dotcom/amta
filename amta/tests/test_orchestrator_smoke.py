@@ -94,7 +94,7 @@ def test_basic_pipeline(tmp_path, monkeypatch):
 
 
 def test_skip_existing(tmp_path, monkeypatch):
-    """测试断点续跑：第二次运行所有阶段 skipped。"""
+    """测试断点续跑：第二次运行所有阶段 skipped（artifact_cache cache hit）。"""
     fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
 
     monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
@@ -114,10 +114,10 @@ def test_skip_existing(tmp_path, monkeypatch):
         run_pipeline(config)
         assert fake_detect.state["calls"] == 1
 
-        # 第二次运行（不 force_rerun）
+        # 第二次运行（不 force_rerun）— artifact_cache 判断指纹一致，cache hit
         result2 = run_pipeline(config)
-        assert fake_detect.state["calls"] == 1, "detect should not be called again (skipped)"
-        assert fake_ocr.state["calls"] == 1, "ocr should not be called again (skipped)"
+        assert fake_detect.state["calls"] == 1, "detect should not be called again (cache hit)"
+        assert fake_ocr.state["calls"] == 1, "ocr should not be called again (cache hit)"
         page_result = result2.results["page_1"]
         assert page_result["detect"].status == "skipped"
         assert page_result["ocr"].status == "skipped"
@@ -216,10 +216,86 @@ def test_missing_upstream_dependency(tmp_path, monkeypatch):
         print("✓ test_missing_upstream_dependency passed")
 
 
+def test_artifact_cache_fingerprint_created(tmp_path, monkeypatch):
+    """验证 artifact_cache 集成：工位执行成功后生成 .fingerprint 文件。"""
+    fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
+
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        src_dir = tmp / "raw"
+        src_dir.mkdir()
+        (src_dir / "1.jpg").write_bytes(b"\xff\xd8\xff\xe0fake")
+
+        config = PipelineConfig(
+            work_id="test-fp",
+            src_dir=src_dir,
+            start_page=1, end_page=1,
+            stages=["detect", "ocr", "translate"],
+        )
+        run_pipeline(config)
+
+        # 验证每个阶段的产物旁边都有 .fingerprint 文件
+        art_dir = tmp_path / "test-fp" / "artifacts"
+        for stage_name, artifact_name in [("detect", "detection"), ("ocr", "canon"), ("translate", "translation")]:
+            fp_path = art_dir / f"page_1_{artifact_name}.json.fingerprint"
+            assert fp_path.exists(), f"{stage_name} 的 .fingerprint 文件未生成: {fp_path}"
+            # 验证 fingerprint 文件内容包含必要字段
+            fp = json.loads(fp_path.read_text(encoding="utf-8"))
+            assert fp["stage"] == stage_name
+            assert fp["page"] == "page_1"
+            assert "input_hash" in fp
+            assert "code_hash" in fp
+            assert "config_hash" in fp
+        print("✓ test_artifact_cache_fingerprint_created passed")
+
+
+def test_artifact_cache_rerun_when_input_changes(tmp_path, monkeypatch):
+    """验证 artifact_cache 增量构建：修改上游输入后，下游阶段自动重跑。"""
+    fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
+
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        src_dir = tmp / "raw"
+        src_dir.mkdir()
+        (src_dir / "1.jpg").write_bytes(b"\xff\xd8\xff\xe0fake-v1")
+
+        config = PipelineConfig(
+            work_id="test-rerun",
+            src_dir=src_dir,
+            start_page=1, end_page=1,
+            stages=["detect", "ocr", "translate"],
+        )
+        # 第一次运行
+        run_pipeline(config)
+        assert fake_detect.state["calls"] == 1
+        assert fake_ocr.state["calls"] == 1
+        assert fake_translate.state["calls"] == 1
+
+        # 修改原始图片（detect 的输入）
+        (src_dir / "1.jpg").write_bytes(b"\xff\xd8\xff\xe0fake-v2-changed")
+
+        # 第二次运行：detect 应该重跑（输入变了），下游也跟着重跑
+        run_pipeline(config)
+        assert fake_detect.state["calls"] == 2, "detect 输入变了应该重跑"
+        assert fake_ocr.state["calls"] == 2, "ocr 上游 detect 重跑了应该跟着重跑"
+        assert fake_translate.state["calls"] == 2, "translate 上游 ocr 重跑了应该跟着重跑"
+
+        # 第三次运行：什么都没改，全部 cache hit
+        run_pipeline(config)
+        assert fake_detect.state["calls"] == 2, "没变化应该 cache hit"
+        assert fake_ocr.state["calls"] == 2
+        assert fake_translate.state["calls"] == 2
+        print("✓ test_artifact_cache_rerun_when_input_changes passed")
+
+
 if __name__ == "__main__":
     test_basic_pipeline()
     test_skip_existing()
     test_force_rerun()
     test_stage_failure_stops()
     test_missing_upstream_dependency()
+    test_artifact_cache_fingerprint_created()
+    test_artifact_cache_rerun_when_input_changes()
     print("\n=== All smoke tests passed ===")

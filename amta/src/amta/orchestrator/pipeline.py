@@ -1,13 +1,18 @@
 """管线编排器 — run_pipeline() 唯一入口。
 
-职责：遍历页面 → 遍历阶段 → 断点续跑 → 调用工位 → 日志追踪 → 错误处理。
+职责：遍历页面 → 遍历阶段 → 增量缓存判断 → 调用工位 → 日志追踪 → 错误处理。
 不做的事：不关心每个工位内部做什么（那是工位的事），不关心产物内容（那是 artifacts 的事）。
+
+增量构建（artifact_cache）：
+- 每个阶段产物旁边存 .fingerprint 文件，记录输入文件+代码文件+配置的哈希
+- 运行前对比指纹：一致 → 跳过（cache hit），不一致 → 重跑
+- 比旧的"文件存在就跳过"更精准：改了代码/配置/输入会自动重跑，不会用陈旧产物
 
 设计原则（codebase-design）：
 - Depth（深度）：外部接口只有一个 run_pipeline(config) -> PipelineResult，内部藏着
-  页面循环、阶段循环、断点检测、上下文构建、日志、错误处理等复杂逻辑。
+  页面循环、阶段循环、缓存检测、上下文构建、日志、错误处理等复杂逻辑。
 - Locality（局部性）：新增阶段不需要改这里，只需要在 registry 里注册 + 写工位适配器。
-- Leverage（杠杆）：调用方只需要构造 PipelineConfig，不需要知道断点怎么判断、
+- Leverage（杠杆）：调用方只需要构造 PipelineConfig，不需要知道缓存怎么判断、
   上游产物怎么传递、日志怎么记录。
 """
 from __future__ import annotations
@@ -16,11 +21,16 @@ import time
 from pathlib import Path
 
 from amta import artifacts
+from amta.artifact_cache import compute_fingerprint, is_fresh, save_fingerprint
 from amta.pipeline_log import PipelineLog
+from amta.paths import ROOT
 from amta.workstate import ensure_workspace
 
 from .context import PipelineConfig, PipelineResult, StationContext, StationResult
 from .registry import get_stage
+
+# src/amta/ 目录 — code_files 都是相对于这个目录的路径
+_SRC_DIR = ROOT / "src" / "amta"
 
 
 def _resolve_page_list(config: PipelineConfig) -> list[tuple[int, str, Path]]:
@@ -82,20 +92,57 @@ def _build_context(
     )
 
 
-def _artifact_exists(stage_name: str, artifacts_dir: Path, page_key: str) -> bool:
-    """断点续跑判断：该阶段的产物文件是否已存在。
-
-    产物路径来自 artifacts.artifact_paths（统一命名约定），
-    produces 名字对应 artifact_paths 字典的 key。
-    """
+def _stage_code_paths(stage_name: str) -> list[Path | str]:
+    """把 StageSpec.code_files（相对路径）转成绝对路径列表。"""
     stage = get_stage(stage_name)
-    if not stage.produces:
+    return [_SRC_DIR / f for f in stage.code_files]
+
+
+def _stage_input_files(ctx: StationContext) -> dict[str, Path | str]:
+    """收集该阶段的所有输入文件：原始图片 + 上游产物。
+
+    这些文件的哈希会存入 fingerprint，任何一个变了都会触发重跑。
+    """
+    input_files: dict[str, Path | str] = {"raw_image": ctx.raw_image}
+    for dep_name, dep_path in ctx.inputs.items():
+        input_files[dep_name] = dep_path
+    return input_files
+
+
+def _is_cache_fresh(
+    stage_name: str,
+    ctx: StationContext,
+    output_path: Path,
+) -> bool:
+    """增量缓存判断：产物存在且指纹匹配（输入/代码/配置都没变）→ 可以跳过。
+
+    比旧的 _artifact_exists（只看文件在不在）更精准：
+    - 改了翻译代码 → translation 阶段自动重跑，下游 typeset 也跟着重跑
+    - 改了排版代码 → typeset 自动重跑，上游不动
+    - 只改了配置 → 对应阶段重跑
+    """
+    if not output_path.exists():
         return False
-    paths = artifacts.artifact_paths(artifacts_dir, page_key)
-    artifact_path = paths.get(stage.produces)
-    if artifact_path is None:
-        return False
-    return artifact_path.exists()
+    input_files = _stage_input_files(ctx)
+    code_files = _stage_code_paths(stage_name)
+    config = ctx.config
+    return is_fresh(output_path, input_files, code_files, config)
+
+
+def _save_stage_fingerprint(
+    stage_name: str,
+    ctx: StationContext,
+    output_path: Path,
+) -> None:
+    """工位执行成功后，保存当前指纹到 .fingerprint 文件。
+
+    下次运行时对比这个指纹判断是否可以跳过。
+    """
+    input_files = _stage_input_files(ctx)
+    code_files = _stage_code_paths(stage_name)
+    config = ctx.config
+    fingerprint = compute_fingerprint(input_files, code_files, config)
+    save_fingerprint(output_path, stage_name, ctx.page, fingerprint)
 
 
 def run_pipeline(config: PipelineConfig) -> PipelineResult:
@@ -109,6 +156,9 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             stages=["detect", "ocr", "translate"],
             stage_configs={"ocr": {"engine": "hayai", "rule_filter": True}},
         ))
+
+    增量构建：每个阶段产物旁边存 .fingerprint，输入/代码/配置没变就跳过。
+    force_rerun=True 时忽略缓存全部重跑。
 
     后续加 inpaint/typeset：只需在 stages 列表里加名字，不需要改这个函数。
     """
@@ -149,28 +199,16 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
         page_failed = False
 
         for stage_name in config.stages:
-            # 4a. 断点续跑：产物已存在且不强制重跑 → 跳过
-            if not config.force_rerun and _artifact_exists(stage_name, artifacts_dir, page_key):
-                stage = get_stage(stage_name)
-                out_path = artifacts.artifact_paths(artifacts_dir, page_key).get(stage.produces)
-                result = StationResult(
-                    page=page_key, stage=stage_name, status="skipped",
-                    output_artifact=out_path, duration_s=0.0,
-                )
-                page_results[stage_name] = result
-                log.add_span(run_id, step=stage_name, page=page_key, status="skipped",
-                             output=str(out_path) if out_path else "")
-                print(f"[pipeline] {page_key} {stage_name} skipped (exists)")
-                continue
+            stage = get_stage(stage_name)
+            out_path = artifacts.artifact_paths(artifacts_dir, page_key).get(stage.produces)
 
-            # 4b. 构建上下文
+            # 4a. 构建上下文（需要先有 ctx 才能做缓存判断，因为缓存需要 inputs/config）
             ctx = _build_context(
                 config, page_idx, page_key, raw_path,
                 artifacts_dir, state_dir, stage_name, page_results,
             )
 
-            # 4c. 上游依赖检查：consumes 声明的阶段必须有成功产物
-            stage = get_stage(stage_name)
+            # 4b. 上游依赖检查：consumes 声明的阶段必须有成功产物
             missing_deps = [d for d in stage.consumes if d not in ctx.inputs]
             if missing_deps:
                 result = StationResult(
@@ -186,12 +224,29 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
                     first_failure = {"page": page_key, "stage": stage_name, "reason": result.error}
                 break
 
+            # 4c. 增量缓存判断：不强制重跑 + 产物存在 + 指纹匹配 → 跳过
+            if not config.force_rerun and out_path is not None and _is_cache_fresh(stage_name, ctx, out_path):
+                result = StationResult(
+                    page=page_key, stage=stage_name, status="skipped",
+                    output_artifact=out_path, duration_s=0.0,
+                    stats={"cache_hit": True},
+                )
+                page_results[stage_name] = result
+                log.add_span(run_id, step=stage_name, page=page_key, status="skipped",
+                             output=str(out_path), detail={"cache_hit": True})
+                print(f"[pipeline] {page_key} {stage_name} cache hit (skipped)")
+                continue
+
             # 4d. 调用工位
             print(f"[pipeline] {page_key} {stage_name} running...")
             result = stage.station(ctx)
             page_results[stage_name] = result
 
-            # 4e. 记录日志
+            # 4e. 执行成功 → 保存指纹（供下次增量判断用）
+            if result.status == "ok" and out_path is not None and out_path.exists():
+                _save_stage_fingerprint(stage_name, ctx, out_path)
+
+            # 4f. 记录日志
             log.add_span(
                 run_id, step=stage_name, page=page_key, status=result.status,
                 input=str(ctx.inputs), output=str(result.output_artifact),
