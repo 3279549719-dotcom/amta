@@ -14,7 +14,7 @@ def run(ctx: StationContext) -> StationResult:
     """执行 OCR 工位。
 
     上游依赖：ctx.inputs["detect"] → detection artifact
-    从 ctx.config 读取：engine, vlm_enabled, rule_filter
+    从 ctx.config 读取：engine, vlm_enabled（已由 registry default_config + 覆盖合并）
     产出：{artifacts_dir}/{page}_canon.json
     """
     t0 = time.perf_counter()
@@ -30,9 +30,8 @@ def run(ctx: StationContext) -> StationResult:
             raw_page=ctx.raw_image,
             artifacts_dir=ctx.artifacts_dir,
             page_idx=ctx.page_idx,
-            engine=ctx.config.get("engine", "hayai"),
-            vlm_enabled=ctx.config.get("vlm_enabled", False),
-            # rule_filter 由 ocr_station 内部消费（如果已支持）
+            engine=ctx.config["engine"],
+            vlm_enabled=ctx.config["vlm_enabled"],
         )
         duration = time.perf_counter() - t0
         out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["canon"]

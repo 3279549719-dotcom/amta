@@ -59,7 +59,7 @@ def run(ctx: StationContext) -> StationResult:
             state_dir=ctx.state_dir,
             page=ctx.page,
             raw_image_path=ctx.raw_image,
-            vlm_enabled=ctx.config.get("vlm_enabled", True),
+            vlm_enabled=ctx.config["vlm_enabled"],
         )
 
         # translate_page 不落盘，适配器负责落盘（与 03_translate.py 第36行一致）
