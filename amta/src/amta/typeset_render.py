@@ -43,8 +43,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
         n_cols = len(lines)
         col_width = font_size * CHAR_WIDTH_RATIO
         total_w = n_cols * col_width
-        # 最右列的 x 坐标（列中心）
-        x_start = cx + total_w / 2 - col_width / 2
+        # 最右列的 x 坐标（列左边缘；draw.text 用左边缘锚点，所以用左边缘而非中心）
+        x_start = cx + total_w / 2 - col_width
         # 需要旋转的横向标点（在竖排中应垂直显示）
         ROTATE_CHARS = set("……—–")
         for col_idx, col_text in enumerate(lines):
@@ -63,7 +63,7 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
                                    stroke_width=int(stroke), stroke_fill="white")
                     rotated = char_img.rotate(90, expand=True)
                     # 计算粘贴位置（居中对齐）
-                    paste_x = int(x - rotated.width / 2)
+                    paste_x = int(x - rotated.width / 2 + col_width / 2)
                     paste_y = int(y - rotated.height / 2 + lh / 2)
                     img.paste(rotated, (paste_x, paste_y), rotated)
                 else:
