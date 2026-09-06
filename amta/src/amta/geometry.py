@@ -7,10 +7,13 @@
 - union_blocks    ← 多 detector 并集，保留元数据（01_detect 输出扁平 blocks[]）
 - mark_contained  ← 嵌套框标记（contained_in，不丢弃，留给下游 LLM）
 - assign_category ← bubble_type → 3 级 category 映射
+- shrink_bubble_bbox ← 气泡框智能收缩（detect框比气泡大时，收缩到气泡实际边界）
 """
 from __future__ import annotations
 
 from typing import Sequence
+
+from PIL import Image
 
 
 def bbox_from_block(block: dict) -> list[float]:
@@ -50,7 +53,6 @@ def union_boxes(detections: dict[str, list[dict]], threshold: float = 0.5) -> li
                 continue
             seen.append(bb)
     return [{"bbox": list(s)} for s in seen]
-
 
 def union_blocks(detections: dict[str, list[dict]], threshold: float = 0.5) -> list[dict]:
     """多 detector 并集，保留首个命中框的元数据（node_id/bubble_type/ocr 等）。
@@ -95,7 +97,6 @@ def _contained_in(child: Sequence[float], parent: Sequence[float], ioa_thresh: f
     y1 = min(child[3], parent[3])
     inter = max(0.0, x1 - x0) * max(0.0, y1 - y0)
     return inter / c >= ioa_thresh
-
 
 def mark_contained(blocks: list[dict], ioa_threshold: float = 0.75) -> list[dict]:
     """标记嵌套框但不丢弃。
@@ -151,3 +152,139 @@ def assign_category(blocks: list[dict]) -> list[dict]:
                                      "dialogue_bubble")
         out.append(item)
     return out
+
+
+def _pixel_brightness(pixel) -> float:
+    """安全获取像素亮度（处理 PIL getpixel 的多种返回类型）。"""
+    if isinstance(pixel, (tuple, list)) and len(pixel) >= 3:
+        return sum(pixel[:3]) / 3
+    if isinstance(pixel, (int, float)):
+        return float(pixel)
+    return 255.0
+
+
+def shrink_bubble_bbox(img: Image.Image, bbox: list[float],
+                       white_threshold: int = 240,
+                       padding: int = 3) -> list[float]:
+    """气泡框智能收缩：detect框比气泡大时，收缩到气泡实际边界。
+
+    原理：从框的每个边缘向内扫描，先找到第一个非白色像素（气泡边界线或文字），
+    再继续向内找到白色区域（气泡内部），收缩到白色区域开始处 ± padding。
+    气泡内外都是白色，但边界线是黑色的，所以穿过边界线后进入气泡内部的白色区域。
+
+    Args:
+        img: 原图
+        bbox: [x1, y1, x2, y2] detect 框
+        white_threshold: 白色像素亮度阈值
+        padding: 收缩后保留的边距（像素）
+
+    Returns:
+        收缩后的 [x1, y1, x2, y2]
+    """
+    x1, y1, x2, y2 = [int(v) for v in bbox]
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(img.width, x2)
+    y2 = min(img.height, y2)
+
+    if x2 - x1 < 20 or y2 - y1 < 20:
+        return [float(x1), float(y1), float(x2), float(y2)]
+
+    # 左右边界扫描时，用 y 的中间区域（排除上下边界线干扰）
+    y_mid1 = y1 + (y2 - y1) // 4
+    y_mid2 = y2 - (y2 - y1) // 4
+    # 上下边界扫描时，用 x 的中间区域（排除左右边界线干扰）
+    x_mid1 = x1 + (x2 - x1) // 4
+    x_mid2 = x2 - (x2 - x1) // 4
+
+    def _find_bubble_boundary_from_right(start_x, end_x):
+        """从右向左扫描，返回气泡右边界（白色区域开始处）。"""
+        seen_non_white = False
+        for x in range(start_x, end_x, -1):
+            has_white = False
+            has_black = False
+            for y in range(y_mid1, y_mid2, 5):  # 只用中间区域，避开上下边界线
+                if 0 <= y < img.height:
+                    brightness = _pixel_brightness(img.getpixel((x, y)))
+                    if brightness >= white_threshold:
+                        has_white = True
+                    else:
+                        has_black = True
+            if has_black:
+                seen_non_white = True
+            elif seen_non_white and has_white:
+                # 穿过了边界线，进入气泡内部白色区域
+                return x + padding
+        return start_x
+
+    def _find_bubble_boundary_from_left(start_x, end_x):
+        """从左向右扫描，返回气泡左边界（白色区域开始处）。"""
+        seen_non_white = False
+        for x in range(start_x, end_x):
+            has_white = False
+            has_black = False
+            for y in range(y_mid1, y_mid2, 5):
+                if 0 <= y < img.height:
+                    brightness = _pixel_brightness(img.getpixel((x, y)))
+                    if brightness >= white_threshold:
+                        has_white = True
+                    else:
+                        has_black = True
+            if has_black:
+                seen_non_white = True
+            elif seen_non_white and has_white:
+                return x - padding
+        return start_x
+
+    def _find_bubble_boundary_from_bottom(start_y, end_y):
+        """从下向上扫描，返回气泡下边界。"""
+        seen_non_white = False
+        for y in range(start_y, end_y, -1):
+            has_white = False
+            has_black = False
+            for x in range(x_mid1, x_mid2, 5):
+                if 0 <= x < img.width:
+                    brightness = _pixel_brightness(img.getpixel((x, y)))
+                    if brightness >= white_threshold:
+                        has_white = True
+                    else:
+                        has_black = True
+            if has_black:
+                seen_non_white = True
+            elif seen_non_white and has_white:
+                return y + padding
+        return start_y
+
+    def _find_bubble_boundary_from_top(start_y, end_y):
+        """从上向下扫描，返回气泡上边界。"""
+        seen_non_white = False
+        for y in range(start_y, end_y):
+            has_white = False
+            has_black = False
+            for x in range(x_mid1, x_mid2, 5):
+                if 0 <= x < img.width:
+                    brightness = _pixel_brightness(img.getpixel((x, y)))
+                    if brightness >= white_threshold:
+                        has_white = True
+                    else:
+                        has_black = True
+            if has_black:
+                seen_non_white = True
+            elif seen_non_white and has_white:
+                return y - padding
+        return start_y
+
+    new_x2 = _find_bubble_boundary_from_right(x2 - 1, x1)
+    new_x1 = _find_bubble_boundary_from_left(x1, x2)
+    new_y2 = _find_bubble_boundary_from_bottom(y2 - 1, y1)
+    new_y1 = _find_bubble_boundary_from_top(y1, y2)
+
+    # 确保收缩后的框仍然有效
+    new_x1 = max(x1, new_x1)
+    new_y1 = max(y1, new_y1)
+    new_x2 = min(x2, new_x2)
+    new_y2 = min(y2, new_y2)
+    if new_x2 - new_x1 < 10 or new_y2 - new_y1 < 10:
+        return [float(x1), float(y1), float(x2), float(y2)]
+
+    return [float(new_x1), float(new_y1), float(new_x2), float(new_y2)]
