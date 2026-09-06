@@ -1,9 +1,5 @@
 """artifact_cache 模块测试 — 基于内容哈希的增量构建。"""
-import json
-import time
-from pathlib import Path
 
-import pytest
 
 
 def test_compute_file_hash_deterministic(tmp_path):

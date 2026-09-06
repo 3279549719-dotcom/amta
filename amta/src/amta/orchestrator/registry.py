@@ -1,4 +1,4 @@
-﻿"""阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。
+"""阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。
 
 这是编排器的 Seam（接缝）所在：编排器只依赖这里的 StageSpec 声明，
 不需要知道每个工位具体做什么。新增阶段 = 写一个工位函数 + 在这里加一行注册。
@@ -24,12 +24,15 @@ class StageSpec:
     consumes: 依赖的上游阶段名列表（编排器会把这些阶段的产物路径放进 ctx.inputs）
     produces: 产出的产物类型名（编排器用这个名字在 artifacts_dir 里找产物文件做断点判断）
     default_config: 默认配置，调用方可以通过 PipelineConfig.stage_configs 覆盖
+    code_files: 影响该阶段输出的代码文件（相对于 src/amta/ 的路径，如 "typeset_engine.py"）
+                这些文件的哈希会存入 fingerprint，代码变了自动触发重跑
     """
     name: str
     station: StationFn
     consumes: list[str] = field(default_factory=list)
     produces: str = ""
     default_config: dict[str, Any] = field(default_factory=dict)
+    code_files: list[str] = field(default_factory=list)
 
 
 def _build_registry() -> dict[str, StageSpec]:
@@ -49,6 +52,12 @@ def _build_registry() -> dict[str, StageSpec]:
             default_config={
                 "conf_threshold": 0.7,
             },
+            code_files=[
+                "detect_station.py",
+                "geometry.py",
+                "artifacts.py",
+                "paths.py",
+            ],
         ),
         "ocr": StageSpec(
             name="ocr",
@@ -60,6 +69,15 @@ def _build_registry() -> dict[str, StageSpec]:
                 "vlm_enabled": False,
                 "rule_filter": False,
             },
+            code_files=[
+                "ocr_station.py",
+                "ocr_engines.py",
+                "canon_schema.py",
+                "rule_filter.py",
+                "artifacts.py",
+                "geometry.py",
+                "paths.py",
+            ],
         ),
         "translate": StageSpec(
             name="translate",
@@ -70,6 +88,20 @@ def _build_registry() -> dict[str, StageSpec]:
                 "mode": "minimal",
                 "vlm_enabled": True,
             },
+            code_files=[
+                "translate_station.py",
+                "translate.py",
+                "stage3_minimal.py",
+                "guardrails.py",
+                "glossary.py",
+                "term_dict.py",
+                "term_replace.py",
+                "pre_scan.py",
+                "punctuation_align.py",
+                "chat_client.py",
+                "artifacts.py",
+                "paths.py",
+            ],
         ),
         "inpaint": StageSpec(
             name="inpaint",
@@ -80,6 +112,19 @@ def _build_registry() -> dict[str, StageSpec]:
                 "refine_mask": False,
                 "inpaint_engine": "lama-manga",
             },
+            code_files=[
+                "inpaint_station.py",
+                "inpaint_strategy.py",
+                "text_mask_refiner.py",
+                "local_lama_inpainter.py",
+                "_lama_ffc.py",
+                "_lama_model.py",
+                "_lama_util.py",
+                "images.py",
+                "geometry.py",
+                "artifacts.py",
+                "paths.py",
+            ],
         ),
         "typeset": StageSpec(
             name="typeset",
@@ -87,6 +132,15 @@ def _build_registry() -> dict[str, StageSpec]:
             consumes=["detect", "ocr", "translate", "inpaint"],
             produces="typeset",
             default_config={},
+            code_files=[
+                "typeset_station.py",
+                "typeset_engine.py",
+                "typeset_render.py",
+                "fonts.py",
+                "geometry.py",
+                "artifacts.py",
+                "paths.py",
+            ],
         ),
         "segment": StageSpec(
             name="segment",
@@ -94,6 +148,7 @@ def _build_registry() -> dict[str, StageSpec]:
             consumes=["detect"],
             produces="segment",
             default_config={},
+            code_files=[],
         ),
     }
 
@@ -130,4 +185,3 @@ def get_stage(name: str) -> StageSpec:
 
 def available_stages() -> list[str]:
     return list(get_registry().keys())
-
