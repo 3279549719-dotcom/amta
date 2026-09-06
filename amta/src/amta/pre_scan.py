@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from amta import artifacts, workstate
+from amta.artifact_store import ArtifactStore
 from amta.term_dict import load_master_dict, match_terms
 
 # Default master dict path (relative to project root: data/thbwiki_master_dict.json)
@@ -49,7 +50,9 @@ def run_pre_scan(work_id: str, artifacts_dir: Path | str,
     all_text_parts: list[str] = []
     skipped_files = 0
     if art_dir.exists():
-        canon_files = sorted(art_dir.glob("page_*_canon.json"))
+        store = ArtifactStore(art_dir)
+        canon_files = [p for k in store.pages("canon")
+                       if (p := store.resolve("canon", k)) is not None]
         for cf in canon_files:
             try:
                 doc = artifacts.load_canon(cf)

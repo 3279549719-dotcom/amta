@@ -10,6 +10,7 @@ import base64
 import json
 from pathlib import Path
 
+from amta.artifact_store import ArtifactStore
 from amta.paths import ROOT
 
 
@@ -41,14 +42,15 @@ def render_final_report(
         raise FileNotFoundError(f"artifacts dir not found: {artifacts_dir}")
 
     pages_data = []
+    store = ArtifactStore(artifacts_dir)
     for page_idx in pages:
         page = f"page_{page_idx}"
-        det_path = artifacts_dir / f"{page}_detection.json"
-        canon_path = artifacts_dir / f"{page}_canon.json"
-        trans_path = artifacts_dir / f"{page}_translation.json"
+        det_path = store.resolve("detection", page)
+        canon_path = store.resolve("canon", page)
+        trans_path = store.resolve("translation", page)
         raw_path = src_dir / f"{page_idx}.jpg"
 
-        if not all(p.exists() for p in (det_path, canon_path, trans_path, raw_path)):
+        if (det_path is None or canon_path is None or trans_path is None) or not raw_path.exists():
             print(f"WARN {page}: missing artifacts, skip")
             continue
 

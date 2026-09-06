@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.paths import write_json  # noqa: E402
+from amta.artifact_store import ArtifactStore  # noqa: E402
 from amta.pipeline_log import PipelineLog  # noqa: E402
 from amta.workstate import ensure_workspace  # noqa: E402
 from amta import artifacts  # noqa: E402
@@ -54,7 +55,9 @@ def _ensure_terms(work_id: str, ws_root: Path) -> None:
         return  # 已有术语表，直接复用
 
     canon_dir = ws_root / "artifacts"
-    canon_files = sorted(canon_dir.glob("page_*_canon.json"))
+    store = ArtifactStore(canon_dir)
+    canon_files = [p for k in store.pages("canon")
+                   if (p := store.resolve("canon", k)) is not None]
     if not canon_files:
         print("[00_run_all] pre_scan skipped (no canon files yet)")
         return
@@ -74,9 +77,13 @@ def _refresh_merged_translation(ws_root: Path) -> None:
     """刷新 artifacts/translation.json：合并所有 page_*_translation.json（前页回溯读取）。"""
     import re as _re
 
-    artifacts = ws_root / "artifacts"
+    art_dir = ws_root / "artifacts"
     merged: dict[str, str] = {}
-    for p in sorted(artifacts.glob("page_*_translation.json")):
+    store = ArtifactStore(art_dir)
+    for page_key in store.pages("translation"):
+        p = store.resolve("translation", page_key)
+        if p is None:
+            continue
         try:
             doc = json.loads(p.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
@@ -85,7 +92,7 @@ def _refresh_merged_translation(ws_root: Path) -> None:
             if _re.match(r"page_\d+_", str(rid)):
                 merged[str(rid)] = t
     if merged:
-        write_json(artifacts / "translation.json",
+        write_json(art_dir / "translation.json",
                    {"work_id": ws_root.name, "translations": merged,
                     "residue": [], "glossary_violations": []})
 
