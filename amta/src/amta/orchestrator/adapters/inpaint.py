@@ -34,8 +34,8 @@ def run(ctx: StationContext) -> StationResult:
             raw_page=ctx.raw_image,
             out_path=out_path,
             clean_dir=clean_dir,
-            refine_mask=ctx.config.get("refine_mask", False),
-            inpaint_engine=ctx.config.get("inpaint_engine", "lama-manga"),
+            refine_mask=ctx.config["refine_mask"],
+            inpaint_engine=ctx.config["inpaint_engine"],
         )
 
         duration = time.perf_counter() - t0

@@ -23,7 +23,7 @@ def run(ctx: StationContext) -> StationResult:
             raw_page=ctx.raw_image,
             out_dir=ctx.artifacts_dir,
             page_idx=ctx.page_idx,
-            conf_threshold=ctx.config.get("conf_threshold", 0.7),
+            conf_threshold=ctx.config["conf_threshold"],
         )
         duration = time.perf_counter() - t0
         out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["detection"]

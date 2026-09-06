@@ -67,7 +67,6 @@ def _build_registry() -> dict[str, StageSpec]:
             default_config={
                 "engine": "hayai",
                 "vlm_enabled": False,
-                "rule_filter": False,
             },
             code_files=[
                 "ocr_station.py",
@@ -85,7 +84,6 @@ def _build_registry() -> dict[str, StageSpec]:
             consumes=["ocr"],
             produces="translation",
             default_config={
-                "mode": "minimal",
                 "vlm_enabled": True,
             },
             code_files=[
