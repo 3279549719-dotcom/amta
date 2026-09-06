@@ -64,29 +64,80 @@ def wrap_text(text: str, font, max_width: float) -> list[str]:
 def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
     """竖排按列分割，返回列列表（每列是一个字符串）。
 
-    避头尾规则：列首不能是禁则标点（，。！？、）》】……—），
-    若分割点后第一个字符是标点，则将该标点挤到上一列末尾。
-    与横排 wrap_text() 的 NO_START_PUNCT 逻辑对称。
+    动态规划最优断点：在所有可能断点中找列数最少、列长最均衡、优先在标点后断的方案。
+    替代纯机械按字符数切刀，避免单字占列和词语腰斩。
+
+    成本优先级（从高到低）：
+    1. 列数最少
+    2. 最大列长最小（列长均衡）
+    3. 最后一列长度最大（避免短尾）
+    4. 强断点（标点后）断列有奖励
+
+    避头尾：禁则标点（，。！？、）》】……—）不出现在列首。
+    强断点容忍：在标点后断列时，当前列可超过 chars_per_col 最多 2 字（与 _fits 的 vertical_tolerance 对称）。
     """
     if chars_per_col <= 0:
         return [text] if text else []
 
-    lines: list[str] = []
-    i = 0
     n = len(text)
-    while i < n:
-        end = min(i + chars_per_col, n)
-        # 检查下一列的第一个字符是否是禁则标点
-        if end < n and text[end] in NO_START_PUNCT:
-            # 把标点挤到当前列（容忍轻微超出）
-            # 找到连续的标点，全部挤过来
-            punct_end = end
-            while punct_end < n and text[punct_end] in NO_START_PUNCT:
-                punct_end += 1
-            end = punct_end
-        lines.append(text[i:end])
-        i = end
-    return lines
+    if n == 0:
+        return []
+    if n <= chars_per_col:
+        return [text]
+
+    no_start = set(NO_START_PUNCT)
+    strong_break = set("，。！？、；：")
+    overflow_tolerance = 2  # 强断点后可超过的字数
+
+    # dp[i] = (成本, 列数, 最后一列长度, 最大列长, 前驱断点j)
+    INF = float("inf")
+    dp: list[tuple[float, int, int, int, int]] = [(INF, 0, 0, 0, -1)] * (n + 1)
+    dp[0] = (0.0, 0, 0, 0, -1)
+
+    for i in range(1, n + 1):
+        # j 是当前列起始位置，遍历所有可能的断点
+        j_min = max(0, i - chars_per_col - overflow_tolerance)
+        for j in range(j_min, i):
+            col_len = i - j
+            # 避头尾：列首不能是禁则标点
+            if j > 0 and text[j] in no_start:
+                continue
+            # 超过 chars_per_col 时，最后一列或强断点后才允许
+            if col_len > chars_per_col:
+                is_last_col = (i == n)
+                is_after_strong = (j > 0 and text[j - 1] in strong_break)
+                if not (is_last_col or is_after_strong):
+                    continue
+
+            prev_cost, prev_cols, _, prev_max, _ = dp[j]
+            if prev_cost == INF:
+                continue
+
+            new_cols = prev_cols + 1
+            new_max = max(prev_max, col_len)
+            # 成本：列数优先(1000) → 最大列长(10) → 最后一列短尾惩罚
+            tail_penalty = (chars_per_col - col_len) if i == n else 0
+            cost = new_cols * 1000 + new_max * 10 + tail_penalty
+            # 强断点奖励
+            if j > 0 and text[j - 1] in strong_break:
+                cost -= 5
+
+            if cost < dp[i][0]:
+                dp[i] = (cost, new_cols, col_len, new_max, j)
+
+    # 回溯重建列
+    cols: list[str] = []
+    i = n
+    while i > 0:
+        _, _, _, _, j = dp[i]
+        if j < 0:
+            # 兜底：不应发生，但防止无限循环
+            cols.append(text[:i])
+            break
+        cols.append(text[j:i])
+        i = j
+    cols.reverse()
+    return cols
 
 
 def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,

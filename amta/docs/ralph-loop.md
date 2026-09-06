@@ -1,89 +1,60 @@
 # Ralph Loop — 无人值守开发循环
 
-> 架构决策见 [ADR-028](decisions/028-ralph-loop-autonomous-development.md)。
+> 架构决策见 [ADR-028](decisions/028-ralph-loop-autonomous-development.md)。本文档跟踪 ralph.ps1/prompt.md 现行语义（**v4，2026-09-06**）。
 
 ## 一句话
 
-外层 PowerShell 循环每次踢一个新鲜的 `claude -p` 会话，agent 读 `loop_state.json` → 执行 `next_action` → 跑 fastcheck → 更新状态 → 写日志 → commit，然后循环踢下一脚。**人只需要设定任务和裁决阻塞项，不需要按回车。**
+**一次 `claude -p` 跑完整使命**（claude -p 自压紧上下文，单个会话能跑完跨多 commit 的工作）。agent 读 `loop_state.json` → 按 `plan` 顺序执行全部 chunk（每个 chunk：跑 fastcheck → 更新状态 → commit）→ plan 全 done 跑收尾轮 → `<promise>COMPLETE</promise>`。**人只需要设任务和裁决 BLOCKED，不需要按回车。**
+
+## 为什么从 v3 分片迭代改成 v4 单会话
+
+2026-09-06 教训（artifact-store mission）：v3 每 chunk 冷启动一个新 `claude -p`，900s 墙钟超时掐死过 productive agent（两次死在干活中途），每轮从零重建上下文重读 = **纯空耗 token**。claude -p 自压紧（v2.1.218+ 实证）后，分片重启整台机器过时。**教训不是"不要长跑"，是"不要按时间杀 + 不要为分片而冷重启"。**
 
 ## 快速开始
 
 ```powershell
-# 1. 设定任务（编辑 loop_state.json 的 next_action）
-#    例如："删除 scripts/xxx.py，然后重跑 fastcheck"
-
-# 2. 启动循环（默认 10 次迭代）
-.\ralph.ps1
-
-# 或指定迭代次数
-.\ralph.ps1 -MaxIterations 5
-
-# 或指定自定义 prompt
-.\ralph.ps1 -MaxIterations 20 -PromptFile my-prompt.md
+# 1. 设使命：research/ 写 mission 简报（范围/授权/验收口径），把 mission + plan 填进 loop_state.json
+# 2. 启动（跑完自然结束；崩溃才自动重试）
+.\ralph.ps1                 # 默认最多 2 次整使命尝试
+.\ralph.ps1 -MaxAttempts 3
+.\ralph.ps1 -PromptFile my-mission.md
 ```
 
 ## 核心文件
 
 | 文件 | 作用 | 谁写 | 谁读 |
 |------|------|------|------|
-| `ralph.ps1` | 外层循环脚本 | 人 | 人运行 |
-| `prompt.md` | 10 步强制工作流指令 | 人 | agent（每次迭代） |
-| `loop_state.json` | 任务状态（mission/next_action/last_verified/escalation） | agent（每步更新） | agent（每步读取）+ memory_inject |
-| `ralph-log.md` | append-only 学习日志 | agent（每步追加） | 人（复盘） |
-| `docs/lessons.md` | 可复用经验库（L1-L37+） | agent（第 7 步沉淀） | agent（memory_search） |
-| `.claude/settings.json` | SessionStart hook（`uv run python scripts/memory.py inject`） | 人 | claude |
-| `scripts/trace_probe.py` | claude 会话 JSONL 探针（心跳定位 / 卡死诊断 / trace 统计） | ralph.ps1 | ralph.ps1 |
-| `scripts/loop_state.py` | loop_state 读写 CLI（含 `blocked` 快捷命令，写 status=BLOCKED） | agent / ralph | agent / ralph |
-| `CLAUDE.local.md` | 自动注入的记忆包（loop_state 摘要 + 字典规则） | memory.py inject | agent（会话启动） |
+| `ralph.ps1` | 单会话 runner：启动 claude -p / 心跳 churn 兜底 / attempt 重试 | 人 | 人运行 |
+| `prompt.md` | mission 工作流指令（v4：本会话 = 整个 mission） | 人 | agent（每次 spawn 一次） |
+| `loop_state.json` | mission/plan/status（idle 态 + 每使命 seed） | 人 seed / agent 边界更新 | agent + ralph |
+| `ralph-log.md` | append-only 运行记录（start/COMPLETE/BLOCKED/failed） | ralph | 人 |
+| `scripts/trace_probe.py` | 读 claude transcript JSONL（live/tail/stats），卡死诊断 | — | ralph |
+| `scripts/ralph_context.py` | spawn 前拼 preamble（memory 清单 + git log）+ DONE commit msg | — | ralph |
+| `scripts/loop_state.py` | loop_state 读写 CLI（show/update/blocked/plan） | agent / ralph | agent / ralph |
 
-## prompt.md 10 步工作流
+## 退出路径（ralph 只认这三个）
 
-每次迭代的 agent 必须按顺序执行：
+1. **COMPLETE**（agent 输出 `<promise>COMPLETE</promise>`）→ 写 DONE commit，exit 0
+2. **BLOCKED**（agent 写 `status=BLOCKED` 等人）→ exit 2；人清 status 后续跑
+3. **异常/无信号退出** → trace 诊断写 ralph-log → 从 git HEAD 整使命重试（≤ MaxAttempts）→ 仍失败 exit 3
 
-1. **读状态**：读 `loop_state.json`，理解 mission 和 next_action
-2. **读经验**：`memory_search` 查相关 lessons，避免重踩坑
-3. **执行**：完成 next_action 指定的任务
-4. **验证**：跑 fastcheck（`py -3.13 scripts/fastcheck.py`，注意不是 uv run）
-5. **判断**：fastcheck 红项是本次引入还是 pre-existing？pre-existing 记入 escalation，不越权修
-6. **沉淀**：有新经验就写 `docs/lessons.md`（Problem/Root cause/Durable lesson/Prevention 格式）
-7. **更新状态**：写 `loop_state.json`（current_step/next_action/last_verified/escalation/updated_at）
-8. **写日志**：追加 `ralph-log.md`（做了什么/改了哪些文件/fastcheck 结果/经验教训/下一步）
-9. **commit**：`git add -A && git commit -m "..."`
-10. **信号**：任务完成输出 `<promise>COMPLETE</promise>`；需要人裁决则写 `status=BLOCKED`（`loop_state.py blocked`）停止，ralph 检测到即停循环等人
+**没有"每 chunk 一次迭代"路径。** agent 中途主动退出（无 COMPLETE/BLOCKED）= 让 ralph 判失败重试 = 浪费一次整使命 token —— prompt.md 已写死禁止。
 
-## 记忆机制（读 + 写）
+## 兜底（只防真卡死，不按时间杀 productive）
 
-### 读记忆（自动）
-- SessionStart hook 跑 `memory.py inject`，把 `loop_state.json` 摘要注入 `CLAUDE.local.md`
-- agent 会话启动时自动看到当前任务状态
-- 需要历史经验时用 `memory_search` 查 `docs/lessons.md`
+- **墙钟超时：无。**
+- **心跳失守**：claude transcript JSONL 连续 `HeartbeatStallSeconds`（默认 1800s）无新写入 → 翻尾部判断：
+  - 有 `is_error=True` 重复（churn）→ 停
+  - 无错误迹象（跑长 fastcheck / 长思考）→ **不杀**，重置观察窗继续等
+- 中断靠 git commit 恢复：新 attempt 的 prompt 带 `git HEAD = xxx` resume note，agent 先核实现场再续。
 
-### 写记忆（强制）
-- prompt.md 第 7-9 步强制要求，agent 每次迭代都执行
-- **不靠 hook**，靠工作流指令
-- 验证：3 次迭代全部自动更新了 loop_state + ralph-log，其中 2 次主动沉淀了 lessons（L36、L37）
+## 关键约束（沿用）
 
-## 关键约束
+- 所有 Python 用 `uv run python`；fastcheck 用 `py -3.13 scripts/fastcheck.py`（L26，`.venv` 无 ruff）
+- pre-existing 红项记 escalation 不越权修历史债
+- agent 只在 COMPLETE/BLOCKED/死胡同退出；不主动退出等外层踢下一脚
+- 合 main 是人的动作（prompt.md 写死）；合前按需 L6 独立审核（ADR-030，小改动不强制）
 
-- **所有 Python 命令用 `uv run python`**，但 fastcheck 例外：`.venv` 无 ruff，须用 `py -3.13 scripts/fastcheck.py`（L26）
-- **不越权修历史债**：fastcheck 红项如果是 pre-existing，记入 escalation，不试图全修
-- **blocked-on-human 时不硬编造任务**：产出证据包让裁决一次到位（迭代 3 的做法）；同时写 `status=BLOCKED` 让 ralph 停循环等人（v3），不再空转
-- **每次迭代一个新鲜 agent**：无上下文继承，所有状态从文件重建
-- **commit 用 `--no-verify`**：fastcheck 红时 pre-commit 会拦，ralph loop 自己跑 fastcheck 做验证
+## 候选升级（未启用）
 
-## 常见问题
-
-**Q: hook 不生效怎么办？**
-A: 检查 `.claude/settings.json` 的 SessionStart command 是不是 `uv run python scripts/memory.py inject`。系统 Python 3.14 无 requests，用 `python` 会静默失败。
-
-**Q: agent 不写记忆怎么办？**
-A: 检查 prompt.md 第 7-9 步是否还在。写记忆是工作流指令，不是 hook。如果 agent 跳过，加强 prompt 措辞。
-
-**Q: fastcheck 一直红怎么办？**
-A: 看 loop_state.escalation，区分"本次引入"和"pre-existing"。pre-existing 等人裁决，不要让 ralph loop 无限循环修历史债。
-
-**Q: 怎么停止循环？**
-A: Ctrl+C，或者 agent 输出 `<promise>COMPLETE</promise>`，或者写 `status=BLOCKED`（ralph 自动停循环），或者达到 MaxIterations。
-
-**Q: 怎么加新任务？**
-A: 编辑 `loop_state.json` 的 `next_action`，然后重新跑 `.\ralph.ps1`。
+claude `--bg` + `claude agents`（原生后台会话 + done/blocked/stopped 状态 + Notification hook + supervisor 崩溃重启）可取代整个外层循环——但当前钉的 claude 2.1.220 上仍是 research preview、无 stall 检测、无结构化结果字段。升级 claude 后再评估（见 research/10-claude-code-headless-and-ralph-optimization.md）。
