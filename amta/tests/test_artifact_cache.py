@@ -156,3 +156,63 @@ def test_invalidate_cache(tmp_path):
     result = invalidate_cache(output)
     assert result is True
     assert not fingerprint_path(output).exists()
+
+
+def test_invalidate_cache_for_page_new_layout(tmp_path):
+    """invalidate_cache_for_page 删子目录布局各 stage 指纹（产物保留）。"""
+    from amta.artifact_cache import invalidate_cache_for_page, save_fingerprint, compute_fingerprint
+    art = tmp_path / "artifacts"
+    (art / "detection").mkdir(parents=True)
+    (art / "canon").mkdir(parents=True)
+    fp = compute_fingerprint({"in": tmp_path / "in.txt"}, [], {})
+    # detection 与 canon 有指纹；translation 无产物
+    for stage in ("detection", "canon"):
+        out = art / stage / "page_1.json"
+        out.write_text("{}", encoding="utf-8")
+        save_fingerprint(out, stage, "page_1", fp)
+    assert (art / "detection" / "page_1.json.fingerprint").exists()
+    assert (art / "canon" / "page_1.json.fingerprint").exists()
+    n = invalidate_cache_for_page(art, "page_1")
+    assert n == 2
+    assert (art / "detection" / "page_1.json").exists()          # 产物保留
+    assert not (art / "detection" / "page_1.json.fingerprint").exists()
+    assert not (art / "canon" / "page_1.json.fingerprint").exists()
+
+
+def test_invalidate_cache_for_page_legacy_fallback(tmp_path):
+    """invalidate_cache_for_page 兼容旧平铺指纹。"""
+    from amta.artifact_cache import invalidate_cache_for_page, save_fingerprint, compute_fingerprint
+    art = tmp_path / "artifacts"
+    art.mkdir(parents=True)
+    out = art / "page_1_canon.json"
+    out.write_text("{}", encoding="utf-8")
+    fp = compute_fingerprint({"in": tmp_path / "in.txt"}, [], {})
+    save_fingerprint(out, "canon", "page_1", fp)
+    assert (art / "page_1_canon.json.fingerprint").exists()
+    n = invalidate_cache_for_page(art, "page_1")
+    assert n == 1
+    assert (art / "page_1_canon.json").exists()
+    assert not (art / "page_1_canon.json.fingerprint").exists()
+
+
+def test_cache_status_counts_both_layouts(tmp_path):
+    """cache_status 统计新布局子目录 + 旧平铺的 stage 产物与指纹。"""
+    from amta.artifact_cache import cache_status, save_fingerprint, compute_fingerprint
+    art = tmp_path / "artifacts"
+    (art / "detection").mkdir(parents=True)
+    (art / "canon").mkdir(parents=True)
+    fp = compute_fingerprint({"in": tmp_path / "in.txt"}, [], {})
+    # 新布局：detection page_1.json + 指纹，canon page_1.json 无指纹
+    det = art / "detection" / "page_1.json"
+    det.write_text("{}", encoding="utf-8")
+    save_fingerprint(det, "detection", "page_1", fp)
+    (art / "canon" / "page_1.json").write_text("{}", encoding="utf-8")
+    # 旧平铺：translation page_2_translation.json + 指纹
+    trans = art / "page_2_translation.json"
+    trans.write_text("{}", encoding="utf-8")
+    save_fingerprint(trans, "translation", "page_2", fp)
+
+    st = cache_status(art)
+    assert st["total_artifacts"] == 3
+    assert st["cached_with_fingerprint"] == 2
+    assert st["pages_tracked"] == 2

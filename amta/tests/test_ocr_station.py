@@ -41,7 +41,7 @@ def test_ocr_page_doc_canon_on_disk(tmp_path, monkeypatch):
     doc = ocr_page("w1", det, _raw(tmp_path), art, page_idx=0,
                    vlm_enabled=False, ocr_fn=_fake_ocr)
     assert doc["page"] == "page_0" and doc["n_regions"] == 2
-    on_disk = json.loads((art / "page_0_canon.json").read_text(encoding="utf-8"))
+    on_disk = json.loads((art / "canon" / "page_0.json").read_text(encoding="utf-8"))
     assert on_disk["items"][0]["region_id"] == "page_0_u00"  # 盘上即 doc（修 F2）
     assert on_disk["items"][0]["baberu_text"] == "月の都"
     assert on_disk["items"][1]["sub_tier"] == "aside"  # 透传

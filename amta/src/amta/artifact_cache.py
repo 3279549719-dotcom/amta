@@ -28,6 +28,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from amta.artifact_store import JSON_STAGES, ArtifactStore, fingerprint_of
+
 
 # ---------------------------------------------------------------------------
 # 哈希计算
@@ -210,27 +212,41 @@ def invalidate_cache(output_path: Path | str) -> bool:
 
 
 def invalidate_cache_for_page(artifacts_dir: Path | str, page: str) -> int:
-    """删除某页所有 artifact 的指纹，返回删除的指纹文件数。"""
+    """删除某页所有 stage 产物（新布局+旧平铺）的指纹，返回删除的指纹文件数。
+
+    只删 .fingerprint、不删产物本身（is_fresh 因缺指纹判 False → 下次重跑）。
+    """
     artifacts_dir = Path(artifacts_dir)
+    store = ArtifactStore(artifacts_dir)
     count = 0
-    for fp_path in artifacts_dir.glob(f"{page}_*.fingerprint"):
-        fp_path.unlink()
-        count += 1
+    for stage in JSON_STAGES:
+        for artifact in (store.path(stage, page), store.legacy_path(stage, page)):
+            fp = fingerprint_of(artifact)
+            if fp.exists():
+                fp.unlink()
+                count += 1
     return count
 
 
 def cache_status(artifacts_dir: Path | str) -> dict[str, int]:
-    """统计缓存状态：总artifact数、有指纹的数、可统计的页数。"""
+    """统计缓存状态：总 artifact 数、有指纹的数、可统计的页数。
+
+    遍历 6 个 JSON stage（新布局子目录 + 旧平铺根目录）及各自 .fingerprint。
+    """
     artifacts_dir = Path(artifacts_dir)
-    all_json = list(artifacts_dir.glob("*.json"))
-    fingerprints = list(artifacts_dir.glob("*.fingerprint"))
-    pages = set()
-    for f in all_json:
-        parts = f.stem.split("_")
-        if len(parts) >= 2 and parts[0] == "page":
-            pages.add(f"page_{parts[1]}")
+    store = ArtifactStore(artifacts_dir)
+    total = 0
+    cached = 0
+    pages: set[str] = set()
+    for stage in JSON_STAGES:
+        files = store.list_files(stage)
+        total += len(files)
+        pages.update(store.pages(stage))
+        for artifact in files:
+            if fingerprint_of(artifact).exists():
+                cached += 1
     return {
-        "total_artifacts": len(all_json),
-        "cached_with_fingerprint": len(fingerprints),
+        "total_artifacts": total,
+        "cached_with_fingerprint": cached,
         "pages_tracked": len(pages),
     }

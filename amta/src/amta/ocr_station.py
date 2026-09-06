@@ -161,5 +161,5 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
                                "removed_by_reason": rule_removed_summary,
                            },
                            "vlm_status": vlm_result["status"]}, work_id, page)
-    write_json(artifacts_dir / f"{page}_canon.json", doc)
+    write_json(artifacts.artifact_paths(artifacts_dir, page)["canon"], doc)
     return doc

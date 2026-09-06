@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from amta.artifact_store import JSON_STAGES  # noqa: E402
 from amta.artifacts import load_detection  # noqa: E402
 from amta.ocr_station import ocr_page  # noqa: E402
 from amta.ocr_engines import ocr_batch  # noqa: E402
@@ -24,7 +25,13 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         crop_dir: Path | None = None) -> dict:
     det = load_detection(det_path)
 
-    doc = ocr_page(work_id, det, raw_page, out_path.parent, page_idx=page_idx,
+    # ocr_page 以 artifacts 根目录为基准落 canon/crops。--out 兼容两种布局：
+    #   新（目录即索引）= <root>/<stage>/<page>.json → root = parent.parent
+    #   旧平铺           = <root>/<page>_canon.json   → root = parent
+    root = out_path.parent
+    if out_path.parent.name in JSON_STAGES:
+        root = out_path.parent.parent
+    doc = ocr_page(work_id, det, raw_page, root, page_idx=page_idx,
                    engine=engine, vlm_enabled=vlm_enabled,
                    rule_filter_enabled=rule_filter_enabled,
                    ocr_fn=ocr_batch, crop_dir=crop_dir)

@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Any, TypedDict
 
+from amta.artifact_store import ArtifactStore
 from amta.paths import read_json, write_json
 
 SCHEMA_VERSION = "2.1"
@@ -112,15 +113,20 @@ def normalize_region_ids(blocks: list[dict], page_idx: int) -> list[dict]:
 
 
 def artifact_paths(artifacts_dir: Path, page: str) -> dict[str, Path]:
-    """全部产物路径唯一归属（修 F6 文件名知识散落 / F7 命名不一）。"""
+    """全部产物路径唯一归属（修 F6 文件名知识散落 / F7 命名不一）。
+
+    布局 = 目录即索引（ADR 2026-09-06）：JSON 阶段产物落 `<dir>/<stage>/<page>.json`
+    （stage 即目录）；`crops` 目录键维持。旧平铺回退见 artifact_store.resolve。
+    """
     art = Path(artifacts_dir)
+    store = ArtifactStore(art)
     return {
-        "detection": art / f"{page}_detection.json",
-        "canon": art / f"{page}_canon.json",
-        "translation": art / f"{page}_translation.json",
-        "needs_review": art / f"{page}_needs_review.json",
-        "inpaint": art / f"{page}_inpaint.json",
-        "typeset": art / f"{page}_typeset.json",
+        "detection": store.path("detection", page),
+        "canon": store.path("canon", page),
+        "translation": store.path("translation", page),
+        "needs_review": store.path("needs_review", page),
+        "inpaint": store.path("inpaint", page),
+        "typeset": store.path("typeset", page),
         "crops": art / "crops",
     }
 

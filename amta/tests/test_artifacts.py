@@ -33,8 +33,8 @@ def test_normalize_region_ids_renames_block_and_parent():
 
 def test_artifact_paths_and_trace(tmp_path):
     paths = artifacts.artifact_paths(tmp_path, "page_0")
-    assert paths["detection"] == tmp_path / "page_0_detection.json"
-    assert paths["canon"] == tmp_path / "page_0_canon.json"
+    assert paths["detection"] == tmp_path / "detection" / "page_0.json"
+    assert paths["canon"] == tmp_path / "canon" / "page_0.json"
     assert paths["crops"] == tmp_path / "crops"
     tp = artifacts.trace_path(tmp_path, "page_0", "01_detect")
     assert tp.name == "page_0_01_detect_trace.json"
@@ -66,7 +66,7 @@ def test_validate_canon_items_ok_and_problems():
 
 def test_canon_roundtrip_doc_shape(tmp_path):
     p = artifacts.save_canon(tmp_path, "page_0", "w1", _canon_items(), vlm_status="ok")
-    assert p == tmp_path / "page_0_canon.json"
+    assert p == tmp_path / "canon" / "page_0.json"
     doc = artifacts.load_canon(p)
     assert doc["work_id"] == "w1" and doc["page"] == "page_0"
     assert doc["schema_version"] == artifacts.SCHEMA_VERSION

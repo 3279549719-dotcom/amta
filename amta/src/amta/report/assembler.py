@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from amta.artifact_store import ArtifactStore
 from .model import PageReport
 from .stages.detect import from_detection
 from .stages.ocr import from_canon
@@ -110,9 +111,10 @@ def load_from_workspace(
     src_dir: str | Path,
     workspace_root: str | Path | None = None,
 ) -> PageReport:
-    """从 workspace 约定路径加载：workspace/<work_id>/artifacts/page_<idx>_*.json。
+    """从 workspace 约定路径加载：workspace/<work_id>/artifacts（目录即索引）。
 
     自动加载全部 6 个 artifact（detection/canon/translation/inpaint/typeset），
+    各阶段先查新布局 <stage>/<page>.json、回退旧平铺 page_<idx>_<stage>.json，
     缺失的阶段自动跳过。
     """
     from amta.paths import ROOT
@@ -121,14 +123,15 @@ def load_from_workspace(
     art_dir = ws_root / work_id / "artifacts"
     page = f"page_{page_idx}"
     raw = Path(src_dir) / f"{page_idx}.jpg"
+    store = ArtifactStore(art_dir)
 
     return load_page_report(
         page_idx=page_idx,
         raw_image=raw,
-        detection_path=art_dir / f"{page}_detection.json",
-        canon_path=art_dir / f"{page}_canon.json",
-        translation_path=art_dir / f"{page}_translation.json",
-        inpaint_path=art_dir / f"{page}_inpaint.json",
-        typeset_path=art_dir / f"{page}_typeset.json",
+        detection_path=store.resolve("detection", page),
+        canon_path=store.resolve("canon", page),
+        translation_path=store.resolve("translation", page),
+        inpaint_path=store.resolve("inpaint", page),
+        typeset_path=store.resolve("typeset", page),
         artifacts_dir=art_dir,
     )

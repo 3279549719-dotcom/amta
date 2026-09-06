@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from amta import artifacts, guardrails, workstate
+from amta.artifact_store import ArtifactStore
 from amta.canon_schema import validate_canon
 from amta.chat_client import chat
 from amta.config import _resolve, get_dashscope_key  # _resolve: 同包 env→.env 解析唯一归属
@@ -94,20 +95,21 @@ def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, l
     if not artifacts_dir.exists():
         return []
 
-    trans_files = sorted(
-        artifacts_dir.glob("page_*_translation.json"),
-        key=lambda p: int(p.stem.split("_")[1]) if p.stem.split("_")[1].isdigit() else 0,
-    )
-    if not trans_files:
+    store = ArtifactStore(artifacts_dir)
+    page_keys = store.pages("translation")
+    if not page_keys:
         return []
 
-    selected = trans_files[-pages:]
+    selected = page_keys[-pages:]
     blocks = []
-    for trans_path in selected:
-        m = re.match(r"page_(\d+)_translation", trans_path.name)
+    for page_key in selected:
+        m = re.match(r"page_(\d+)$", page_key)
         if not m:
             continue
         page_num = int(m.group(1))
+        trans_path = store.resolve("translation", page_key)
+        if trans_path is None:
+            continue
 
         try:
             trans_doc = json.loads(trans_path.read_text(encoding="utf-8"))
@@ -117,12 +119,14 @@ def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, l
         if not translations:
             continue
 
-        canon_path = artifacts_dir / f"page_{page_num}_canon.json"
+        canon_path = store.resolve("canon", page_key)
         canon_map: dict[str, dict] = {}
         src_texts = []
-        if canon_path.exists():
+        if canon_path is not None:
             try:
-                canon_list = json.loads(canon_path.read_text(encoding="utf-8"))
+                canon_doc = json.loads(canon_path.read_text(encoding="utf-8"))
+                # canon 落盘 doc 信封（schema 2.1, {"items":[...]}）；旧裸 list 兼容读
+                canon_list = canon_doc.get("items") if isinstance(canon_doc, dict) else canon_doc
                 if isinstance(canon_list, list):
                     for item in canon_list:
                         if isinstance(item, dict) and item.get("region_id"):

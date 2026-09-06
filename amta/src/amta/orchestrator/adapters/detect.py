@@ -14,19 +14,20 @@ def run(ctx: StationContext) -> StationResult:
 
     无上游依赖（consumes=[]）。
     从 ctx.config 读取：conf_threshold（默认 0.7）
-    产出：{artifacts_dir}/{page}_detection.json
+    产出：{artifacts_dir}/{stage}/page_N.json（目录即索引，C1 布局）
     """
     t0 = time.perf_counter()
     try:
+        out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["detection"]
         doc = detect_page(
             work_id=ctx.work_id,
             raw_page=ctx.raw_image,
             out_dir=ctx.artifacts_dir,
             page_idx=ctx.page_idx,
             conf_threshold=ctx.config["conf_threshold"],
+            out_path=out_path,
         )
         duration = time.perf_counter() - t0
-        out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["detection"]
         return StationResult(
             page=ctx.page,
             stage="detect",
