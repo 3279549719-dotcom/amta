@@ -39,37 +39,9 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     lh = int(font_size * LINE_HEIGHT_RATIO)
 
     if direction == "vertical":
-        # 竖排多列：从右到左排列，每列从上到下
-        n_cols = len(lines)
-        col_width = font_size * CHAR_WIDTH_RATIO
-        total_w = n_cols * col_width
-        # 最右列的 x 坐标（列左边缘；draw.text 用左边缘锚点，所以用左边缘而非中心）
-        x_start = cx + total_w / 2 - col_width
-        # 需要旋转的横向标点（在竖排中应垂直显示）
-        ROTATE_CHARS = set("……—–")
-        for col_idx, col_text in enumerate(lines):
-            x = x_start - col_idx * col_width
-            col_h = len(col_text) * lh
-            y = cy - col_h // 2
-            for ch in col_text:
-                if ch in ROTATE_CHARS:
-                    # 横向标点旋转90度后绘制
-                    # 先创建一个透明小图画字符，再旋转，再粘贴到主图
-                    char_img = Image.new("RGBA", (font_size * 2, font_size * 2),
-                                          (0, 0, 0, 0))
-                    char_draw = ImageDraw.Draw(char_img)
-                    char_draw.text((font_size // 2, font_size // 2), ch,
-                                   font=font, fill=color,
-                                   stroke_width=int(stroke), stroke_fill="white")
-                    rotated = char_img.rotate(90, expand=True)
-                    # 计算粘贴位置（居中对齐）
-                    paste_x = int(x - rotated.width / 2 + col_width / 2)
-                    paste_y = int(y - rotated.height / 2 + lh / 2)
-                    img.paste(rotated, (paste_x, paste_y), rotated)
-                else:
-                    draw.text((x, y), ch, font=font, fill=color,
-                              stroke_width=int(stroke), stroke_fill="white")
-                y += lh
+        _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
+                         col_width=font_size * CHAR_WIDTH_RATIO,
+                         stroke=stroke, color=color)
     else:
         total_h = len(lines) * lh
         y = cy - total_h // 2
@@ -82,3 +54,73 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     return {"layout_direction": direction, "font_size": font_size,
             "lines": lines, "anchor_pos": [cx, cy],
             "preferred_direction": preferred_direction}
+
+
+def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
+                     col_width, stroke, color):
+    """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。"""
+    n_cols = len(lines)
+    total_w = n_cols * col_width
+    # 最右列的 x 坐标（列左边缘）
+    x_start = cx + total_w / 2 - col_width
+    # 需要旋转的横向标点（在竖排中应垂直显示）
+    ROTATE_CHARS = set("……—–")
+    # 连续标点应左右并排（！？！？等），而非上下排列
+    COMBINE_PUNCT = set("！？!?")
+
+    for col_idx, col_text in enumerate(lines):
+        x = x_start - col_idx * col_width
+        col_h = len(col_text) * lh
+        y = cy - col_h // 2
+        i = 0
+        while i < len(col_text):
+            ch = col_text[i]
+            if ch in COMBINE_PUNCT:
+                # 连续标点组：左右并排在同一行
+                j = i
+                while j < len(col_text) and col_text[j] in COMBINE_PUNCT:
+                    j += 1
+                punct_group = col_text[i:j]
+                n_punct = len(punct_group)
+                punct_w = col_width / n_punct
+                group_x = x + (col_width - n_punct * punct_w) / 2
+                for k, pch in enumerate(punct_group):
+                    draw.text((group_x + k * punct_w, y), pch, font=font,
+                              fill=color, stroke_width=int(stroke),
+                              stroke_fill="white")
+                y += lh
+                i = j
+            elif ch in ROTATE_CHARS:
+                # 横向标点旋转90度：字符在临时画布中居中，旋转后粘贴到列中心
+                _draw_rotated_char(img, font, ch, x, y, col_width, lh,
+                                   stroke, color)
+                y += lh
+                i += 1
+            else:
+                draw.text((x, y), ch, font=font, fill=color,
+                          stroke_width=int(stroke), stroke_fill="white")
+                y += lh
+                i += 1
+
+
+def _draw_rotated_char(img, font, ch, x, y, col_width, lh, stroke, color):
+    """绘制旋转90度的字符，确保在列中心位置。"""
+    bbox_ch = font.getbbox(ch)
+    ch_w = bbox_ch[2] - bbox_ch[0]
+    ch_h = bbox_ch[3] - bbox_ch[1]
+    pad = max(ch_w, ch_h) + 4
+    char_img = Image.new("RGBA", (pad, pad), (0, 0, 0, 0))
+    char_draw = ImageDraw.Draw(char_img)
+    char_draw.text(((pad - ch_w) / 2 - bbox_ch[0],
+                    (pad - ch_h) / 2 - bbox_ch[1]), ch,
+                   font=font, fill=color,
+                   stroke_width=int(stroke), stroke_fill="white")
+    rotated = char_img.rotate(90, expand=True)
+    # 裁剪掉旋转后的空白区域，得到紧凑的字符图
+    bbox_rot = rotated.getbbox()
+    if bbox_rot:
+        rotated = rotated.crop(bbox_rot)
+    # 粘贴到列中心位置
+    paste_x = int(x + (col_width - rotated.width) / 2)
+    paste_y = int(y + (lh - rotated.height) / 2)
+    img.paste(rotated, (paste_x, paste_y), rotated)
