@@ -182,12 +182,12 @@ def test_wrap_vertical_no_punctuation_normal_split():
 
 
 def test_wrap_vertical_punctuation_in_middle_unchanged():
-    """标点在列中间时不影响分割。"""
+    """标点在列中间时，动态规划优先在标点后断列并避免单字尾列。"""
     from amta.typeset_engine import wrap_vertical
     text = "一二三四五，六七八九十一二三四五六七八九十"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
-    assert len(lines) == 3
+    assert len(lines) == 2, f"应避免单字尾列: {lines}"
     assert lines[0] == "一二三四五，六七八九"
-    assert lines[1] == "十一二三四五六七八九"
-    assert lines[2] == "十"
+    assert lines[1] == "十一二三四五六七八九十"
+    assert sum(len(col) for col in lines) == len(text)
