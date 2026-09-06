@@ -235,10 +235,10 @@ def test_artifact_cache_fingerprint_created(tmp_path, monkeypatch):
         )
         run_pipeline(config)
 
-        # 验证每个阶段的产物旁边都有 .fingerprint 文件
+        # 验证每个阶段的产物旁边都有 .fingerprint 文件（新布局：<stage>/page_1.json 的兄弟）
         art_dir = tmp_path / "test-fp" / "artifacts"
         for stage_name, artifact_name in [("detect", "detection"), ("ocr", "canon"), ("translate", "translation")]:
-            fp_path = art_dir / f"page_1_{artifact_name}.json.fingerprint"
+            fp_path = art_dir / artifact_name / "page_1.json.fingerprint"
             assert fp_path.exists(), f"{stage_name} 的 .fingerprint 文件未生成: {fp_path}"
             # 验证 fingerprint 文件内容包含必要字段
             fp = json.loads(fp_path.read_text(encoding="utf-8"))
