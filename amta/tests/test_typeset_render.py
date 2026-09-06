@@ -61,7 +61,6 @@ def test_render_auto_infers_vertical_for_tall_box():
     assert meta["layout_direction"] == "vertical"
 
 
-
 def test_render_vertical_ellipsis_rotated():
     """竖排渲染时，省略号等横向标点应旋转90度绘制。"""
     from amta.typeset_render import render_item
@@ -91,3 +90,46 @@ def test_render_vertical_dash_rotated():
     pixels = list(bbox_region.getdata())
     non_white = sum(1 for p in pixels if p != (255, 255, 255))
     assert non_white > 100
+
+
+def test_vertical_render_horizontally_centered():
+    """竖排文字应在bbox内水平居中，墨迹x坐标均值接近bbox中心。"""
+    img = Image.new("RGB", (400, 800), "white")
+    bbox = [100, 100, 300, 700]  # 宽度200，中心x=200
+    text = "测试文字居中对齐"
+    result = render_item(img, text, FONT, bbox, stroke=0,
+                         preferred_direction="vertical")
+    assert result["layout_direction"] == "vertical"
+    # 计算bbox内所有非白色像素的x坐标均值
+    x_coords = []
+    for x in range(100, 300):
+        for y in range(100, 700):
+            if img.getpixel((x, y)) != (255, 255, 255):
+                x_coords.append(x)
+    assert len(x_coords) > 100, "应有足够多的文字像素"
+    x_mean = sum(x_coords) / len(x_coords)
+    # 均值应在中心±15像素范围内（当前bug会偏左约col_width/2）
+    assert abs(x_mean - 200) < 15, f"文字x均值{x_mean:.1f}偏离中心200太多"
+
+
+def test_vertical_render_exclamation_rotated():
+    """竖排渲染时，感叹号应旋转90度绘制（墨迹区域高>宽）。"""
+    img = Image.new("RGB", (200, 400), "white")
+    bbox = [50, 50, 150, 350]
+    text = "！"  # 只渲染一个感叹号
+    result = render_item(img, text, FONT, bbox, stroke=0,
+                         preferred_direction="vertical")
+    assert result["layout_direction"] == "vertical"
+    # 找到墨迹区域的边界框
+    non_white = []
+    for x in range(50, 150):
+        for y in range(50, 350):
+            if img.getpixel((x, y)) != (255, 255, 255):
+                non_white.append((x, y))
+    assert len(non_white) > 20, "应有足够多的文字像素"
+    xs = [p[0] for p in non_white]
+    ys = [p[1] for p in non_white]
+    ink_w = max(xs) - min(xs)
+    ink_h = max(ys) - min(ys)
+    # 旋转后的感叹号应该是垂直的：高度 > 宽度
+    assert ink_h > ink_w, f"旋转后应垂直(高>宽)，实际宽={ink_w} 高={ink_h}"

@@ -1,4 +1,4 @@
-﻿"""inpaint 工位库函数 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。
+"""inpaint 工位库函数 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。
 
 从 scripts/04_inpaint.py 抽取，核心变更（ADR-029）：
 - Koharu HTTP inpaint → 本地 lama-manga 推理（LocalLamaInpainter）
@@ -34,9 +34,16 @@ def _get_inpainter() -> LocalLamaInpainter:
 
 # ---- 工具函数 ----
 
-def _apply_fill_white(img: Image.Image, bbox: list) -> None:
+def _apply_fill_white(img: Image.Image, bbox: list, shrink: int = 8) -> None:
+    """涂白气泡内文字。先将 bbox 向内收缩 shrink 像素，避免 detection 框超出气泡
+    时涂掉框外的作者标记等内容。气泡内文字通常不贴边，收缩后仍能覆盖。"""
     x1, y1, x2, y2 = [int(v) for v in bbox]
-    ImageDraw.Draw(img).rectangle([x1, y1, x2, y2], fill=(255, 255, 255))
+    # 向内收缩，至少保留 10x10 的区域
+    sx1 = x1 + shrink
+    sy1 = y1 + shrink
+    sx2 = max(sx1 + 10, x2 - shrink)
+    sy2 = max(sy1 + 10, y2 - shrink)
+    ImageDraw.Draw(img).rectangle([sx1, sy1, sx2, sy2], fill=(255, 255, 255))
 
 
 def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4,
@@ -52,7 +59,6 @@ def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4,
         return Image.fromarray(mask_np)
     mask_np = build_rect_mask(img.size, bboxes, pad=pad)
     return Image.fromarray(mask_np)
-
 
 
 def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4, refine: bool = False) -> bytes:
@@ -137,5 +143,3 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
     }
     write_json(out_path, doc)
     return doc
-
-
