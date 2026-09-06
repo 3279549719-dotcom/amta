@@ -27,9 +27,6 @@ def test_fill_white_only_covers_text_pixels():
     # bbox 覆盖整个区域（超出气泡范围，右边界 180，作者标记 172-190 部分在框内）
     bbox = [10, 40, 180, 120]
 
-    # 记录作者标记区域的初始像素（x=175 在 bbox 内但靠近边缘）
-    marker_before = img.getpixel((175, 90))
-
     # 执行涂白
     _apply_fill_white(img, bbox)
 
@@ -37,10 +34,7 @@ def test_fill_white_only_covers_text_pixels():
     marker_after = img.getpixel((175, 90))
     assert marker_after == (0, 0, 0), f"作者标记不应被涂白，当前{marker_after}"
 
-    # 文字区域应该被涂白
-    text_pixel = img.getpixel((30, 60))
-    # 文字区域可能有部分是白色（笔画间隙），但至少有一些文字像素被涂白了
-    # 这里检查文字区域的平均亮度应该提高
+    # 文字区域应该被涂白（笔画间隙可能残留白色，平均亮度应显著提高）
     text_region = img.crop((20, 50, 80, 80))
     text_arr = np.array(text_region)
     brightness = text_arr.mean()
