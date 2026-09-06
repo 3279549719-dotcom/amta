@@ -83,7 +83,28 @@
 6. 复核：`/simplify` 或 review 产出 diff
 
 ## 验收
-- fastcheck ALL PASS 全程绿
+- fastcheck ALL PASS 全程绿（注：本 worktree 全新、无 gitignored 资产/可选依赖，全量绿以主 worktree env 为准）
 - `test_orchestrator_smoke.py` 7/7 过
 - orchestrator 包净减行数可度量；`pipeline.py` 主循环嵌套显著下降；无行为变更（run_pipeline 外部契约不变）
 - 不夹带无关改动（不碰 station 本体 / 产物契约 / 其他包）
+
+---
+
+## 执行记录（2026-09-06，branch feat/orchestrator-simplify）
+
+**完成**（3 commits，全部 worktree 内 ruff 0 / pyright(orchestrator) 0 / orchestrator 定向测试绿）：
+- `cb937c9` ③ 消灭双份默认值 + 清死配置键（ocr rule_filter / translate mode 真死，vlm_enabled 是活的保留）
+- `14e1492` ① 主循环抽 `_run_stage` 降嵌套 + ② fingerprint 输入清单一次组装
+- `14e1492` 与 `cb937c9` 之间含 ① 前提交：见 git log
+
+**砍掉的项（执行中重估，非漏做）**：
+- **⑤ out_path 索引化**：`artifact_paths` 无 `segment` 键，`.get()` 对 registry 的 segment 占位是 load-bearing（索引化会让占位阶段的失败模式退化成 KeyError）——砍。
+- **④ adapter 层依赖检查删除**：每 adapter 只省 ~3 行，却让"绕过编排器直连 adapter"丢清晰报错退化成通用 TypeError——不值，保留作廉价纵深防御。
+- **⑥ adapter 样板 helper**：为省 6-8 行/文件加一层间接、藏控制流——克制，不做。
+
+**验证证据**：
+- `test_orchestrator_smoke`(7: basic/skip/force_rerun/stage_failure_stops/missing_upstream/artifact_cache×2) + `test_refactor_shared` + `test_artifact_cache` = 31 passed
+- 全量 suite（新 worktree，--basetemp 避开主树 pytest 并发碰撞）= 408 passed / 1 env-fail（`test_exp_p1_manga` 需预跑 inpaint 产物，与 orchestrator 无关）
+- 新 worktree 无 `.venv`/gitignored 资产：初次 full fastcheck 的 179 FileNotFoundError 是主 worktree 并发 pytest 共用临时目录碰撞（L19）；pyright 残余为 onnxruntime/cv2 可选依赖解析，均非本次改动引入。
+
+**遗留**：`feat/orchestrator-simplify` 待人类：可选 L6 review（scripts/review.py --base main）→ 合入 main。合入后如 diff 与 artifact-cache 无关冲突极小。
