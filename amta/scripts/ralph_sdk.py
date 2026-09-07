@@ -251,7 +251,8 @@ async def main() -> int:
                         print(f"  输入: {str(block.input)[:300]}")
                     elif isinstance(block, TextBlock):
                         if block.text.strip():
-                            print(f"\n🤖 claude: {block.text[:300]}")
+                            # 完整打印：报告类长文本不能被截断（观测盲点教训，2026-09-07）
+                            print(f"\n🤖 claude:\n{block.text}")
             elif isinstance(msg, SystemMessage):
                 sub = msg.subtype
                 if sub == "init":
