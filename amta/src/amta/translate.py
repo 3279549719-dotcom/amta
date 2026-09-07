@@ -148,6 +148,12 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
 
     result = _one(list(canon))
 
+    # 机械后处理1：去掉译文开头的 rXX| / tXX| 前缀（LLM 偶尔把输入格式也输出了）
+    _prefix_re = re.compile(r"^[rt]\d+\|")
+    for rid in list(result.keys()):
+        if result[rid] and _prefix_re.match(result[rid]):
+            result[rid] = _prefix_re.sub("", result[rid])
+
     # 后处理：无句末标点的句子单独重试（batch 翻译时 LLM 对部分条目不仔细，不加断句标点）
     _SENTENCE_END = set("。！？…")
     _MIN_LEN = 8
