@@ -37,7 +37,7 @@ default = true
 [tool.ruff]
 target-version = "py311"
 line-length = 120
-exclude = ["scripts/archive/**", "scripts/probes/**", "tests/archive/**", "research/reference-repos/**", "models/**", "output/**"]
+exclude = ["scripts/probes/**", "research/reference-repos/**", "models/**", "output/**"]
 
 [tool.ruff.lint]
 # E701/E702（单行多条语句）是项目既有紧凑风格，忽略；其余规则保留。
@@ -50,15 +50,14 @@ ignore = ["E701", "E702"]
 [tool.pyright]
 pythonVersion = "3.11"
 # 外部模型目录（models/）不入库，排除避免误报
-exclude = ["models/**", "output/**", "scripts/archive/**", "scripts/probes/**", "tests/archive/**", "research/reference-repos/**"]
+exclude = ["models/**", "output/**", "scripts/probes/**", "research/reference-repos/**"]
 
 [tool.pytest.ini_options]
 # memory_* 测试的 import 通路：amta 包 + tests 跨文件 fixture 复用（ADR-025 前置）
 pythonpath = ["src", "."]
-# tests/archive/ = 归档的旧架构测试（git mv 保留，不再收集）。归档测试对应已删除的
-# amta.pipeline/amta.detect_station（见 test_final_integration::TestDeprecatedCodeRemoved），
-# import 必然失败，故从收集排除；git 历史可随时找回。
-norecursedirs = ["tests/archive"]
+# 只收集 tests/：仓库里散落着 output/archive_86era、reference/_vendor 等历史/外部测试，
+# 全仓扫描会拖慢收集并产生 import 报错（2026-09-07 第二波清理时暴露）
+testpaths = ["tests"]
 
 [dependency-groups]
 dev = [

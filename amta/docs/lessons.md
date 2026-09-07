@@ -14,7 +14,7 @@
 - **Root cause**：VLM 对整页大图的空间定位不稳定，坐标不是其可靠输出。
 - **Durable lesson**：任何需要像素级对齐的判定，VLM 只适合"识别内容/判类别"，不适合"报坐标"。
 - **Prevention**：recall 改用**内容级匹配**（GT 内容清单 vs detector 并集框识别内容，字符重合度≥0.6 判定检出）；需要位置时用确定性 detector 的 bbox，不用 VLM 坐标。
-- **Regression**：内容级匹配逻辑见已归档 `scripts/archive/recall_score.py`（复用 `src/amta/metrics.py`）；纯函数单测在 `tests/test_shared_lib.py` 锁定。
+- **Regression**：内容级匹配逻辑见 git 历史（`scripts/archive/recall_score.py`，2026-09-07 随 archive/ 清理删除；复用 `src/amta/metrics.py`）；纯函数单测在 `tests/test_shared_lib.py` 锁定。
 
 ## L2 — 假数据落盘（最致命）
 
