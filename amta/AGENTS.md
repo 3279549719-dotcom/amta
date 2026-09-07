@@ -8,6 +8,8 @@ AMTA：会话驱动漫画翻译自动化——DSH 会话=导演，amta Python=�
 
 细节（接口/流程/坑全表）→ 读 `CLAUDE.md`；按需技能见 `.dsh/skills/`（DSH 原生技能根，进 skill catalog 按需加载）。
 
+一次性实验脚本只进 scripts/probes/ 或 scripts/archive/,根目录与 docs/ 不出现 _ 前缀文件，每次项目收尾后要记住这点
+
 ---
 
 ## Python 运行规范（强制）
