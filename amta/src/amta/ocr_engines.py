@@ -51,6 +51,11 @@ _hayai_instance = None
 def _get_hayai():
     global _hayai_instance
     if _hayai_instance is None:
+        # 强制离线：hayai v2 内部硬编码 AutoProcessor.from_pretrained("google/siglip2-..."),
+        # 会联网拉 processor_config.json（hub 上不存在，429 重试浪费 3 分钟）。
+        # 本地缓存已有 preprocessor_config.json，离线模式下 AutoProcessor 会 fallback 到它。
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
         from hayai_ocr import HayaiOcr
         model_path = os.environ.get("HAYAI_OCR_MODEL", _HAYAI_DEFAULT)
         _hayai_instance = HayaiOcr(pretrained_model_name_or_path=model_path)
