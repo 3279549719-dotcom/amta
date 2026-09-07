@@ -77,17 +77,32 @@ class _LamaMangaModel:
     def __call__(self, image: Image.Image, mask: Image.Image) -> Image.Image:
         """推理: image (RGB), mask (L) -> inpainted RGB Image。
 
-        完全对齐 Koharu 的预处理/后处理流程 (参考 koharu-ml/src/lama/):
-        - 输入归一化到 [0, 1] (不是 [-1, 1]!)
-        - mask 二值化 (>0 = 1)
-        - 模型输出过 sigmoid (Koharu 在 FFCResNetGenerator 最后加了 sigmoid)
-        - 用 mask 做硬混合: mask 区域用模型输出, 非 mask 区域保留原图
+        整页推理优化（参考 ADR-029 + inpaint-speed-ab-test 第十二节）:
+        - 推理前缩小到 max_width=1024（等比例），推理后放大回原尺寸
+        - 速度: ~20s/页（原始尺寸 ~200s+，快 87%）
+        - 质量: 全局上下文充足，无白色方框，网点贴合
+        - 预处理: 输入 [0,1] 归一化 + mask 二值化
+        - 后处理: sigmoid 输出 + 羽化 mask alpha 混合（在原始尺寸做）
         """
         orig_w, orig_h = image.size
 
+        # ---- 推理缩放：大图缩小到 1024 宽 ----
+        MAX_INFER_WIDTH = 1024
+        scale = 1.0
+        infer_img = image
+        infer_mask = mask
+        if orig_w > MAX_INFER_WIDTH:
+            scale = MAX_INFER_WIDTH / orig_w
+            new_w = MAX_INFER_WIDTH
+            new_h = max(1, int(orig_h * scale))
+            infer_img = image.resize((new_w, new_h), Image.LANCZOS)
+            infer_mask = mask.resize((new_w, new_h), Image.NEAREST)
+
+        infer_w, infer_h = infer_img.size
+
         # 归一化: image -> [0, 1], mask -> {0, 1}
-        img_np = np.array(image).astype(np.float32) / 255.0
-        mask_np = (np.array(mask).astype(np.float32) > 0).astype(np.float32)
+        img_np = np.array(infer_img).astype(np.float32) / 255.0
+        mask_np = (np.array(infer_mask).astype(np.float32) > 0).astype(np.float32)
 
         img_t = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).to(self.device)
         mask_t = torch.from_numpy(mask_np).unsqueeze(0).unsqueeze(0).to(self.device)
@@ -99,20 +114,29 @@ class _LamaMangaModel:
         with torch.inference_mode():
             output = self.model(img_t, mask_t)
 
-        # 输出过 sigmoid (Koharu 在模型最后加了 sigmoid, 限制到 [0, 1])
+        # 输出过 sigmoid (限制到 [0, 1])
         output = torch.sigmoid(output)
 
-        # mask 羽化: 对二值 mask 做 Gaussian blur, 消除硬边界, 让修复区域平滑融入背景
-        mask_np_blur = mask_t[0, 0].cpu().numpy()
-        mask_np_blur = cv2.GaussianBlur(mask_np_blur, (21, 21), 0)
-        mask_blur = torch.from_numpy(mask_np_blur).unsqueeze(0).unsqueeze(0).to(self.device)
-
-        # 用羽化后的 mask 做 alpha 混合
-        result = img_t * (1 - mask_blur) + output * mask_blur
-
-        # 裁剪回原图尺寸
+        # 裁剪掉 padding（回到推理尺寸）
         if pad_h > 0 or pad_w > 0:
-            result = result[:, :, :orig_h, :orig_w]
+            output = output[:, :, :infer_h, :infer_w]
+
+        # 放大回原始尺寸
+        if scale < 1.0:
+            output = torch.nn.functional.interpolate(
+                output, size=(orig_h, orig_w),
+                mode="bilinear", align_corners=False,
+            )
+
+        # ---- 在原始尺寸做 mask 羽化 + alpha 混合 ----
+        orig_mask_np = (np.array(mask).astype(np.float32) > 0).astype(np.float32)
+        orig_mask_blur = cv2.GaussianBlur(orig_mask_np, (21, 21), 0)
+        mask_blur = torch.from_numpy(orig_mask_blur).unsqueeze(0).unsqueeze(0).to(self.device)
+
+        orig_img_np = np.array(image).astype(np.float32) / 255.0
+        orig_img_t = torch.from_numpy(orig_img_np).permute(2, 0, 1).unsqueeze(0).to(self.device)
+
+        result = orig_img_t * (1 - mask_blur) + output * mask_blur
 
         # 转回 [0, 255] uint8
         result_np = result[0].permute(1, 2, 0).cpu().numpy() * 255.0
