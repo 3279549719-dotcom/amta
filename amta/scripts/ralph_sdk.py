@@ -36,11 +36,26 @@ from claude_agent_sdk import (
     TextBlock,
     ToolUseBlock,
 )
-from claude_agent_sdk.types import PermissionResultAllow, PermissionResultDeny, ToolPermissionContext
+from claude_agent_sdk.types import (
+    HookContext,
+    HookInput,
+    HookJSONOutput,
+    HookMatcher,
+    PermissionResultAllow,
+    PermissionResultDeny,
+    ToolPermissionContext,
+)
 
 MODEL = "deepseek-v4-flash"  # 本机端点模型，必须显式指定（SDK 默认校验会失败）
 CWD = r"E:\manga translator agent\amta"
 AUTH_FILE = Path(CWD) / "auth_rules.json"
+PROJECT_ROOT = Path(r"E:\manga translator agent").resolve()
+
+# 敏感路径：凭据/配置/仓库内部，任何读写都需问人（铁律①：凭据永不自动交）
+SENSITIVE_PATH_PARTS = (
+    ".git", ".claude", ".githooks",
+    "settings.json", ".mcp.json", ".env", "auth_rules.json",
+)
 
 # ── 内置危险黑名单：永远拦下，不落入授权/问人 ──────────────────────
 ALWAYS_DENY = [
@@ -106,6 +121,127 @@ def check_bash(command: str) -> tuple[str, str]:
     return "ask", ""
 
 
+# ── 权限宪章门卫（PreToolUse hook，每个工具调用都过闸） ──────────────
+def _is_sensitive_path(path: str) -> bool:
+    if not path:
+        return False
+    low = path.lower().replace("\\", "/")
+    return any(s in low for s in SENSITIVE_PATH_PARTS)
+
+
+def _is_inside_project(path: str) -> bool:
+    """项目边界：整个 E:/manga translator agent 目录树内放行，之外问人（铁律②）"""
+    if not path:
+        return True
+    p = Path(path)
+    if not p.is_absolute():
+        return True  # 相对路径基于 cwd（项目内），视为项目内
+    try:
+        p.resolve().relative_to(PROJECT_ROOT)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_git_redline(c: str) -> bool:
+    """git 红线（用户拍板 Q3）：push / 删分支 / 强推 / 危险重置 → 问人"""
+    if c.startswith("git push"):
+        return True
+    if c.startswith("git branch") and any(f in c for f in (" -d ", " -D ", "--delete", "-d ", "-D ")):
+        return True
+    if c.startswith("git reset") or c.startswith("git clean"):
+        return True
+    if c.startswith("git remote") or c.startswith("git tag"):
+        return True
+    if c.startswith("git reflog") or c.startswith("git gc") or c.startswith("git prune"):
+        return True
+    return False
+
+
+def _is_install_cmd(c: str) -> bool:
+    """依赖安装（用户拍板 Q2）：全自动放行"""
+    return any(
+        c.startswith(p)
+        for p in (
+            "pip install", "pip3 install", "uv add", "uv pip install", "uv sync",
+            "npm install", "pnpm install", "yarn add", "yarn install",
+            "cargo add", "go get", "poetry add",
+        )
+    )
+
+
+def classify_tool(tool_name: str, tool_input: dict) -> tuple[str, str]:
+    """门卫分类器：返回 (verdict, reason)，verdict ∈ deny / ask / allow。
+
+    顺序：黑名单 deny → git 红线 ask → 敏感文件 ask → 项目外 ask → 其余 allow。
+    """
+    if tool_name == "AskUserQuestion":
+        return "ask", "用户决策点（AskUserQuestion）"
+
+    if tool_name == "Bash":
+        command = str(tool_input.get("command", ""))
+        c = command.strip().lower()
+        rules = load_auth_rules()
+        for pat in ALWAYS_DENY + rules.get("deny", []):
+            if _hit(pat, c):
+                return "deny", f"黑名单拦截: {pat}"
+        if _is_readonly_bash(c):
+            return "allow", "只读命令"
+        if _is_git_redline(c):
+            return "ask", "git 红线（push/删分支/重置等），需人确认"
+        if _is_install_cmd(c):
+            return "allow", "依赖安装（已授权自动）"
+        for pat in rules.get("allow", []):
+            if _hit(pat, c):
+                return "allow", f"授权清单: {pat}"
+        # 工作区内常规命令（pytest/uv/git add/commit/merge/python 等）→ 放行
+        return "allow", "项目内常规命令"
+
+    if tool_name in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        fp = str(tool_input.get("file_path", ""))
+        if _is_sensitive_path(fp):
+            return "ask", f"敏感文件（凭据/配置/仓库内部）: {fp}"
+        if not _is_inside_project(fp):
+            return "ask", f"项目外路径: {fp}"
+        return "allow", "项目内写操作"
+
+    if tool_name in ("Read",):
+        fp = str(tool_input.get("file_path", ""))
+        if _is_sensitive_path(fp):
+            return "ask", f"敏感文件读取: {fp}"
+        if not _is_inside_project(fp):
+            return "ask", f"项目外路径: {fp}"
+        return "allow", "只读"
+
+    if tool_name == "Delete":
+        fp = str(tool_input.get("file_path", ""))
+        if _is_sensitive_path(fp):
+            return "ask", f"敏感文件删除: {fp}"
+        if not _is_inside_project(fp):
+            return "ask", f"项目外路径: {fp}"
+        return "allow", "项目内删除"
+
+    # 其余工具（Glob/Grep/WebSearch/WebFetch/Bash 只读等）→ 放行
+    return "allow", "默认放行"
+
+
+async def gate_pre_tool_use(inp: HookInput, tool_use_id: str | None, context: HookContext) -> HookJSONOutput:
+    """PreToolUse 门卫：每个工具调用在权限规则评估前先过此闸。
+
+    ask → CLI 发权限请求 → can_use_tool 回调（file 通道问人）。
+    """
+    tool_name = inp.get("tool_name", "")
+    tool_input = inp.get("tool_input", {}) or {}
+    verdict, reason = classify_tool(tool_name, tool_input)
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": verdict,
+            "permissionDecisionReason": reason,
+        }
+    }
+
+
 async def ask_host_blocking(kind: str, payload: dict) -> dict:
     """统一问人通道：kind=question（AskUserQuestion）/ approval（工具放行）。
 
@@ -156,7 +292,10 @@ async def ask_host_blocking(kind: str, payload: dict) -> dict:
 
 
 async def handle_tool_request(tool_name: str, input_data: dict, context: ToolPermissionContext):
-    """门卫：AskUserQuestion=问人；只读=放行；黑名单=拦；授权清单=放行；其余=问人。"""
+    """can_use_tool：只处理被 PreToolUse hook 判为 ask 的请求（问人）。
+
+    AskUserQuestion → 转达 questions、注入 answers；其余 → approval 问人。
+    """
     if tool_name == "AskUserQuestion":
         questions = input_data.get("questions", [])
         resp = await ask_host_blocking("question", {"questions": questions})
@@ -164,50 +303,14 @@ async def handle_tool_request(tool_name: str, input_data: dict, context: ToolPer
             updated_input={"questions": questions, "answers": resp.get("answers", {})}
         )
 
-    if tool_name == "Bash":
-        command = input_data.get("command", "")
-        print(f"\n🐚 Bash: {command[:200]}")
-        verdict, reason = check_bash(command)
-        if verdict == "deny":
-            print(f"   ⛔ 护栏拦截（黑名单: {reason}）")
-            return PermissionResultDeny(message=f"宿主护栏拦截了这条命令（命中危险清单: {reason}）。请换安全的替代方式。")
-        if verdict == "allow":
-            if reason != "只读":
-                print(f"   ⏩ 放行（{reason}）")
-            return PermissionResultAllow(updated_input=input_data)
-        # ask：问人
-        resp = await ask_host_blocking("approval", {
-            "prompt": f"Bash 写操作: {tool_name}",
-            "detail": command[:300],
-        })
-        if resp.get("approved"):
-            return PermissionResultAllow(updated_input=input_data)
-        return PermissionResultDeny(message=resp.get("message", "宿主拒绝执行这条命令。"))
-
-    if tool_name in ("Write", "Edit"):
-        fp = str(input_data.get("file_path", "?"))
-        print(f"\n✏️  {tool_name}: {fp}")
-        low = fp.lower()
-        # 配置/钩子/敏感区一律问人（不被 allow 清单自动放行）
-        sensitive = any(s in low for s in (".git/", ".claude/", ".githooks/", "settings.json", ".mcp.json"))
-        if sensitive:
-            resp = await ask_host_blocking("approval", {
-                "prompt": f"修改敏感文件: {fp}",
-                "detail": "该路径涉及配置/钩子/仓库内部，需要人工确认。",
-            })
-            if not resp.get("approved"):
-                return PermissionResultDeny(message=resp.get("message", "宿主拒绝修改该文件。"))
-            return PermissionResultAllow(updated_input=input_data)
-        resp = await ask_host_blocking("approval", {
-            "prompt": f"文件写操作: {fp}",
-        })
-        if resp.get("approved"):
-            return PermissionResultAllow(updated_input=input_data)
-        return PermissionResultDeny(message=resp.get("message", "宿主拒绝这次文件修改。"))
-
-    # 其余工具放行（打印可见）
-    print(f"\n🔧 {tool_name}: {str(input_data)[:200]}")
-    return PermissionResultAllow(updated_input=input_data)
+    detail = str(input_data)[:300]
+    resp = await ask_host_blocking("approval", {
+        "prompt": f"工具需要授权: {tool_name}",
+        "detail": detail,
+    })
+    if resp.get("approved"):
+        return PermissionResultAllow(updated_input=input_data)
+    return PermissionResultDeny(message=resp.get("message", "宿主拒绝执行。"))
 
 
 async def main() -> int:
@@ -231,6 +334,9 @@ async def main() -> int:
         cwd=CWD,
         model=MODEL,
         can_use_tool=handle_tool_request,
+        hooks={
+            "PreToolUse": [HookMatcher(matcher="*", hooks=[gate_pre_tool_use])],
+        },
     )
 
     async with ClaudeSDKClient(options=options) as client:
