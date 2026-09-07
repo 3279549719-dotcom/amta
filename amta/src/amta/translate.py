@@ -98,30 +98,33 @@ def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
 
 
 def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
-                    context_prefix: str = "", max_retries: int = 1) -> dict[str, str]:
+                    context_prefix: str = "", max_retries: int = 1,
+                    context_enabled: bool = True) -> dict[str, str]:
     """Plain-text batch translate — zero tools, zero loops, one call per batch.
 
     输出契约：LLM 返回 JSON 数组 ["译文1", "译文2", ...]，按输入顺序、同长度。
     代码侧按位置绑定 region_id，长度不符直接失败 → 重试 → 二分拆分。
+
+    prompt-slim 实验（2026-09-07）：删掉所有内容约束（标点/断句/口语化/保留原文标点），
+    只保留格式约束（JSON数组、长度一致、顺序一致）+ "漫画"领域提示。
+    context_enabled=False 时不注入前页上下文。
     """
     def _build_content(batch: list[dict]) -> str:
-        instr = ('Translate the following Japanese text to Chinese. '
-                 'Output STRICT JSON ARRAY: ["译文1", "译文2", ...]. '
-                 'Must be same order and same count as input lines. One translation per line, do NOT split.\n'
-                 '每条译文必须使用中文标点（逗号、句号、问号、感叹号），'
-                 '长句必须在分句处用逗号或句号断开，禁止输出无标点的连续长句；'
-                 '口语化表达；原文中的标点（！？……等）必须保留，不得省略。\n')
+        instr = ('将以下日文漫画内容翻译成中文。'
+                 '输出JSON数组，长度和顺序与输入一致。\n')
         blocks = []
         for r in batch:
             rid = r["region_id"]
             text = r.get("baberu_text") or r.get("text") or ""
             blocks.append(f"{rid}|{text}")
         cur = instr + "\n".join(blocks)
-        return f"{context_prefix}\n\n{cur}" if context_prefix else cur
+        if context_enabled and context_prefix:
+            return f"{context_prefix}\n\n{cur}"
+        return cur
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        system = f"你是专业日文→中文漫画翻译专家，口语化翻译，必须使用中文标点断句（逗号/句号/问号/感叹号），禁止输出无标点长句，输出严格 JSON 数组，不要输出任何额外文字。\n{system_extra}".strip()
+        system = f"你是日文→中文漫画翻译。输出严格JSON数组，不要输出额外文字。\n{system_extra}".strip()
         for _ in range(max_retries + 1):
             messages = [
                 {"role": "system", "content": system},

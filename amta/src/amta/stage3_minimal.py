@@ -402,7 +402,8 @@ def translate_page_minimal(work_id: str, canon, *,
                            page: str | None = None,
                            llm_text: Callable | None = None,
                            llm_vlm: Callable | None = None,
-                           vlm_enabled: bool = True) -> dict:
+                           vlm_enabled: bool = True,
+                           context_enabled: bool = True) -> dict:
     """Minimal translation entry: VLM refine → prefetch → plain translate → post-process."""
     if isinstance(canon, dict):
         canon_items = canon.get("items", [])
@@ -451,6 +452,7 @@ def translate_page_minimal(work_id: str, canon, *,
             ctx["refined_canon"], llm_text,
             system_extra=ctx["system_extra"],
             context_prefix=ctx["context_prefix"],
+            context_enabled=context_enabled,
         )
 
     result: dict[str, str] = {}
