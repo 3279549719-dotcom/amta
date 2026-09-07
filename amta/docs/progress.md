@@ -297,3 +297,12 @@ evisions_fc_round1.json → pply_revisions --only 重评审 **5/5 全过** → 
 **定案（复盘后收敛，prompt.md v3 已实现）**：
 - **收尾自主化** = prompt.md v3 新增第 11 步收尾轮：plan 全 done → agent 自己跑 /finish（反思+知识晋升五路分流+Finish Report+终态 commit）→ 再 COMPLETE。人不用喊 /finish，只在合 main 时看报告。防误收尾：只收尾干净跑完；中途 BLOCKED 绝不收尾；宁缺毋滥，没真货（纯执行/无新坑 mission）零 lesson 是正常的。收尾轮引用现成 cycle-close 协议，不另造轮子。
 - **L6 独立审核** = 合 main 前**人按需拉闸**（动 main/删除/契约变更等要紧改动才值得），不做成每 mission 自动路费。本轮 L6 已证明能抓真洞（read CLI 缺回归测试 → 已补）。
+
+## 2026-09-08 凌晨 tutor 实战结论：工具暴露层治理（明日执行）
+
+**问题定性**：工具/机制连作者都记不住（豆包、Claude Code、Patrick 本人三重实证）——跨模型重复失败，病在暴露层，不在大脑。
+
+**明日三件事**（判据来自当晚问答，产出 = commit，不产出新文档）：
+1. **CLAUDE.md 手术 6→3**：保留 核心事实（大幅精简）/ 渐进式加载（= 上位者地图）/ 工作协议（重写，补全"何时用我"条件句）；降级 HTML 报告规范（→ skill 或一行指针）与 Python 运行规范（→ 与 AGENTS.md 双写去重，正宫在 AGENTS.md）；关键坑速查保持指针样板不动。当晚 23:59 已手删 koharu 钉版行（未提交），手术时一并收。
+2. **工具普查**：src/amta + scripts 全清单 → 每工具三命运（embedded 挂生产者 / chained 挂收尾 / 删）；standalone 仅留给低频×跨场景件。判据 = 频率 × 场景覆盖。
+3. **巡检护栏**：复活 memory_lint 思路扩到 CLAUDE.md（fastcheck 规则：死引用 / 重复条目 / 文件超长），写入走收尾轮白名单分流，不靠临场记忆。
