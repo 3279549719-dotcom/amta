@@ -1,6 +1,7 @@
-# Hook 体系审计报告
+# ADR-032：Hook 体系审计收敛（停用 pre-commit + PreToolUse，保留 pre-push + SessionStart）
 
-> 审计员：仓库 hook 体系审计 · 日期：2026-09-07
+> 状态：已采纳（2026-09-07 执行，commit 5fac83f）
+> 审计员：仓库 hook 体系审计（claude agent，经 ralph_sdk.py 壳）· 日期：2026-09-07
 > 审计范围：`.githooks/pre-commit`、`.githooks/pre-push`、`.claude/settings.json`（SessionStart + PreToolUse）、`scripts/hook_sessionstart.py`、`scripts/hook_pretooluse.py`、`scripts/fastcheck.py`
 > 结论方向（用户已定）：hook 冗余、过度追求验证阶梯，倾向只保留「合 main 前 fastcheck」。
 
