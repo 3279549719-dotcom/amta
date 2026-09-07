@@ -46,7 +46,7 @@
 - **Root cause**：Windows PowerShell 5.1 默认编码推断。
 - **Durable lesson**：含中文的 .ps1 必须 UTF-8 **带 BOM**。
 - **Prevention**：新建/编辑 .ps1 时用带 BOM 的 UTF-8 保存。
-- **Regression**：暂无自动化；规则见本条。[已自动化：否]
+- **Regression**：`tests/test_lessons_guard.py::test_L5_ps1_with_nonascii_must_have_utf8_bom`（扫描全仓 .ps1：纯 ASCII 免 BOM，含非 ASCII 必须有 BOM）。首次跑即抓到 run.ps1 / cleanup_orphan_worktrees.ps1 / install_hooks.ps1 三处活违规，已补 BOM。[已自动化：是]
 
 ## L6 — NO_PROXY：Clash 破坏 localhost
 
@@ -350,7 +350,7 @@
 - **Root cause**：`.githooks` 物理位置仍在 `amta/.githooks`，没随根移动；而 `core.hooksPath=.githooks` 是相对值，git 按**运行 git 时的 cwd** 解析——实测 `git rev-parse --git-path hooks`：搬迁前 repo 根=amta、cwd=amta → `.githooks` 命中 `amta/.githooks`；搬迁后 repo 根=父目录、从 amta 跑 → 解析为 `../.githooks` = 父目录/.githooks（不存在）。hook 文件找不到时 git 不报错，直接跳过。
 - **Durable lesson**：`core.hooksPath` 别用相对值——仓库根/内容前缀只要可能变，一律写**绝对路径**；hook 失效是静默的（缺文件不报错），唯一核对手段是 `git rev-parse --git-path hooks` 看解析结果是否落在真实存在的目录。同理，凡"仓库根在 cwd 之下"的假设（`.githooks`、`.venv`、`package.json` 向上查找）在根上移后都要复查。
 - **Prevention**：已设 `git config core.hooksPath "E:/manga translator agent/amta/.githooks"`（绝对）；`scripts/install_hooks.ps1` 现在仍写相对 `.githooks`，应改成输出绝对路径；改完用 `git rev-parse --git-path hooks` 核对。Claude Code 启动目录仍是 `amta/`（根级无配置），勿从父目录启动。
-- **Regression**：暂无自动化；规则见本条。
+- **Regression**：`tests/test_lessons_guard.py::test_L42_hookspath_is_absolute_and_resolvable`（校验 core.hooksPath 绝对 + 目录存在 + pre-push 在；pre-commit 已按 5fac83f 停用）。[已自动化：是]
 
 ## L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
 

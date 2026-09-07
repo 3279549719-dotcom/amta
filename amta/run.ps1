@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     AMTA unified command entry - forces uv run internally, never uses wrong Python.
 
