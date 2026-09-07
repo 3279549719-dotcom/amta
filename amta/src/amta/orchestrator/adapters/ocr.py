@@ -32,6 +32,7 @@ def run(ctx: StationContext) -> StationResult:
             page_idx=ctx.page_idx,
             engine=ctx.config["engine"],
             vlm_enabled=ctx.config["vlm_enabled"],
+            rule_filter_enabled=ctx.config.get("rule_filter_enabled", False),
         )
         duration = time.perf_counter() - t0
         out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["canon"]

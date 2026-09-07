@@ -51,6 +51,12 @@ def _build_registry() -> dict[str, StageSpec]:
             produces="detection",
             default_config={
                 "conf_threshold": 0.7,
+                "tiling_enabled": False,
+                "tiling_cols": 3,
+                "tiling_rows": 4,
+                "tiling_conf": 0.3,
+                "tiling_nms_iou": 0.5,
+                "coverage_thresh": 0.5,
             },
             code_files=[
                 "detect_station.py",

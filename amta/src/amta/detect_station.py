@@ -111,6 +111,125 @@ def remove_contained_boxes(boxes: np.ndarray, threshold: float = 0.8) -> np.ndar
     return np.array(keep) if keep else np.array([]).reshape(0, 6)
 
 
+# ---- 瓦片化副引擎 ----
+
+class TiledDetector:
+    """瓦片化副引擎：把整图切成 cols×rows 网格（overlap 0.15），每块 640 推理，
+    坐标映射回原图，NMS max-conf 合并同位置重复框，输出 conf>=conf_thresh 的框。
+
+    主链（整图 640/0.7）之外的补漏引擎：小字/框外字在瓦片下 conf 显著提升。
+    碎片（与主链框 coverage>=0.5）由调用方过滤。
+    """
+
+    OVERLAP = 0.15
+
+    def __init__(self, detector: "RTDetrDetector", cols: int = 3, rows: int = 4,
+                 conf_threshold: float = 0.3, nms_iou: float = 0.5):
+        self.detector = detector
+        self.cols = cols
+        self.rows = rows
+        self.conf_threshold = conf_threshold
+        self.nms_iou = nms_iou
+
+    def _detect(self, image: np.ndarray) -> np.ndarray:
+        """单块推理，保持原始坐标（未映射）。"""
+        # 临时降低 conf_threshold 以便收集低置信候选，由上层过滤
+        old = self.detector.conf_threshold
+        self.detector.conf_threshold = self.conf_threshold
+        try:
+            return self.detector._detect_single(image)
+        finally:
+            self.detector.conf_threshold = old
+
+    def detect(self, image: np.ndarray) -> list[dict]:
+        h, w = image.shape[:2]
+        tile_w = w / self.cols
+        tile_h = h / self.rows
+        step_w = tile_w * (1 - self.OVERLAP)
+        step_h = tile_h * (1 - self.OVERLAP)
+        out: list[np.ndarray] = []
+        for r in range(self.rows):
+            for c in range(self.cols):
+                x0 = max(0, int(c * step_w))
+                y0 = max(0, int(r * step_h))
+                x1 = min(w, int(x0 + tile_w))
+                y1 = min(h, int(y0 + tile_h))
+                tile = image[y0:y1, x0:x1].copy()
+                dets = self._detect(tile)
+                if dets.size == 0:
+                    continue
+                dets = dets.copy()
+                dets[:, [0, 2]] += x0
+                dets[:, [1, 3]] += y0
+                out.append(dets)
+        if not out:
+            return []
+        combined = np.vstack(out)
+        return self._nms_max_conf(combined)
+
+    def _nms_max_conf(self, dets: np.ndarray) -> list[dict]:
+        """按 conf 降序，保留与已选框 IoU<nms_iou 的最高 conf 框（不合并 bbox）。"""
+        if dets.size == 0:
+            return []
+        order = np.argsort(-dets[:, 5])
+        keep: list[dict] = []
+        suppressed: set[int] = set()
+        for i in order:
+            if i in suppressed:
+                continue
+            d = dets[i]
+            keep.append({"bbox": [int(v) for v in d[:4]], "label": int(d[4]), "conf": float(d[5])})
+            for j in order:
+                if j in suppressed or j == i:
+                    continue
+                if _iou([int(v) for v in dets[i][:4]], [int(v) for v in dets[j][:4]]) >= self.nms_iou:
+                    suppressed.add(j)
+        return keep
+
+
+def _coverage_of(c: list[float], main_boxes: list[list[float]]) -> float:
+    """C 被主链任一框覆盖的最大比例 coverage = inter / area(C)。"""
+    ac = _area(c)
+    if ac <= 0:
+        return 0.0
+    return max((_inter_area(c, m) / ac for m in main_boxes), default=0.0)
+
+
+def _inter_area(a: list[float], b: list[float]) -> float:
+    ix = max(0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+    return ix * iy
+
+
+def merge_tiled_new_boxes(main_boxes: list[dict], tiled_boxes: list[dict],
+                          coverage_thresh: float = 0.5, conf_thresh: float = 0.7,
+                          min_side: int = 5) -> list[dict]:
+    """合并主链与瓦片化副引擎结果：
+    - 主链全保留
+    - 副引擎只保留 conf>=conf_thresh 且与主链任一框 coverage<coverage_thresh 的框（真新增）
+    - 碎片（coverage>=threshold，含被主链大框包含的）直接丢弃
+    """
+    main_bboxes = [b["bbox"] for b in main_boxes]
+    merged = list(main_boxes)
+    for tb in tiled_boxes:
+        if tb["conf"] < conf_thresh:
+            continue
+        x1, y1, x2, y2 = tb["bbox"]
+        if (x2 - x1) < min_side or (y2 - y1) < min_side:
+            continue
+        if _coverage_of(tb["bbox"], main_bboxes) >= coverage_thresh:
+            continue  # 碎片：主链已覆盖
+        merged.append({
+            "bbox": [float(x1), float(y1), float(x2), float(y2)],
+            "source_engines": ["rtdetr-v2-tiled"],
+            "bubble_type": "text_free",
+            "det_label": tb["label"],
+            "region_id": f"t{len(merged):02d}",
+            "confidence": round(tb["conf"], 4),
+        })
+    return merged
+
+
 # ---- 图像切片器 ----
 
 class ImageSlicer:
@@ -307,22 +426,46 @@ class RTDetrDetector:
 
 def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
                 page_idx: int | None = None, conf_threshold: float = 0.7,
-                out_path: Path | None = None) -> dict:
-    """单页检测：RT-DETR-v2 → detection.json（doc 信封格式）。"""
+                tiling_enabled: bool = False, tiling_cols: int = 3, tiling_rows: int = 4,
+                tiling_conf: float = 0.3, tiling_nms_iou: float = 0.5,
+                coverage_thresh: float = 0.5, out_path: Path | None = None) -> dict:
+    """单页检测：RT-DETR-v2（整图 640）→ 可选瓦片化副引擎补漏 → detection.json。
+
+    - 主链：整图 conf_threshold（默认 0.7），全保留
+    - 副引擎（tiling_enabled=True）：cols×rows 网格，只保留 conf>=0.7 且
+      与主链任一框 coverage<coverage_thresh 的框（真新增），碎片被覆盖即丢弃
+    """
     if page_idx is None:
         page_idx = int(raw_page.stem)
     page = f"page_{page_idx}"
     det = RTDetrDetector(conf_threshold=conf_threshold)
     t0 = time.time()
     blocks = det.detect(str(raw_page))
+    per_engine = {"rtdetr-v2": len(blocks)}
+
+    if tiling_enabled:
+        img = cv2.imdecode(np.fromfile(str(raw_page), dtype=np.uint8), cv2.IMREAD_COLOR)
+        tiled = TiledDetector(det, cols=tiling_cols, rows=tiling_rows,
+                              conf_threshold=tiling_conf, nms_iou=tiling_nms_iou)
+        tiled_boxes = tiled.detect(img)
+        n_tiled_raw = len(tiled_boxes)
+        blocks = merge_tiled_new_boxes(blocks, tiled_boxes,
+                                       coverage_thresh=coverage_thresh,
+                                       conf_thresh=conf_threshold)
+        per_engine["rtdetr-v2-tiled"] = len(blocks) - per_engine["rtdetr-v2"]
+        per_engine["rtdetr-v2-tiled-raw"] = n_tiled_raw
+
     elapsed = time.time() - t0
     doc = {
         "work_id": work_id,
         "page": page,
-        "source_engines": ["rtdetr-v2"],
+        "source_engines": ["rtdetr-v2"] + (["rtdetr-v2-tiled"] if tiling_enabled else []),
         "n_boxes": len(blocks),
-        "per_engine_boxes": {"rtdetr-v2": len(blocks)},
+        "per_engine_boxes": per_engine,
         "conf_threshold": conf_threshold,
+        "tiling_enabled": tiling_enabled,
+        "tiling_grid": [tiling_cols, tiling_rows] if tiling_enabled else None,
+        "coverage_thresh": coverage_thresh if tiling_enabled else None,
         "elapsed_s": round(elapsed, 2),
         "blocks": blocks,
     }

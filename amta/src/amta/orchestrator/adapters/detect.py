@@ -25,6 +25,12 @@ def run(ctx: StationContext) -> StationResult:
             out_dir=ctx.artifacts_dir,
             page_idx=ctx.page_idx,
             conf_threshold=ctx.config["conf_threshold"],
+            tiling_enabled=ctx.config.get("tiling_enabled", False),
+            tiling_cols=ctx.config.get("tiling_cols", 3),
+            tiling_rows=ctx.config.get("tiling_rows", 4),
+            tiling_conf=ctx.config.get("tiling_conf", 0.3),
+            tiling_nms_iou=ctx.config.get("tiling_nms_iou", 0.5),
+            coverage_thresh=ctx.config.get("coverage_thresh", 0.5),
             out_path=out_path,
         )
         duration = time.perf_counter() - t0
