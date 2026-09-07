@@ -23,6 +23,7 @@ dependencies = [
     # （本地 CPU-only i5，非新增重量运行时）；safetensors 无 stdlib 替代，加载 lama 权重必需（ADR-015 审视通过）。
     "torch==2.14.0",
     "safetensors==0.8.0",
+    "claude-agent-sdk>=0.2.152",
 ]
 
 [tool.uv]

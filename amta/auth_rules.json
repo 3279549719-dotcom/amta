@@ -1,0 +1,13 @@
+﻿{
+  "allow": [
+    "git branch -d chore/047c548-cleanup",
+    "git branch -d feat/terminology-pre-scan-impl",
+    "git branch -d refactor/modular-architecture",
+    "git branch -d refactor/orchestrator-report-convergence",
+    "git branch -D chore/047c548-cleanup",
+    "git branch -D feat/terminology-pre-scan-impl",
+    "git branch -D refactor/modular-architecture",
+    "git branch -D refactor/orchestrator-report-convergence"
+  ],
+  "deny": []
+}
