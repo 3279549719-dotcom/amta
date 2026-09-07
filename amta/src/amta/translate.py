@@ -107,7 +107,10 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     def _build_content(batch: list[dict]) -> str:
         instr = ('Translate the following Japanese text to Chinese. '
                  'Output STRICT JSON ARRAY: ["译文1", "译文2", ...]. '
-                 'Must be same order and same count as input lines. One translation per line, do NOT split.\n')
+                 'Must be same order and same count as input lines. One translation per line, do NOT split.\n'
+                 '每条译文必须使用中文标点（逗号、句号、问号、感叹号），'
+                 '长句必须在分句处用逗号或句号断开，禁止输出无标点的连续长句；'
+                 '口语化表达；原文中的标点（！？……等）必须保留，不得省略。\n')
         blocks = []
         for r in batch:
             rid = r["region_id"]
@@ -118,7 +121,7 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        system = f"你是专业日文→中文漫画翻译专家，输出严格 JSON 数组，不要输出任何额外文字。\n{system_extra}".strip()
+        system = f"你是专业日文→中文漫画翻译专家，口语化翻译，必须使用中文标点断句（逗号/句号/问号/感叹号），禁止输出无标点长句，输出严格 JSON 数组，不要输出任何额外文字。\n{system_extra}".strip()
         for _ in range(max_retries + 1):
             messages = [
                 {"role": "system", "content": system},
@@ -140,4 +143,17 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
             return merged
         return {r["region_id"]: "" for r in batch}
 
-    return _one(list(canon))
+    result = _one(list(canon))
+
+    # 后处理：无句末标点的句子单独重试（batch 翻译时 LLM 对部分条目不仔细，不加断句标点）
+    _SENTENCE_END = set("。！？…")
+    _MIN_LEN = 8
+    for r in canon:
+        rid = r["region_id"]
+        t = result.get(rid, "")
+        if len(t) >= _MIN_LEN and not any(c in _SENTENCE_END for c in t):
+            single = _one([r])
+            if single.get(rid):
+                result[rid] = single[rid]
+
+    return result

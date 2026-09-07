@@ -466,12 +466,13 @@ def translate_page_minimal(work_id: str, canon, *,
         else:
             result[rid] = ""
 
-    # P2 机械标点对齐：原文可删除标点数量为译文上限，语气标点保留
-    from amta.punctuation_align import align_punctuation
-    for r in canon_items:
-        rid = r["region_id"]
-        if result.get(rid):
-            result[rid] = align_punctuation(r.get("text", ""), result[rid])
+    # P2 机械标点对齐：已禁用（2026-09-06 grill-with-docs 决策）。
+    # 原文标点必须保留，LLM 自然添加的中文标点有助于排版断列，删标点机制自毁。
+    # from amta.punctuation_align import align_punctuation
+    # for r in canon_items:
+    #     rid = r["region_id"]
+    #     if result.get(rid):
+    #         result[rid] = align_punctuation(r.get("text", ""), result[rid])
 
     residue = guardrails.japanese_residue_check(list(result.values()))
     # glossary_violations 已停用: 纯机械检查出违规也无法触发重翻/修正, 无实际价值
