@@ -129,11 +129,9 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
                  '输出JSON数组，长度和顺序与输入一致。\n')
-        blocks = []
-        for r in batch:
-            rid = r["region_id"]
-            text = r.get("baberu_text") or r.get("text") or ""
-            blocks.append(f"{rid}|{text}")
+        # 不写 region_id 前缀（r01|）：数组契约按位置绑定，前缀是多余标签，
+        # 反而可能被 LLM 抄进译文（Q6 实验：移除前缀 + 移除前缀剥离补丁）
+        blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]
         cur = instr + "\n".join(blocks)
         if context_enabled and context_prefix:
             return f"{context_prefix}\n\n{cur}"
@@ -159,10 +157,6 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
 
     result = _one(list(canon))
 
-    # 机械后处理：去掉译文开头的 rXX| / tXX| 前缀（LLM 偶尔把输入格式也输出了）
-    _prefix_re = re.compile(r"^[rt]\d+\|")
-    for rid in list(result.keys()):
-        if result[rid] and _prefix_re.match(result[rid]):
-            result[rid] = _prefix_re.sub("", result[rid])
-
+    # 前缀剥离补丁已移除（Q6）：输入不再写 r01| 前缀，LLM 无东西可抄；
+    # 若输出格式崩坏，由数组契约（长度校验）直接判全批空，不做静默修补
     return result

@@ -23,7 +23,9 @@ def test_translate_plain_batch():
     result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
     assert result == {"r01": "你好", "r02": "谢谢"}
     assert len(calls) == 1, "should make exactly one LLM call"
-    assert "r01" in calls[0][1]["content"] and "r02" in calls[0][1]["content"]
+    assert "こんにちは" in calls[0][1]["content"] and "ありがとう" in calls[0][1]["content"]
+    # Q6 实验：输入不再写 r01| 前缀（数组契约按位置绑定，前缀多余且可能被 LLM 抄回）
+    assert "r01|" not in calls[0][1]["content"] and "r02|" not in calls[0][1]["content"]
 
 
 def test_prompt_parts_terms_injected():
