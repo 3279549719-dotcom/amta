@@ -19,6 +19,16 @@ from amta.paths import ROOT
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
+# System prompt（Q8, 2026-09-08）：
+# "乱码→空"条款经 Q1 实验验证（25 框：24 正常 + 1 乱码正确输出空）后正式固化。
+# 注意实验措辞是"整批输入"视角；正式链路是数组契约批量调用，必须写成"某条→对应位置"，
+# 否则模型遇到一个乱码框可能整批返回 []，反而触发长度不符全批作废。
+_SYSTEM_PROMPT = (
+    "你是日文→中文漫画翻译。输出严格JSON数组，不要输出额外文字。\n"
+    "如果某条输入是乱码、无法识别的字符或非日文常用文字，"
+    "对应位置输出空字符串，数组长度和顺序保持不变。"
+)
+
 
 def get_chat_config() -> dict[str, str]:
     """薄壳 → amta.config（唯一实现）；_ENV_PATH 保留供旧测试 monkeypatch。"""
@@ -112,6 +122,9 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     - 数组契约已加固，长度不符是 LLM 输出质量问题，重试无意义
     - 二分拆分是为"批量太大导致错乱"设计的补丁，小批量下不需要
     - 无句末标点重试执行的是已被 prompt-slim 废弃的标点标准，日漫口语短句天然可无标点
+
+    "乱码→空"条款已固化进 _SYSTEM_PROMPT（Q8, 2026-09-08），system_extra 仅保留
+    实验/临时追加能力，拼在正式条款之后。
     """
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
@@ -128,7 +141,7 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
 
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
-        system = f"你是日文→中文漫画翻译。输出严格JSON数组，不要输出额外文字。\n{system_extra}".strip()
+        system = f"{_SYSTEM_PROMPT}\n{system_extra}".strip()
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": _build_content(batch)},
