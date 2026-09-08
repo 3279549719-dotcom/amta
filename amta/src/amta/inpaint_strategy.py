@@ -1,14 +1,18 @@
-"""Stage 4 擦除策略(纯函数,零依赖): bubble_type → fill_white / inpaint / skip。
+"""Stage 4 擦除策略(纯函数,零依赖): 所有框统一走 mask+inpaint(本地 lama-manga)。
 
-text_bubble 白底直填(气泡本来就是白的);
-text_free 走 mask+inpaint(文字在画面背景上,需要修复背景);
-bbox 越界/缺失防御性 skip。
+ADR-030: 移除 text_bubble 白底直填分支。
+- 原策略: text_bubble → fill_white / text_free → inpaint
+- 假设: 气泡一定是白底
+- 反例: 黑底白字、气泡内网点、灰底气泡 → 涂白产生白色方块盖背景
+- 新策略: 所有框统一走 lama inpaint,由模型根据周围像素推断背景
+- bbox 越界/缺失防御性 skip。
 
 兼容旧字段 category(dialogue_bubble/overlay_text/sfx),新字段 bubble_type(text_bubble/text_free)。
+category 仅用于日志记录,不再影响 action 决策。
 """
 from __future__ import annotations
 
-FILL_WHITE = "fill_white"
+FILL_WHITE = "fill_white"  # 保留常量向后兼容,ADR-030 后不再使用
 INPAINT = "inpaint"
 SKIP = "skip"
 
@@ -18,7 +22,7 @@ def _resolve_category(r: dict) -> str:
     bt = r.get("bubble_type")
     if bt:
         return "dialogue_bubble" if bt == "text_bubble" else "overlay_text"
-    return r.get("category") or "dialogue_bubble"  # 保守默认涂白
+    return r.get("category") or "dialogue_bubble"
 
 
 def plan_inpaint(regions: list[dict], image_meta: dict | None = None) -> list[dict]:
@@ -38,7 +42,8 @@ def plan_inpaint(regions: list[dict], image_meta: dict | None = None) -> list[di
                              "action": SKIP, "bbox": bb,
                              "reason": "bbox out of bounds"})
                 continue
-        action = FILL_WHITE if cat == "dialogue_bubble" else INPAINT
+        # ADR-030: 所有框统一走 inpaint,不再区分 text_bubble/text_free
+        action = INPAINT
         plan.append({"region_id": r.get("region_id"), "category": cat,
                      "action": action, "bbox": bb})
     return plan
