@@ -3,7 +3,6 @@
 与 ocr_engines（带图多模态）互补：本模块只发纯文本 messages。
 机制来源（ADR-014）：
 - glossary 相关条目提取 — 借鉴 manga-image-translator (GPL-3.0) 设计
-- 分层拆分重试 — 借鉴 manga-image-translator (GPL-3.0) 数量校验+二分拆分设计
 - 数组契约加固 — LLM 输出按位置绑定的 JSON 数组，长度严格校验，防止拆条挤占 region_id
 """
 from __future__ import annotations
@@ -82,7 +81,7 @@ def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
     """解析 LLM 输出为按输入顺序排列的译文数组。
 
     数组契约（ADR-014 加固）：LLM 必须返回 JSON 数组，长度严格等于输入条数。
-    长度不符 → 返回 None（触发重试或二分拆分），从契约层面防止 LLM 拆条挤占 region_id。
+    长度不符 → 返回 None（该批返回空，不重试、不二分），从契约层面防止 LLM 拆条挤占 region_id。
     """
     text = (raw or "").strip()
     text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
@@ -98,16 +97,21 @@ def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
 
 
 def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
-                    context_prefix: str = "", max_retries: int = 1,
+                    context_prefix: str = "", max_retries: int = 0,
                     context_enabled: bool = True) -> dict[str, str]:
-    """Plain-text batch translate — zero tools, zero loops, one call per batch.
+    """Plain-text batch translate — one call per batch, no retry, no split.
 
     输出契约：LLM 返回 JSON 数组 ["译文1", "译文2", ...]，按输入顺序、同长度。
-    代码侧按位置绑定 region_id，长度不符直接失败 → 重试 → 二分拆分。
+    代码侧按位置绑定 region_id，长度不符或解析失败 → 该批返回空（不重试、不二分）。
 
     prompt-slim 实验（2026-09-07）：删掉所有内容约束（标点/断句/口语化/保留原文标点），
     只保留格式约束（JSON数组、长度一致、顺序一致）+ "漫画"领域提示。
     context_enabled=False 时不注入前页上下文。
+
+    重试/二分/无句末标点重试已移除（2026-09-08）：
+    - 数组契约已加固，长度不符是 LLM 输出质量问题，重试无意义
+    - 二分拆分是为"批量太大导致错乱"设计的补丁，小批量下不需要
+    - 无句末标点重试执行的是已被 prompt-slim 废弃的标点标准，日漫口语短句天然可无标点
     """
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
@@ -125,44 +129,27 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     def _one(batch: list[dict]) -> dict[str, str]:
         region_ids = [r["region_id"] for r in batch]
         system = f"你是日文→中文漫画翻译。输出严格JSON数组，不要输出额外文字。\n{system_extra}".strip()
-        for _ in range(max_retries + 1):
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": _build_content(batch)},
-            ]
-            raw = llm(messages)
-            arr = parse_translation_array(raw, len(batch))
-            if arr is None:
-                continue  # 长度不符或解析失败 → 重试
-            # 按位置绑定 region_id
-            parsed = {rid: arr[i] for i, rid in enumerate(region_ids) if arr[i]}
-            if not mechanical_guardrails(batch, parsed):
-                return parsed
-        if len(batch) > 1:
-            mid = len(batch) // 2
-            merged = {}
-            merged.update(_one(batch[:mid]))
-            merged.update(_one(batch[mid:]))
-            return merged
-        return {r["region_id"]: "" for r in batch}
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": _build_content(batch)},
+        ]
+        raw = llm(messages)
+        arr = parse_translation_array(raw, len(batch))
+        if arr is None:
+            return {r["region_id"]: "" for r in batch}
+        # 按位置绑定 region_id；不过滤空字符串（乱码框应输出为空，是合法结果）
+        parsed = {rid: arr[i] for i, rid in enumerate(region_ids)}
+        problems = mechanical_guardrails(batch, parsed)
+        if problems:
+            return {r["region_id"]: "" for r in batch}
+        return parsed
 
     result = _one(list(canon))
 
-    # 机械后处理1：去掉译文开头的 rXX| / tXX| 前缀（LLM 偶尔把输入格式也输出了）
+    # 机械后处理：去掉译文开头的 rXX| / tXX| 前缀（LLM 偶尔把输入格式也输出了）
     _prefix_re = re.compile(r"^[rt]\d+\|")
     for rid in list(result.keys()):
         if result[rid] and _prefix_re.match(result[rid]):
             result[rid] = _prefix_re.sub("", result[rid])
-
-    # 后处理：无句末标点的句子单独重试（batch 翻译时 LLM 对部分条目不仔细，不加断句标点）
-    _SENTENCE_END = set("。！？…")
-    _MIN_LEN = 8
-    for r in canon:
-        rid = r["region_id"]
-        t = result.get(rid, "")
-        if len(t) >= _MIN_LEN and not any(c in _SENTENCE_END for c in t):
-            single = _one([r])
-            if single.get(rid):
-                result[rid] = single[rid]
 
     return result
