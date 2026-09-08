@@ -35,8 +35,10 @@ def _baberu_batch(crops) -> list[dict]:
     for p in crops:
         try:
             text = ocr(Image.open(p))
-        except Exception as e:  # noqa: BLE001
-            text = f"__ERROR__ {e}"
+        except Exception:  # noqa: BLE001
+            # OCR 崩溃 → 空串（合法结果，下游按"乱码/空框"处理）；
+            # 绝不把报错信息当日文原文送翻译制造垃圾数据（Q4）
+            text = ""
         out.append({"crop": p, "ocr": text or ""})
     return out
 
@@ -72,8 +74,9 @@ def _hayai_batch(crops) -> list[dict]:
             # HayaiOCR 类型标注为 list[str]（多行）；单 crop 也可能直接给 str。都归一成 str。
             parts = res if isinstance(res, list) else [res]
             text = "".join(parts)
-        except Exception as e:  # noqa: BLE001
-            text = f"__ERROR__ {e}"
+        except Exception:  # noqa: BLE001
+            # 同 baberu：崩溃 → 空串，不把报错信息当 OCR 文本（Q4）
+            text = ""
         out.append({"crop": p, "ocr": text.strip()})
     return out
 
