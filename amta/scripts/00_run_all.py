@@ -29,6 +29,8 @@ from amta import artifacts  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 PY = sys.executable
+# workspace 根（work_id 目录的父目录），报告输出用
+_WORKSPACE_ROOT = HERE.parent / "workspace"
 
 
 def _run_cli(args: list[str]) -> None:
@@ -73,6 +75,28 @@ def _ensure_terms(work_id: str, ws_root: Path) -> None:
               "--master-dict", str(master_dict)])
 
 
+def _maybe_gen_report(work_id: str, src_dir: Path, start_page: int, end_page: int,
+                      *, with_report: bool) -> None:
+    """管线成功收尾后自动生成 HTML 验收报告（结构锚点，ADR 待补）。
+
+    报告失败不阻断管线（报告是验收增强，不是管线正确性的一部分），
+    但会打 WARN 提醒人工补跑：`scripts/gen_report.py --type pipeline ...`。
+    """
+    if not with_report:
+        return
+    report_out = _WORKSPACE_ROOT / work_id / "report.html"
+    r = subprocess.run(
+        [PY, str(HERE / "gen_report.py"), "--type", "pipeline",
+         "--work-id", work_id, "--src-dir", str(src_dir),
+         "--pages", f"{start_page}-{end_page}", "--out", str(report_out)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode == 0 and report_out.exists():
+        print(f"[00_run_all] REPORT OK -> {report_out}")
+    else:
+        print(f"[00_run_all] WARN report failed (rc={r.returncode}): "
+              f"{(r.stderr or r.stdout or '')[-400:]}")
+
+
 def _refresh_merged_translation(ws_root: Path) -> None:
     """刷新 artifacts/translation.json：合并所有 page_*_translation.json（前页回溯读取）。"""
     import re as _re
@@ -98,7 +122,8 @@ def _refresh_merged_translation(ws_root: Path) -> None:
 
 
 def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
-        with_inpaint: bool = False, with_typeset: bool = False) -> int:
+        with_inpaint: bool = False, with_typeset: bool = False,
+        with_report: bool = False) -> int:
     ws_root = ensure_workspace(work_id)
     state_dir = ws_root / "state"
     log = PipelineLog(state_dir / "pipeline_log.json")
@@ -210,6 +235,8 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
     if failed is None:
         log.end_run(run_id)
         print(f"[00_run_all] DONE run={run_id} pages {start_page}-{end_page}")
+        _maybe_gen_report(work_id, src_dir, start_page, end_page,
+                          with_report=with_report)
         return 0
     print(f"[00_run_all] FAILED run={run_id} at {failed[0]}: {failed[1]}")
     return 1
@@ -223,9 +250,12 @@ def main() -> int:
     ap.add_argument("--end-page", type=int, required=True)
     ap.add_argument("--with-inpaint", action="store_true", help="04_inpaint station")
     ap.add_argument("--with-typeset", action="store_true", help="05_typeset station")
+    ap.add_argument("--with-report", action="store_true",
+                    help="成功收尾后自动生成 HTML 验收报告")
     a = ap.parse_args()
     return run(a.work_id, a.src_dir, a.start_page, a.end_page,
-               with_inpaint=a.with_inpaint, with_typeset=a.with_typeset)
+               with_inpaint=a.with_inpaint, with_typeset=a.with_typeset,
+               with_report=a.with_report)
 
 
 if __name__ == "__main__":
