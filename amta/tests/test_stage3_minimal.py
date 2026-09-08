@@ -275,21 +275,19 @@ def test_translate_station_minimal_mode():
 # ---------- Task 9: edge-case completeness ----------
 
 
-def test_translate_plain_binary_split():
-    """translate_plain splits batch on persistent array-length mismatch."""
+def test_translate_plain_length_mismatch_returns_empty_no_retry():
+    """数组契约（8a576d2 后）：长度不符 → 整批空、只调一次 LLM（不重试、不二分）。"""
     from amta.translate import translate_plain
     canon = [{"region_id": f"r{i:02d}", "baberu_text": f"テキスト{i}"} for i in range(4)]
     call_count = [0]
     def fake_llm(messages, tools=None):
         call_count[0] += 1
-        # 前2次 full batch (4条) 返回长度2的数组 → 长度不符 → 重试 → 二分
-        if call_count[0] <= 2:
-            return json.dumps(["訳0", "訳1"])
-        # 二分后子 batch (2条) 返回正确长度 → 成功
+        # 始终返回长度 2 的数组 → 与 4 条输入不符
         return json.dumps(["訳0", "訳1"])
     result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
+    assert call_count[0] == 1  # 无重试、无二分
     assert len(result) == 4
-    assert all(v for v in result.values())
+    assert all(not v for v in result.values())  # 整批为空
 
 
 def test_translate_plain_empty_canon():

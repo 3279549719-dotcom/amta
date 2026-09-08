@@ -1,4 +1,9 @@
-"""guardrails 机械护栏测试 — 结构错 + 长度比异常检测。"""
+"""guardrails 机械护栏测试 — 仅结构错（region_id 一一对应）。
+
+长度比护栏与 empty translation 检查已于 8a576d2（2026-09-08）移除：
+- 日译中天然压缩，0.30/3.0 阈值误报正常压缩
+- 乱码框/无意义框输出空串是合法结果（"乱码→空"条款）
+"""
 import sys
 from pathlib import Path
 
@@ -14,51 +19,28 @@ def test_mechanical_guardrails_detects_missing_id():
     assert any("r01" in p for p in problems), f"应检测到 r01 缺失，实际: {problems}"
 
 
-def test_mechanical_guardrails_detects_empty_translation():
-    """空译文应被检测。"""
+def test_mechanical_guardrails_detects_extra_id():
+    """多出的 region_id 应被检测。"""
+    from amta.guardrails import mechanical_guardrails
+    canon = [{"region_id": "r00", "text": "hello"}]
+    translation = {"r00": "你好", "r99": "幻觉"}
+    problems = mechanical_guardrails(canon, translation)
+    assert any("extra" in p for p in problems), f"应检测到多余 id，实际: {problems}"
+
+
+def test_mechanical_guardrails_allows_empty_translation():
+    """空译文合法：乱码框/无意义框应输出为空（8a576d2 移除 empty 检查）。"""
     from amta.guardrails import mechanical_guardrails
     canon = [{"region_id": "r00", "text": "hello"}]
     translation = {"r00": "   "}
     problems = mechanical_guardrails(canon, translation)
-    assert any("empty" in p for p in problems), f"应检测到空译文，实际: {problems}"
+    assert not problems, f"空译文不应报错，实际: {problems}"
 
 
-def test_length_ratio_detects_severe_truncation():
-    """译文长度远小于原文（<30%）应被标记为可疑截断。"""
+def test_normal_compressed_translation_not_flagged():
+    """日译中天然压缩（短译文）不触发任何护栏（长度比已移除）。"""
     from amta.guardrails import mechanical_guardrails
     canon = [{"region_id": "r00", "text": "ちょっと待て! 仮行さぼりたいだけでしょ"}]
-    translation = {"r00": "等一下！"}  # 原文20字符，译文4字，比例20%
+    translation = {"r00": "等一下！"}  # 原文20字符，译文4字 —— 正常压缩
     problems = mechanical_guardrails(canon, translation)
-    assert any("truncat" in p.lower() or "长度" in p or "ratio" in p.lower()
-               for p in problems), f"应检测到严重截断，实际: {problems}"
-
-
-def test_length_ratio_passes_normal_translation():
-    """正常译文（长度比30%-200%）不应触发长度告警。"""
-    from amta.guardrails import mechanical_guardrails
-    canon = [{"region_id": "r00", "text": "こんにちは世界"}]
-    translation = {"r00": "你好世界"}  # 比例合理
-    problems = mechanical_guardrails(canon, translation)
-    assert not any("truncat" in p.lower() or "长度" in p or "ratio" in p.lower()
-                   for p in problems), f"正常翻译不应触发长度告警，实际: {problems}"
-
-
-def test_length_ratio_very_short_text_exempt():
-    """极短原文（<=4字符）不做长度比检测（避免误报）。"""
-    from amta.guardrails import mechanical_guardrails
-    canon = [{"region_id": "r00", "text": "はい"}]
-    translation = {"r00": "嗯"}
-    problems = mechanical_guardrails(canon, translation)
-    assert not any("truncat" in p.lower() or "长度" in p or "ratio" in p.lower()
-                   for p in problems), f"极短文本不应触发长度告警，实际: {problems}"
-
-
-def test_length_ratio_detects_over_expansion():
-    """译文长度远大于原文（>300%）应被标记为可疑过度展开。"""
-    from amta.guardrails import mechanical_guardrails
-    # <=4字符原文不检测（避免误报），所以用5字符以上的原文
-    canon = [{"region_id": "r00", "text": "はい、そうです"}]
-    translation = {"r00": "是的，我明白了，您说的非常有道理，我完全同意您的观点"}  # 过度展开
-    problems = mechanical_guardrails(canon, translation)
-    assert any("expansion" in p.lower() or "过度" in p
-               for p in problems), f"应检测到过度展开，实际: {problems}"
+    assert not problems, f"正常压缩不应报错，实际: {problems}"
