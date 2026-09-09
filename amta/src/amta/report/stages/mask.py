@@ -58,7 +58,7 @@ def from_mask(raw_img: Image.Image, mask_np: np.ndarray,
     Args:
         raw_img: 原图 (RGB)
         mask_np: 全页精修mask (H,W), 255=文字像素, 0=背景
-        bboxes: {region_id: [x1,y1,x2,y2]}，只传 text_free 框
+        bboxes: {region_id: [x1,y1,x2,y2]}，传所有 inpaint 框
     """
     mask_overlay = _build_mask_overlay(raw_img, mask_np)
 

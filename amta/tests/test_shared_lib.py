@@ -130,36 +130,8 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(out[0]["bbox"], [0.0, 0.0, 10.0, 10.0])
         self.assertEqual(out[1]["node_id"], "c")
 
-class CategoryTest(unittest.TestCase):
-    """Phase 1: bubble_type 值域统一映射到 3 级 category（ADR-019）。"""
+# CategoryTest 已移除：assign_category 在 ADR-031 随 bubble_type 一起移除。
 
-    def test_maps_koharu_types_to_three_level(self):
-        cases = [
-            ({"bubble_type": "dialogue"}, "dialogue_bubble"),
-            ({"bubble_type": "narration"}, "dialogue_bubble"),
-            ({"bubble_type": "sfx"}, "sfx"),
-            ({"bubble_type": "unknown"}, "dialogue_bubble"),
-            ({}, "dialogue_bubble"),  # 缺失默认保守归气泡
-        ]
-        for block, expect in cases:
-            out = geometry.assign_category([dict(block)])[0]
-            self.assertEqual(out["category"], expect)
-
-    def test_preserves_original_fields(self):
-        b = {"node_id": "n1", "bbox": [0, 0, 10, 10], "text": None,
-             "bubble_type": "sfx"}
-        out = geometry.assign_category([b])[0]
-        self.assertEqual(out["node_id"], "n1")
-        self.assertEqual(out["bubble_type"], "sfx")  # 原字段保留(兼容下游)
-        self.assertEqual(out["category"], "sfx")
-
-    def test_overlay_text_passthrough(self):
-        # koharu 若已给出 overlay 类则透传，不误改
-        self.assertEqual(geometry.assign_category(
-            [{"bubble_type": "overlay_text"}])[0]["category"], "overlay_text")
-
-    def test_empty(self):
-        self.assertEqual(geometry.assign_category([]), [])
 
 
 if __name__ == "__main__":

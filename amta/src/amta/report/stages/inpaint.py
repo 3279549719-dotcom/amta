@@ -47,7 +47,7 @@ def from_inpaint(clean_img: Image.Image,
 
     Args:
         clean_img: inpaint后的整页clean图 (RGB)
-        bboxes: {region_id: [x1,y1,x2,y2]}，只传 text_free 框
+        bboxes: {region_id: [x1,y1,x2,y2]}，传所有 inpaint 框
     """
     cells: dict[str, Any] = {}
     for rid, bbox in bboxes.items():

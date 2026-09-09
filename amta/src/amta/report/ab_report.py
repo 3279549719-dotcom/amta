@@ -156,7 +156,7 @@ def render_ab_report(
 <div class="container">
 
   <h1>Stage 4 框外字去除 A/B 对比实验报告</h1>
-  <p class="subtitle">方案A: 框内传统方法精修mask &nbsp;|&nbsp; 方案B: SAM框提示像素级分割 &nbsp;|&nbsp; {len(pages)} 页有text_free框</p>
+  <p class="subtitle">方案A: 框内传统方法精修mask &nbsp;|&nbsp; 方案B: SAM框提示像素级分割 &nbsp;|&nbsp; {len(pages)} 页有inpaint框</p>
 
   <div class="overview-grid">
     <div class="card a">

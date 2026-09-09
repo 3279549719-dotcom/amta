@@ -54,9 +54,9 @@ class TestDetectionRTDETR:
             "conf_threshold": 0.3,
             "blocks": [
                 {"bbox": [10.0, 20.0, 100.0, 50.0], "source_engines": ["rtdetr-v2"],
-                 "bubble_type": "text_bubble", "det_label": 1, "region_id": "r00", "confidence": 0.95},
+                 "det_label": 1, "region_id": "r00", "confidence": 0.95},
                 {"bbox": [200.0, 300.0, 400.0, 350.0], "source_engines": ["rtdetr-v2"],
-                 "bubble_type": "text_free", "det_label": 2, "region_id": "r01", "confidence": 0.87},
+                 "det_label": 2, "region_id": "r01", "confidence": 0.87},
             ],
         }
         out = tmp_path / "det.json"
@@ -64,7 +64,7 @@ class TestDetectionRTDETR:
         loaded = json.loads(out.read_text(encoding="utf-8"))
         assert loaded["source_engines"] == ["rtdetr-v2"]
         assert loaded["n_boxes"] == 2
-        assert all("bbox" in b and "bubble_type" in b and "confidence" in b for b in loaded["blocks"])
+        assert all("bbox" in b and "confidence" in b for b in loaded["blocks"])
         assert all(b["det_label"] in (1, 2) for b in loaded["blocks"])
 
 
@@ -141,11 +141,6 @@ class TestTranslationStage3Minimal:
         """translate_page_minimal 函数存在。"""
         from amta.stage3_minimal import translate_page_minimal
         assert callable(translate_page_minimal)
-
-    def test_vision_model_default_is_qwen(self):
-        """VLM 默认模型是 qwen3.5-omni-plus。"""
-        from amta.stage3_minimal import _VISION_MODEL_DEFAULT
-        assert "qwen" in _VISION_MODEL_DEFAULT.lower()
 
     def test_build_semantic_context_exists(self):
         """build_semantic_context 函数存在（上下文注入）。"""

@@ -194,7 +194,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
             "vlm_status": vlm_result["status"],
             "page": page_idx,
         }
-        for k in ("category", "bubble_type", "node_id", "sub_tier"):
+        for k in ("category", "node_id", "sub_tier"):
             if b.get(k) is not None:
                 item[k] = b[k]
         items.append(item)

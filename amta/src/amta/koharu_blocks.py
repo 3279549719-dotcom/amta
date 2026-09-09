@@ -1,7 +1,7 @@
 """koharu scene 节点 → 文字块 的纯结果整形（从 koharu_client 拆出的深模块）。
 
 唯一归属：
-- collect_blocks          节点 → blocks[]（含 bubble_type 推断）
+- collect_blocks          节点 → blocks[]（含 bubble_type 推断，ADR-031 后主链路不再消费此字段）
 - sort_by_reading_order   日漫阅读序排序（y 升、同行 x 降）
 
 纯函数：无 I/O、无状态、不依赖 HTTP 客户端。koharu_client 只保留 REST 适配职责，
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 
 def collect_blocks(nodes: dict[str, dict]) -> list[dict]:
-    """从 scene 节点提取文字块（含 bubble_type 推断），与轮子逻辑一致。"""
+    """从 scene 节点提取文字块（含 bubble_type 推断，ADR-031 后主链路不再消费此字段），与轮子逻辑一致。"""
     blocks = []
     for node_id, node in nodes.items():
         kind = node.get("kind", {})

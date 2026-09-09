@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 def _make_page_artifacts(art_dir: Path, page_idx: int,
                          ocr_text: str = "hello",
                          trans_text: str = "你好",
-                         bubble_type: str = "text_bubble") -> None:
+                         ) -> None:
     """在 art_dir 下构造一页的 detection/canon/translation 三个 JSON。"""
     page = f"page_{page_idx}"
     (art_dir / f"{page}_detection.json").write_text(json.dumps({
@@ -32,7 +32,6 @@ def _make_page_artifacts(art_dir: Path, page_idx: int,
         "items": [{
             "region_id": f"r{page_idx}",
             "text": ocr_text,
-            "bubble_type": bubble_type,
             "bbox": [10, 10, 100, 50],
             "confidence": 0.9,
         }],
@@ -92,7 +91,7 @@ class TestFinalReport:
         # 译文
         assert "译0" in html
         # bubble type badge
-        assert "text_bubble" in html
+        assert "OCR 原文" in html
 
     def test_summary_table_has_counts(self, fake_workspace):
         from amta.report.final_report import render_final_report
@@ -197,7 +196,7 @@ class TestStage4Report:
         assert "<!DOCTYPE html>" in html
         assert "第 11 页" in html
         assert "free11" in html
-        assert "text_free 框" in html
+        assert "inpaint 框" in html
 
     def test_render_no_free_boxes(self, tmp_path, monkeypatch):
         from amta.report import stage4_report
@@ -210,7 +209,7 @@ class TestStage4Report:
         _make_stage4_data(result, 12, has_free=False)
 
         html = stage4_report.render_stage4_report(src, result, [12])
-        assert "无 text_free 框" in html
+        assert "无 inpaint 框" in html
 
     def test_render_skip_missing_raw(self, tmp_path, monkeypatch):
         from amta.report import stage4_report
