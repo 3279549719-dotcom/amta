@@ -10,12 +10,12 @@ import argparse
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta import paths, workstate  # noqa: E402
-from amta.suggestions import merge_into_state as _merge_impl  # noqa: E402
+from amta.common import paths, workstate
+from amta.guards.suggestions import merge_into_state as _merge_impl  # noqa: E402
 
 
 def merge(state: dict, suggestions: list[dict]) -> dict:
-    """薄壳 → amta.suggestions.merge_into_state（唯一实现）。"""
+    """薄壳 → amta.guards.suggestions.merge_into_state（唯一实现）。"""
     return _merge_impl(state, suggestions)
 
 

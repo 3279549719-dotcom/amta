@@ -1,4 +1,4 @@
-﻿"""共享库确定性测试：metrics（norm/levenshtein/cer/best_match/match_score）+ geometry（bbox/iou/union）。
+"""共享库确定性测试：metrics（norm/levenshtein/cer/best_match/match_score）+ geometry（bbox/iou/union）。
 
 锁定 /simplify 合并后的唯一实现行为（含修复：norm 保留数字）。
 """
@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta import geometry, metrics  # noqa: E402
+from amta.common import geometry, metrics
 
 
 class NormTest(unittest.TestCase):

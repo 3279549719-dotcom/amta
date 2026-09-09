@@ -1,12 +1,13 @@
-"""重构产物（amta.runner / evalkit / images / ocr_engines / geometry.bbox 优先级）的确定性测试。"""
+"""重构产物（amta.backends.runner / evalkit / images / ocr_engines / geometry.bbox 优先级）的确定性测试。"""
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta import evalkit, geometry, images, runner  # noqa: E402
-from amta.koharu_client import KoharuError  # noqa: E402
+from amta.backends import runner
+from amta.common import evalkit, geometry, images
+from amta.backends.koharu_client import KoharuError  # noqa: E402
 
 
 class _FakeClient:

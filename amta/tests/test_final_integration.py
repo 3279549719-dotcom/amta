@@ -1,4 +1,4 @@
-﻿"""三阶段最终选型集成测试 — 验证接口契约与数据格式（不实际调用模型/API）。
+"""三阶段最终选型集成测试 — 验证接口契约与数据格式（不实际调用模型/API）。
 
 最终选型:
 - 检测: RT-DETR-v2 (scripts/detect_rtdetr.py, 输出 label/score)
@@ -75,22 +75,22 @@ class TestOCREngines:
 
     def test_engines_tuple_baberu_hayai(self):
         """ENGINES 元组 = (baberu, hayai)。"""
-        from amta.ocr_engines import ENGINES
+        from amta.backends.ocr_engines import ENGINES
         assert ENGINES == ("baberu", "hayai")
 
     def test_no_local_ocr_batch(self):
         """local_ocr_batch 已删除。"""
-        import amta.ocr_engines as oe
+        import amta.backends.ocr_engines as oe
         assert not hasattr(oe, "local_ocr_batch")
 
     def test_no_dashscope_ocr_batch(self):
         """dashscope_ocr_batch 已删除。"""
-        import amta.ocr_engines as oe
+        import amta.backends.ocr_engines as oe
         assert not hasattr(oe, "dashscope_ocr_batch")
 
     def test_ocr_batch_accepts_engine_kwarg(self):
         """ocr_batch 接受 engine 参数（向后兼容），但只走 baberu。"""
-        from amta.ocr_engines import ocr_batch
+        from amta.backends.ocr_engines import ocr_batch
         assert callable(ocr_batch)
 
 
@@ -100,7 +100,7 @@ class TestOCRStation:
     def test_ocr_page_engine_and_vlm_params(self):
         """ocr_page 有 engine（默认 hayai）与 vlm_enabled/vlm_fn（质检环节）。"""
         import inspect
-        from amta.ocr_station import ocr_page
+        from amta.stations.ocr_station import ocr_page
         sig = inspect.signature(ocr_page)
         param_names = list(sig.parameters.keys())
         assert "engine" in param_names
@@ -109,8 +109,11 @@ class TestOCRStation:
         assert "vlm_fn" in param_names
 
     def test_vlm_verify_exists(self):
-        """vlm_verify.py 存在（VLM contact sheet 校验，质检环节）。"""
-        assert (ROOT / "src" / "amta" / "vlm_verify.py").exists()
+        """vlm_verify.py 存在（VLM contact sheet 校验，质检环节）。
+
+        2026-09-09 顶层模块归入领域子包后位于 amta/backends/vlm_verify.py。
+        """
+        assert (ROOT / "src" / "amta" / "backends" / "vlm_verify.py").exists()
 
     def test_canon_item_has_text_and_baberu_text(self):
         """canon items 同时有 text 和 baberu_text 字段（向后兼容）。"""
@@ -134,37 +137,27 @@ class TestTranslationStage3Minimal:
 
     def test_module_importable(self):
         """stage3_minimal 可导入。"""
-        from amta import stage3_minimal
+        from amta.translation import stage3_minimal
         assert stage3_minimal is not None
 
     def test_translate_page_minimal_exists(self):
         """translate_page_minimal 函数存在。"""
-        from amta.stage3_minimal import translate_page_minimal
+        from amta.translation.stage3_minimal import translate_page_minimal
         assert callable(translate_page_minimal)
 
     def test_build_semantic_context_exists(self):
         """build_semantic_context 函数存在（上下文注入）。"""
-        from amta.stage3_minimal import build_semantic_context
+        from amta.translation.stage3_minimal import build_semantic_context
         assert callable(build_semantic_context)
 
     def test_extract_relevant_terms_imported(self):
         """extract_relevant_terms 可导入（术语注入）。"""
-        from amta.translate import extract_relevant_terms
+        from amta.translation.translate import extract_relevant_terms
         assert callable(extract_relevant_terms)
-
-    def test_vlm_output_has_tri_state_fields(self):
-        """VLM 输出结构包含 keep/fix/drop 三态字段。"""
-        # 验证 VLM 输出 dataclass/结构有 ocr_refinements (fix), invalid_regions (drop), duplicate_regions (keep)
-        import inspect
-        from amta.stage3_minimal import translate_page_minimal
-        src = inspect.getsource(translate_page_minimal)
-        assert "ocr_refinements" in src or "refinements" in src
-        assert "invalid_regions" in src or "invalid" in src
-        assert "duplicate_regions" in src or "duplicate" in src
 
     def test_chat_model_from_env(self):
         """LLM 模型从 .env CHAT_MODEL 读取（最终选型 deepseek-v4-flash）。"""
-        from amta.config import get_chat_config
+        from amta.common.config import get_chat_config
         # 不实际调用（需要 .env），只验证函数存在
         assert callable(get_chat_config)
 

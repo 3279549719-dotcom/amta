@@ -24,12 +24,12 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.evalkit import TEXT_CLASSES  # noqa: E402
-from amta.geometry import union_boxes  # noqa: E402
-from amta.images import crop_with_pad  # noqa: E402
-from amta.koharu_client import KoharuClient  # noqa: E402
-from amta.paths import CROPS, DATA, ensure_output, read_json, write_json  # noqa: E402
-from amta.runner import run_all_pages  # noqa: E402
+from amta.common.evalkit import TEXT_CLASSES  # noqa: E402
+from amta.common.geometry import union_boxes  # noqa: E402
+from amta.common.images import crop_with_pad  # noqa: E402
+from amta.backends.koharu_client import KoharuClient  # noqa: E402
+from amta.common.paths import CROPS, DATA, ensure_output, read_json, write_json  # noqa: E402
+from amta.backends.runner import run_all_pages  # noqa: E402
 
 # Benchmark 钉的是 koharu v0.59.1 的 4 detector 能力边界（pp-doclayout/comic-text 等）。
 # 旧 amta.pipeline.DETECTOR_STEPS 常量已随 koharu-检测时代删除（见

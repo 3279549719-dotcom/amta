@@ -13,7 +13,7 @@ FONT_PATH = Path("C:/Windows/Fonts/msyh.ttc")
 
 def test_narrow_tall_box_prefers_vertical_with_large_font():
     """探针：窄长框（宽207高954，47字）应选竖排，字号应>=30（旧实现横排仅19px）。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 207, 954]
     text = "在那之后我的研究可能是因为八意大人开始插嘴的缘故进展得很顺利虽然很烦人但我忍耐了"
     font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
@@ -26,7 +26,7 @@ def test_narrow_tall_box_prefers_vertical_with_large_font():
 
 def test_wide_short_box_font_size_large():
     """宽扁框（宽380高222，8字）字号应>=35，方向任选（横竖排字号可能相等）。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 380, 222]
     text = "比起那个还是研究研究"
     font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
@@ -37,7 +37,7 @@ def test_wide_short_box_font_size_large():
 
 def test_fit_font_size_returns_three_tuple():
     """fit_font_size 返回 (字号, 方向, 折行/分列) 三元组。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     result = fit_font_size("测试", FONT_PATH, [0, 0, 100, 100])
     assert isinstance(result, tuple) and len(result) == 3
     assert isinstance(result[0], int)
@@ -47,7 +47,7 @@ def test_fit_font_size_returns_three_tuple():
 
 def test_vertical_lines_are_columns():
     """竖排时 lines 是按列分割的列表，每列是子串，总字数等于原文。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 100, 300]
     text = "abcdefghij"
     font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
@@ -58,7 +58,7 @@ def test_vertical_lines_are_columns():
 
 def test_empty_text_returns_min_size():
     """空文本返回最小字号和空折行。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     font_size, direction, lines = fit_font_size("", FONT_PATH, [0, 0, 100, 100])
     assert font_size >= 12
     assert lines == []
@@ -68,35 +68,35 @@ def test_empty_text_returns_min_size():
 
 def test_infer_direction_tall_narrow_box_is_vertical():
     """高宽比 >= 1.5 的窄长框推断为竖排。"""
-    from amta.typeset_engine import infer_direction_from_bbox
+    from amta.typeset.typeset_engine import infer_direction_from_bbox
     bbox = [0, 0, 166, 691]  # 高宽比 4.16
     assert infer_direction_from_bbox(bbox) == "vertical"
 
 
 def test_infer_direction_wide_short_box_is_horizontal():
     """宽高比 >= 1.5 的横长框推断为横排。"""
-    from amta.typeset_engine import infer_direction_from_bbox
+    from amta.typeset.typeset_engine import infer_direction_from_bbox
     bbox = [0, 0, 380, 222]  # 宽高比 1.71
     assert infer_direction_from_bbox(bbox) == "horizontal"
 
 
 def test_infer_direction_square_box_returns_none():
     """接近方形的框返回 None（不强制方向，回退到字号选优）。"""
-    from amta.typeset_engine import infer_direction_from_bbox
+    from amta.typeset.typeset_engine import infer_direction_from_bbox
     bbox = [0, 0, 200, 200]  # 1:1
     assert infer_direction_from_bbox(bbox) is None
 
 
 def test_infer_direction_boundary_ratio():
     """高宽比刚好 1.5 的框推断为竖排。"""
-    from amta.typeset_engine import infer_direction_from_bbox
+    from amta.typeset.typeset_engine import infer_direction_from_bbox
     bbox = [0, 0, 100, 150]  # 高宽比 1.5
     assert infer_direction_from_bbox(bbox) == "vertical"
 
 
 def test_infer_direction_near_square_returns_none():
     """高宽比 1.3（<1.5）的框返回 None。"""
-    from amta.typeset_engine import infer_direction_from_bbox
+    from amta.typeset.typeset_engine import infer_direction_from_bbox
     bbox = [0, 0, 100, 130]  # 高宽比 1.3
     assert infer_direction_from_bbox(bbox) is None
 
@@ -105,7 +105,7 @@ def test_infer_direction_near_square_returns_none():
 
 def test_preferred_direction_horizontal_for_wide_box():
     """横长框指定 preferred_direction='horizontal' 时，应选横排。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 380, 222]  # 横长框
     text = "比起那个还是研究研究"
     font_size, direction, lines = fit_font_size(
@@ -116,7 +116,7 @@ def test_preferred_direction_horizontal_for_wide_box():
 
 def test_preferred_direction_vertical_for_tall_box():
     """窄长框指定 preferred_direction='vertical' 时，应选竖排。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 166, 691]  # 窄长框
     text = "冷、冷静点……并不是担心八意大人什么的"
     font_size, direction, lines = fit_font_size(
@@ -127,7 +127,7 @@ def test_preferred_direction_vertical_for_tall_box():
 
 def test_no_preferred_direction_matches_old_behavior():
     """不传 preferred_direction 时行为与旧版一致（纯字号选优）。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 200, 200]
     text = "测试文本"
     font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
@@ -137,7 +137,7 @@ def test_no_preferred_direction_matches_old_behavior():
 
 def test_preferred_direction_vertical_short_text():
     """短文本窄长框首选竖排，应选竖排且字号合理。"""
-    from amta.typeset_engine import fit_font_size
+    from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 100, 400]  # 窄长框
     text = "太好了！"
     font_size, direction, lines = fit_font_size(
@@ -152,7 +152,7 @@ def test_preferred_direction_vertical_short_text():
 
 def test_wrap_vertical_avoid_punctuation_at_col_start():
     """竖排避头尾：标点不能出现在列首，应挤到上一列末尾。"""
-    from amta.typeset_engine import wrap_vertical
+    from amta.typeset.typeset_engine import wrap_vertical
     text = "一二三四五六七八九十，"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
@@ -162,7 +162,7 @@ def test_wrap_vertical_avoid_punctuation_at_col_start():
 
 def test_wrap_vertical_avoid_multiple_punctuation():
     """多个连续标点都不落列首。"""
-    from amta.typeset_engine import wrap_vertical
+    from amta.typeset.typeset_engine import wrap_vertical
     text = "一二三四五六七八九十……"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
@@ -172,7 +172,7 @@ def test_wrap_vertical_avoid_multiple_punctuation():
 
 def test_wrap_vertical_no_punctuation_normal_split():
     """没有标点时正常分割。"""
-    from amta.typeset_engine import wrap_vertical
+    from amta.typeset.typeset_engine import wrap_vertical
     text = "一二三四五六七八九十一二三四五六七八九十"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
@@ -183,7 +183,7 @@ def test_wrap_vertical_no_punctuation_normal_split():
 
 def test_wrap_vertical_punctuation_in_middle_unchanged():
     """标点在列中间时，动态规划优先在标点后断列并避免单字尾列。"""
-    from amta.typeset_engine import wrap_vertical
+    from amta.typeset.typeset_engine import wrap_vertical
     text = "一二三四五，六七八九十一二三四五六七八九十"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)

@@ -3,11 +3,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta.glossary import check_glossary
+from amta.guards.glossary import check_glossary
 
 
 def _state(terms=None, characters=None):
-    from amta import workstate
+    from amta.common import workstate
     s = dict(workstate.TEMPLATE_WORK_STATE, work_id="w")
     s["terms"] = terms or {}
     s["characters"] = characters or {}

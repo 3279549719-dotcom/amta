@@ -10,7 +10,7 @@ import json
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.artifacts import load_translation  # noqa: E402
+from amta.stores.artifacts import load_translation  # noqa: E402
 
 
 def apply(trans: dict[str, str], revisions: list[dict]) -> tuple[dict, dict]:

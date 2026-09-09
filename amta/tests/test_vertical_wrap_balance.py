@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta.typeset_engine import wrap_vertical
+from amta.typeset.typeset_engine import wrap_vertical
 
 
 class TestAvoidSingleCharLastColumn:

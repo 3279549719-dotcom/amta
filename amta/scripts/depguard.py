@@ -30,7 +30,14 @@ LOCAL_TOP = {"amta", "scripts", "tests"}  # 本仓顶层模块，不是第三方
 # 分布名与 import 名的映射（import PIL → 包名 pillow）
 IMPORT_TO_PKG = {"PIL": "pillow", "cv2": "opencv-python"}
 # 运行时动态 import / 开发工具链白名单（不入 [project].dependencies）
-ALLOWLIST = {"onnx_infer", "pytest"}
+ALLOWLIST = {
+    "onnx_infer",  # models/baberu-ocr/ 内嵌，sys.path 动态注入
+    "pytest",      # 开发工具链（全局安装，非运行时依赖，ADR-004）
+    # hayai 模型权重目录（HAYAI_OCR_MODEL）内 trust_remote_code 动态加载的自定义模块，
+    # 运行时 sys.path 注入（ocr_engines._get_hayai），非 PyPI 包、无从声明。
+    # 消费方：src/amta/backends/ocr_engines.py + scripts/probes/ q3 系列探针。
+    "modeling_hayai",
+}
 # 实验脚本排除（A/B 测试 / 调研用，等正式集成主流水线再补依赖声明）
 EXCLUDE_FILES = {
     "scripts/detect_rtdetr.py",

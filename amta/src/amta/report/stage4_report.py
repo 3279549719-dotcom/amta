@@ -42,6 +42,11 @@ def extract_inpaint_boxes(inpaint_json: dict) -> dict[str, list[float]]:
     return boxes
 
 
+# ADR-031 兼容别名：旧名 "text_free" 框已在统一 inpaint 路径上退化为普通 inpaint 框，
+# 保留函数名供 report/__init__ 导出与旧引用（test_report_convergence）不再 ImportError。
+extract_text_free_boxes = extract_inpaint_boxes
+
+
 _CSS = """
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:#f0f2f5; color:#1a1a2e; line-height:1.6; }
@@ -201,10 +206,14 @@ def render_stage4_report(
             print(f"[warn] page_{n}: clean image not found, using raw as fallback")
             clean_img = raw_img
 
-        # 生成精修mask（和04_inpaint相同参数 pad=4）
-        img_rgb = np.array(raw_img)
-        bbox_list = list(inpaint_boxes.values())
-        mask_np = np.zeros_like(raw_img_gray)
+        # 生成矩形 mask（和04_inpaint相同参数 pad=4，ADR-031 统一矩形 mask）
+        w, h = raw_img.size
+        mask_np = np.zeros((h, w), dtype=np.uint8)
+        for bbox in inpaint_boxes.values():
+            x1, y1, x2, y2 = [int(v) for v in bbox]
+            x1 = max(0, x1 - 4); y1 = max(0, y1 - 4)
+            x2 = min(w, x2 + 4); y2 = min(h, y2 + 4)
+            mask_np[y1:y2, x1:x2] = 255
 
         # 构建深接口 StageOutput
         mask_stage = build_mask_stage(raw_img, mask_np, inpaint_boxes)

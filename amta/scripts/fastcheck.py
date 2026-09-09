@@ -37,7 +37,7 @@ def _compile() -> int:
 
 def _lint() -> int:
     py = shutil.which("ruff") or shutil.which("py") or sys.executable
-    if py.endswith("ruff.exe") or Path(py).name == "ruff":
+    if py.lower().endswith("ruff.exe") or Path(py).name.lower() == "ruff":
         return _run([py, "check", "src", "scripts", "tests"], "ruff lint")
     # ruff 作为 python 模块
     return _run([sys.executable, "-m", "ruff", "check", "src", "scripts", "tests"], "ruff lint")

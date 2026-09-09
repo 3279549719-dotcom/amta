@@ -27,7 +27,7 @@ def _impl(name: str):
 
 def test_pipeline_log_span_and_fail(tmp_path):
     import json
-    from amta.pipeline_log import PipelineLog
+    from amta.common.pipeline_log import PipelineLog
     log = PipelineLog(tmp_path / "pipeline_log.json")
     rid = log.start_run("pages 1-1")
     log.add_span(rid, step="01_detect", page="page_0", status="ok",
@@ -41,7 +41,7 @@ def test_pipeline_log_span_and_fail(tmp_path):
 
 
 def test_pipeline_log_skip_append(tmp_path):
-    from amta.pipeline_log import PipelineLog
+    from amta.common.pipeline_log import PipelineLog
     log = PipelineLog(tmp_path / "pl.json")
     r1 = log.start_run("a")
     r2 = log.start_run("b")

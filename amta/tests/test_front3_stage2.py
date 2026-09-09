@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.vlm_verify import make_contact_sheet, parse_vlm_output, vlm_verify_batch
+from amta.backends.vlm_verify import make_contact_sheet, parse_vlm_output, vlm_verify_batch
 
 
 def test_make_contact_sheet_grid_layout():
@@ -59,7 +59,7 @@ def test_vlm_verify_batch_success():
     }
     mock_response.raise_for_status = MagicMock()
 
-    with patch("amta.vlm_verify.requests.post", return_value=mock_response):
+    with patch("amta.backends.vlm_verify.requests.post", return_value=mock_response):
         result = vlm_verify_batch(crops, api_key="test-key")
 
     assert result["status"] == "ok"
@@ -76,8 +76,8 @@ def test_vlm_verify_batch_count_mismatch_retry():
     mock_response.json.return_value = {"choices": [{"message": {"content": "只有一行"}}]}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("amta.vlm_verify.requests.post", return_value=mock_response):
-        with patch("amta.vlm_verify.time.sleep", return_value=None):
+    with patch("amta.backends.vlm_verify.requests.post", return_value=mock_response):
+        with patch("amta.backends.vlm_verify.time.sleep", return_value=None):
             result = vlm_verify_batch(crops, api_key="test-key", max_retries=1)
 
     assert result["status"] == "count_mismatch"
@@ -91,8 +91,8 @@ def test_vlm_verify_batch_api_failure():
 
     crops = [Image.new("RGB", (50, 30), "white") for _ in range(2)]
 
-    with patch("amta.vlm_verify.requests.post", side_effect=Exception("API error")):
-        with patch("amta.vlm_verify.time.sleep", return_value=None):
+    with patch("amta.backends.vlm_verify.requests.post", side_effect=Exception("API error")):
+        with patch("amta.backends.vlm_verify.time.sleep", return_value=None):
             result = vlm_verify_batch(crops, api_key="test-key", max_retries=1)
 
     assert result["status"] == "failed"

@@ -23,7 +23,7 @@ def _write_page_artifacts(artifacts_dir: Path, page: int, canon: list[dict], tra
 
 def test_get_context_reads_canon_category_and_labels(tmp_path):
     """Red→Green：get_context 同时读 canon 和 translation，返回带 category 标注的文本。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -52,7 +52,7 @@ def test_get_context_reads_canon_category_and_labels(tmp_path):
 
 def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
     """边界：canon 文件不存在时，回退到纯文本（无 category 标注），不崩溃。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -75,7 +75,7 @@ def test_get_context_falls_back_to_plain_when_canon_missing(tmp_path):
 
 def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
     """Red→Green：get_context 附加 work_state 的 relationships（confirmed + inferred，标置信度）。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -106,7 +106,7 @@ def test_get_context_appends_confirmed_and_inferred_relationships(tmp_path):
 
 def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
     """Red→Green：get_context 筛选前页原文中出现的术语（norm 模糊匹配，最多 5 条）。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -134,7 +134,7 @@ def test_get_context_filters_relevant_terms_from_prev_pages(tmp_path):
 
 def test_get_context_limits_relationships_to_three(tmp_path):
     """条数限制：relationships 最多附加 3 条，按置信度排序（confirmed 优先）。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -165,7 +165,7 @@ def test_get_context_limits_relationships_to_three(tmp_path):
 
 def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
     """TDD：双引擎 canon（baberu_text，无 text 字段）也要能喂术语相关性筛选。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -190,7 +190,7 @@ def test_get_context_reads_dual_engine_canon_baberu_text(tmp_path):
 
 def test_get_context_page_header_count_matches_rendered(tmp_path):
     """TDD：页头「共N条」应等于实际渲染条数（截断时=15），而不是页内总数。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -213,7 +213,7 @@ def test_get_context_page_header_count_matches_rendered(tmp_path):
 
 def test_get_context_truncates_regions_to_fifteen(tmp_path):
     """边界：单页 region 数超过 MAX_REGIONS_PER_PAGE(15) 时只渲染前 15 条。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -238,7 +238,7 @@ def test_get_context_truncates_regions_to_fifteen(tmp_path):
 
 def test_get_context_caps_terms_at_five(tmp_path):
     """边界：相关 confirmed 术语超过 MAX_TERMS(5) 时只显示前 5 条（按插入序）。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -270,7 +270,7 @@ def test_get_context_caps_terms_at_five(tmp_path):
 
 def test_get_context_multipage_reads_last_two_pages(tmp_path):
     """pages=2 时读取页码最大的 2 页（translation 文件按页码排序取尾部）。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -295,7 +295,7 @@ def test_get_context_multipage_reads_last_two_pages(tmp_path):
 
 def test_get_context_tolerates_malformed_canon(tmp_path):
     """容错：canon 含非 dict 项 / 缺 region_id 项 / 坏 JSON 时不得崩溃，仍输出有效内容。"""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
 
     state_dir = tmp_path / "state"
     state_dir.mkdir()

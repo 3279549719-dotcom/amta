@@ -10,8 +10,8 @@ import base64
 import json
 from pathlib import Path
 
-from amta.artifact_store import ArtifactStore
-from amta.paths import ROOT
+from amta.stores.artifact_store import ArtifactStore
+from amta.common.paths import ROOT
 
 
 def img_to_base64(path: Path) -> str:

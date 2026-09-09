@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta.inpaint_strategy import plan_inpaint
+from amta.inpaint.inpaint_strategy import plan_inpaint
 
 
 def test_bubble_fills_white_and_sfx_inpaints():

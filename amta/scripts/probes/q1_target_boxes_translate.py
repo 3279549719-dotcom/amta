@@ -22,11 +22,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from PIL import Image  # noqa: E402
-from amta.rule_filter import is_pure_punct, is_pure_number  # noqa: E402
-from amta.ocr_engines import ocr_batch  # noqa: E402
-from amta.translate import translate_plain  # noqa: E402
-from amta.chat_client import chat_text  # noqa: E402
-from amta.config import get_chat_config  # noqa: E402
+from amta.guards.rule_filter import is_pure_punct, is_pure_number  # noqa: E402
+from amta.backends.ocr_engines import ocr_batch  # noqa: E402
+from amta.translation.translate import translate_plain  # noqa: E402
+from amta.backends.chat_client import chat_text  # noqa: E402
+from amta.common.config import get_chat_config  # noqa: E402
 
 RAW_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 DET_DIR = PROJECT_ROOT / "workspace" / "exp-q1-tiling-garbled" / "artifacts" / "detection"

@@ -11,12 +11,12 @@ def _new_id(prefix: str) -> str:
 
 
 def test_observed_status_in_statuses():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     assert "observed" in ws.STATUSES
 
 
 def test_update_character_observed(tmp_path, monkeypatch):
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     work_id = "ws-test-observed"
     monkeypatch.setattr(ws, "WORKSPACE", tmp_path)
     ws.init_workspace(work_id)
@@ -26,7 +26,7 @@ def test_update_character_observed(tmp_path, monkeypatch):
 
 
 def test_ensure_workspace_creates_subdirs():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     root = ws.ensure_workspace(wid)
     for sub in ("raw", "artifacts", "state"):
@@ -34,7 +34,7 @@ def test_ensure_workspace_creates_subdirs():
 
 
 def test_init_workspace_writes_empty_state_files():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     root = ws.init_workspace(wid)
     for name in ws.STATE_FILES:
@@ -44,7 +44,7 @@ def test_init_workspace_writes_empty_state_files():
 
 
 def test_empty_state_is_deepcopied():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     a = ws.empty_state()
     b = ws.empty_state()
     a["work_state.json"]["characters"]["x"] = {}
@@ -52,7 +52,7 @@ def test_empty_state_is_deepcopied():
 
 
 def test_load_save_roundtrip():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
     state = ws.load_state(wid)
@@ -63,7 +63,7 @@ def test_load_save_roundtrip():
 
 
 def test_add_evidence_fact_with_confidence():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
     e = ws.add_evidence_fact(wid, "豊姫 distrusts 永琳", status="inferred",
@@ -73,7 +73,7 @@ def test_add_evidence_fact_with_confidence():
 
 
 def test_add_evidence_fact_rejects_bad_status():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     import pytest
     wid = _new_id("ws")
     ws.init_workspace(wid)
@@ -82,7 +82,7 @@ def test_add_evidence_fact_rejects_bad_status():
 
 
 def test_update_character_upsert():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
     ws.update_character(wid, "豊姫", source="page_4:text_13", role="disciple")
@@ -93,7 +93,7 @@ def test_update_character_upsert():
 
 
 def test_add_open_question_increments_id():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
     ws.add_open_question(wid, "誰が話してる？", raised_page=4)
@@ -102,7 +102,7 @@ def test_add_open_question_increments_id():
 
 
 def test_validate_state_flags_bad_status():
-    from amta import workstate as ws
+    from amta.common import workstate as ws
     bad = {"work_id": "w", "characters": {"a": {"status": "nope"}}, "terms": {}, "recent_context": []}
     assert any("invalid status" in p for p in ws.validate_state(bad))
     assert ws.validate_state({"work_id": "w", "characters": {}, "terms": {}, "recent_context": []}) == []

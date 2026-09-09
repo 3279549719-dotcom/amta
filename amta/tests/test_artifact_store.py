@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from amta.artifact_store import JSON_STAGES, ArtifactStore, fingerprint_of, resolve_artifact
+from amta.stores.artifact_store import JSON_STAGES, ArtifactStore, fingerprint_of, resolve_artifact
 
 
 def _w(path: Path, data: dict | list | str) -> None:

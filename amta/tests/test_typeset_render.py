@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from PIL import Image
 
-from amta.typeset_render import render_item
+from amta.typeset.typeset_render import render_item
 
 FONT = "C:/Windows/Fonts/msyh.ttc"
 
@@ -63,7 +63,7 @@ def test_render_auto_infers_vertical_for_tall_box():
 
 def test_render_vertical_ellipsis_rotated():
     """竖排渲染时，省略号等横向标点应旋转90度绘制。"""
-    from amta.typeset_render import render_item
+    from amta.typeset.typeset_render import render_item
     img = Image.new("RGB", (400, 800), "white")
     bbox = [100, 100, 300, 700]  # 窄长框 → 竖排
     text = "测试省略号……"
@@ -79,7 +79,7 @@ def test_render_vertical_ellipsis_rotated():
 
 def test_render_vertical_dash_rotated():
     """竖排渲染时，破折号应旋转90度绘制。"""
-    from amta.typeset_render import render_item
+    from amta.typeset.typeset_render import render_item
     img = Image.new("RGB", (400, 800), "white")
     bbox = [100, 100, 300, 700]
     text = "破折号测试——"

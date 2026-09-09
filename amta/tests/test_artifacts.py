@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta import artifacts
+from amta.stores import artifacts
 
 
 def test_page_key_and_idx_from_raw():

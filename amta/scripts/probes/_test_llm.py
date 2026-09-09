@@ -8,8 +8,8 @@ for _k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
-from amta.chat_client import chat_text
-from amta.config import get_chat_config
+from amta.backends.chat_client import chat_text
+from amta.common.config import get_chat_config
 
 cfg = get_chat_config()
 print(f"base_url: {cfg.get('base_url')}")

@@ -1,11 +1,11 @@
-﻿"""ocr 工位适配器 — StationContext → ocr_station.ocr_page → StationResult。"""
+"""ocr 工位适配器 — StationContext → ocr_station.ocr_page → StationResult。"""
 from __future__ import annotations
 
 import time
 
-from amta import artifacts
-from amta.ocr_station import ocr_page
-from amta.paths import read_json
+from amta.stores import artifacts
+from amta.stations.ocr_station import ocr_page
+from amta.common.paths import read_json
 
 from ..context import StationContext, StationResult
 

@@ -1,4 +1,4 @@
-﻿"""inpaint 工位适配器 — StationContext → inpaint_station.run → StationResult。
+"""inpaint 工位适配器 — StationContext → inpaint_station.run → StationResult。
 
 使用本地 lama-manga 推理（ADR-029），不依赖 Koharu HTTP 服务。
 """
@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import time
 
-from amta import artifacts
-from amta.inpaint_station import run as inpaint_run
+from amta.stores import artifacts
+from amta.inpaint.inpaint_station import run as inpaint_run
 
 from ..context import StationContext, StationResult
 

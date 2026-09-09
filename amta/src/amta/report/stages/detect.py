@@ -13,7 +13,7 @@ def render_cell(data: Any) -> str:
     bbox = data.get("bbox", [])
     bbox_str = f"[{int(bbox[0])},{int(bbox[1])}]" if bbox else ""
     color = "#16a34a" if conf >= 0.5 else "#d97706"
-    return f'<span style="color:{color};font-weight:600">{conf:.3f}</span> {btype} <span style="font-family:monospace;font-size:10px">{bbox_str}</span>'
+    return f'<span style="color:{color};font-weight:600">{conf:.3f}</span> <span style="font-family:monospace;font-size:10px">{bbox_str}</span>'
 
 
 def render_overlay(draw, blocks: dict[str, Any], scale: float, offset: int = 0) -> None:

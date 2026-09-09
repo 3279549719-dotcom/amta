@@ -1,7 +1,7 @@
 """TDD 切片1: FFC 模型定义 + lama-manga 权重加载测试。
 
 验证:
-1. 能从 amta._lama_ffc 导入 FFCResNetGenerator
+1. 能从 amta.inpaint._lama_ffc 导入 FFCResNetGenerator
 2. 构建 n_blocks=18 的 large arch 模型
 3. 加载 lama-manga.safetensors 权重 (missing=0, unexpected=0)
 4. 前向传播输出形状正确 (B,3,H,W)
@@ -26,14 +26,14 @@ def find_lama_manga() -> Path:
 
 
 def test_import_ffc_generator():
-    """能从 amta._lama_ffc 导入 FFCResNetGenerator。"""
-    from amta._lama_ffc import FFCResNetGenerator
+    """能从 amta.inpaint._lama_ffc 导入 FFCResNetGenerator。"""
+    from amta.inpaint._lama_ffc import FFCResNetGenerator
     assert FFCResNetGenerator is not None
 
 
 def test_build_large_arch():
     """构建 n_blocks=18 的 large arch 模型，参数量约 51M。"""
-    from amta._lama_ffc import FFCResNetGenerator
+    from amta.inpaint._lama_ffc import FFCResNetGenerator
     model = FFCResNetGenerator(
         input_nc=4, output_nc=3, ngf=64, n_blocks=18,
         add_out_act=False,
@@ -47,7 +47,7 @@ def test_build_large_arch():
 
 def test_load_lama_manga_weights():
     """加载 lama-manga.safetensors 权重，missing=0 unexpected=0。"""
-    from amta._lama_ffc import FFCResNetGenerator
+    from amta.inpaint._lama_ffc import FFCResNetGenerator
     model = FFCResNetGenerator(
         input_nc=4, output_nc=3, ngf=64, n_blocks=18,
         add_out_act=False,
@@ -63,7 +63,7 @@ def test_load_lama_manga_weights():
 
 def test_forward_pass():
     """前向传播输出形状正确 (1,3,H,W)。"""
-    from amta._lama_ffc import FFCResNetGenerator
+    from amta.inpaint._lama_ffc import FFCResNetGenerator
     model = FFCResNetGenerator(
         input_nc=4, output_nc=3, ngf=64, n_blocks=18,
         add_out_act=False,

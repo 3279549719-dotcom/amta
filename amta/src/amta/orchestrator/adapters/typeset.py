@@ -1,11 +1,11 @@
-﻿"""typeset 工位适配器 — StationContext → typeset_station.run → StationResult。"""
+"""typeset 工位适配器 — StationContext → typeset_station.run → StationResult。"""
 from __future__ import annotations
 
 import time
 
-from amta import artifacts
-from amta.paths import read_json
-from amta.typeset_station import run as typeset_run
+from amta.stores import artifacts
+from amta.common.paths import read_json
+from amta.typeset.typeset_station import run as typeset_run
 
 from ..context import StationContext, StationResult
 

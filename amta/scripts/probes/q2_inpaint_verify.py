@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageChops
 
-from amta.inpaint_station import _build_mask_image, _get_inpainter
-from amta.paths import read_json
+from amta.inpaint.inpaint_station import _build_mask_image, _get_inpainter
+from amta.common.paths import read_json
 
 RAW_DIR = Path(r"E:\manga translator agent\amta\output\data\ocr_check_html")
 DET_DIR = Path(r"E:\manga translator agent\amta\workspace\exp-q1-tiling-garbled\artifacts\detection")

@@ -180,11 +180,9 @@ class TestStage4Report:
         assert extract_text_free_boxes({"actions": []}) == {}
         assert extract_text_free_boxes({}) == {}
 
-    def test_render_with_free_boxes(self, tmp_path, monkeypatch):
+    def test_render_with_free_boxes(self, tmp_path):
         from amta.report import stage4_report
         # mock refine_text_mask 避免依赖 opencv 真实运算
-        monkeypatch.setattr(stage4_report, "refine_text_mask",
-                            lambda img, bboxes, pad=4: __import__("numpy").zeros((200, 200), dtype="uint8"))
         src = tmp_path / "src"
         src.mkdir()
         Image.new("RGB", (200, 200), "white").save(src / "11.jpg")
@@ -198,10 +196,8 @@ class TestStage4Report:
         assert "free11" in html
         assert "inpaint 框" in html
 
-    def test_render_no_free_boxes(self, tmp_path, monkeypatch):
+    def test_render_no_free_boxes(self, tmp_path):
         from amta.report import stage4_report
-        monkeypatch.setattr(stage4_report, "refine_text_mask",
-                            lambda img, bboxes, pad=4: __import__("numpy").zeros((200, 200), dtype="uint8"))
         src = tmp_path / "src"
         src.mkdir()
         Image.new("RGB", (200, 200), "white").save(src / "12.jpg")
@@ -211,10 +207,8 @@ class TestStage4Report:
         html = stage4_report.render_stage4_report(src, result, [12])
         assert "无 inpaint 框" in html
 
-    def test_render_skip_missing_raw(self, tmp_path, monkeypatch):
+    def test_render_skip_missing_raw(self, tmp_path):
         from amta.report import stage4_report
-        monkeypatch.setattr(stage4_report, "refine_text_mask",
-                            lambda img, bboxes, pad=4: __import__("numpy").zeros((200, 200), dtype="uint8"))
         src = tmp_path / "src"
         src.mkdir()
         # 11.jpg 不存在，12.jpg 存在
@@ -227,10 +221,8 @@ class TestStage4Report:
         assert "第 12 页" in html
         assert "第 11 页" not in html
 
-    def test_render_writes_out_file(self, tmp_path, monkeypatch):
+    def test_render_writes_out_file(self, tmp_path):
         from amta.report import stage4_report
-        monkeypatch.setattr(stage4_report, "refine_text_mask",
-                            lambda img, bboxes, pad=4: __import__("numpy").zeros((200, 200), dtype="uint8"))
         src = tmp_path / "src"
         src.mkdir()
         Image.new("RGB", (200, 200), "white").save(src / "11.jpg")
