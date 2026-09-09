@@ -109,8 +109,11 @@ class TestOCRStation:
         assert "vlm_fn" in param_names
 
     def test_vlm_verify_exists(self):
-        """vlm_verify.py 存在（VLM contact sheet 校验，质检环节）。"""
-        assert (ROOT / "src" / "amta" / "vlm_verify.py").exists()
+        """vlm_verify.py 存在（VLM contact sheet 校验，质检环节）。
+
+        2026-09-09 顶层模块归入领域子包后位于 amta/backends/vlm_verify.py。
+        """
+        assert (ROOT / "src" / "amta" / "backends" / "vlm_verify.py").exists()
 
     def test_canon_item_has_text_and_baberu_text(self):
         """canon items 同时有 text 和 baberu_text 字段（向后兼容）。"""
