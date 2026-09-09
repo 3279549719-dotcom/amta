@@ -95,8 +95,8 @@ class _LamaMangaModel:
             scale = MAX_INFER_WIDTH / orig_w
             new_w = MAX_INFER_WIDTH
             new_h = max(1, int(orig_h * scale))
-            infer_img = image.resize((new_w, new_h), Image.LANCZOS)
-            infer_mask = mask.resize((new_w, new_h), Image.NEAREST)
+            infer_img = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            infer_mask = mask.resize((new_w, new_h), Image.Resampling.NEAREST)
 
         infer_w, infer_h = infer_img.size
 

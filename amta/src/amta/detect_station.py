@@ -445,6 +445,8 @@ def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
 
     if tiling_enabled:
         img = cv2.imdecode(np.fromfile(str(raw_page), dtype=np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            raise RuntimeError(f"imdecode 失败，无法读入原图: {raw_page}")
         tiled = TiledDetector(det, cols=tiling_cols, rows=tiling_rows,
                               conf_threshold=tiling_conf, nms_iou=tiling_nms_iou)
         tiled_boxes = tiled.detect(img)
