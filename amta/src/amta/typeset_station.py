@@ -3,7 +3,7 @@
 从 scripts/05_typeset.py 抽取，canon 用 load_canon 规范化（兼容信封格式）。
 bbox 关联: canon.node_id → detection.blocks[].node_id（零契约改动，ADR-019 不变）。
 ADR-031 决策C：删除 decide_direction，方向由 fit_font_size 双方向选优自动决定。
-气泡框收缩：text_bubble 类型的框在排版前调用 shrink_bubble_bbox，detect框比气泡大时自动收缩到实际边界。
+气泡框收缩：ADR-031 后对所有框排版前调用 shrink_bubble_bbox，detect框比文字大时自动收缩到实际边界。
 """
 from __future__ import annotations
 
@@ -26,14 +26,12 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     canon_items = canon_doc["items"]
     trans = read_json(trans_path).get("translations") or {}
     det = read_json(det_path)
-    # 同时存 bbox 和 bubble_type，供排版前收缩用
+    # 存 bbox，供排版前收缩用（ADR-031: 对所有框收缩，不再区分 bubble_type）
     bbox_by_rid = {}
-    bubble_type_by_rid = {}
     for b in (det.get("blocks") or []):
         rid = b.get("region_id")
         if rid:
             bbox_by_rid[rid] = b.get("bbox")
-            bubble_type_by_rid[rid] = b.get("bubble_type", "")
 
     img = Image.open(clean_path).convert("RGB")
     rendered_items = []
@@ -51,13 +49,11 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         if not bbox:
             skipped_no_bbox.append(rid)
             continue
-        # text_bubble 类型的框：排版前收缩到气泡实际边界（detect框比气泡大时不出框）
-        bubble_type = bubble_type_by_rid.get(rid, "")
-        if bubble_type == "text_bubble":
-            original_bbox = list(bbox)
-            bbox = shrink_bubble_bbox(img, bbox)
-            if bbox != original_bbox:
-                shrunk_boxes.append(rid)
+        # ADR-031: 对所有框排版前收缩到实际边界（detect框比文字大时不出框）
+        original_bbox = list(bbox)
+        bbox = shrink_bubble_bbox(img, bbox)
+        if bbox != original_bbox:
+            shrunk_boxes.append(rid)
         category = item.get("category")
         font_path, stroke = resolve_font(category or "dialogue_bubble", text)
         meta = render_item(img, text, str(font_path), bbox, stroke=stroke)

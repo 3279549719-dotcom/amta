@@ -6,7 +6,7 @@
 - union_boxes     ← 合并自 benchmark.union_boxes
 - union_blocks    ← 多 detector 并集，保留元数据（01_detect 输出扁平 blocks[]）
 - mark_contained  ← 嵌套框标记（contained_in，不丢弃，留给下游 LLM）
-- assign_category ← bubble_type → 3 级 category 映射
+- (removed) assign_category ← bubble_type → 3 级 category 映射 (ADR-031 移除)
 - shrink_bubble_bbox ← 气泡框智能收缩（detect框比气泡大时，收缩到气泡实际边界）
 """
 from __future__ import annotations
@@ -55,7 +55,7 @@ def union_boxes(detections: dict[str, list[dict]], threshold: float = 0.5) -> li
     return [{"bbox": list(s)} for s in seen]
 
 def union_blocks(detections: dict[str, list[dict]], threshold: float = 0.5) -> list[dict]:
-    """多 detector 并集，保留首个命中框的元数据（node_id/bubble_type/ocr 等）。
+    """多 detector 并集，保留首个命中框的元数据（node_id/ocr 等）。
 
     去重判据与 union_boxes 一致（IoU > threshold 视为重复），重复时保留首个出现的完整 block。
     引擎溯源（ADR-023）：block 已含 source_engines 字段时，新框确保记录当前引擎名，
@@ -128,30 +128,6 @@ def mark_contained(blocks: list[dict], ioa_threshold: float = 0.75) -> list[dict
 
     return blocks
 
-
-def assign_category(blocks: list[dict]) -> list[dict]:
-    """bubble_type 值域统一映射到 3 级 category(Phase 1 / ADR-019)。
-
-    koharu 推断的 bubble_type(dialogue/narration/sfx/unknown/overlay_text)
-    → category ∈ {dialogue_bubble, overlay_text, sfx}。
-    映射规则: dialogue/narration/unknown → dialogue_bubble; sfx → sfx; overlay_text 透传。
-    保留原 bubble_type 字段(兼容下游)。
-    """
-    _MAP = {
-        "dialogue": "dialogue_bubble",
-        "narration": "dialogue_bubble",
-        "unknown": "dialogue_bubble",
-        "sfx": "sfx",
-        "overlay_text": "overlay_text",
-    }
-    out = []
-    for b in blocks:
-        item = dict(b)
-        bt = item.get("bubble_type")
-        item["category"] = _MAP.get(bt if isinstance(bt, str) else "",
-                                     "dialogue_bubble")
-        out.append(item)
-    return out
 
 
 def _pixel_brightness(pixel) -> float:

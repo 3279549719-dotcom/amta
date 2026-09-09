@@ -10,7 +10,6 @@ def render_cell(data: Any) -> str:
     if not data:
         return '<span style="color:#999">(无)</span>'
     conf = data.get("confidence", 0)
-    btype = data.get("bubble_type", "")
     bbox = data.get("bbox", [])
     bbox_str = f"[{int(bbox[0])},{int(bbox[1])}]" if bbox else ""
     color = "#16a34a" if conf >= 0.7 else "#d97706"
@@ -53,7 +52,6 @@ def from_detection(det: dict) -> StageOutput:
             cells[rid] = {
                 "bbox": b.get("bbox", []),
                 "confidence": b.get("confidence", 0),
-                "bubble_type": b.get("bubble_type", ""),
             }
     return StageOutput(
         key="detect",

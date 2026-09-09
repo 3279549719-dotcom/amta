@@ -24,7 +24,6 @@ class DetectionBlock(TypedDict, total=False):
     bbox: list[float]
     category: str
     sub_tier: str
-    bubble_type: str
     node_id: str
     text: str
     source_engines: list[str]

@@ -222,7 +222,6 @@ def merge_tiled_new_boxes(main_boxes: list[dict], tiled_boxes: list[dict],
         merged.append({
             "bbox": [float(x1), float(y1), float(x2), float(y2)],
             "source_engines": ["rtdetr-v2-tiled"],
-            "bubble_type": "text_free",
             "det_label": tb["label"],
             "region_id": f"t{len(merged):02d}",
             "confidence": round(tb["conf"], 4),
@@ -399,7 +398,6 @@ class RTDetrDetector:
             boxes = merge_duplicate_boxes(boxes, iou_thresh=0.7)
             boxes = remove_contained_boxes(boxes, threshold=0.8)
         elapsed = time.perf_counter() - t0
-        _LABEL_TO_TYPE = {1: "text_bubble", 2: "text_free"}
         blocks = []
         rid_counter = 0
         for box in boxes:
@@ -411,7 +409,6 @@ class RTDetrDetector:
             blocks.append({
                 "bbox": [float(x1), float(y1), float(x2), float(y2)],
                 "source_engines": ["rtdetr-v2"],
-                "bubble_type": _LABEL_TO_TYPE.get(label, "text_bubble"),
                 "det_label": label,
                 "region_id": f"r{rid_counter:02d}",
                 "confidence": round(score, 4),

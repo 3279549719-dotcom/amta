@@ -16,7 +16,7 @@ def run(ctx: StationContext) -> StationResult:
     """执行 inpaint 工位。
 
     上游依赖：ctx.inputs["detect"] → detection.json
-    从 ctx.config 读取：refine_mask（默认 False）, inpaint_engine（默认 "lama-manga"）
+    从 ctx.config 读取：inpaint_engine（默认 "lama-manga"）
     产出：{artifacts_dir}/{page}_inpaint.json + {artifacts_dir}/clean/{page}_clean.png
     """
     t0 = time.perf_counter()
@@ -34,7 +34,6 @@ def run(ctx: StationContext) -> StationResult:
             raw_page=ctx.raw_image,
             out_path=out_path,
             clean_dir=clean_dir,
-            refine_mask=ctx.config["refine_mask"],
             inpaint_engine=ctx.config["inpaint_engine"],
         )
 
@@ -51,7 +50,6 @@ def run(ctx: StationContext) -> StationResult:
                 "inpainted": checks.get("inpainted", 0),
                 "skipped": checks.get("skipped", 0),
                 "pixel_diff_ratio": checks.get("pixel_diff_ratio", 0),
-                "refine_mask": checks.get("refine_mask", False),
             },
         )
     except Exception as e:

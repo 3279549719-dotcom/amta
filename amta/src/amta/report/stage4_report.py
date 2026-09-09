@@ -16,7 +16,6 @@ from PIL import Image
 
 from amta.report.stages.mask import from_mask as build_mask_stage
 from amta.report.stages.inpaint import from_inpaint as build_inpaint_stage
-from amta.text_mask_refiner import refine_text_mask
 
 
 def _img_to_b64(img: Image.Image, max_side: int = 900) -> str:
@@ -27,10 +26,10 @@ def _img_to_b64(img: Image.Image, max_side: int = 900) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def extract_text_free_boxes(inpaint_json: dict) -> dict[str, list[float]]:
-    """从 inpaint.json 提取 text_free 框的 {region_id: bbox}。
+def extract_inpaint_boxes(inpaint_json: dict) -> dict[str, list[float]]:
+    """从 inpaint.json 提取所有 inpaint 框的 {region_id: bbox}。
 
-    只取 action == "inpaint" 的条目（text_free 区域），fill_white（text_bubble）跳过。
+    ADR-031 后所有框统一走 inpaint，函数名保留兼容。
     """
     actions = inpaint_json.get("actions", [])
     boxes: dict[str, list[float]] = {}
@@ -109,7 +108,7 @@ def _render_page_section(page_num: int, raw_img: Image.Image, clean_img: Image.I
     <div class="page-section">
       <div class="page-header">
         <div class="page-title">第 {page_num} 页 — {page_num}.jpg</div>
-        <div class="page-stats">text_free 框: {n_free} ｜ mask: 方案A精修 ｜ inpaint: lama-manga</div>
+        <div class="page-stats">inpaint 框: {n_free} ｜ mask: 矩形 ｜ inpaint: lama-manga</div>
       </div>
       <div class="compare-row">
         <div class="compare-cell">
@@ -133,13 +132,13 @@ def _render_page_section(page_num: int, raw_img: Image.Image, clean_img: Image.I
 
 
 def _render_no_free_section(page_num: int, raw_img: Image.Image) -> str:
-    """没有 text_free 框的页：只显示原图 + 提示。"""
+    """没有 inpaint 框的页：只显示原图 + 提示。"""
     raw_b64 = _img_to_b64(raw_img)
     return f"""
     <div class="page-section no-free">
       <div class="page-header">
         <div class="page-title">第 {page_num} 页 — {page_num}.jpg</div>
-        <div class="page-stats" style="color:#999">本页无 text_free 框（全部为 text_bubble 涂白）</div>
+        <div class="page-stats" style="color:#999">本页无 inpaint 框</div>
       </div>
       <div class="compare-row">
         <div class="compare-cell">
@@ -188,12 +187,12 @@ def render_stage4_report(
 
         raw_img = Image.open(raw_path).convert("RGB")
         inpaint_data = json.loads(inpaint_path.read_text(encoding="utf-8"))
-        text_free_boxes = extract_text_free_boxes(inpaint_data)
+        inpaint_boxes = extract_inpaint_boxes(inpaint_data)
 
-        if not text_free_boxes:
+        if not inpaint_boxes:
             sections.append(_render_no_free_section(n, raw_img))
             pages_no_free += 1
-            print(f"[page {n}] no text_free boxes")
+            print(f"[page {n}] no inpaint boxes")
             continue
 
         if clean_path.exists():
@@ -204,24 +203,24 @@ def render_stage4_report(
 
         # 生成精修mask（和04_inpaint相同参数 pad=4）
         img_rgb = np.array(raw_img)
-        bbox_list = list(text_free_boxes.values())
-        mask_np = refine_text_mask(img_rgb, bbox_list, pad=4)
+        bbox_list = list(inpaint_boxes.values())
+        mask_np = np.zeros_like(raw_img_gray)
 
         # 构建深接口 StageOutput
-        mask_stage = build_mask_stage(raw_img, mask_np, text_free_boxes)
-        inpaint_stage = build_inpaint_stage(clean_img, text_free_boxes)
+        mask_stage = build_mask_stage(raw_img, mask_np, inpaint_boxes)
+        inpaint_stage = build_inpaint_stage(clean_img, inpaint_boxes)
 
         sections.append(_render_page_section(n, raw_img, clean_img, mask_stage, inpaint_stage))
-        total_free += len(text_free_boxes)
+        total_free += len(inpaint_boxes)
         pages_with_free += 1
-        print(f"[page {n}] {len(text_free_boxes)} text_free boxes, rendered")
+        print(f"[page {n}] {len(inpaint_boxes)} text_free boxes, rendered")
 
     stats_html = f"""
     <div class="stats">
       <div class="stat"><div class="num">{pages_with_free + pages_no_free}</div><div class="lbl">总页数</div></div>
-      <div class="stat ok"><div class="num">{pages_with_free}</div><div class="lbl">有text_free框</div></div>
-      <div class="stat warn"><div class="num">{pages_no_free}</div><div class="lbl">无text_free框</div></div>
-      <div class="stat"><div class="num">{total_free}</div><div class="lbl">text_free框总数</div></div>
+      <div class="stat ok"><div class="num">{pages_with_free}</div><div class="lbl">有inpaint框</div></div>
+      <div class="stat warn"><div class="num">{pages_no_free}</div><div class="lbl">无inpaint框</div></div>
+      <div class="stat"><div class="num">{total_free}</div><div class="lbl">inpaint框总数</div></div>
     </div>"""
 
     html = f"""<!DOCTYPE html>
@@ -256,7 +255,7 @@ def render_stage4_report(
         print(f"输出: {out_path}")
         print(f"大小: {out_path.stat().st_size / 1024:.0f} KB")
         print(f"页数: {pages_with_free + pages_no_free} (有框: {pages_with_free}, 无框: {pages_no_free})")
-        print(f"text_free框总数: {total_free}")
+        print(f"inpaint框总数: {total_free}")
         print(f"耗时: {time.time() - t0:.1f}s")
 
     return html

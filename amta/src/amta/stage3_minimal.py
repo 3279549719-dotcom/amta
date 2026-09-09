@@ -1,34 +1,31 @@
-"""Stage 3 Minimal Translation — 2 LLM calls per page, zero tools, zero loops.
+"""Stage 3 Minimal Translation — 1 LLM call per page, zero tools, zero loops.
 
-Architecture (copied from mit 2stage + koharu TranslationRequest):
-  1. VLM full-page refine (temp=0): OCR correction + bubble types + scene + invalid/duplicate
-  2. Code-side prefetch: term injection (mit extract_relevant_terms) + context (koharu pattern)
-  3. Plain-text batch translate (temp=0.3): one call, JSON, 1 retry + binary split
-  4. Deterministic post-process: duplicate inherit, invalid blank, residue + glossary check
+Architecture (2026-09-09 VLM refine 移除后):
+  1. Code-side prefetch: term injection + context (前页译文 + 术语 + 关系)
+  2. Plain-text batch translate (temp=0.3): one call, JSON array, 长度严格校验
+  3. Deterministic post-process: residue + glossary check
 
-SDD rulings baked in (2026-08-31-stage3-minimal-translation, spike v3 GATE PASS):
+历史（已移除）:
+- VLM full-page refine (2026-08-31 ~ 2026-09-09): OCR correction + bubble types +
+  scene + invalid/duplicate。移除原因见 archive/vlm_refine_stage3_2026-09-09.py。
+- 重试/二分/长度比护栏/无句末标点重试 (2026-09-08 移除): 数组契约已加固。
+
+SDD rulings baked in:
 - page→file mapping is SYSTEMICALLY off-by-one (pipeline page N = file N+1.jpg);
-  detect_contract source field records the wrong path — raw_image_path MUST be
-  passed explicitly by the caller (no auto-detection here, known gap stands).
-- VLM refine output is ADVISORY (spike v2/v3 hardening): grounding validation
-  (only region_ids present in canon), empty-string refinements dropped (不抹字).
+  raw_image_path MUST be passed explicitly by the caller (no auto-detection here).
 - page_key requires int (artifacts contract): canon page normalized via _page_to_key.
-- Empty region list short-circuits before any LLM call (Task 2 deferred guard).
+- Empty region list short-circuits before any LLM call.
 """
 from __future__ import annotations
 
-import base64
 import json
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 from amta import artifacts, guardrails, workstate
 from amta.artifact_store import ArtifactStore
 from amta.canon_schema import validate_canon
-from amta.chat_client import chat
-from amta.config import _resolve, get_dashscope_key  # _resolve: 同包 env→.env 解析唯一归属
 from amta.metrics import norm
 from amta.translate import (extract_relevant_terms, get_chat_config, text_chat,
                             translate_plain)
@@ -47,7 +44,7 @@ _MAX_TERMS = 5
 def build_semantic_context(pages: int, work_state: dict,
                            prev_pages: list[dict] | None,
                            state_dir: Path | str | None) -> str:
-    """构建带语义标注的前页上下文（Lesson 03 实践）。
+    """构建带语义标注的前页上下文。
 
     优先读 artifacts/ 下的单页 canon+translation（带 category 标注），
     回退到汇总 translation.json / prev_pages 参数。
@@ -226,120 +223,14 @@ def _format_relevant_terms(terms: dict, src_texts: list[str]) -> list[str]:
     return relevant
 
 
-# Task 1 spike v3 gate: qwen3.5-omni-plus primary (3/3 parse, 2.6s avg, S1-S5 全过)
-_VISION_MODEL_DEFAULT = "qwen3.5-omni-plus"
-_DASHSCOPE_BASE_DEFAULT = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-
-
-@dataclass
-class VlmRefineResult:
-    """Structured output from VLM full-page refine call."""
-    ocr_refinements: dict[str, str] = field(default_factory=dict)
-    bubble_types: dict[str, str] = field(default_factory=dict)
-    scene: str = ""
-    invalid_regions: list[str] = field(default_factory=list)
-    duplicate_regions: dict[str, str] = field(default_factory=dict)
-    raw: str = ""  # raw VLM response for debugging
-
-
-def _parse_vlm_response(raw: str) -> VlmRefineResult | None:
-    """Parse VLM JSON response; return None on parse failure."""
-    text = (raw or "").strip()
-    if text.startswith("```"):
-        text = "\n".join(text.split("\n")[1:])
-    if text.endswith("```"):
-        text = "\n".join(text.split("\n")[:-1])
-    try:
-        data = json.loads(text.strip())
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict):
-        return None
-    return VlmRefineResult(
-        ocr_refinements={k: str(v) for k, v in (data.get("ocr_refinements") or {}).items()},
-        bubble_types={k: str(v) for k, v in (data.get("bubble_types") or {}).items()},
-        scene=str(data.get("scene") or ""),
-        invalid_regions=[str(x) for x in (data.get("invalid_regions") or [])],
-        duplicate_regions={str(k): str(v) for k, v in (data.get("duplicate_regions") or {}).items()},
-        raw=raw,
-    )
-
-
-def _ground_vlm_result(vlm: VlmRefineResult, canon: list[dict]) -> VlmRefineResult:
-    """VLM 输出 ADVISORY 硬化（spike v3 控制裁决 ③）：grounding 校验。"""
-    canon_ids = {r["region_id"] for r in canon}
-    return VlmRefineResult(
-        ocr_refinements={k: v for k, v in vlm.ocr_refinements.items() if k in canon_ids and v.strip()},
-        bubble_types={k: v for k, v in vlm.bubble_types.items() if k in canon_ids},
-        scene=vlm.scene,
-        invalid_regions=[rid for rid in vlm.invalid_regions if rid in canon_ids],
-        duplicate_regions={k: v for k, v in vlm.duplicate_regions.items()
-                           if k in canon_ids and v in canon_ids},
-        raw=vlm.raw,
-    )
-
-
-def vlm_refine_page(canon: list[dict], raw_image_path: Path | str | None,
-                    llm_vlm: Callable) -> VlmRefineResult | None:
-    """Call 1: VLM full-page refine. Returns None on failure (caller uses baberu_text)."""
-    if raw_image_path is None:
-        return None
-    path = Path(raw_image_path)
-    if not path.exists():
-        return None
-    try:
-        img_data = base64.b64encode(path.read_bytes()).decode("ascii")
-        mime = "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
-        image_url = f"data:{mime};base64,{img_data}"
-    except Exception:
-        return None
-
-    region_lines = []
-    for r in canon:
-        rid = r["region_id"]
-        text = r.get("baberu_text") or r.get("text") or ""
-        bbox = r.get("bbox", [])
-        region_lines.append(f"{rid}: {text} [bbox: {bbox}]")
-
-    system = (
-        "You are a manga OCR refinement engine. Given a full manga page image and OCR regions, "
-        "output STRICT JSON: {\"ocr_refinements\": {rid: corrected}, \"bubble_types\": {rid: dialogue|narration|sfx}, "
-        "\"scene\": \"one sentence\", \"invalid_regions\": [rid], \"duplicate_regions\": {rid: original_rid}}. "
-        "Only include ocr_refinements for regions you CORRECT. Output ONLY valid JSON."
-    )
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": [
-            {"type": "text", "text": "OCR regions:\n" + "\n".join(region_lines)},
-            {"type": "image_url", "image_url": {"url": image_url}},
-        ]},
-    ]
-    try:
-        raw = llm_vlm(messages)
-    except Exception:
-        return None
-    parsed = _parse_vlm_response(raw)
-    if parsed is None:
-        return None
-    return _ground_vlm_result(parsed, canon)
-
-
 def build_prefetch_context(canon: list[dict], work_state: dict,
-                           state_dir: Path | None,
-                           vlm_refine: VlmRefineResult | None) -> dict[str, Any]:
-    """Code-side prefetch: apply VLM refine, filter invalid, build system_extra + context."""
-    invalid_ids = set(vlm_refine.invalid_regions) if vlm_refine else set()
-    duplicate_map = dict(vlm_refine.duplicate_regions) if vlm_refine else {}
+                           state_dir: Path | None) -> dict[str, Any]:
+    """Code-side prefetch: 术语预替换 + glossary 注入 + 前页上下文构建。
 
-    refined = []
-    for r in canon:
-        rid = r["region_id"]
-        if rid in invalid_ids:
-            continue
-        item = dict(r)
-        if vlm_refine and rid in vlm_refine.ocr_refinements:
-            item["baberu_text"] = vlm_refine.ocr_refinements[rid]
-        refined.append(item)
+    VLM refine 移除后（2026-09-09）：不再有 invalid_ids / duplicate_map /
+    ocr_refinements / scene，canon 直接进入术语替换和翻译。
+    """
+    refined = [dict(r) for r in canon]
 
     # === Direct term pre-replacement (mechanical guardrail) ===
     # Replace locked terminology (from pre-scan) with Chinese translations
@@ -364,8 +255,6 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
             trans = meta.get("translation") or meta.get("canon_translation") or "?"
             term_lines.append(f"- {term} → {trans}")
         system_parts.append("\n".join(term_lines))
-    if vlm_refine and vlm_refine.scene:
-        system_parts.append(f"场景描述：{vlm_refine.scene}")
     system_extra = "\n\n".join(system_parts)
 
     context_prefix = ""
@@ -381,8 +270,6 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
         "refined_canon": refined,
         "system_extra": system_extra,
         "context_prefix": context_prefix,
-        "duplicate_map": duplicate_map,
-        "invalid_ids": invalid_ids,
     }
 
 
@@ -401,10 +288,12 @@ def translate_page_minimal(work_id: str, canon, *,
                            state_dir: Path | str | None = None,
                            page: str | None = None,
                            llm_text: Callable | None = None,
-                           llm_vlm: Callable | None = None,
-                           vlm_enabled: bool = True,
                            context_enabled: bool = True) -> dict:
-    """Minimal translation entry: VLM refine → prefetch → plain translate → post-process."""
+    """Minimal translation entry: prefetch → plain translate → post-process.
+
+    VLM refine 已移除（2026-09-09）：不再接受 vlm_enabled / llm_vlm 参数，
+    不再做视觉 LLM 调用。raw_image_path 参数保留为接口兼容但不再使用。
+    """
     if isinstance(canon, dict):
         canon_items = canon.get("items", [])
     else:
@@ -424,27 +313,7 @@ def translate_page_minimal(work_id: str, canon, *,
                              api_key=cfg["api_key"], temperature=0.3)
         llm_text = _default_text
 
-    vlm_result = None
-    if vlm_enabled and raw_image_path and canon_items:
-        if llm_vlm is None:
-            vision_model = _resolve("VISION_MODEL", None) or _VISION_MODEL_DEFAULT
-            vision_base = _resolve("DASHSCOPE_BASE_URL", None) or _DASHSCOPE_BASE_DEFAULT
-            try:
-                vision_key: str = get_dashscope_key()
-            except RuntimeError:
-                try:
-                    vision_key = get_chat_config()["api_key"]
-                except RuntimeError:
-                    vision_key = ""
-
-            def _default_vlm(messages):
-                resp = chat(vision_base, vision_model, messages,
-                            api_key=vision_key, timeout=120, temperature=0)
-                return resp.get("content") or ""
-            llm_vlm = _default_vlm
-        vlm_result = vlm_refine_page(canon_items, Path(raw_image_path), llm_vlm)
-
-    ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None, vlm_result)
+    ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None)
 
     translations: dict[str, str] = {}
     if ctx["refined_canon"]:
@@ -460,21 +329,11 @@ def translate_page_minimal(work_id: str, canon, *,
         rid = r["region_id"]
         if rid in translations:
             result[rid] = translations[rid]
-        elif rid in ctx["duplicate_map"]:
-            source = ctx["duplicate_map"][rid]
-            result[rid] = translations.get(source, "")
-        elif rid in ctx["invalid_ids"]:
-            result[rid] = ""
         else:
             result[rid] = ""
 
     # P2 机械标点对齐：已禁用（2026-09-06 grill-with-docs 决策）。
     # 原文标点必须保留，LLM 自然添加的中文标点有助于排版断列，删标点机制自毁。
-    # from amta.punctuation_align import align_punctuation
-    # for r in canon_items:
-    #     rid = r["region_id"]
-    #     if result.get(rid):
-    #         result[rid] = align_punctuation(r.get("text", ""), result[rid])
 
     residue = guardrails.japanese_residue_check(list(result.values()))
     # glossary_violations 已停用: 纯机械检查出违规也无法触发重翻/修正, 无实际价值
@@ -485,11 +344,4 @@ def translate_page_minimal(work_id: str, canon, *,
         "residue": residue,
         "glossary_violations": violations,
     }, work_id or "", env_page)
-    if vlm_result:
-        out["vlm_refine"] = {
-            "scene": vlm_result.scene,
-            "invalid_count": len(vlm_result.invalid_regions),
-            "duplicate_count": len(vlm_result.duplicate_regions),
-            "refinement_count": len(vlm_result.ocr_refinements),
-        }
     return out

@@ -4,7 +4,7 @@
 - Koharu HTTP inpaint → 本地 lama-manga 推理（LocalLamaInpainter）
 - 消除外部服务依赖，纯本地执行
 
-策略: bubble_type 分类 → text_bubble 白底直填 / text_free mask+inpaint(本地 lama-manga)。
+策略: ADR-030 后所有框统一走 Lama inpaint（矩形 mask）；ADR-031 移除 bubble_type 标签和 text_mask_refiner。
 """
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ from PIL import Image, ImageChops, ImageDraw
 from amta.inpaint_strategy import FILL_WHITE, INPAINT, SKIP, plan_inpaint
 from amta.local_lama_inpainter import LocalLamaInpainter
 from amta.paths import read_json, write_json
-from amta.text_mask_refiner import build_rect_mask, refine_text_mask
 
 
 # ---- 模块级单例：模型只加载一次 ----
@@ -46,24 +45,19 @@ def _apply_fill_white(img: Image.Image, bbox: list, shrink: int = 8) -> None:
     ImageDraw.Draw(img).rectangle([sx1, sy1, sx2, sy2], fill=(255, 255, 255))
 
 
-def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4,
-                      refine: bool = False) -> Image.Image:
+def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4) -> Image.Image:
     """构建 inpaint mask（PIL Image, L 模式）：白色=要修复区域，黑色=其余。
 
-    refine=False: 矩形 mask（默认，向后兼容）
-    refine=True:  框内传统方法精修像素级 mask（Plan A，减少背景覆盖 70%+）
+    ADR-031: 统一使用矩形 mask。text_mask_refiner（精修 mask）已移除——
+    实验证明矩形 mask + Lama 效果可接受（10页83框，气泡无破坏，用户确认）。
     """
-    if refine and bboxes:
-        img_rgb = np.array(img.convert("RGB"))
-        mask_np = refine_text_mask(img_rgb, bboxes, pad=pad)
-        return Image.fromarray(mask_np)
     mask_np = build_rect_mask(img.size, bboxes, pad=pad)
     return Image.fromarray(mask_np)
 
 
-def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4, refine: bool = False) -> bytes:
+def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4) -> bytes:
     """兼容旧接口：构建 mask 并返回 PNG 编码字节（供实验探针使用）。"""
-    mask_img = _build_mask_image(img, bboxes, pad=pad, refine=refine)
+    mask_img = _build_mask_image(img, bboxes, pad=pad)
     buf = io.BytesIO()
     mask_img.save(buf, format="PNG")
     return buf.getvalue()
@@ -81,7 +75,7 @@ def _pixel_diff_ratio(a: Image.Image, b: Image.Image) -> float:
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         clean_dir: Path | None = None, dry_run: bool = False,
-        refine_mask: bool = False, inpaint_engine: str = "lama-manga") -> dict:
+        inpaint_engine: str = "lama-manga") -> dict:
     """单页 inpaint：detection.json + raw → clean.png + inpaint.json。
 
     Args:
@@ -91,7 +85,6 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         out_path: inpaint.json 输出路径
         clean_dir: clean 图输出目录（None 则不保存 clean 图）
         dry_run: 只规划不执行
-        refine_mask: 是否使用精修 mask（Plan A）
         inpaint_engine: 引擎名（目前仅 "lama-manga"，保留参数供未来扩展）
     """
     det = read_json(det_path)
@@ -108,7 +101,7 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
 
     if not dry_run and (filled or inpaint_boxes):
         if inpaint_boxes:
-            mask_img = _build_mask_image(img, inpaint_boxes, refine=refine_mask)
+            mask_img = _build_mask_image(img, inpaint_boxes)
             inpainter = _get_inpainter()
             inpainted = inpainter.inpaint(img, mask_img)
             if inpainted.size == img.size:
@@ -133,7 +126,6 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
             "inpainted": len(inpaint_boxes),
             "skipped": len(skipped),
             "size_ok": True,
-            "refine_mask": refine_mask,
             "inpaint_engine": inpaint_engine,
             "pixel_diff_ratio": _pixel_diff_ratio(img, raw_img),
         },

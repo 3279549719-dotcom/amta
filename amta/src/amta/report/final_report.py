@@ -67,7 +67,6 @@ def render_final_report(
             items.append({
                 "region_id": rid,
                 "bbox": item.get("bbox", []),
-                "bubble_type": item.get("bubble_type", ""),
                 "confidence": item.get("confidence", 0),
                 "ocr": ocr_text,
                 "translation": trans_text,
@@ -123,7 +122,7 @@ h2 { color: #16213e; margin-top: 30px; }
 <div class="summary">
 <h3 style="margin-top:0">执行摘要</h3>
 <table>
-<tr><th>页号</th><th>检测 (RT-DETR-v2)</th><th>OCR (baberu)</th><th>翻译 (qwen VLM + deepseek flash)</th></tr>
+<tr><th>页号</th><th>检测 (RT-DETR-v2)</th><th>OCR (hayai)</th><th>翻译 (纯文本 LLM + 上下文 + 术语)</th></tr>
 """]
 
     for p in pages_data:
@@ -141,16 +140,14 @@ h2 { color: #16213e; margin-top: 30px; }
         html_parts.append(f'<span class="stats">检测 {p["n_detected"]} → OCR {p["n_ocr"]} → 翻译 {p["n_translated"]} | 检测器: {p["detector"]} | conf={p["conf_threshold"]}</span></div>\n')
         html_parts.append('<div class="page-content">\n')
         html_parts.append(f'<div class="page-image"><img src="data:image/jpeg;base64,{p["raw_image"]}" alt="Page {p["page_num"]}"></div>\n')
-        html_parts.append('<div class="page-table"><table><tr><th>ID</th><th>类型</th><th>OCR 原文</th><th>译文</th></tr>\n')
+        html_parts.append('<div class="page-table"><table><tr><th>ID</th><th>OCR 原文</th><th>译文</th></tr>\n')
         for item in p["items"]:
-            btype = item["bubble_type"]
-            badge_cls = "badge-bubble" if btype == "text_bubble" else "badge-free"
             ocr_html = f'<span class="ocr">{item["ocr"]}</span>' if item["ocr"] else '<span class="empty">(空)</span>'
             trans_html = f'<span class="trans">{item["translation"]}</span>' if item["translation"] else '<span class="empty">(未译)</span>'
-            html_parts.append(f'<tr><td class="rid">{item["region_id"]}</td><td><span class="badge {badge_cls}">{btype}</span></td><td>{ocr_html}</td><td>{trans_html}</td></tr>\n')
+            html_parts.append(f'<tr><td class="rid">{item["region_id"]}</td><td></td><td>{ocr_html}</td><td>{trans_html}</td></tr>\n')
         html_parts.append('</table></div></div></div>\n')
 
-    html_parts.append('<div class="footer">AMTA 最终选型: 检测=RT-DETR-v2 | OCR=baberu | 翻译=qwen3.5-omni-plus VLM + deepseek-v4-flash LLM (v2 三态 keep/fix/drop + 上下文 + 术语)</div>\n')
+    html_parts.append('<div class="footer">AMTA 最终选型: 检测=RT-DETR-v2 | OCR=hayai + confidence过滤 | 翻译=纯文本LLM (数组契约 + 上下文 + 术语, VLM refine已移除 2026-09-09)</div>\n')
     html_parts.append('</body></html>')
 
     return "".join(html_parts)

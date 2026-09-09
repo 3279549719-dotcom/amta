@@ -89,9 +89,7 @@ def _build_registry() -> dict[str, StageSpec]:
             station=translate_run,
             consumes=["ocr"],
             produces="translation",
-            default_config={
-                "vlm_enabled": True,
-            },
+            default_config={},
             code_files=[
                 "translate_station.py",
                 "translate.py",
@@ -113,13 +111,11 @@ def _build_registry() -> dict[str, StageSpec]:
             consumes=["detect"],
             produces="inpaint",
             default_config={
-                "refine_mask": False,
                 "inpaint_engine": "lama-manga",
             },
             code_files=[
                 "inpaint_station.py",
                 "inpaint_strategy.py",
-                "text_mask_refiner.py",
                 "local_lama_inpainter.py",
                 "_lama_ffc.py",
                 "_lama_model.py",
