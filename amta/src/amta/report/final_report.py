@@ -123,7 +123,7 @@ h2 { color: #16213e; margin-top: 30px; }
 <div class="summary">
 <h3 style="margin-top:0">执行摘要</h3>
 <table>
-<tr><th>页号</th><th>检测 (RT-DETR-v2)</th><th>OCR (baberu)</th><th>翻译 (qwen VLM + deepseek flash)</th></tr>
+<tr><th>页号</th><th>检测 (RT-DETR-v2)</th><th>OCR (hayai)</th><th>翻译 (纯文本 LLM + 上下文 + 术语)</th></tr>
 """]
 
     for p in pages_data:
@@ -150,7 +150,7 @@ h2 { color: #16213e; margin-top: 30px; }
             html_parts.append(f'<tr><td class="rid">{item["region_id"]}</td><td><span class="badge {badge_cls}">{btype}</span></td><td>{ocr_html}</td><td>{trans_html}</td></tr>\n')
         html_parts.append('</table></div></div></div>\n')
 
-    html_parts.append('<div class="footer">AMTA 最终选型: 检测=RT-DETR-v2 | OCR=baberu | 翻译=qwen3.5-omni-plus VLM + deepseek-v4-flash LLM (v2 三态 keep/fix/drop + 上下文 + 术语)</div>\n')
+    html_parts.append('<div class="footer">AMTA 最终选型: 检测=RT-DETR-v2 | OCR=hayai + confidence过滤 | 翻译=纯文本LLM (数组契约 + 上下文 + 术语, VLM refine已移除 2026-09-09)</div>\n')
     html_parts.append('</body></html>')
 
     return "".join(html_parts)

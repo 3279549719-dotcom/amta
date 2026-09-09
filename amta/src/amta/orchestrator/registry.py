@@ -89,9 +89,7 @@ def _build_registry() -> dict[str, StageSpec]:
             station=translate_run,
             consumes=["ocr"],
             produces="translation",
-            default_config={
-                "vlm_enabled": True,
-            },
+            default_config={},
             code_files=[
                 "translate_station.py",
                 "translate.py",

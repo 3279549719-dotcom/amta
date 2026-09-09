@@ -1,10 +1,11 @@
-"""Stage 3 minimal translation — translate_plain + vlm_refine_page + prefetch + entry.
+"""Stage 3 minimal translation — translate_plain + prefetch + entry.
+
+VLM refine 已移除（2026-09-09），归档见 archive/vlm_refine_stage3_2026-09-09.py。
 
 Covers:
-- translate_plain (Task 2): zero-tools batch translate
-- vlm_refine_page (Task 5): VLM full-page refine, ADVISORY output w/ grounding validation
-- build_prefetch_context (Task 5): code-side term/context prefetch
-- translate_page_minimal (Task 5): 2-LLM-call-per-page entry contract
+- translate_plain: zero-tools batch translate, 数组契约长度校验
+- build_prefetch_context: code-side term/context prefetch
+- translate_page_minimal: 1-LLM-call-per-page entry contract
 """
 import json
 
@@ -33,7 +34,7 @@ def test_prompt_parts_terms_injected():
     from amta.stage3_minimal import build_prefetch_context
     canon = [{"region_id": "r01", "baberu_text": "豊姫様"}]
     work_state = {"terms": {"豊姫": {"translation": "丰姬", "status": "confirmed"}}}
-    ctx = build_prefetch_context(canon, work_state, None, None)
+    ctx = build_prefetch_context(canon, work_state, None)
     # 术语预替换（replace_in_canon）后，"豊姫"已被直接替换成"丰姬"进 refined_canon，
     # system_extra 因此为空——这是设计行为（f50985a 后术语走预替换而非 system_extra 注入）
     assert any("丰姬" in r.get("baberu_text", "") for r in ctx["refined_canon"]),         "confirmed term must be pre-replaced into refined_canon"
@@ -41,95 +42,19 @@ def test_prompt_parts_terms_injected():
 
 
 def test_build_semantic_context_public():
-    """build_semantic_context must be importable from translate_tools (public, not _private)."""
+    """build_semantic_context must be importable from stage3_minimal (public, not _private)."""
     from amta.stage3_minimal import build_semantic_context
     assert callable(build_semantic_context)
 
 
-# ---------- Task 5: stage3_minimal (vlm refine + prefetch + translate entry) ----------
-
-
-def _write_fake_jpg(tmp_path):
-    """vlm_refine_page 需要一个真实存在的图片文件（读字节 → base64）。"""
-    img = tmp_path / "page.jpg"
-    img.write_bytes(b"\xff\xd8fake-jpeg-bytes")
-    return img
-
-
-def test_vlm_refine_parse(tmp_path):
-    """vlm_refine_page parses valid VLM JSON into VlmRefineResult."""
-    from amta.stage3_minimal import vlm_refine_page, VlmRefineResult
+def test_build_prefetch_context_passthrough():
+    """build_prefetch_context with no terms passes canon through unchanged."""
+    from amta.stage3_minimal import build_prefetch_context
     canon = [{"region_id": "r01", "baberu_text": "テスト"}]
-
-    def fake_vlm(messages):
-        return json.dumps({
-            "ocr_refinements": {"r01": "テスト"},
-            "bubble_types": {"r01": "dialogue"},
-            "scene": "室内测试",
-            "invalid_regions": [],
-            "duplicate_regions": {},
-        })
-
-    result = vlm_refine_page(canon, _write_fake_jpg(tmp_path), fake_vlm)
-    assert isinstance(result, VlmRefineResult)
-    assert result.scene == "室内测试"
-    assert result.ocr_refinements == {"r01": "テスト"}
-
-
-def test_vlm_refine_invalid_json_returns_none(tmp_path):
-    """VLM returning invalid JSON / failing → None (caller uses baberu_text)."""
-    from amta.stage3_minimal import vlm_refine_page
-    canon = [{"region_id": "r01", "baberu_text": "テスト"}]
-
-    def fake_vlm(messages):
-        raise RuntimeError("VLM unavailable")
-
-    result = vlm_refine_page(canon, _write_fake_jpg(tmp_path), fake_vlm)
-    assert result is None
-
-
-def test_vlm_refine_grounding_filters_ungrounded(tmp_path):
-    """SDD Ruling 3: VLM output is ADVISORY — empty-string refinements dropped (不抹字),
-    ids not present in canon are dropped (grounding validation)."""
-    from amta.stage3_minimal import vlm_refine_page
-    canon = [{"region_id": "r01", "baberu_text": "テスト"}]
-
-    def fake_vlm(messages):
-        return json.dumps({
-            "ocr_refinements": {"r01": "", "r99": "幻覚"},  # 空串修正 + 幻觉 id
-            "bubble_types": {"r99": "sfx"},
-            "scene": "室内",
-            "invalid_regions": ["r01", "r99"],  # r99 不在 canon
-            "duplicate_regions": {"r01": "r99"},  # 指向不存在的原 region
-        })
-
-    result = vlm_refine_page(canon, _write_fake_jpg(tmp_path), fake_vlm)
-    assert result is not None
-    assert result.ocr_refinements == {}  # 空串丢弃 + r99 幻觉丢弃
-    assert result.invalid_regions == ["r01"]  # r99 丢弃
-    assert result.duplicate_regions == {}  # 指向不存在 region 的继承丢弃
-
-
-def test_build_prefetch_context():
-    """build_prefetch_context applies VLM refine, filters invalid, marks duplicate."""
-    from amta.stage3_minimal import build_prefetch_context, VlmRefineResult
-    canon = [
-        {"region_id": "r01", "baberu_text": "元のテキスト"},
-        {"region_id": "r02", "baberu_text": "重複"},
-        {"region_id": "r03", "baberu_text": "ノイズ"},
-    ]
-    vlm = VlmRefineResult(
-        ocr_refinements={"r01": "修正後テキスト"},
-        bubble_types={"r01": "dialogue"},
-        scene="テスト場面",
-        invalid_regions=["r03"],
-        duplicate_regions={"r02": "r01"},
-    )
-    ctx = build_prefetch_context(canon, {}, None, vlm)
-    assert ctx["refined_canon"][0]["baberu_text"] == "修正後テキスト"
-    assert len(ctx["refined_canon"]) == 2  # r03 filtered out
-    assert ctx["duplicate_map"] == {"r02": "r01"}
-    assert "テスト場面" in ctx["system_extra"]
+    ctx = build_prefetch_context(canon, {}, None)
+    assert ctx["refined_canon"] == canon
+    assert "duplicate_map" not in ctx
+    assert "invalid_ids" not in ctx
 
 
 def test_page_key_normalization():
@@ -153,11 +78,12 @@ def test_translate_page_minimal_contract():
     def fake_text(messages, tools=None):
         return json.dumps(["你好"])
 
-    result = translate_page_minimal("test-work", canon, llm_text=fake_text, vlm_enabled=False)
+    result = translate_page_minimal("test-work", canon, llm_text=fake_text)
     assert "translations" in result
     assert result["translations"] == {"r01": "你好"}
     assert "residue" in result
     assert "glossary_violations" in result
+    assert "vlm_refine" not in result, "VLM refine 已移除，输出不应包含 vlm_refine 字段"
     assert result["page"] == "page_11"  # Ruling 1: page_key 从 canon page 归一化而来
 
 
@@ -168,32 +94,9 @@ def test_translate_page_minimal_empty_canon_no_llm_call():
     def fake_text(messages, tools=None):
         raise AssertionError("LLM must not be called on empty canon")
 
-    result = translate_page_minimal("test-work", {"items": []},
-                                    llm_text=fake_text, vlm_enabled=False)
+    result = translate_page_minimal("test-work", {"items": []}, llm_text=fake_text)
     assert result["translations"] == {}
     assert result["residue"] == []
-
-
-def test_translate_page_minimal_empty_canon_with_image_no_vlm_call(tmp_path):
-    """Review Finding B (Ruling 5 gap): empty canon must not fire the VLM call even
-    with an image + vlm_enabled (pre-fix: vision call fired once)."""
-    from amta.stage3_minimal import translate_page_minimal
-
-    vlm_calls = []
-
-    def fake_vlm(messages):
-        vlm_calls.append(messages)
-        raise RuntimeError("VLM must not be called on empty canon")
-
-    def fake_text(messages, tools=None):
-        raise AssertionError("LLM must not be called on empty canon")
-
-    img = _write_fake_jpg(tmp_path)
-    result = translate_page_minimal("test-work", {"items": []},
-                                    raw_image_path=img, llm_text=fake_text,
-                                    llm_vlm=fake_vlm, vlm_enabled=True)
-    assert vlm_calls == [], "empty canon must not fire the VLM call (Ruling 5)"
-    assert result["translations"] == {}  # blank-safe result
 
 
 def test_text_chat_temperature_forwarding(monkeypatch):
@@ -225,56 +128,14 @@ def test_text_chat_temperature_forwarding(monkeypatch):
         "temperature must stay absent when not passed (provider default)"
 
 
-def test_vlm_default_closure_temperature_zero(monkeypatch, tmp_path):
-    """Review Finding A: the default VLM closure must send temperature=0 (docstring claim)."""
-    import amta.chat_client as chat_client
-    from amta.stage3_minimal import translate_page_minimal
-
-    payloads = []
-
-    class _FakeResp:
-        def __init__(self, content):
-            self._content = content
-
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {"choices": [{"message": {"content": self._content}}]}
-
-    vlm_json = json.dumps({"ocr_refinements": {}, "bubble_types": {},
-                           "scene": "", "invalid_regions": [], "duplicate_regions": {}})
-
-    def fake_post(url, headers=None, json=None, timeout=None):
-        payloads.append(json)
-        return _FakeResp(vlm_json)
-
-    monkeypatch.setattr(chat_client.requests, "post", fake_post)
-    canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
-
-    def fake_text(messages, tools=None):
-        return json.dumps(["你好"])
-
-    translate_page_minimal("test-work", canon, raw_image_path=_write_fake_jpg(tmp_path),
-                           llm_text=fake_text, vlm_enabled=True)
-    assert len(payloads) == 1, "only the VLM call should hit the HTTP layer"
-    assert payloads[0]["temperature"] == 0
-
-
-# ---------- Task 6: translate_station mode='minimal' delegation ----------
-
-
 def test_translate_station_minimal_mode():
-    """translate_page with mode='minimal' delegates to stage3_minimal."""
+    """translate_page delegates to stage3_minimal."""
     from amta.translate_station import translate_page
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
     def fake_text(messages, tools=None):
         return json.dumps(["你好"])
-    result = translate_page("test", canon, llm_text=fake_text, vlm_enabled=False)
+    result = translate_page("test", canon, llm_text=fake_text)
     assert result["translations"] == {"r01": "你好"}
-
-
-# ---------- Task 9: edge-case completeness ----------
 
 
 def test_translate_plain_length_mismatch_returns_empty_no_retry():
@@ -297,21 +158,3 @@ def test_translate_plain_empty_canon():
     from amta.translate import translate_plain
     result = translate_plain([], lambda m: "[]", system_extra="", context_prefix="")
     assert result == {}
-
-
-def test_vlm_refine_missing_image_returns_none():
-    """vlm_refine_page with nonexistent image returns None."""
-    from amta.stage3_minimal import vlm_refine_page
-    from pathlib import Path
-    result = vlm_refine_page([], Path("/nonexistent.jpg"), lambda m: "{}")
-    assert result is None
-
-
-def test_build_prefetch_context_no_vlm():
-    """build_prefetch_context with vlm_refine=None passes canon through unchanged."""
-    from amta.stage3_minimal import build_prefetch_context
-    canon = [{"region_id": "r01", "baberu_text": "テスト"}]
-    ctx = build_prefetch_context(canon, {}, None, None)
-    assert ctx["refined_canon"] == canon
-    assert ctx["duplicate_map"] == {}
-    assert ctx["invalid_ids"] == set()
