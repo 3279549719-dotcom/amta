@@ -7,12 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def _store(tmp_path, name="tickets.json"):
-    from amta.tickets import TicketStore
+    from amta.common.tickets import TicketStore
     return TicketStore(tmp_path / name)
 
 
 def test_create_open_ticket(tmp_path):
-    from amta.tickets import TicketStore
+    from amta.common.tickets import TicketStore
     st = _store(tmp_path)
     t = st.create("w1", "page_2_u08", reason="术语表与评审冲突：咔恰 vs 咔嗒",
                   auto_rounds=3, source="カチャ", translation="咔恰")
@@ -26,7 +26,7 @@ def test_create_open_ticket(tmp_path):
 
 
 def test_classify_kind():
-    from amta.tickets import classify_kind
+    from amta.common.tickets import classify_kind
     assert classify_kind("违反机械护栏：术语 カチャ 中文写法不一致") == "term_conflict"
     assert classify_kind("评审误报：把语境补全当编造") == "false_positive"
     assert classify_kind("主语错，需要人工定稿") == "hard_case"

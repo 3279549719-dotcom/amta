@@ -34,7 +34,7 @@ def _make_fake_station(stage_name: str, should_fail: bool = False):
                 error=f"fake {stage_name} failure",
             )
         # 写一个空 artifact 文件，模拟产出
-        from amta import artifacts
+        from amta.stores import artifacts
         artifact_key = _STAGE_TO_ARTIFACT.get(stage_name, stage_name)
         out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)[artifact_key]
         out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from amta.artifact_store import ArtifactStore
+from amta.stores.artifact_store import ArtifactStore
 from .model import PageReport
 from .stages.detect import from_detection
 from .stages.ocr import from_canon
@@ -117,7 +117,7 @@ def load_from_workspace(
     各阶段先查新布局 <stage>/<page>.json、回退旧平铺 page_<idx>_<stage>.json，
     缺失的阶段自动跳过。
     """
-    from amta.paths import ROOT
+    from amta.common.paths import ROOT
 
     ws_root = Path(workspace_root) if workspace_root else ROOT / "workspace"
     art_dir = ws_root / work_id / "artifacts"

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import time
 
-from amta import artifacts
-from amta.detect_station import detect_page
+from amta.stores import artifacts
+from amta.stations.detect_station import detect_page
 
 from ..context import StationContext, StationResult
 

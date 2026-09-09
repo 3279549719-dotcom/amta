@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta.canon_schema import validate_canon
+from amta.guards.canon_schema import validate_canon
 
 
 def test_valid_canon_no_problems():

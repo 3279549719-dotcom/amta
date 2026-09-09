@@ -2,7 +2,7 @@
 
 用法: python scripts/03_translate.py --canon <canon.json> --out <translation.json>
       [--work-id ID] [--state-dir DIR] [--raw-image PATH]
-实现: amta.translate_station.translate_page（护栏/失败记录/suggestions 全在实现内）。
+实现: amta.translation.translate_station.translate_page（护栏/失败记录/suggestions 全在实现内）。
 run() 保留作兼容入口（test_translate / eval_stage3 仍 import run）。
 """
 from __future__ import annotations
@@ -12,9 +12,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.artifacts import load_canon  # noqa: E402
-from amta.paths import write_json  # noqa: E402
-from amta.translate_station import translate_page  # noqa: E402
+from amta.stores.artifacts import load_canon  # noqa: E402
+from amta.common.paths import write_json  # noqa: E402
+from amta.translation.translate_station import translate_page  # noqa: E402
 
 
 def run(canon_path: str | Path, out_path: str | Path, *,

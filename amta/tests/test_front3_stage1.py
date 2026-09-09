@@ -4,8 +4,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.geometry import mark_contained, union_blocks
-from amta.runner import compact_blocks
+from amta.common.geometry import mark_contained, union_blocks
+from amta.backends.runner import compact_blocks
 
 
 def _b(x1, y1, x2, y2, eid="test"):

@@ -4,7 +4,7 @@
 
 def test_compute_file_hash_deterministic(tmp_path):
     """同一文件内容哈希一致。"""
-    from amta.artifact_cache import compute_file_hash
+    from amta.stores.artifact_cache import compute_file_hash
     f = tmp_path / "test.json"
     f.write_text('{"key": "value"}', encoding="utf-8")
     h1 = compute_file_hash(f)
@@ -15,7 +15,7 @@ def test_compute_file_hash_deterministic(tmp_path):
 
 def test_compute_file_hash_changes_with_content(tmp_path):
     """内容变化哈希变化。"""
-    from amta.artifact_cache import compute_file_hash
+    from amta.stores.artifact_cache import compute_file_hash
     f = tmp_path / "test.json"
     f.write_text('{"key": "value"}', encoding="utf-8")
     h1 = compute_file_hash(f)
@@ -26,7 +26,7 @@ def test_compute_file_hash_changes_with_content(tmp_path):
 
 def test_compute_code_hash_multiple_files(tmp_path):
     """多个代码文件合并哈希。"""
-    from amta.artifact_cache import compute_code_hash
+    from amta.stores.artifact_cache import compute_code_hash
     f1 = tmp_path / "a.py"
     f2 = tmp_path / "b.py"
     f1.write_text("def foo(): pass", encoding="utf-8")
@@ -41,7 +41,7 @@ def test_compute_code_hash_multiple_files(tmp_path):
 
 def test_compute_config_hash():
     """配置字典哈希。"""
-    from amta.artifact_cache import compute_config_hash
+    from amta.stores.artifact_cache import compute_config_hash
     cfg1 = {"font_size": 52, "direction": "vertical"}
     cfg2 = {"font_size": 52, "direction": "vertical"}
     cfg3 = {"font_size": 48, "direction": "vertical"}
@@ -51,7 +51,7 @@ def test_compute_config_hash():
 
 def test_save_and_load_fingerprint(tmp_path):
     """指纹保存到 .fingerprint 文件，可加载。"""
-    from amta.artifact_cache import save_fingerprint, load_fingerprint, fingerprint_path
+    from amta.stores.artifact_cache import save_fingerprint, load_fingerprint, fingerprint_path
     output = tmp_path / "result.json"
     output.write_text("{}", encoding="utf-8")
     fp = {"input_hash": "a" * 64, "code_hash": "b" * 64, "config_hash": "c" * 64}
@@ -66,7 +66,7 @@ def test_save_and_load_fingerprint(tmp_path):
 
 def test_is_fresh_when_fingerprint_matches(tmp_path):
     """指纹匹配时 is_fresh 返回 True。"""
-    from amta.artifact_cache import is_fresh, save_fingerprint, compute_fingerprint
+    from amta.stores.artifact_cache import is_fresh, save_fingerprint, compute_fingerprint
     inp = tmp_path / "input.json"
     inp.write_text('{"data": 123}', encoding="utf-8")
     output = tmp_path / "result.json"
@@ -78,7 +78,7 @@ def test_is_fresh_when_fingerprint_matches(tmp_path):
 
 def test_is_fresh_when_input_changes(tmp_path):
     """输入文件变化后 is_fresh 返回 False。"""
-    from amta.artifact_cache import is_fresh, save_fingerprint, compute_fingerprint
+    from amta.stores.artifact_cache import is_fresh, save_fingerprint, compute_fingerprint
     inp = tmp_path / "input.json"
     inp.write_text('{"data": 123}', encoding="utf-8")
     output = tmp_path / "result.json"
@@ -91,7 +91,7 @@ def test_is_fresh_when_input_changes(tmp_path):
 
 def test_is_fresh_when_output_missing(tmp_path):
     """输出文件不存在时 is_fresh 返回 False。"""
-    from amta.artifact_cache import is_fresh
+    from amta.stores.artifact_cache import is_fresh
     inp = tmp_path / "input.json"
     inp.write_text("{}", encoding="utf-8")
     output = tmp_path / "nonexistent.json"
@@ -100,7 +100,7 @@ def test_is_fresh_when_output_missing(tmp_path):
 
 def test_run_stage_if_needed_skips_when_fresh(tmp_path):
     """输入未变时跳过执行，直接返回已有结果。"""
-    from amta.artifact_cache import run_stage_if_needed
+    from amta.stores.artifact_cache import run_stage_if_needed
     inp = tmp_path / "input.json"
     inp.write_text('{"data": 123}', encoding="utf-8")
     output = tmp_path / "result.json"
@@ -127,7 +127,7 @@ def test_run_stage_if_needed_skips_when_fresh(tmp_path):
 
 def test_run_stage_if_needed_reruns_when_input_changes(tmp_path):
     """输入变化时重新执行。"""
-    from amta.artifact_cache import run_stage_if_needed
+    from amta.stores.artifact_cache import run_stage_if_needed
     inp = tmp_path / "input.json"
     inp.write_text('{"data": 123}', encoding="utf-8")
     output = tmp_path / "result.json"
@@ -145,7 +145,7 @@ def test_run_stage_if_needed_reruns_when_input_changes(tmp_path):
 
 def test_invalidate_cache(tmp_path):
     """invalidate_cache 删除指纹文件。"""
-    from amta.artifact_cache import invalidate_cache, save_fingerprint, compute_fingerprint, fingerprint_path
+    from amta.stores.artifact_cache import invalidate_cache, save_fingerprint, compute_fingerprint, fingerprint_path
     inp = tmp_path / "input.json"
     inp.write_text("{}", encoding="utf-8")
     output = tmp_path / "result.json"
@@ -160,7 +160,7 @@ def test_invalidate_cache(tmp_path):
 
 def test_invalidate_cache_for_page_new_layout(tmp_path):
     """invalidate_cache_for_page 删子目录布局各 stage 指纹（产物保留）。"""
-    from amta.artifact_cache import invalidate_cache_for_page, save_fingerprint, compute_fingerprint
+    from amta.stores.artifact_cache import invalidate_cache_for_page, save_fingerprint, compute_fingerprint
     art = tmp_path / "artifacts"
     (art / "detection").mkdir(parents=True)
     (art / "canon").mkdir(parents=True)
@@ -181,7 +181,7 @@ def test_invalidate_cache_for_page_new_layout(tmp_path):
 
 def test_invalidate_cache_for_page_legacy_fallback(tmp_path):
     """invalidate_cache_for_page 兼容旧平铺指纹。"""
-    from amta.artifact_cache import invalidate_cache_for_page, save_fingerprint, compute_fingerprint
+    from amta.stores.artifact_cache import invalidate_cache_for_page, save_fingerprint, compute_fingerprint
     art = tmp_path / "artifacts"
     art.mkdir(parents=True)
     out = art / "page_1_canon.json"
@@ -197,7 +197,7 @@ def test_invalidate_cache_for_page_legacy_fallback(tmp_path):
 
 def test_cache_status_counts_both_layouts(tmp_path):
     """cache_status 统计新布局子目录 + 旧平铺的 stage 产物与指纹。"""
-    from amta.artifact_cache import cache_status, save_fingerprint, compute_fingerprint
+    from amta.stores.artifact_cache import cache_status, save_fingerprint, compute_fingerprint
     art = tmp_path / "artifacts"
     (art / "detection").mkdir(parents=True)
     (art / "canon").mkdir(parents=True)

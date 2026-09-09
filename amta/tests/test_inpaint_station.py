@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import numpy as np
 from PIL import Image, ImageDraw
 
-from amta.inpaint_station import _apply_fill_white
+from amta.inpaint.inpaint_station import _apply_fill_white
 
 
 def test_fill_white_only_covers_text_pixels():

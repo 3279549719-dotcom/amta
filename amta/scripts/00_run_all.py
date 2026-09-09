@@ -1,4 +1,4 @@
-﻿"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
+"""00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
 
 用法:
   python scripts/00_run_all.py --work-id touhou-single-wing \
@@ -21,11 +21,11 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.paths import write_json  # noqa: E402
-from amta.artifact_store import ArtifactStore  # noqa: E402
-from amta.pipeline_log import PipelineLog  # noqa: E402
-from amta.workstate import ensure_workspace  # noqa: E402
-from amta import artifacts  # noqa: E402
+from amta.common.paths import write_json  # noqa: E402
+from amta.stores.artifact_store import ArtifactStore  # noqa: E402
+from amta.common.pipeline_log import PipelineLog  # noqa: E402
+from amta.common.workstate import ensure_workspace  # noqa: E402
+from amta.stores import artifacts
 
 HERE = Path(__file__).resolve().parent
 PY = sys.executable
@@ -50,7 +50,7 @@ def _ensure_terms(work_id: str, ws_root: Path) -> None:
     术语表是 work_id 级别，只创建一次，写入 state/work_state.json。
     后续重跑翻译时直接复用，不会重复扫描。
     """
-    from amta.workstate import load_state
+    from amta.common.workstate import load_state
 
     ws = load_state(work_id)
     if ws.get("terms"):

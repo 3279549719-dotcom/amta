@@ -12,7 +12,7 @@ import json
 
 def test_translate_plain_batch():
     """translate_plain sends all regions in ONE call, no tools, parses by position."""
-    from amta.translate import translate_plain
+    from amta.translation.translate import translate_plain
     canon = [
         {"region_id": "r01", "baberu_text": "こんにちは"},
         {"region_id": "r02", "baberu_text": "ありがとう"},
@@ -31,7 +31,7 @@ def test_translate_plain_batch():
 
 def test_prompt_parts_terms_injected():
     """build_prefetch_context must inject relevant glossary terms into system_extra."""
-    from amta.stage3_minimal import build_prefetch_context
+    from amta.translation.stage3_minimal import build_prefetch_context
     canon = [{"region_id": "r01", "baberu_text": "豊姫様"}]
     work_state = {"terms": {"豊姫": {"translation": "丰姬", "status": "confirmed"}}}
     ctx = build_prefetch_context(canon, work_state, None)
@@ -43,13 +43,13 @@ def test_prompt_parts_terms_injected():
 
 def test_build_semantic_context_public():
     """build_semantic_context must be importable from stage3_minimal (public, not _private)."""
-    from amta.stage3_minimal import build_semantic_context
+    from amta.translation.stage3_minimal import build_semantic_context
     assert callable(build_semantic_context)
 
 
 def test_build_prefetch_context_passthrough():
     """build_prefetch_context with no terms passes canon through unchanged."""
-    from amta.stage3_minimal import build_prefetch_context
+    from amta.translation.stage3_minimal import build_prefetch_context
     canon = [{"region_id": "r01", "baberu_text": "テスト"}]
     ctx = build_prefetch_context(canon, {}, None)
     assert ctx["refined_canon"] == canon
@@ -63,7 +63,7 @@ def test_page_key_normalization():
     validate_canon 之后再进 translate_page_minimal 的 page 理论上是 int，
     此 helper 是防御层（str "11"/"page_11" 也能归一，不可解析返回空串）。
     """
-    from amta.stage3_minimal import _page_to_key
+    from amta.translation.stage3_minimal import _page_to_key
     assert _page_to_key(11) == "page_11"
     assert _page_to_key("11") == "page_11"
     assert _page_to_key("page_11") == "page_11"
@@ -72,7 +72,7 @@ def test_page_key_normalization():
 
 def test_translate_page_minimal_contract():
     """translate_page_minimal returns TranslationArtifact-compatible dict."""
-    from amta.stage3_minimal import translate_page_minimal
+    from amta.translation.stage3_minimal import translate_page_minimal
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
 
     def fake_text(messages, tools=None):
@@ -89,7 +89,7 @@ def test_translate_page_minimal_contract():
 
 def test_translate_page_minimal_empty_canon_no_llm_call():
     """SDD Ruling 5: 空区域列表必须在调用 LLM 前短路（Task 2 deferred guard）。"""
-    from amta.stage3_minimal import translate_page_minimal
+    from amta.translation.stage3_minimal import translate_page_minimal
 
     def fake_text(messages, tools=None):
         raise AssertionError("LLM must not be called on empty canon")
@@ -102,8 +102,8 @@ def test_translate_page_minimal_empty_canon_no_llm_call():
 def test_text_chat_temperature_forwarding(monkeypatch):
     """Review Finding A: text_chat must accept temperature — forwarded into the
     request payload when set, absent when None (legacy callers keep provider default)."""
-    import amta.chat_client as chat_client
-    from amta.translate import text_chat
+    import amta.backends.chat_client as chat_client
+    from amta.translation.translate import text_chat
 
     payloads = []
 
@@ -130,7 +130,7 @@ def test_text_chat_temperature_forwarding(monkeypatch):
 
 def test_translate_station_minimal_mode():
     """translate_page delegates to stage3_minimal."""
-    from amta.translate_station import translate_page
+    from amta.translation.translate_station import translate_page
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
     def fake_text(messages, tools=None):
         return json.dumps(["你好"])
@@ -140,7 +140,7 @@ def test_translate_station_minimal_mode():
 
 def test_translate_plain_length_mismatch_returns_empty_no_retry():
     """数组契约（8a576d2 后）：长度不符 → 整批空、只调一次 LLM（不重试、不二分）。"""
-    from amta.translate import translate_plain
+    from amta.translation.translate import translate_plain
     canon = [{"region_id": f"r{i:02d}", "baberu_text": f"テキスト{i}"} for i in range(4)]
     call_count = [0]
     def fake_llm(messages, tools=None):
@@ -155,6 +155,6 @@ def test_translate_plain_length_mismatch_returns_empty_no_retry():
 
 def test_translate_plain_empty_canon():
     """translate_plain with empty canon returns empty dict."""
-    from amta.translate import translate_plain
+    from amta.translation.translate import translate_plain
     result = translate_plain([], lambda m: "[]", system_extra="", context_prefix="")
     assert result == {}

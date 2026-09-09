@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 def test_mechanical_guardrails_detects_missing_id():
     """缺失 region_id 应被检测。"""
-    from amta.guardrails import mechanical_guardrails
+    from amta.guards.guardrails import mechanical_guardrails
     canon = [{"region_id": "r00", "text": "hello"}, {"region_id": "r01", "text": "world"}]
     translation = {"r00": "你好"}  # r01 缺失
     problems = mechanical_guardrails(canon, translation)
@@ -21,7 +21,7 @@ def test_mechanical_guardrails_detects_missing_id():
 
 def test_mechanical_guardrails_detects_extra_id():
     """多出的 region_id 应被检测。"""
-    from amta.guardrails import mechanical_guardrails
+    from amta.guards.guardrails import mechanical_guardrails
     canon = [{"region_id": "r00", "text": "hello"}]
     translation = {"r00": "你好", "r99": "幻觉"}
     problems = mechanical_guardrails(canon, translation)
@@ -30,7 +30,7 @@ def test_mechanical_guardrails_detects_extra_id():
 
 def test_mechanical_guardrails_allows_empty_translation():
     """空译文合法：乱码框/无意义框应输出为空（8a576d2 移除 empty 检查）。"""
-    from amta.guardrails import mechanical_guardrails
+    from amta.guards.guardrails import mechanical_guardrails
     canon = [{"region_id": "r00", "text": "hello"}]
     translation = {"r00": "   "}
     problems = mechanical_guardrails(canon, translation)
@@ -39,7 +39,7 @@ def test_mechanical_guardrails_allows_empty_translation():
 
 def test_normal_compressed_translation_not_flagged():
     """日译中天然压缩（短译文）不触发任何护栏（长度比已移除）。"""
-    from amta.guardrails import mechanical_guardrails
+    from amta.guards.guardrails import mechanical_guardrails
     canon = [{"region_id": "r00", "text": "ちょっと待て! 仮行さぼりたいだけでしょ"}]
     translation = {"r00": "等一下！"}  # 原文20字符，译文4字 —— 正常压缩
     problems = mechanical_guardrails(canon, translation)

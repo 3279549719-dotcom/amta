@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta.koharu_client import KoharuClient
+from amta.backends.koharu_client import KoharuClient
 
 
 def test_run_inpaint_uploads_both_masks_and_waits(monkeypatch):

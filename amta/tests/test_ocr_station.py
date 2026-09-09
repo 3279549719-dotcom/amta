@@ -7,7 +7,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta import artifacts
+from amta.stores import artifacts
 
 
 def _det(blocks):
@@ -32,7 +32,7 @@ def _fake_fallback(crops, engine="auto", **kw):
 def test_ocr_page_doc_canon_on_disk(tmp_path, monkeypatch):
     monkeypatch.delenv("VLM_API_KEY", raising=False)
     monkeypatch.delenv("CHAT_API_KEY", raising=False)
-    from amta.ocr_station import ocr_page
+    from amta.stations.ocr_station import ocr_page
     art = tmp_path / "artifacts"
     det = _det([{"region_id": "page_0_u00", "bbox": [10, 10, 90, 40],
                  "category": "dialogue_bubble"},
@@ -52,7 +52,7 @@ def test_ocr_page_doc_canon_on_disk(tmp_path, monkeypatch):
 def test_ocr_page_empty_ocr_kept(tmp_path, monkeypatch):
     monkeypatch.delenv("VLM_API_KEY", raising=False)
     monkeypatch.delenv("CHAT_API_KEY", raising=False)
-    from amta.ocr_station import ocr_page
+    from amta.stations.ocr_station import ocr_page
     det = _det([{"region_id": "page_0_u00", "bbox": [10, 10, 90, 40]}])
     doc = ocr_page("w1", det, _raw(tmp_path), tmp_path / "artifacts", page_idx=0,
                    vlm_enabled=False, ocr_fn=_fake_ocr)
@@ -65,7 +65,7 @@ def test_ocr_page_empty_ocr_kept(tmp_path, monkeypatch):
 
 def test_ocr_page_no_valid_bbox_raises(tmp_path):
     import pytest
-    from amta.ocr_station import ocr_page
+    from amta.stations.ocr_station import ocr_page
     with pytest.raises(RuntimeError, match="no valid bbox"):
         ocr_page("w1", _det([{"region_id": "page_0_u00", "bbox": [999, 999, 1000, 1000]}]),
                  _raw(tmp_path), tmp_path / "artifacts", page_idx=0, vlm_enabled=False,

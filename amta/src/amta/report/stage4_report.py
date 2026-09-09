@@ -42,6 +42,11 @@ def extract_inpaint_boxes(inpaint_json: dict) -> dict[str, list[float]]:
     return boxes
 
 
+# ADR-031 兼容别名：旧名 "text_free" 框已在统一 inpaint 路径上退化为普通 inpaint 框，
+# 保留函数名供 report/__init__ 导出与旧引用（test_report_convergence）不再 ImportError。
+extract_text_free_boxes = extract_inpaint_boxes
+
+
 _CSS = """
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:#f0f2f5; color:#1a1a2e; line-height:1.6; }

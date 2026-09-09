@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta import config
+from amta.common import config
 
 
 def _write_env(tmp_path, lines):

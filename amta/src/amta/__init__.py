@@ -27,26 +27,12 @@
 - config.* — 密钥与模型配置（env → .env 回退）
 - pipeline_log.* — 流水线 step tracing
 """
-from amta import (  # noqa: F401
-    artifacts,
-    chat_client,
-    config,
-    evalkit,
-    geometry,
-    guardrails,
-    images,
-    metrics,
-    ocr_engines,
-    ocr_station,
-    paths,
-    pipeline_log,
-    rule_filter,
-    stage3_minimal,
-    translate,
-    translate_station,
-    vlm_filter,
-    workstate,
-)
+from amta.backends import chat_client, ocr_engines
+from amta.common import config, evalkit, geometry, images, metrics, paths, pipeline_log, workstate
+from amta.guards import guardrails, rule_filter, vlm_filter
+from amta.stations import ocr_station
+from amta.stores import artifacts
+from amta.translation import stage3_minimal, translate, translate_station
 
 __all__ = [
     "artifacts",

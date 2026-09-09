@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest
 
-from amta.fonts import FontNotFoundError, resolve_font
+from amta.typeset.fonts import FontNotFoundError, resolve_font
 
 
 def test_dialogue_uses_msyh_no_stroke(tmp_path):

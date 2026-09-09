@@ -80,8 +80,8 @@ class KoharuSingleDetector(Detector):
     name = "koharu-single"
 
     def __init__(self, engine: str = "comic-text-detector", host: str = "127.0.0.1", port: int = 4000):
-        from amta.koharu_client import KoharuClient
-        from amta.runner import run_all_pages, compact_blocks
+        from amta.backends.koharu_client import KoharuClient
+        from amta.backends.runner import run_all_pages, compact_blocks
         self.engine = engine
         self.name = f"koharu-{engine}"
         self.client = KoharuClient(host=host, port=port)

@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.koharu_client import KoharuClient  # noqa: E402
+from amta.backends.koharu_client import KoharuClient  # noqa: E402
 
 PAGE = Path(r"D:\我的汉化\output\单翼停留之地\process\01\page.jpg")
 if not PAGE.is_file():
