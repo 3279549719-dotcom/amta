@@ -50,7 +50,7 @@ def _build_registry() -> dict[str, StageSpec]:
             consumes=[],
             produces="detection",
             default_config={
-                "conf_threshold": 0.7,
+                "conf_threshold": 0.5,
                 "tiling_enabled": False,
                 "tiling_cols": 3,
                 "tiling_rows": 4,

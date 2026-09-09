@@ -13,7 +13,7 @@ def run(ctx: StationContext) -> StationResult:
     """执行检测工位。
 
     无上游依赖（consumes=[]）。
-    从 ctx.config 读取：conf_threshold（默认 0.7）
+    从 ctx.config 读取：conf_threshold（默认 0.5，ADR-Q1 甜点）
     产出：{artifacts_dir}/{stage}/page_N.json（目录即索引，C1 布局）
     """
     t0 = time.perf_counter()
@@ -42,7 +42,7 @@ def run(ctx: StationContext) -> StationResult:
             duration_s=round(duration, 2),
             stats={
                 "n_boxes": doc.get("n_boxes", 0),
-                "conf_threshold": doc.get("conf_threshold", 0.7),
+                "conf_threshold": doc.get("conf_threshold", 0.5),
             },
         )
     except Exception as e:

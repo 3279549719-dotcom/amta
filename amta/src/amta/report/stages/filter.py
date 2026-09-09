@@ -1,6 +1,6 @@
 """filter 阶段适配器 — 对比 detection 与 canon，展示筛选留痕。
 
-conf=0.7 在 detect 阶段已砍低置信框；OCR 规则过滤(pure_punct/pure_number/
+conf=0.5 在 detect 阶段已砍低置信框；OCR 规则过滤(pure_punct/pure_number/
 extreme_aspect/edge_box)会再砍一部分。本阶段对比 detection blocks 与 canon items，
 标出哪些框通过了筛选、哪些被 OCR 规则砍掉。
 """

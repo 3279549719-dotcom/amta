@@ -12,7 +12,7 @@ def render_cell(data: Any) -> str:
     conf = data.get("confidence", 0)
     bbox = data.get("bbox", [])
     bbox_str = f"[{int(bbox[0])},{int(bbox[1])}]" if bbox else ""
-    color = "#16a34a" if conf >= 0.7 else "#d97706"
+    color = "#16a34a" if conf >= 0.5 else "#d97706"
     return f'<span style="color:{color};font-weight:600">{conf:.3f}</span> {btype} <span style="font-family:monospace;font-size:10px">{bbox_str}</span>'
 
 
@@ -35,7 +35,7 @@ def render_overlay(draw, blocks: dict[str, Any], scale: float, offset: int = 0) 
         y1 += offset
         y2 += offset
         conf = data.get("confidence", 0)
-        color = (34, 197, 94) if conf >= 0.7 else (217, 119, 6)
+        color = (34, 197, 94) if conf >= 0.5 else (217, 119, 6)
         draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
         label = f"{rid} {conf:.2f}"
         tw = draw.textlength(label, font=font)

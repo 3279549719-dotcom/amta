@@ -6,7 +6,7 @@
 
 用法:
     from amta.detect_station import detect_page
-    doc = detect_page(work_id, raw_page, out_dir, page_idx=11, conf_threshold=0.7)
+    doc = detect_page(work_id, raw_page, out_dir, page_idx=11, conf_threshold=0.5)
 """
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ class TiledDetector:
     """瓦片化副引擎：把整图切成 cols×rows 网格（overlap 0.15），每块 640 推理，
     坐标映射回原图，NMS max-conf 合并同位置重复框，输出 conf>=conf_thresh 的框。
 
-    主链（整图 640/0.7）之外的补漏引擎：小字/框外字在瓦片下 conf 显著提升。
+    主链（整图 640/0.5）之外的补漏引擎：小字/框外字在瓦片下 conf 显著提升。
     碎片（与主链框 coverage>=0.5）由调用方过滤。
     """
 
@@ -202,7 +202,7 @@ def _inter_area(a: list[float], b: list[float]) -> float:
 
 
 def merge_tiled_new_boxes(main_boxes: list[dict], tiled_boxes: list[dict],
-                          coverage_thresh: float = 0.5, conf_thresh: float = 0.7,
+                          coverage_thresh: float = 0.5, conf_thresh: float = 0.5,
                           min_side: int = 5) -> list[dict]:
     """合并主链与瓦片化副引擎结果：
     - 主链全保留
@@ -422,14 +422,14 @@ class RTDetrDetector:
 # ---- 工位函数 ----
 
 def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
-                page_idx: int | None = None, conf_threshold: float = 0.7,
+                page_idx: int | None = None, conf_threshold: float = 0.5,
                 tiling_enabled: bool = False, tiling_cols: int = 3, tiling_rows: int = 4,
                 tiling_conf: float = 0.3, tiling_nms_iou: float = 0.5,
                 coverage_thresh: float = 0.5, out_path: Path | None = None) -> dict:
     """单页检测：RT-DETR-v2（整图 640）→ 可选瓦片化副引擎补漏 → detection.json。
 
-    - 主链：整图 conf_threshold（默认 0.7），全保留
-    - 副引擎（tiling_enabled=True）：cols×rows 网格，只保留 conf>=0.7 且
+    - 主链：整图 conf_threshold（默认 0.5，ADR-Q1 甜点：+6真小字/0杂质/0额外时间），全保留
+    - 副引擎（tiling_enabled=True，默认关闭）：cols×rows 网格，只保留 conf>=0.5 且
       与主链任一框 coverage<coverage_thresh 的框（真新增），碎片被覆盖即丢弃
     """
     if page_idx is None:
