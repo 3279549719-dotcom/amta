@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """tickets 工单机制测试（ADR-017）"""
 import sys
 from pathlib import Path

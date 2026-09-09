@@ -15,10 +15,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw
 
+from amta.common.paths import read_json, write_json
 from amta.inpaint.inpaint_strategy import FILL_WHITE, INPAINT, SKIP, plan_inpaint
 from amta.inpaint.local_lama_inpainter import LocalLamaInpainter
-from amta.common.paths import read_json, write_json
-
 
 # ---- 模块级单例：模型只加载一次 ----
 _inpainter: LocalLamaInpainter | None = None

@@ -10,10 +10,10 @@
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # 工位侧：输入 / 输出

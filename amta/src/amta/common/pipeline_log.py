@@ -11,13 +11,13 @@ from __future__ import annotations
 import json
 import subprocess
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def git_head() -> str:
@@ -27,7 +27,7 @@ def git_head() -> str:
                            capture_output=True, text=True, timeout=5,
                            cwd=str(Path(__file__).resolve().parent.parent))
         return r.stdout.strip() or "unknown"
-    except Exception:  # noqa: BLE001
+    except Exception:
         return "unknown"
 
 

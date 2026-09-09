@@ -102,7 +102,7 @@ def test_translate_page_minimal_empty_canon_no_llm_call():
 def test_text_chat_temperature_forwarding(monkeypatch):
     """Review Finding A: text_chat must accept temperature — forwarded into the
     request payload when set, absent when None (legacy callers keep provider default)."""
-    import amta.backends.chat_client as chat_client
+    from amta.backends import chat_client
     from amta.translation.translate import text_chat
 
     payloads = []

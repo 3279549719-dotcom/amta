@@ -52,7 +52,7 @@ def audit_lessons() -> list[str]:
     for seg in lessons:
         head = seg.splitlines()[0]
         # 跳过非 lesson 段（H1 标题/引言块）
-        if head.startswith("# ") or head.startswith(">") or not head.startswith("L"):
+        if head.startswith(("# ", ">")) or not head.startswith("L"):
             continue
         missing = [k for k in LESSON_TEMPLATE_KEYS if f"**{k}**" not in seg]
         if missing:
@@ -75,7 +75,7 @@ def audit_output_json() -> list[str]:
             continue
         try:
             json.loads(p.read_text(encoding="utf-8"))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             bad.append(f"{rel} 不是合法 JSON: {e}")
     return bad
 
@@ -89,13 +89,13 @@ def audit_gitignore_leak() -> list[str]:
             capture_output=True,
             text=True,
         ).stdout.strip()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return ["无法运行 git ls-files（跳过 gitignore 泄漏检查）"]
     leaked = [ln for ln in out.splitlines() if ln and ln.strip()]
     # models/ 与 testsets/pages/ 应整体被忽略；output/ 仅白名单文件允许
     bad = []
     for ln in leaked:
-        if ln.startswith("models/") or ln.startswith("testsets/pages/"):
+        if ln.startswith(("models/", "testsets/pages/")):
             bad.append(f"被忽略路径意外入库: {ln}")
     return bad
 

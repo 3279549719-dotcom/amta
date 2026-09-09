@@ -78,7 +78,7 @@ def refresh_now(root: Path, dry: bool) -> list[str]:
         return log
     rec_text = _read(rec)
     # 取「最新」一个日期节（now.md = 压缩恢复现场，要最新状态）
-    secs = re.findall(r"## (\d{4}-\d{2}-\d{2})\n(.+?)(?=\n## |\Z)", rec_text, re.S)
+    secs = re.findall(r"## (\d{4}-\d{2}-\d{2})\n(.+?)(?=\n## |\Z)", rec_text, re.DOTALL)
     if not secs:
         return log
     stamp, body = secs[-1]

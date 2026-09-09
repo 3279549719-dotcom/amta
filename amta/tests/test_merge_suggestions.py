@@ -4,8 +4,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from amta.common import workstate as ws
 import merge_suggestions as ms
+
+from amta.common import workstate as ws
 
 
 def _state(characters=None, terms=None):

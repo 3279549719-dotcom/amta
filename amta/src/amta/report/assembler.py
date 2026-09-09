@@ -12,12 +12,13 @@ from pathlib import Path
 from PIL import Image
 
 from amta.stores.artifact_store import ArtifactStore
+
 from .model import PageReport
 from .stages.detect import from_detection
-from .stages.ocr import from_canon
 from .stages.filter import from_detection_and_canon
-from .stages.translate import from_translation
 from .stages.inpaint import from_inpaint
+from .stages.ocr import from_canon
+from .stages.translate import from_translation
 from .stages.typeset import from_typeset
 
 

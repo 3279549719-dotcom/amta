@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.report.inpaint_ab_report import render_inpaint_ab_report  # noqa: E402
+from amta.report.inpaint_ab_report import render_inpaint_ab_report
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EXP = ROOT / "output" / "tmp" / "inpaint_speed_exp"

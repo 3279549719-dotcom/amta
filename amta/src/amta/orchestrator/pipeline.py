@@ -20,11 +20,11 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from amta.common.paths import ROOT
+from amta.common.pipeline_log import PipelineLog
+from amta.common.workstate import ensure_workspace
 from amta.stores import artifacts
 from amta.stores.artifact_cache import compute_fingerprint, is_fresh, save_fingerprint
-from amta.common.pipeline_log import PipelineLog
-from amta.common.paths import ROOT
-from amta.common.workstate import ensure_workspace
 
 from .context import PipelineConfig, PipelineResult, StationContext, StationResult
 from .registry import StageSpec, get_stage

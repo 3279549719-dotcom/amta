@@ -128,12 +128,13 @@ def build_pack(root: Path, source: str = "startup", budget: int | None = None) -
     ls = root / "loop_state.json"
     if ls.exists() and ls.stat().st_size > 2:
         try:
-            from amta.memory.loop_state import load as ls_load, summarize as ls_summarize
+            from amta.memory.loop_state import load as ls_load
+            from amta.memory.loop_state import summarize as ls_summarize
 
             summary = ls_summarize(ls_load(root))
             if summary:
                 blocks.append("## 接续状态\n" + summary)
-        except Exception:  # noqa: BLE001 — 注入纪律：状态损坏降级为无状态，不阻塞
+        except Exception:
             pass
     blocks.append(DICTIONARY_SLIM if slim else DICTIONARY_FULL)
     header = f"=== AMTA 记忆包 ({source}) ==="

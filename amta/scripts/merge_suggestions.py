@@ -6,12 +6,14 @@
 用法: python scripts/merge_suggestions.py --work-id ID [--suggestions PATH]
 """
 from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.common import paths, workstate
-from amta.guards.suggestions import merge_into_state as _merge_impl  # noqa: E402
+from amta.guards.suggestions import merge_into_state as _merge_impl
 
 
 def merge(state: dict, suggestions: list[dict]) -> dict:

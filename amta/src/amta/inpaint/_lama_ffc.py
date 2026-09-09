@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import Literal
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 # torch nn.Conv2d 的 padding_mode 参数只接受这几个字面量 (torch 类型桩要求)
 PaddingMode = Literal["zeros", "reflect", "replicate", "circular"]
@@ -83,7 +83,7 @@ class SpectralTransform(nn.Module):
         x = self.conv1(x)
         output = self.fu(x)
         if self.enable_lfu:
-            n, c, h, w = x.shape
+            _n, c, h, _w = x.shape
             split_no = 2
             split_s = h // split_no
             xs = torch.cat(torch.split(x[:, :c // 4], split_s, dim=-2), dim=1).contiguous()

@@ -42,14 +42,14 @@ def _baberu_batch(crops) -> list[dict]:
     if not (model_root / "onnx").exists():
         raise RuntimeError("baberu-OCR 模型缺失（models/baberu-ocr/onnx）——请先下载模型")
     sys.path.insert(0, str(model_root))
-    from onnx_infer import BaberuOnnxOCR  # noqa: PLC0415  # type: ignore[import-not-found]
+    from onnx_infer import BaberuOnnxOCR  # type: ignore[import-not-found]
 
     ocr = BaberuOnnxOCR(model_root / "onnx", model_root / "tokenizer", vision="vision_int4.onnx")
     out = []
     for p in crops:
         try:
             text = ocr(Image.open(p))
-        except Exception:  # noqa: BLE001
+        except Exception:
             # OCR 崩溃 → 空串（合法结果，下游按"乱码/空框"处理）；
             # 绝不把报错信息当日文原文送翻译制造垃圾数据（Q4）
             text = ""
@@ -228,7 +228,7 @@ def _hayai_batch(crops) -> list[dict]:
             first_conf = result["first_token_conf"]
             avg_conf = result["avg_conf"]
             low_ratio = result["low_ratio"]
-        except Exception:  # noqa: BLE001
+        except Exception:
             # 同 baberu：崩溃 → 空串，不把报错信息当 OCR 文本（Q4）
             # confidence 设为最高，避免异常时误过滤
             text = ""

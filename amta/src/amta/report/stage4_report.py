@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from amta.report.stages.mask import from_mask as build_mask_stage
 from amta.report.stages.inpaint import from_inpaint as build_inpaint_stage
+from amta.report.stages.mask import from_mask as build_mask_stage
 
 
 def _img_to_b64(img: Image.Image, max_side: int = 900) -> str:

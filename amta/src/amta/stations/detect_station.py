@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import cv2
 import numpy as np
@@ -123,7 +123,7 @@ class TiledDetector:
 
     OVERLAP = 0.15
 
-    def __init__(self, detector: "RTDetrDetector", cols: int = 3, rows: int = 4,
+    def __init__(self, detector: RTDetrDetector, cols: int = 3, rows: int = 4,
                  conf_threshold: float = 0.3, nms_iou: float = 0.5):
         self.detector = detector
         self.cols = cols

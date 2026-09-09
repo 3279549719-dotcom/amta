@@ -5,12 +5,14 @@
 用法: python scripts/apply_revisions.py --trans translation.json --revisions revs.json
 """
 from __future__ import annotations
+
 import argparse
 import json
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.stores.artifacts import load_translation  # noqa: E402
+from amta.stores.artifacts import load_translation
 
 
 def apply(trans: dict[str, str], revisions: list[dict]) -> tuple[dict, dict]:
@@ -19,7 +21,7 @@ def apply(trans: dict[str, str], revisions: list[dict]) -> tuple[dict, dict]:
         rid = r.get("region_id")
         if rid not in trans:
             continue
-        if "revised" in r and r["revised"]:
+        if r.get("revised"):
             log[rid] = trans[rid]
             trans[rid] = r["revised"].strip()
     return trans, log

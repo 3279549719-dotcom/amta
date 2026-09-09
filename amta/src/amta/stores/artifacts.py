@@ -11,8 +11,8 @@ import time
 from pathlib import Path
 from typing import Any, TypedDict
 
-from amta.stores.artifact_store import ArtifactStore
 from amta.common.paths import read_json, write_json
+from amta.stores.artifact_store import ArtifactStore
 
 SCHEMA_VERSION = "2.1"
 CATEGORIES = ("dialogue_bubble", "overlay_text", "sfx")

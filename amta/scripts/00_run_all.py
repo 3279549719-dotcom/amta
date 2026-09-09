@@ -21,11 +21,11 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.common.paths import write_json  # noqa: E402
-from amta.stores.artifact_store import ArtifactStore  # noqa: E402
-from amta.common.pipeline_log import PipelineLog  # noqa: E402
-from amta.common.workstate import ensure_workspace  # noqa: E402
+from amta.common.paths import write_json
+from amta.common.pipeline_log import PipelineLog
+from amta.common.workstate import ensure_workspace
 from amta.stores import artifacts
+from amta.stores.artifact_store import ArtifactStore
 
 HERE = Path(__file__).resolve().parent
 PY = sys.executable
@@ -227,7 +227,7 @@ def run(work_id: str, src_dir: Path, start_page: int, end_page: int, *,
                                  input=str(clean_img), output=str(typeset_path),
                                  duration_s=time.time() - t0)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.fail_run(run_id, step="pipeline", page=page, reason=str(e)[:300])
             failed = (page, str(e)[:200])
             break

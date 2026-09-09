@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import time
 
-from amta.stores import artifacts
 from amta.inpaint.inpaint_station import run as inpaint_run
+from amta.stores import artifacts
 
 from ..context import StationContext, StationResult
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """00_run_all --with-typeset 编排测试(Stage 5)。"""
 import json
 import sys

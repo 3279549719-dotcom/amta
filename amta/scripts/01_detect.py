@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.stations.detect_station import detect_page  # noqa: E402
+from amta.stations.detect_station import detect_page
 
 
 def main() -> int:

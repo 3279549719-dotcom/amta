@@ -23,24 +23,24 @@
 数据模型: PageReport, StageOutput, ReportResult
 数据组装: load_page_report, load_from_workspace
 """
-from .model import PageReport, ReportResult, StageOutput
-from .engine import render_report
-from .assembler import load_page_report, load_from_workspace
-from .final_report import render_final_report
-from .stage4_report import render_stage4_report, extract_text_free_boxes
 from .ab_report import render_ab_report
+from .assembler import load_from_workspace, load_page_report
+from .engine import render_report
+from .final_report import render_final_report
 from .inpaint_ab_report import render_inpaint_ab_report
+from .model import PageReport, ReportResult, StageOutput
+from .stage4_report import extract_text_free_boxes, render_stage4_report
 
 __all__ = [
-    "render_report",
     "PageReport",
-    "StageOutput",
     "ReportResult",
-    "load_page_report",
-    "load_from_workspace",
-    "render_final_report",
-    "render_stage4_report",
+    "StageOutput",
     "extract_text_free_boxes",
+    "load_from_workspace",
+    "load_page_report",
     "render_ab_report",
+    "render_final_report",
     "render_inpaint_ab_report",
+    "render_report",
+    "render_stage4_report",
 ]

@@ -14,7 +14,7 @@ import pytest
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from detect_rtdetr import RTDetrDetector, merge_duplicate_boxes, remove_contained_boxes  # noqa: E402
+from detect_rtdetr import RTDetrDetector, merge_duplicate_boxes, remove_contained_boxes
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "CTBD" / "detector.onnx"
 TEST_IMAGE = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地\11.jpg")

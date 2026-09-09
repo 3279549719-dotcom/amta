@@ -1,7 +1,7 @@
 """tests/test_memory_tools.py — 检索操作的语义返回锁定测试。estate fixture 见 conftest。"""
 from pathlib import Path
 
-from amta.memory.tools import do_grep, do_index, do_recent, do_read
+from amta.memory.tools import do_grep, do_index, do_read, do_recent
 
 
 def test_grep_returns_entry_unit_not_full_text(estate: Path):

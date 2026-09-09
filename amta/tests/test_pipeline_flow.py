@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """pipeline_log / 01_detect / 02_ocr / 00_run_all 编排器测试(ADR-018)"""
 import sys
 from pathlib import Path
@@ -27,6 +26,7 @@ def _impl(name: str):
 
 def test_pipeline_log_span_and_fail(tmp_path):
     import json
+
     from amta.common.pipeline_log import PipelineLog
     log = PipelineLog(tmp_path / "pipeline_log.json")
     rid = log.start_run("pages 1-1")
@@ -55,6 +55,7 @@ def test_pipeline_log_skip_append(tmp_path):
 def test_02_crop_naming_and_canon(tmp_path, monkeypatch):
     """crop 按 region_id 命名(语义评审契约) + canon 双引擎格式(baberu_text, 空 OCR 保留)。"""
     import json
+
     from PIL import Image
 
     impl = _impl("_02_ocr")
@@ -111,6 +112,7 @@ def test_refresh_merged_translation(tmp_path):
 def test_00_skip_existing_and_fail_anchor(tmp_path, monkeypatch):
     """产物存在=跳过;失败写 failed_step 锚点。"""
     import json
+
     from PIL import Image
 
     impl = _impl("_00_run_all")
@@ -152,6 +154,7 @@ def test_00_skip_existing_and_fail_anchor(tmp_path, monkeypatch):
 def test_02_canon_passthrough_subtier_category_and_items_rename(tmp_path, monkeypatch):
     """canon 透传 sub_tier/category; 返回 doc 字段 regions→items 消除撞名。"""
     import json
+
     from PIL import Image
 
     impl = _impl("_02_ocr")

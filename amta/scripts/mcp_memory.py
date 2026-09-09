@@ -22,7 +22,7 @@ from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amta.memory.tools import Hit, do_grep, do_read, do_recent  # noqa: E402
+from amta.memory.tools import Hit, do_grep, do_read, do_recent
 
 MAX_MEMORY_CALLS = 6
 PROTOCOL_VERSION = "2024-11-05"
@@ -98,8 +98,8 @@ def handle_call(name: str, args: dict) -> tuple[str, bool]:
         _calls += 1
         if _calls > MAX_MEMORY_CALLS:
             return (
-                f"记忆检索预算已用尽（MAX_MEMORY_CALLS={MAX_MEMORY_CALLS}）。"
-                "基于已获得信息继续，别再检索。",
+                (f"记忆检索预算已用尽（MAX_MEMORY_CALLS={MAX_MEMORY_CALLS}）。"
+                "基于已获得信息继续，别再检索。"),
                 True,
             )
     if name == "memory_search":

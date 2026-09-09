@@ -11,8 +11,8 @@ from __future__ import annotations
 import time
 
 from amta.common import workstate
-from amta.stores import artifacts
 from amta.common.paths import write_json
+from amta.stores import artifacts
 from amta.translation.translate_station import translate_page
 
 from ..context import StationContext, StationResult
@@ -31,7 +31,7 @@ def _ensure_terms(work_id: str, artifacts_dir) -> int:
         from amta.guards.pre_scan import run_pre_scan
         matched = run_pre_scan(work_id, artifacts_dir)
         return len(matched)
-    except Exception as e:  # noqa: BLE001 — pre_scan 失败降级，不阻塞翻译
+    except Exception as e:
         print(f"[translate] pre_scan skipped ({type(e).__name__}: {str(e)[:80]})")
         return 0
 

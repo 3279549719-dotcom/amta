@@ -50,7 +50,7 @@ def test_vertical_lines_are_columns():
     from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 100, 300]
     text = "abcdefghij"
-    font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
+    _font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
     if direction == "vertical":
         assert all(isinstance(col, str) for col in lines)
         assert sum(len(col) for col in lines) == len(text)
@@ -59,7 +59,7 @@ def test_vertical_lines_are_columns():
 def test_empty_text_returns_min_size():
     """空文本返回最小字号和空折行。"""
     from amta.typeset.typeset_engine import fit_font_size
-    font_size, direction, lines = fit_font_size("", FONT_PATH, [0, 0, 100, 100])
+    font_size, _direction, lines = fit_font_size("", FONT_PATH, [0, 0, 100, 100])
     assert font_size >= 12
     assert lines == []
 
@@ -108,7 +108,7 @@ def test_preferred_direction_horizontal_for_wide_box():
     from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 380, 222]  # 横长框
     text = "比起那个还是研究研究"
-    font_size, direction, lines = fit_font_size(
+    _font_size, direction, _lines = fit_font_size(
         text, FONT_PATH, bbox, preferred_direction="horizontal"
     )
     assert direction == "horizontal", f"横长框首选横排，实际选了{direction}"
@@ -119,7 +119,7 @@ def test_preferred_direction_vertical_for_tall_box():
     from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 166, 691]  # 窄长框
     text = "冷、冷静点……并不是担心八意大人什么的"
-    font_size, direction, lines = fit_font_size(
+    _font_size, direction, _lines = fit_font_size(
         text, FONT_PATH, bbox, preferred_direction="vertical"
     )
     assert direction == "vertical", f"窄长框首选竖排，实际选了{direction}"
@@ -130,7 +130,7 @@ def test_no_preferred_direction_matches_old_behavior():
     from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 200, 200]
     text = "测试文本"
-    font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
+    font_size, direction, _lines = fit_font_size(text, FONT_PATH, bbox)
     assert direction in ("horizontal", "vertical")
     assert font_size >= 12
 
@@ -140,7 +140,7 @@ def test_preferred_direction_vertical_short_text():
     from amta.typeset.typeset_engine import fit_font_size
     bbox = [0, 0, 100, 400]  # 窄长框
     text = "太好了！"
-    font_size, direction, lines = fit_font_size(
+    font_size, direction, _lines = fit_font_size(
         text, FONT_PATH, bbox, preferred_direction="vertical"
     )
     assert direction == "vertical", f"短文本窄长框首选竖排，实际选了{direction}"

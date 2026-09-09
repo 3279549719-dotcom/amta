@@ -44,8 +44,9 @@ class _LamaMangaModel:
     """lama-manga FFC ResNet 模型封装。"""
 
     def __init__(self, device: torch.device, model_path: Path | None = None) -> None:
-        from ._lama_ffc import FFCResNetGenerator
         from safetensors.torch import load_file
+
+        from ._lama_ffc import FFCResNetGenerator
 
         self.device = device
         path = model_path or _find_lama_manga_path()

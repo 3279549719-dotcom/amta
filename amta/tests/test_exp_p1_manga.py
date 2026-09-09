@@ -30,6 +30,7 @@ def test_p1_manga_in_choices():
 def test_p1_manga_runs_one_page():
     """p1_manga 模式能跑通一页 (page 11, repeat=1)。"""
     import exp_inpaint_speed as exp
+
     from amta.inpaint.local_lama_inpainter import LocalLamaInpainter
 
     # 加载 lama-manga 模型

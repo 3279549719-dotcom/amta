@@ -26,7 +26,7 @@ _stdout = sys.stdout
 if hasattr(_stdout, "reconfigure"):
     _stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from amta.memory.loop_state import (  # noqa: E402
+from amta.memory.loop_state import (
     load,
     plan_add,
     plan_done,

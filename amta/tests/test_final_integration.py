@@ -100,6 +100,7 @@ class TestOCRStation:
     def test_ocr_page_engine_and_vlm_params(self):
         """ocr_page 有 engine（默认 hayai）与 vlm_enabled/vlm_fn（质检环节）。"""
         import inspect
+
         from amta.stations.ocr_station import ocr_page
         sig = inspect.signature(ocr_page)
         param_names = list(sig.parameters.keys())

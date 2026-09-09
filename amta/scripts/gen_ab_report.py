@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.report.ab_report import render_ab_report  # noqa: E402
+from amta.report.ab_report import render_ab_report
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PLAN_A = ROOT / "output" / "tmp" / "refine_mask_batch_11_20"

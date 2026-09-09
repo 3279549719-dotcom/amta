@@ -25,11 +25,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from amta.stores.artifact_store import JSON_STAGES, ArtifactStore, fingerprint_of
-
 
 # ---------------------------------------------------------------------------
 # 哈希计算

@@ -86,7 +86,7 @@ def _is_readonly_bash(command: str) -> bool:
         if rest.startswith("-") and not rest[1:2].isdigit():
             # 只有纯只读 flag 组合才算只读（-vv/-av 等），-d/-D/-m/-f 等写标志落入授权
             for flag in GIT_BRANCH_READONLY_FLAGS:
-                if rest == flag or rest.startswith(flag + " ") or rest.startswith(flag + "-"):
+                if rest == flag or rest.startswith((flag + " ", flag + "-")):
                     return True
         return False
     return any(c.startswith(p) for p in GIT_READONLY_PREFIXES)
@@ -149,13 +149,11 @@ def _is_git_redline(c: str) -> bool:
         return True
     if c.startswith("git branch") and any(f in c for f in (" -d ", " -D ", "--delete", "-d ", "-D ")):
         return True
-    if c.startswith("git reset") or c.startswith("git clean"):
+    if c.startswith(("git reset", "git clean")):
         return True
-    if c.startswith("git remote") or c.startswith("git tag"):
+    if c.startswith(("git remote", "git tag")):
         return True
-    if c.startswith("git reflog") or c.startswith("git gc") or c.startswith("git prune"):
-        return True
-    return False
+    return bool(c.startswith(("git reflog", "git gc", "git prune")))
 
 
 def _is_install_cmd(c: str) -> bool:

@@ -16,7 +16,8 @@ ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from importlib import import_module  # noqa: E402
+from importlib import import_module
+
 mod = import_module("04_inpaint")
 
 SRC_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
@@ -76,7 +77,7 @@ def main():
         if clean_path.exists():
             clean = Image.open(clean_path).convert("RGB")
             target_h = 1400
-            def resize(im):
+            def resize(im, target_h=target_h):
                 s = target_h / im.height
                 return im.resize((int(im.width * s), target_h), Image.LANCZOS)
             orig_r = resize(original)

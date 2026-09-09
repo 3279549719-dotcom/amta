@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.typeset.typeset_station import run  # noqa: E402
+from amta.typeset.typeset_station import run
 
 
 def main() -> int:

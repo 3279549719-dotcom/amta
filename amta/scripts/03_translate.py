@@ -12,9 +12,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.stores.artifacts import load_canon  # noqa: E402
-from amta.common.paths import write_json  # noqa: E402
-from amta.translation.translate_station import translate_page  # noqa: E402
+from amta.common.paths import write_json
+from amta.stores.artifacts import load_canon
+from amta.translation.translate_station import translate_page
 
 
 def run(canon_path: str | Path, out_path: str | Path, *,

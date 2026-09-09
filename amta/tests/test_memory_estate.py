@@ -1,7 +1,7 @@
 """tests/test_memory_estate.py — estate 解析层的锁定测试。fixture 见 tests/conftest.py。"""
 from pathlib import Path
 
-from amta.memory.estate import build_pack, parse_adrs, lesson_sections, parse_lessons, read_lines
+from amta.memory.estate import build_pack, lesson_sections, parse_adrs, parse_lessons, read_lines
 
 HARD_CAP = 10000
 FULL_BUDGET = 1536

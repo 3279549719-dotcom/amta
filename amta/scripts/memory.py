@@ -31,11 +31,11 @@ _stdout = cast(Any, sys.stdout)
 if hasattr(_stdout, "reconfigure"):
     _stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from amta.memory import gc as memory_gc  # noqa: E402
-from amta.memory import inject as memory_inject  # noqa: E402
-from amta.memory import lint as memory_lint  # noqa: E402
-from amta.memory import tools as memory_tools  # noqa: E402
-from amta.memory.estate import estate_root  # noqa: E402
+from amta.memory import gc as memory_gc
+from amta.memory import inject as memory_inject
+from amta.memory import lint as memory_lint
+from amta.memory import tools as memory_tools
+from amta.memory.estate import estate_root
 
 
 def _cmd_read(a: argparse.Namespace) -> int:
@@ -53,7 +53,7 @@ def _cmd_grep(a: argparse.Namespace) -> int:
         print(f"[memory] 无命中：{a.query!r}（scope={a.scope}）——换个关键词，或 memory.py index 看清单")
         return 0
     for h in hits:
-        print(memory_tools._fmt(h))  # noqa: SLF001 — 语义单兀行号指针格式，与 memory_grep 一致
+        print(memory_tools._fmt(h))
     return 0
 
 

@@ -29,8 +29,8 @@ from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.memory.estate import estate_root  # noqa: E402
-from amta.memory.tools import Hit, do_grep  # noqa: E402
+from amta.memory.estate import estate_root
+from amta.memory.tools import Hit, do_grep
 
 # 注入预算（字符）。实测超 ~10K 会被落盘替换，安全留 3 倍余量。
 INJECT_BUDGET = 3000

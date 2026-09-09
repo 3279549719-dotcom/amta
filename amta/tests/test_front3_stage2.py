@@ -76,9 +76,10 @@ def test_vlm_verify_batch_count_mismatch_retry():
     mock_response.json.return_value = {"choices": [{"message": {"content": "只有一行"}}]}
     mock_response.raise_for_status = MagicMock()
 
-    with patch("amta.backends.vlm_verify.requests.post", return_value=mock_response):
-        with patch("amta.backends.vlm_verify.time.sleep", return_value=None):
-            result = vlm_verify_batch(crops, api_key="test-key", max_retries=1)
+    with patch("amta.backends.vlm_verify.requests.post", return_value=mock_response), patch(
+        "amta.backends.vlm_verify.time.sleep", return_value=None
+    ):
+        result = vlm_verify_batch(crops, api_key="test-key", max_retries=1)
 
     assert result["status"] == "count_mismatch"
     assert result["texts"] is None
@@ -91,9 +92,10 @@ def test_vlm_verify_batch_api_failure():
 
     crops = [Image.new("RGB", (50, 30), "white") for _ in range(2)]
 
-    with patch("amta.backends.vlm_verify.requests.post", side_effect=Exception("API error")):
-        with patch("amta.backends.vlm_verify.time.sleep", return_value=None):
-            result = vlm_verify_batch(crops, api_key="test-key", max_retries=1)
+    with patch("amta.backends.vlm_verify.requests.post", side_effect=Exception("API error")), patch(
+        "amta.backends.vlm_verify.time.sleep", return_value=None
+    ):
+        result = vlm_verify_batch(crops, api_key="test-key", max_retries=1)
 
     assert result["status"] == "failed"
     assert result["texts"] is None

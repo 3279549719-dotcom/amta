@@ -6,8 +6,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from amta.backends import runner
+from amta.backends.koharu_client import KoharuError
 from amta.common import evalkit, geometry, images
-from amta.backends.koharu_client import KoharuError  # noqa: E402
 
 
 class _FakeClient:
@@ -130,7 +130,7 @@ class GeometryBboxPriorityTest(unittest.TestCase):
 
 class ImagesTest(unittest.TestCase):
     def test_crop_with_pad_clamps_bounds(self):
-        import PIL.Image as Image
+        from PIL import Image
 
         img = Image.new("RGB", (100, 100), "white")
         src = Path(self._testMethodName + ".jpg")  # 不落盘：直接测越界框
@@ -146,7 +146,8 @@ class ImagesTest(unittest.TestCase):
 
     def test_crop_with_pad_rejects_empty_box(self):
         import tempfile
-        import PIL.Image as Image
+
+        from PIL import Image
 
         with tempfile.TemporaryDirectory() as td:
             src = Path(td) / "p.jpg"

@@ -44,7 +44,7 @@ class ArtifactStore:
         self.artifacts_dir = Path(artifacts_dir)
 
     @classmethod
-    def from_artifacts_dir(cls, artifacts_dir: Path | str) -> "ArtifactStore":
+    def from_artifacts_dir(cls, artifacts_dir: Path | str) -> ArtifactStore:
         """显式构造入口（与 ArtifactStore(artifacts_dir) 等价）。"""
         return cls(artifacts_dir)
 

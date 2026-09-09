@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import time
 
-from amta.stores import artifacts
-from amta.stations.ocr_station import ocr_page
 from amta.common.paths import read_json
+from amta.stations.ocr_station import ocr_page
+from amta.stores import artifacts
 
 from ..context import StationContext, StationResult
 

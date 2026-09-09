@@ -73,8 +73,9 @@ def test_add_evidence_fact_with_confidence():
 
 
 def test_add_evidence_fact_rejects_bad_status():
-    from amta.common import workstate as ws
     import pytest
+
+    from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
     with pytest.raises(ValueError):

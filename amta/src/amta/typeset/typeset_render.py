@@ -10,8 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from amta.typeset.typeset_engine import (CHAR_WIDTH_RATIO, LINE_HEIGHT_RATIO,
-                                 fit_font_size, infer_direction_from_bbox)
+from amta.typeset.typeset_engine import CHAR_WIDTH_RATIO, LINE_HEIGHT_RATIO, fit_font_size, infer_direction_from_bbox
 
 
 def render_item(img: Image.Image, text: str, font_path: str, bbox: list,

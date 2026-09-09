@@ -36,7 +36,7 @@ def _pack(root: Path, source: str, budget: int) -> str:
     """构造记忆包；地产读取任何异常都不抛（注入纪律）。"""
     try:
         return build_pack(root, source=source, budget=budget)
-    except Exception:  # noqa: BLE001 — 注入纪律：地产异常降级，不阻塞会话生成
+    except Exception:
         return "=== AMTA 记忆包(degraded) ===\n记忆地产读取异常：先跑 python scripts/memory.py status"
 
 
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"[memory_inject] 写入失败: {exc}")
         return 1
     print(f"[memory_inject] wrote {target} ({len(text)} chars, source={args.source})")

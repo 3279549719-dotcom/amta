@@ -1,11 +1,12 @@
 import os
 import sys
-import torch
-import numpy as np
+from urllib.parse import urlparse
+
 import cv2
+import numpy as np
+import torch
 from PIL import Image
 from torch.hub import download_url_to_file, get_dir
-from urllib.parse import urlparse
 
 
 # Source https://github.com/advimman/lama
@@ -50,7 +51,7 @@ def scale_image(img, factor, interpolation=cv2.INTER_AREA):
 
 
 def pad_img_to_modulo(img, mod):
-    channels, height, width = img.shape
+    _channels, height, width = img.shape
     out_height = ceil_modulo(height, mod)
     out_width = ceil_modulo(width, mod)
     return np.pad(
@@ -80,7 +81,7 @@ def prepare_img_and_mask(image, mask, device, pad_out_to_modulo=8, scale_factor=
     return out_image, out_mask
 
 
-# Source: https://github.com/Sanster/lama-cleaner/blob/6cfc7c30f1d6428c02e21d153048381923498cac/lama_cleaner/helper.py # noqa
+# Source: https://github.com/Sanster/lama-cleaner/blob/6cfc7c30f1d6428c02e21d153048381923498cac/lama_cleaner/helper.py
 def get_cache_path_by_url(url):
     parts = urlparse(url)
     hub_dir = get_dir()
@@ -95,7 +96,7 @@ def get_cache_path_by_url(url):
 def download_model(url):
     cached_file = get_cache_path_by_url(url)
     if not os.path.exists(cached_file):
-        sys.stderr.write('Downloading: "{}" to {}\n'.format(url, cached_file))
+        sys.stderr.write(f'Downloading: "{url}" to {cached_file}\n')
         hash_prefix = None
         download_url_to_file(url, cached_file, hash_prefix, progress=True)
     return cached_file

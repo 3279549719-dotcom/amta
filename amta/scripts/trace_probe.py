@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import itertools
 import json
 import sys
 from collections import Counter
@@ -51,7 +52,7 @@ def _iso_ts(v) -> str:
 
 def _parse_ts(v: str) -> _dt.datetime | None:
     try:
-        return _dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return _dt.datetime.fromisoformat(v)
     except (ValueError, AttributeError):
         return None
 
@@ -158,7 +159,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         top = tools.most_common(5)
         print("tools: " + ", ".join(f"{n}={c}" for n, c in top))
     if len(times) >= 2:
-        gaps = [(b - a).total_seconds() for a, b in zip(times, times[1:])]
+        gaps = [(b - a).total_seconds() for a, b in itertools.pairwise(times)]
         print(f"max_stall_seconds: {int(max(gaps))}")
         wall = (times[-1] - times[0]).total_seconds()
         print(f"wall_seconds: {int(wall)}")

@@ -4,14 +4,14 @@
 用法: python scripts/baberu_ocr.py <image_dir> <out.json>
 """
 from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "models" / "baberu-ocr"))
+from onnx_infer import BaberuOnnxOCR  # type: ignore[import-not-found]  # 运行时动态路径(models/ 不入库)
 from PIL import Image
-
-from onnx_infer import BaberuOnnxOCR  # noqa: E402  # type: ignore[import-not-found]  # 运行时动态路径(models/ 不入库)
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = ROOT / "models" / "baberu-ocr"
@@ -28,7 +28,7 @@ def main(argv: list[str]) -> int:
             text = ocr(Image.open(img))
             results[img.stem] = text
             print(f"{img.stem}: {text!r}", flush=True)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             results[img.stem] = f"__ERROR__ {e}"
             print(f"{img.stem}: ERROR {e}", flush=True)
     out_json.parent.mkdir(parents=True, exist_ok=True)

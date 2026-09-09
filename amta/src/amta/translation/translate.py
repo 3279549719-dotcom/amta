@@ -13,9 +13,9 @@ from typing import Any
 
 from amta.backends.chat_client import chat_text
 from amta.common.config import get_chat_config as _config_get_chat_config
-from amta.guards.guardrails import mechanical_guardrails
 from amta.common.metrics import levenshtein, norm
 from amta.common.paths import ROOT
+from amta.guards.guardrails import mechanical_guardrails
 
 _ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
 
@@ -64,9 +64,7 @@ def extract_relevant_terms(text: str, glossary: dict) -> dict[str, Any]:
         norm_term = norm(term)
         if not norm_term:
             continue
-        if norm_term in norm_text or norm_text in norm_term:
-            relevant[term] = meta
-        elif levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
+        if norm_term in norm_text or norm_text in norm_term or levenshtein(norm_term[: min(len(norm_term), 6)], norm_text[: min(len(norm_text), 6)]) <= 2:
             relevant[term] = meta
     return relevant
 

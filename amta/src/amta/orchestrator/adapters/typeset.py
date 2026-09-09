@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import time
 
-from amta.stores import artifacts
 from amta.common.paths import read_json
+from amta.stores import artifacts
 from amta.typeset.typeset_station import run as typeset_run
 
 from ..context import StationContext, StationResult

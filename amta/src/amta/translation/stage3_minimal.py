@@ -20,17 +20,17 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from amta.common import workstate
+from amta.common.metrics import norm
 from amta.guards import guardrails
+from amta.guards.canon_schema import validate_canon
 from amta.stores import artifacts
 from amta.stores.artifact_store import ArtifactStore
-from amta.guards.canon_schema import validate_canon
-from amta.common.metrics import norm
-from amta.translation.translate import (extract_relevant_terms, get_chat_config, text_chat,
-                            translate_plain)
+from amta.translation.translate import extract_relevant_terms, get_chat_config, text_chat, translate_plain
 
 # === Semantic context builder (moved from translate_tools.py, sole consumer here) ===
 _CATEGORY_LABELS = {

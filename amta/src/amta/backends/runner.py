@@ -90,7 +90,7 @@ def run_all_pages(
                     client, page, steps, prefix=prefix, timeout=timeout,
                     require_completed=require_completed,
                 )
-            except Exception as e:  # noqa: BLE001 — 单引擎失败不拖垮整页
+            except Exception as e:
                 print(f"[{label}] WARN {key} {engine}: {e}", flush=True)
                 out[key]["engines"][engine] = []
     return out

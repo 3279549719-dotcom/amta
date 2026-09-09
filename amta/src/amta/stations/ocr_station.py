@@ -28,10 +28,10 @@ from pathlib import Path
 
 from PIL import Image
 
-from amta.stores import artifacts
 from amta.common.config import get_vlm_api_key
 from amta.common.paths import write_json
 from amta.guards.rule_filter import rule_filter
+from amta.stores import artifacts
 
 # Q3 OCR confidence 过滤阈值
 OCR_CONF_THRESHOLD = 0.4  # 副引擎新增框首 token confidence 低于此值则过滤
@@ -164,7 +164,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
             t1 = time.time()
             try:
                 vlm_result = vlm_fn([pil for _, _, _, pil in kept_pairs], api_key=key)
-            except Exception as e:  # noqa: BLE001 — VLM 失败不拖垮 OCR 工位
+            except Exception as e:
                 vlm_result = {"texts": None, "status": "failed", "raw_output": str(e),
                               "elapsed": time.time() - t1, "retries": 0}
         else:
@@ -173,10 +173,8 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
     # ---- 组装 canon ----
     items = []
     vlm_texts = vlm_result.get("texts")
-    vlm_idx = 0
-    for rid, b, crop, _pil in kept_pairs:
+    for vlm_idx, (rid, b, crop, _pil) in enumerate(kept_pairs):
         vlm_text = vlm_texts[vlm_idx] if (vlm_texts and vlm_idx < len(vlm_texts)) else None
-        vlm_idx += 1
         row = ocr_by_crop.get(str(crop), {})
         ocr_text = (row.get("ocr") or "").strip()
         item = {

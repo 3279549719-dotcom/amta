@@ -41,11 +41,22 @@ exclude = ["scripts/probes/**", "research/reference-repos/**", "models/**", "out
 
 [tool.ruff.lint]
 # E701/E702（单行多条语句）是项目既有紧凑风格，忽略；其余规则保留。
-ignore = ["E701", "E702"]
+# BLE001/S110：盲 except 与 try-except-pass 是本项目的容错纪律（ADR-025 注入纪律：地产异常降级不阻塞，
+# CLI/hook 层故意宽松）——豁免而非逐处撒 noqa（2026-09-10 治理定案）。
+# PLW1510：subprocess 不带 check 是 CLI 层故意的容错（失败不炸，fastcheck 自己兜底）。
+ignore = ["E701", "E702", "BLE001", "S110", "PLW1510", "TRY004", "TRY002"]
 
 [tool.ruff.lint.per-file-ignores]
 # 外部模型目录的运行时动态导入（models/ 不入库，克隆环境不存在）
 "scripts/baberu_ocr.py" = ["E402"]
+# CLI/脚本层日志时间戳用本地时间是有意的（人读），豁免时区规则
+"scripts/**" = ["DTZ", "BLE001", "S110", "PLW1510"]
+# 测试层：假实现/宽松断言里的同类豁免
+"tests/**" = ["DTZ", "BLE001", "S110"]
+# lama 三件套移植自参考实现（L38：预处理/后处理与参考完全对齐），默认参数构造保持原样
+"src/amta/inpaint/_lama*.py" = ["B008"]
+# memory 系统按本地日期运转（today-*.md 文件名即本地日期），故意 naive datetime
+"src/amta/memory/**" = ["DTZ"]
 
 [tool.pyright]
 pythonVersion = "3.11"

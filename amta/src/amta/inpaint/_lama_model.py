@@ -1,12 +1,14 @@
 import os
-import torch
+
 import numpy as np
+import torch
 from PIL import Image
+
 from ._lama_util import download_model, prepare_img_and_mask
 
 LAMA_MODEL_URL = os.environ.get(
     "LAMA_MODEL_URL",
-    "https://github.com/enesmsahin/simple-lama-inpainting/releases/download/v0.1.0/big-lama.pt",  # noqa
+    "https://github.com/enesmsahin/simple-lama-inpainting/releases/download/v0.1.0/big-lama.pt",
 )
 
 

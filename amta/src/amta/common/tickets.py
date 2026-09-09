@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,7 @@ KINDS = (KIND_TERM_CONFLICT, KIND_FALSE_POSITIVE, KIND_HARD_CASE, KIND_UNKNOWN)
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def classify_kind(reason: str, source: str = "") -> str:

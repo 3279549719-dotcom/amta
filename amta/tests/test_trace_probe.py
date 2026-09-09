@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from trace_probe import cmd_live, cmd_stats, cmd_tail  # noqa: E402
+from trace_probe import cmd_live, cmd_stats, cmd_tail
 
 
 def _lines(events: list[dict]) -> list[str]:

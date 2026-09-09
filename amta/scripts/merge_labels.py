@@ -17,7 +17,7 @@ DEST = OUT / "labels_a.json"
 
 
 def norm_id(i: str) -> str:
-    return i[:-4] if i.endswith(".png") else i
+    return i.removesuffix(".png")
 
 
 def main(argv: list[str]) -> int:

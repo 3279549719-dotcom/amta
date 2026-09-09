@@ -18,13 +18,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.report import (  # noqa: E402
+from amta.report import (
     load_from_workspace,
-    render_report,
-    render_final_report,
-    render_stage4_report,
-    render_inpaint_ab_report,
     render_ab_report,
+    render_final_report,
+    render_inpaint_ab_report,
+    render_report,
+    render_stage4_report,
 )
 
 ROOT = Path(__file__).resolve().parent.parent

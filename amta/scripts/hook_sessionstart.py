@@ -6,8 +6,8 @@ Claude Code SessionStart hook: 新会话自动加载项目状态。
 
 配置：.claude/settings.json -> hooks.SessionStart -> command: "py -3.13 scripts/hook_sessionstart.py"
 """
-import subprocess
 import json
+import subprocess
 
 
 def run(cmd):

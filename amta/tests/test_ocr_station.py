@@ -65,6 +65,7 @@ def test_ocr_page_empty_ocr_kept(tmp_path, monkeypatch):
 
 def test_ocr_page_no_valid_bbox_raises(tmp_path):
     import pytest
+
     from amta.stations.ocr_station import ocr_page
     with pytest.raises(RuntimeError, match="no valid bbox"):
         ocr_page("w1", _det([{"region_id": "page_0_u00", "bbox": [999, 999, 1000, 1000]}]),

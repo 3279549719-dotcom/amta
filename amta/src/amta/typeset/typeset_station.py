@@ -12,10 +12,10 @@ from pathlib import Path
 
 from PIL import Image
 
-from amta.stores.artifacts import load_canon
-from amta.typeset.fonts import resolve_font
 from amta.common.geometry import shrink_bubble_bbox
 from amta.common.paths import read_json, write_json
+from amta.stores.artifacts import load_canon
+from amta.typeset.fonts import resolve_font
 from amta.typeset.typeset_render import render_item
 
 

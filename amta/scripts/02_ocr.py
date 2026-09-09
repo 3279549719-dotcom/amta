@@ -12,11 +12,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from amta.stores.artifact_store import JSON_STAGES  # noqa: E402
-from amta.stores.artifacts import load_detection  # noqa: E402
-from amta.stations.ocr_station import ocr_page  # noqa: E402
-from amta.backends.ocr_engines import ocr_batch  # noqa: E402
-from amta.common.paths import write_json  # noqa: E402
+from amta.backends.ocr_engines import ocr_batch
+from amta.common.paths import write_json
+from amta.stations.ocr_station import ocr_page
+from amta.stores.artifact_store import JSON_STAGES
+from amta.stores.artifacts import load_detection
 
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,

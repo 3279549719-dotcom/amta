@@ -95,7 +95,7 @@ def test_basic_pipeline(tmp_path, monkeypatch):
 
 def test_skip_existing(tmp_path, monkeypatch):
     """测试断点续跑：第二次运行所有阶段 skipped（artifact_cache cache hit）。"""
-    fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
+    fake_detect, fake_ocr, _fake_translate = _setup_fake_registry()
 
     monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -127,7 +127,7 @@ def test_skip_existing(tmp_path, monkeypatch):
 
 def test_force_rerun(tmp_path, monkeypatch):
     """测试 force_rerun：即使产物存在也重跑。"""
-    fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
+    fake_detect, _fake_ocr, _fake_translate = _setup_fake_registry()
 
     monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -218,7 +218,7 @@ def test_missing_upstream_dependency(tmp_path, monkeypatch):
 
 def test_artifact_cache_fingerprint_created(tmp_path, monkeypatch):
     """验证 artifact_cache 集成：工位执行成功后生成 .fingerprint 文件。"""
-    fake_detect, fake_ocr, fake_translate = _setup_fake_registry()
+    _fake_detect, _fake_ocr, _fake_translate = _setup_fake_registry()
 
     monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
     with tempfile.TemporaryDirectory() as tmpdir:

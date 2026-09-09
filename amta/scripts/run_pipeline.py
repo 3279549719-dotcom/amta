@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.orchestrator import PipelineConfig, available_stages, run_pipeline  # noqa: E402
+from amta.orchestrator import PipelineConfig, available_stages, run_pipeline
 
 
 def main() -> int:

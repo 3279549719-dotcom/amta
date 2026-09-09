@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.report.final_report import render_final_report  # noqa: E402
+from amta.report.final_report import render_final_report
 
 
 def main() -> int:

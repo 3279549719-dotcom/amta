@@ -4,8 +4,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.common.geometry import mark_contained, union_blocks
 from amta.backends.runner import compact_blocks
+from amta.common.geometry import mark_contained, union_blocks
 
 
 def _b(x1, y1, x2, y2, eid="test"):
@@ -24,9 +24,9 @@ def test_mark_contained_adds_contained_in_tag():
     child = _b(120, 120, 180, 180, "child")  # IoA = 3600/3600 = 1.0
     result = mark_contained([parent, child])
     assert len(result) == 2, "嵌套框不应被丢弃"
-    child_out = [b for b in result if b["node_id"] == "child"][0]
+    child_out = next(b for b in result if b["node_id"] == "child")
     assert child_out["contained_in"] == "u00", "应标记父框 region_id"
-    parent_out = [b for b in result if b["node_id"] == "parent"][0]
+    parent_out = next(b for b in result if b["node_id"] == "parent")
     assert parent_out.get("contained_in") is None, "父框不应有 contained_in"
 
 

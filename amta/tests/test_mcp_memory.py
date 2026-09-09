@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import mcp_memory  # noqa: E402
+import mcp_memory
 
 
 @pytest.fixture(autouse=True)

@@ -13,7 +13,6 @@ import io
 import json
 import re
 import time
-from typing import Optional
 
 import requests
 from PIL import Image
@@ -104,7 +103,7 @@ def make_contact_sheet(
     return sheet
 
 
-def parse_vlm_output(raw: str, expected_count: int) -> Optional[list[str]]:
+def parse_vlm_output(raw: str, expected_count: int) -> list[str] | None:
     """解析 VLM 输出,按序号前缀对应输入顺序。
 
     优先解析「序号: 文本」格式(序号 1 基,与网格顺序对应);长气泡的内部换行
@@ -117,7 +116,7 @@ def parse_vlm_output(raw: str, expected_count: int) -> Optional[list[str]]:
     Returns:
         文本列表(长度=expected_count),或 None(解析失败触发容错)
     """
-    texts: list[Optional[str]] = [None] * expected_count
+    texts: list[str | None] = [None] * expected_count
     found = 0
     for line in raw.strip().splitlines():
         m = re.match(r"^\s*(\d{1,3})\s*[:：、.]\s*(.*)$", line)

@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.report.stage4_report import render_stage4_report  # noqa: E402
+from amta.report.stage4_report import render_stage4_report
 
 DEFAULT_SRC = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 DEFAULT_RESULT = Path(__file__).resolve().parent.parent / "output" / "tmp" / "stage4_e2e_11_20"

@@ -6,7 +6,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from amta.stores import artifacts
 
-
 CANON = [
     {"region_id": "page_0_u00", "baberu_text": "こんにちは", "vlm_text": "こんにちは",
      "vlm_status": "ok", "page": 0, "contained_in": None},
