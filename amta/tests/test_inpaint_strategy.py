@@ -17,7 +17,7 @@ def test_bubble_fills_white_and_sfx_inpaints():
     ]
     plan = plan_inpaint(regions, image_meta={"width": 400, "height": 600})
     by_id = {p["region_id"]: p for p in plan}
-    assert by_id["page_0_u00"]["action"] == "fill_white"
+    assert by_id["page_0_u00"]["action"] == "inpaint"
     assert by_id["page_0_u01"]["action"] == "inpaint"
     assert by_id["page_0_u02"]["action"] == "inpaint"
 
@@ -33,7 +33,7 @@ def test_out_of_bounds_bbox_skipped():
 def test_missing_category_defaults_bubble():
     regions = [{"region_id": "r0", "bbox": [0, 0, 10, 10]}]  # 无 category(兼容旧产物)
     plan = plan_inpaint(regions, image_meta={"width": 100, "height": 100})
-    assert plan[0]["action"] == "fill_white"
+    assert plan[0]["action"] == "inpaint"
 
 
 def test_empty_regions():

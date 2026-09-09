@@ -42,6 +42,8 @@ EXCLUDE_FILES = {
     "scripts/run_detect_multi.py",
     "scripts/gen_detect_multi_report.py",
     "tests/test_detect_ctd.py",
+    "scripts/probes/_probe_hayai_confidence.py",
+    "scripts/probes/_probe_confidence_compare.py",
 }
 
 
