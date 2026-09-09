@@ -1,4 +1,4 @@
-﻿"""Stage 4 Inpainting 速度 A/B 实验脚本。
+"""Stage 4 Inpainting 速度 A/B 实验脚本。
 
 四组对比:
   baseline : 整页送 Koharu lama-manga (当前方案)
@@ -27,10 +27,10 @@ ROOT = SCRIPT_DIR.parent.parent  # 仓库根
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(SCRIPT_DIR.parent))  # 04_inpaint 位于 scripts/ 根
 
-from amta.inpaint_station import _apply_fill_white, _build_mask, run as inpaint_run  # noqa: E402
+from amta.inpaint.inpaint_station import _apply_fill_white, _build_mask, run as inpaint_run  # noqa: E402
 
-from amta.koharu_client import KoharuClient  # noqa: E402
-from amta.local_lama_inpainter import LocalLamaInpainter  # noqa: E402
+from amta.backends.koharu_client import KoharuClient  # noqa: E402
+from amta.inpaint.local_lama_inpainter import LocalLamaInpainter  # noqa: E402
 
 SRC_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 DET_DIR = ROOT / "workspace" / "touhou-single-wing-fresh" / "artifacts"
@@ -87,7 +87,7 @@ def crop_box(img: Image.Image, bbox: list, padding: int = PADDING):
 def build_crop_mask(crop_img: Image.Image, bbox: list, crop_origin: tuple, refine: bool = True) -> bytes:
     ox, oy = crop_origin[0], crop_origin[1]
     local_bbox = [bbox[0] - ox, bbox[1] - oy, bbox[2] - ox, bbox[3] - oy]
-    return _build_mask(crop_img, [local_bbox], pad=4, refine=refine)
+    return _build_mask(crop_img, [local_bbox], pad=4)
 
 
 def koharu_inpaint(image: Image.Image, mask_bytes: bytes, engine: str = "lama-manga") -> Image.Image | None:

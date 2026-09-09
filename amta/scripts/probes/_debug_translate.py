@@ -9,10 +9,10 @@ for _k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
-from amta.translate import translate_plain, parse_translation_array
-from amta.guardrails import mechanical_guardrails
-from amta.chat_client import chat_text
-from amta.config import get_chat_config
+from amta.translation.translate import translate_plain, parse_translation_array
+from amta.guards.guardrails import mechanical_guardrails
+from amta.backends.chat_client import chat_text
+from amta.common.config import get_chat_config
 
 # 加载目标框数据
 data = json.loads(open("workspace/exp-q1-tiling-garbled/q1_target_audit/q1_target_boxes.json", encoding="utf-8").read())

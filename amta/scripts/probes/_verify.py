@@ -1,4 +1,4 @@
-from amta.translate import translate_plain
+from amta.translation.translate import translate_plain
 import inspect
 src = inspect.getsource(translate_plain)
 print("import OK")

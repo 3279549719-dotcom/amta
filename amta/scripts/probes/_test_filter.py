@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, "src")
-from amta.rule_filter import rule_filter
+from amta.guards.rule_filter import rule_filter
 
 blocks = [
     {"text": "うおおお!", "bbox": [0, 0, 118, 996]},

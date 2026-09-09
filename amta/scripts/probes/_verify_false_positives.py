@@ -18,7 +18,7 @@ if MODEL_DIR not in sys.path:
     sys.path.insert(0, MODEL_DIR)
 
 from hayai_ocr import HayaiOcr
-from amta.ocr_engines import _hayai_greedy_decode_with_conf
+from amta.backends.ocr_engines import _hayai_greedy_decode_with_conf
 
 print("加载模型...")
 ocr = HayaiOcr(pretrained_model_name_or_path=MODEL_DIR)

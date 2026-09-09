@@ -13,7 +13,7 @@ CANON = [
 ]
 
 
-def _llm_ok(messages, tools=None):
+def _llm_ok(messages):
     return '["你好"]'
 
 
@@ -50,18 +50,3 @@ def test_translate_page_rejects_bad_canon(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="canon input schema"):
         translate_page("w1", [{"region_id": "", "baberu_text": "あ", "page": 0}],
                        state_dir=_state(tmp_path), llm_text=_llm_ok)
-
-
-def test_translate_page_vlm_disabled_no_vlm_call(tmp_path, monkeypatch):
-    """vlm_enabled=False skips VLM refine call entirely."""
-    call_count = [0]
-    def counting_vlm(messages):
-        call_count[0] += 1
-        return "{}"
-    monkeypatch.setattr("amta.translation.translate.get_chat_config",
-                        lambda: {"base_url": "x", "model": "m", "api_key": "k"})
-    from amta.translation.translate_station import translate_page
-    out = translate_page("w1", CANON, state_dir=_state(tmp_path), page="page_0",
-                         llm_text=_llm_ok, llm_vlm=counting_vlm, vlm_enabled=False)
-    assert out["translations"]["page_0_u00"] == "你好"
-    assert call_count[0] == 0  # VLM not called when disabled

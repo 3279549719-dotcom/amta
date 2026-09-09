@@ -206,10 +206,14 @@ def render_stage4_report(
             print(f"[warn] page_{n}: clean image not found, using raw as fallback")
             clean_img = raw_img
 
-        # 生成精修mask（和04_inpaint相同参数 pad=4）
-        img_rgb = np.array(raw_img)
-        bbox_list = list(inpaint_boxes.values())
-        mask_np = np.zeros_like(raw_img_gray)
+        # 生成矩形 mask（和04_inpaint相同参数 pad=4，ADR-031 统一矩形 mask）
+        w, h = raw_img.size
+        mask_np = np.zeros((h, w), dtype=np.uint8)
+        for bbox in inpaint_boxes.values():
+            x1, y1, x2, y2 = [int(v) for v in bbox]
+            x1 = max(0, x1 - 4); y1 = max(0, y1 - 4)
+            x2 = min(w, x2 + 4); y2 = min(h, y2 + 4)
+            mask_np[y1:y2, x1:x2] = 255
 
         # 构建深接口 StageOutput
         mask_stage = build_mask_stage(raw_img, mask_np, inpaint_boxes)

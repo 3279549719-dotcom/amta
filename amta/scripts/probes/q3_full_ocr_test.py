@@ -24,7 +24,7 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE","1")
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from amta.ocr_station import ocr_page
+from amta.stations.ocr_station import ocr_page
 
 RAW_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 DET_DIR = ROOT / "workspace/touhou-tiling-e2e/artifacts/detection"

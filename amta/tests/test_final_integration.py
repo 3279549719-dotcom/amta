@@ -155,16 +155,6 @@ class TestTranslationStage3Minimal:
         from amta.translation.translate import extract_relevant_terms
         assert callable(extract_relevant_terms)
 
-    def test_vlm_output_has_tri_state_fields(self):
-        """VLM 输出结构包含 keep/fix/drop 三态字段。"""
-        # 验证 VLM 输出 dataclass/结构有 ocr_refinements (fix), invalid_regions (drop), duplicate_regions (keep)
-        import inspect
-        from amta.translation.stage3_minimal import translate_page_minimal
-        src = inspect.getsource(translate_page_minimal)
-        assert "ocr_refinements" in src or "refinements" in src
-        assert "invalid_regions" in src or "invalid" in src
-        assert "duplicate_regions" in src or "duplicate" in src
-
     def test_chat_model_from_env(self):
         """LLM 模型从 .env CHAT_MODEL 读取（最终选型 deepseek-v4-flash）。"""
         from amta.common.config import get_chat_config

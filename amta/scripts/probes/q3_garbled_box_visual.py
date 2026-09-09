@@ -21,8 +21,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from amta.inpaint_station import _build_mask_image, _get_inpainter
-from amta.typeset_render import render_item
+from amta.inpaint.inpaint_station import _build_mask_image, _get_inpainter
+from amta.typeset.typeset_render import render_item
 
 # ---- 配置 ----
 RAW_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")

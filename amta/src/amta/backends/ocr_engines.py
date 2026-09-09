@@ -95,7 +95,7 @@ def _hayai_greedy_decode_with_conf(model, processor, tokenizer, img,
     "dream up" 合理句子（作者 README 承认）。组合 confidence 指标可有效区分
     假框与真实文字（包括首字识别错误的真实文字，如生僻汉字"嫦"、数字"八"被误读）。
     """
-    import modeling_hayai  # noqa: PLC0415 — 模型目录已在 _get_hayai 加入 sys.path
+    import modeling_hayai  # type: ignore[import-not-found]
     compute_batch_2d_mrope_freqs = modeling_hayai.compute_batch_2d_mrope_freqs
 
     device = next(model.parameters()).device

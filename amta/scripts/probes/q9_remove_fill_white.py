@@ -26,14 +26,14 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
-from amta.detect_station import detect_page
-from amta.ocr_station import ocr_page
-from amta.inpaint_station import run as inpaint_run
-from amta.typeset_station import run as typeset_run
-from amta.translate import translate_plain
-from amta.chat_client import chat_text
-from amta.config import get_chat_config
-from amta.paths import read_json, write_json
+from amta.stations.detect_station import detect_page
+from amta.stations.ocr_station import ocr_page
+from amta.inpaint.inpaint_station import run as inpaint_run
+from amta.typeset.typeset_station import run as typeset_run
+from amta.translation.translate import translate_plain
+from amta.backends.chat_client import chat_text
+from amta.common.config import get_chat_config
+from amta.common.paths import read_json, write_json
 
 # ---- 配置 ----
 WORK_ID = "exp-q9-remove-fill-white"

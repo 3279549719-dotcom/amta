@@ -23,7 +23,7 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from amta.ocr_station import ocr_page  # noqa: E402
+from amta.stations.ocr_station import ocr_page  # noqa: E402
 
 # ---- 路径 ----
 RAW_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")

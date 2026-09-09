@@ -21,7 +21,7 @@ ROOT = SCRIPT_DIR.parent.parent  # 仓库根（本文件在 scripts/probes/ 下�
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from amta.koharu_client import KoharuClient  # noqa: E402
+from amta.backends.koharu_client import KoharuClient  # noqa: E402
 
 SRC_DIR = Path(r"D:\我的汉化\汉化作品\东方\单翼停留之地")
 ARTIFACTS_DIR = ROOT / "workspace" / "touhou-single-wing-fresh" / "artifacts"

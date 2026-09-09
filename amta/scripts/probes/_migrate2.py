@@ -114,6 +114,7 @@ def process(path):
 def main():
     files = (glob.glob("src/amta/**/*.py", recursive=True)
              + glob.glob("scripts/*.py")
+             + glob.glob("scripts/probes/*.py")
              + glob.glob("tests/*.py"))
     changed = 0
     for f in files:

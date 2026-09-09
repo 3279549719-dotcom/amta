@@ -55,6 +55,18 @@
 - agent 只在 COMPLETE/BLOCKED/死胡同退出；不主动退出等外层踢下一脚
 - 合 main 是人的动作（prompt.md 写死）；合前按需 L6 独立审核（ADR-030，小改动不强制）
 
+## 三个决策点必须等人确认
+
+Ralph Loop 全自主推进，但以下三个节点必须暂停，等人类确认：
+
+| 决策点 | 说明 |
+|---|---|
+| **删除文件** | 任何 `rm` / `git rm` / 删除模块的操作 |
+| **依赖声明 / 基准方案变更** | 修改 `pyproject.toml` 依赖、变更架构选型、变更核心流程 |
+| **合并回 main** | 分支完成后，合并进 main 前必须人类验收 |
+
+其余所有操作（写代码、跑测试、修 bug、写文档、commit 到 feature 分支）Ralph 全自主。遇到决策点时，agent 在 `loop_state.json` 写 `status=BLOCKED` + escalation 说明需要人做什么（`uv run python scripts/loop_state.py blocked --reason "..."`），ralph 检测到即停止循环等人，不空转。
+
 ## 候选升级（未启用）
 
 claude `--bg` + `claude agents`（原生后台会话 + done/blocked/stopped 状态 + Notification hook + supervisor 崩溃重启）可取代整个外层循环——但当前钉的 claude 2.1.220 上仍是 research preview、无 stall 检测、无结构化结果字段。升级 claude 后再评估（见 research/10-claude-code-headless-and-ralph-optimization.md）。

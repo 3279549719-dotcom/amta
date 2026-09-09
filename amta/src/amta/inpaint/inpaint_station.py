@@ -51,7 +51,13 @@ def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4) -> Ima
     ADR-031: 统一使用矩形 mask。text_mask_refiner（精修 mask）已移除——
     实验证明矩形 mask + Lama 效果可接受（10页83框，气泡无破坏，用户确认）。
     """
-    mask_np = build_rect_mask(img.size, bboxes, pad=pad)
+    w, h = img.size
+    mask_np = np.zeros((h, w), dtype=np.uint8)
+    for bbox in bboxes:
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        x1 = max(0, x1 - pad); y1 = max(0, y1 - pad)
+        x2 = min(w, x2 + pad); y2 = min(h, y2 + pad)
+        mask_np[y1:y2, x1:x2] = 255
     return Image.fromarray(mask_np)
 
 
