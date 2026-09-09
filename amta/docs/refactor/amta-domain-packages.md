@@ -38,4 +38,4 @@
   （exp_p1_manga ModuleNotFoundError）。佐证：迁移文件的 diff 纯 import 行改写，无函数体/签名变更。
 - 遗留：`report/` 子包在 HEAD 即处残缺态（`refine_text_mask`/`raw_img_gray`/`btype` 等死引用
   与多条 F821），与本次顶层归类无关、未纳入；已修 `report/stage4_report.py` 一处兼容别名
-  `extract_text_free_boxes`（ADR-031 旧名退化 aliasing，消除 `import amta.report` 崩溃）。
+  `extract_text_free_boxes`（ADR-033 旧名退化 aliasing，消除 `import amta.report` 崩溃）。

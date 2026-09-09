@@ -8,6 +8,56 @@
 
 ---
 
+## 目录（书脊速查）
+
+- L1 — describe_image 整页坐标不可靠
+- L2 — 假数据落盘（最致命）
+- L3 — wait_operation 卡死：completed_with_errors 未被识别
+- L4 — workers>1 在 CPU/集显下崩溃
+- L5 — .ps1 含中文路径必须 UTF-8 带 BOM
+- L6 — NO_PROXY：Clash 破坏 localhost
+- L7 — ctd_seg 只细化已有文字框（DAG 依赖）
+- L8 — patch 译文后必须重跑 koharu-renderer
+- L9 — koharu 内置 llama.cpp 太旧：paddle/mit48px OCR 引擎全不可用
+- L10 — 通用 VLM 竖排日语系统性差：必须用漫画微调模型
+- L11 — DSH 技能根 ≠ CC 约定：`.claude/skills` 是死配置 + #1401 frontmatter bug
+- L12 — 并集框去重 IoU>0.5 漏合并竖排碎片框：同文本多 crop 多统计
+- L13 — VLM per-crop 独立标注的 GT 不可靠：正式 GT 必须用整页枚举
+- L14 — 数据文件缓存派生指标：norm 口径漂移后不重算 → 假 bug（GT=OCR 却 EM=0）
+- L15 — 报告叠加框必须标注真实来源：detector 检出框 ≠ GT bbox
+- L16 — OCR 评测坐标源必须用 detector 对齐框，勿用 GT 缩略 bbox 或误用单引擎框
+- L17 — llama-server prompt cache 误命中不同图像，本地 OCR 必须 cache_prompt:false
+- L18 — 本地 OCR 性能：BF16 未量化 + 缺省参数 = 30s/张；Q8_0 + 参数优化 + baberu 快路径
+- L19 — pytest Windows 尾部 PermissionError: pytest-current 是 teardown 噪音：exit 1 ≠ 失败；fastcheck 必须用 pytest 收集
+- L20 — 数字前缀脚本无法按名 import：测试需 `_NN_name.py` 桥
+- L21 — 日文残留检测判据只用假名范围：汉字 CJK 共用不可作残留依据
+- L22 — DeepSeek 模型 id 必须实测 models 端点：带日期后缀的 id 是雷
+- L23 — DeepSeek v4-pro 是推理模型、vision-exp 偶发空响应：调用要防"content 为空"
+- L24 — prompt 模板含字面花括号会被 .format() 当占位符
+- L25 — 声称"全量验证"必须有可复现基线：未提交旧版上跑的数不算
+- L26 — fastcheck/pre-commit 需要 Python 3.13 全局解释器：AutoClaw 的 python 无 pytest/ruff
+- L27 — OpenClaw 工具输出对 api_key= 赋值脱敏：写代码后必须校验实际内容
+- L28 — PowerShell 管道缓冲会让后台任务输出"消失"：Tee-Object 经 2>&1 可能整体延迟
+- L29 — 中文/多行字符串 JSON 勿用 PowerShell ConvertFrom-Json（PS5.1 解析失败）
+- L30 — CRLF 行尾文件 edit 工具精确匹配失败：用 Python 脚本替换并保持行尾
+- L31 — koharu mask/inpaint 契约（探针 2026-08-27 定案，详见 ADR-020）
+- L32 — Windows subprocess text=True 用 locale 解码，中文输出必炸
+- L33 — pytest 跨文件复用 fixture 勿 import，放 tests/conftest.py
+- L34 — 记忆检索要 hook push（UserPromptSubmit 注入），别只靠 MCP pull（工具自觉）
+- L35 — CLAUDE_CONFIG_DIR 改配置位置：查 MCP 授权先看 env 再动 ~/.claude.json
+- L36 — 发行名与 import 名只差分隔符（hayai_ocr vs hayai-ocr）：比较前做 PEP 503 归一化
+- L37 — 本地模块归档进 archive/ 后，残留 importer 被 depguard 误报"第三方未声明"：归档时须连带清 importer
+- L38 — 移植模型推理：预处理/后处理必须与参考实现完全对齐（归一化范围 + 输出激活）
+- L39 — Inpainting 对上下文敏感：裁剪推理在复杂背景易产生方框，整页推理质量更稳定
+- L40 — Pillow ≥10 移除顶层 Resampling 常量（Image.NEAREST 等）：用 Image.Resampling.* 枚举
+- L41 — depguard 补声明已传递安装的依赖时，版本读 uv.lock 的公共版本，别抄 `__version__` 的本地构建标签（+cpu）
+- L42 — 仓库根上移（filter-repo 到父目录）后 core.hooksPath 相对值失效：pre-commit/pre-push 静默不跑
+- L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
+- L44 — 归档探针到 scripts/probes/（豁免但活着的目录）：ROOT 深度 + depguard 本地识别两处必改
+- L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
+
+---
+
 ## L1 — describe_image 整页坐标不可靠
 
 - **Problem**：Benchmark A 用 describe_image 看整页大图返回的 bbox 坐标是错的（裁剪验证为空白/位置漂移），无法做像素级 IoU 对齐。

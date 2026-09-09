@@ -1,6 +1,6 @@
 """渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。
 
-ADR-031 决策C：render_item 不再接收 direction，由 fit_font_size 双方向选优返回。
+ADR-033 决策C：render_item 不再接收 direction，由 fit_font_size 双方向选优返回。
 竖排支持多列（从右到左排列，每列从上到下），与横排多行对称。
 方向推断：从 bbox 长宽比推断原文方向，作为 preferred_direction 传入 fit_font_size。
 """

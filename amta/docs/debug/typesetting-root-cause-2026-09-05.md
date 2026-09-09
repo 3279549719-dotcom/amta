@@ -41,7 +41,7 @@ p14 共 12 个文本区域，从 r01 起全部错位：
 `page_14_translation.json` 生成时间 `2026-09-05T11:35:44`，**早于**修复 commit `312cd64`。后续只重跑了 typeset 阶段（`18:43:39`），翻译数据是旧的、已错位的。
 
 ### 根本原因：数组契约的盲区
-ADR-031 声称"数组契约防止 LLM 拆条挤占 region_id"，但 `parse_translation_array()` 只校验**数量相等**：
+ADR-033 声称"数组契约防止 LLM 拆条挤占 region_id"，但 `parse_translation_array()` 只校验**数量相等**：
 
 ```python
 # translate.py:81-97
@@ -91,7 +91,7 @@ def fit_font_size(text, font_path, bbox, ...):
     return h_size, "horizontal", h_lines
 ```
 
-**设计缺陷**：ADR-031 删除了 `decide_direction`，改为"同时算横竖排最大字号选最优"。这在字号维度是第一性原理，但**完全丢失了"尊重原文阅读方向"的约束**。
+**设计缺陷**：ADR-033 删除了 `decide_direction`，改为"同时算横竖排最大字号选最优"。这在字号维度是第一性原理，但**完全丢失了"尊重原文阅读方向"的约束**。
 
 ### 具体机制分析
 

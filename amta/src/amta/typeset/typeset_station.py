@@ -2,8 +2,8 @@
 
 从 scripts/05_typeset.py 抽取，canon 用 load_canon 规范化（兼容信封格式）。
 bbox 关联: canon.node_id → detection.blocks[].node_id（零契约改动，ADR-019 不变）。
-ADR-031 决策C：删除 decide_direction，方向由 fit_font_size 双方向选优自动决定。
-气泡框收缩：ADR-031 后对所有框排版前调用 shrink_bubble_bbox，detect框比文字大时自动收缩到实际边界。
+ADR-033 决策C：删除 decide_direction，方向由 fit_font_size 双方向选优自动决定。
+气泡框收缩：ADR-033 后对所有框排版前调用 shrink_bubble_bbox，detect框比文字大时自动收缩到实际边界。
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     canon_items = canon_doc["items"]
     trans = read_json(trans_path).get("translations") or {}
     det = read_json(det_path)
-    # 存 bbox，供排版前收缩用（ADR-031: 对所有框收缩，不再区分 bubble_type）
+    # 存 bbox，供排版前收缩用（ADR-033: 对所有框收缩，不再区分 bubble_type）
     bbox_by_rid = {}
     for b in (det.get("blocks") or []):
         rid = b.get("region_id")
@@ -49,7 +49,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         if not bbox:
             skipped_no_bbox.append(rid)
             continue
-        # ADR-031: 对所有框排版前收缩到实际边界（detect框比文字大时不出框）
+        # ADR-033: 对所有框排版前收缩到实际边界（detect框比文字大时不出框）
         original_bbox = list(bbox)
         bbox = shrink_bubble_bbox(img, bbox)
         if bbox != original_bbox:

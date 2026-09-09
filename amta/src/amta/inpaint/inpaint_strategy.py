@@ -8,7 +8,7 @@ ADR-030: 移除 text_bubble 白底直填分支。
 - bbox 越界/缺失防御性 skip。
 
 category(dialogue_bubble/overlay_text/sfx) 仅用于日志记录，不再影响 action 决策。
-bubble_type 标签已在 ADR-031 移除。
+bubble_type 标签已在 ADR-033 移除。
 """
 from __future__ import annotations
 

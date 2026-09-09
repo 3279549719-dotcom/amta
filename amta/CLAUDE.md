@@ -37,7 +37,8 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 | 新增技能 / 改 SKILL.md | `python scripts/memory.py read --entry L11` |
 | 记忆可疑 / 机制自检 | `python scripts/memory.py status` |
 | 记忆机制设计依据 | `research/07-agent记忆机制详报.md` + `docs/decisions/025-agent-memory-mechanism.md` |
-| 不确定用哪个技能/流程（技能路由器） | `.dsh/skills/ask-matt/SKILL.md` |
+| 外部调研委派（后台调研 subagent） | `.dsh/skills/research/SKILL.md` |
+| 盘问/苏格拉底式拷问（grill 触发词） | `.dsh/skills/grilling/SKILL.md` |
 | 跑 Benchmark A/B/C | `.dsh/skills/benchmark/SKILL.md` |
 | VLM 标注 crop（oracle 判真假/分类/评分） | `.dsh/skills/oracle-label/SKILL.md` |
 | 后台长任务自主监控（轮询/失败检测/汇报） | `.dsh/skills/background-monitoring/SKILL.md` |
@@ -47,7 +48,6 @@ NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · 
 | 任务收尾 / 学习落盘（/finish） | `.dsh/skills/cycle-close/SKILL.md` |
 | Harness 熵审计（/audit） | `.dsh/skills/audit/SKILL.md` |
 | 收尾知识归类委派（finisher subagent） | `.dsh/skills/finisher/SKILL.md` |
-| 外部调研委派（researcher subagent） | `.dsh/skills/researcher/SKILL.md` |
 | docs 导航（分工/目录） | `docs/README.md` |
 | 可复用经验库（坑的唯一归属） | `docs/lessons.md` |
 | 架构决策（为什么这样选） | `docs/decisions/README.md` |

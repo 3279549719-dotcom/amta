@@ -130,7 +130,7 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(out[0]["bbox"], [0.0, 0.0, 10.0, 10.0])
         self.assertEqual(out[1]["node_id"], "c")
 
-# CategoryTest 已移除：assign_category 在 ADR-031 随 bubble_type 一起移除。
+# CategoryTest 已移除：assign_category 在 ADR-033 随 bubble_type 一起移除。
 
 
 

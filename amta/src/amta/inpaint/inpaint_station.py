@@ -4,7 +4,7 @@
 - Koharu HTTP inpaint → 本地 lama-manga 推理（LocalLamaInpainter）
 - 消除外部服务依赖，纯本地执行
 
-策略: ADR-030 后所有框统一走 Lama inpaint（矩形 mask）；ADR-031 移除 bubble_type 标签和 text_mask_refiner。
+策略: ADR-030 后所有框统一走 Lama inpaint（矩形 mask）；ADR-033 移除 bubble_type 标签和 text_mask_refiner。
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def _apply_fill_white(img: Image.Image, bbox: list, shrink: int = 8) -> None:
 def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4) -> Image.Image:
     """构建 inpaint mask（PIL Image, L 模式）：白色=要修复区域，黑色=其余。
 
-    ADR-031: 统一使用矩形 mask。text_mask_refiner（精修 mask）已移除——
+    ADR-033: 统一使用矩形 mask。text_mask_refiner（精修 mask）已移除——
     实验证明矩形 mask + Lama 效果可接受（10页83框，气泡无破坏，用户确认）。
     """
     w, h = img.size

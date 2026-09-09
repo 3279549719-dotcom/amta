@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMTA 治理资产详细台账 · 2026-09-09</title>
+<style>
+  :root{
+    --blue:#1e5fa8; --blue-d:#174a82; --blue-l:#eef4fb; --line:#d6e2f0;
+    --ok:#1a7f37; --ok-bg:#e8f5ec; --warn:#9a6700; --warn-bg:#fdf4e0;
+    --bad:#cf222e; --bad-bg:#fdecee; --gray:#57606a; --ink:#1f2937; --bg:#f6f9fd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 18px 80px}
+  header{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;padding:30px 0 24px;margin-bottom:22px}
+  header .wrap{padding-bottom:0}
+  h1{margin:0 0 6px;font-size:24px}
+  .sub{opacity:.9;font-size:13.5px}
+  h2{font-size:20px;margin:38px 0 12px;padding-left:11px;border-left:5px solid var(--blue)}
+  h3{font-size:16.5px;margin:22px 0 8px;color:var(--blue-d)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0;box-shadow:0 1px 2px rgba(30,95,168,.05)}
+  .lead{background:var(--blue-l);border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:14.5px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0;background:#fff}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--blue-l);color:var(--blue-d);font-weight:600;white-space:nowrap}
+  code{background:#eef2f7;padding:1px 6px;border-radius:4px;font-family:Consolas,monospace;font-size:12.5px;color:var(--blue-d)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .t-ok{background:var(--ok-bg);color:var(--ok)}
+  .t-warn{background:var(--warn-bg);color:var(--warn)}
+  .t-bad{background:var(--bad-bg);color:var(--bad)}
+  .t-gray{background:#eef0f3;color:var(--gray)}
+  .q{border-left:4px solid var(--blue);background:#fff;border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .q .qt{font-weight:700;color:var(--blue-d);margin-bottom:6px}
+  .a{margin-top:6px}
+  .verdict{font-weight:700}
+  .keep{color:var(--ok)} .cut{color:var(--bad)} .watch{color:var(--warn)}
+  nav{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 18px;font-size:13.5px;margin-bottom:8px}
+  nav a{color:var(--blue);text-decoration:none;margin-right:14px;white-space:nowrap;display:inline-block;line-height:2}
+  .steps{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .step{flex:1;min-width:130px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center;font-size:13px}
+  .step b{display:block;color:var(--blue);font-size:14px}
+  .step.now{border:2px solid var(--blue);background:var(--blue-l)}
+  .num{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:var(--blue);color:#fff;border-radius:50%;font-size:12px;margin-right:6px}
+  .small{font-size:12.5px;color:var(--gray)}
+  ul{margin:6px 0;padding-left:22px}
+  li{margin:3px 0}
+  .hl{background:#fff3bf;padding:0 3px;border-radius:3px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}table{font-size:12.5px}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>AMTA 治理资产 · 详细台账（硬盘实读版）</h1>
+  <div class="sub">生成 2026-09-09 · 全部结论来自本机文件实读，区分「事实 / 推断 / 待观测」 · 方法：质疑 → 删除 → 简化 → 加速 → 自动化（顺序不可颠倒）</div>
+</div></header>
+<div class="wrap">
+
+  <div class="lead">
+    <b>一句话总览：</b>你的治理层共 <b>9 层</b>。真正的厚实资产是「深模块 src/amta + 45 lessons/33 ADR/55 测试 + 可靠的 git 门禁」；
+    主要的熵来自三处——<span class="hl">协议手册漂移、一个 aegis 插件偷带 22 个 skill、三套记忆机制并存</span>。
+    <b>能现在删的（确定无用）立刻删；拿不准的不拍脑袋，等 DSH 观测一周用命中数据说话。</b>
+  </div>
+
+  <nav>
+    <b>跳转：</b>
+    <a href="#q">九问逐条答</a>
+    <a href="#l1">①手册</a><a href="#l2">②入口/门禁</a><a href="#l3">③脚本vs深模块</a>
+    <a href="#l4">④skill</a><a href="#l5">⑤hook/注入</a><a href="#l6">⑥MCP</a>
+    <a href="#l7">⑦插件</a><a href="#l8">⑧知识</a><a href="#l9">⑨记忆</a><a href="#plan">行动顺序</a>
+  </nav>
+
+  <h2 id="q">九问 · 逐条核查回答</h2>
+
+  <div class="q"><div class="qt">① 有这么多协议手册，逗我呢？</div>
+    <div class="a">四份<b>不是平级</b>，设计上是「1 本体 + 1 入口 + 1 自动生成 + 1 使命专用」，但入口文件写胖了、还过时了：
+      <table>
+        <tr><th>文件</th><th>角色</th><th>实测</th><th>判定</th></tr>
+        <tr><td><code>CLAUDE.md</code></td><td>唯一本体，自动全量加载</td><td>85 行 / 14.3KB，偏胖</td><td><span class="tag t-warn">瘦身</span></td></tr>
+        <tr><td><code>AGENTS.md</code></td><td>自称「仅作入口，避免双份漂移」</td><td>却有 98 行：Python 段与 CLAUDE.md 重复；Hook 段还写着<b>已停用</b>的 PreToolUse（文档漂移实锤）</td><td><span class="tag t-bad">砍回前 11 行</span></td></tr>
+        <tr><td><code>CLAUDE.local.md</code></td><td>自动生成的记忆包，勿手改</td><td>9 行，每次 fastcheck/会话自动重写</td><td><span class="tag t-gray">不用手管</span></td></tr>
+        <tr><td><code>prompt.md</code></td><td>仅 Ralph 使命会话读的 11 步流程</td><td>148 行，<b>日常交互会话根本不加载</b></td><td><span class="tag t-ok">不算日常负担</span></td></tr>
+      </table>
+      <span class="verdict keep">结论：</span>不是 4 份都要砍——把 AGENTS.md 收成真入口（删重复 Python 段、删过时 Hook 段），日常负担立刻小一半；prompt.md 只在跑使命时出现，不用动。
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">② fastcheck 是不是包含 static / linter / typecheck / test 这 4 层？命令入口、hook、它仨啥关系？</div>
+    <div class="a">
+      你复读的 4 层<b>全中，而且实际是 8 道工序</b>（读 <code>fastcheck.py</code> 源码逐行确认）：
+      <div class="steps">
+        <div class="step"><b>1 compile</b>语法门(你说的 static)</div>
+        <div class="step"><b>2 ruff</b>linter</div>
+        <div class="step"><b>3 pyright</b>typecheck</div>
+        <div class="step"><b>4 pytest</b>=npm test</div>
+        <div class="step"><b>5 depguard</b>依赖守卫</div>
+        <div class="step"><b>6 mem-lint</b>记忆活性</div>
+        <div class="step"><b>7 mem-gc</b>记忆清理</div>
+        <div class="step"><b>8 mem-inject</b>重写注入包</div>
+      </div>
+      <b>三个概念用「工厂」比喻一次分清：</b>
+      <ul>
+        <li><b>fastcheck</b> = 一台<b>质检流水线机器</b>（里面 8 道工序，本身是被动的，谁按开关它都跑同一套）。</li>
+        <li><b>命令入口</b>（<code>npm run fastcheck</code> / <code>run.ps1</code>）= 你<b>手按的开关/快捷键</b>，主动敲才跑。</li>
+        <li><b>pre-push hook</b> = 装在「git push 按钮」底下的<b>自动感应开关</b>，你一按 push，它自动替你启动质检机，不合格把货弹回。它不是质检本身，是「自动触发质检」的机关。</li>
+      </ul>
+      <span class="small">所以「这个是护栏吗」——hook 是护栏（自动、代码强制），fastcheck 是护栏调用的检查内容，npm script 是手动版同款。殊途同归到同一台机器，保证你手动/自动跑的是同一套标准。</span>
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">③ scripts/ 和 src/amta/ 啥关系？我说的 deep modules 深接口是你说的「专用工具」吗？</div>
+    <div class="a">
+      <b>不是一回事，是我之前表述不准，修正：</b>
+      <ul>
+        <li><code>scripts/</code>（39 个，多为 1–3KB）= <b>薄面板/旋钮</b>：只负责解析命令行参数，然后转手调 src。相当于机器表面的按钮。</li>
+        <li><code>src/amta/</code>（<b>45 个模块 + memory / orchestrator / report 三个子包</b>）= <b>深模块/机芯</b>：真正的能力全在这里。这才是你说的 deep modules。</li>
+      </ul>
+      深模块分组（机芯内部）：
+      <table>
+        <tr><th>职责</th><th>模块</th></tr>
+        <tr><td>五/六阶段工位</td><td>detect/ocr/translate/inpaint/typeset_station、runner、stage3_minimal</td></tr>
+        <tr><td>引擎适配</td><td>ocr_engines、translate、local_lama_inpainter、_lama_*、typeset_engine/render、fonts</td></tr>
+        <tr><td>机械护栏</td><td>guardrails、canon_schema、glossary、suggestions、term_dict/term_replace、rule_filter、vlm_filter/vlm_verify、punctuation_align、text_mask_refiner</td></tr>
+        <tr><td>状态/产物契约</td><td>workstate、tickets、artifacts、artifact_cache/store</td></tr>
+        <tr><td>客户端/共享</td><td>koharu_client、chat_client、config、paths、images、geometry、metrics、evalkit</td></tr>
+        <tr><td>深模块样板</td><td><code>report/</code>：engine+model+align+assembler+stages 适配器，scripts 下 4 个 gen_* 只是它的薄壳，应收编</td></tr>
+      </table>
+      <span class="tag t-warn">顺带发现漂移</span> src 里实际有 inpaint/typeset_station、vlm_*、term_*、local_lama 等一批模块，<code>CLAUDE.md</code> 工具面那行没列全——瘦身手记时一并对齐。
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">④ skill 是不是每次会话启动都烧 token？正文不是按需读吗，为啥还要砍？</div>
+    <div class="a">
+      skill 分<b>两层</b>加载，你只看到了第二层：
+      <ul>
+        <li><b>目录层（每轮都在烧）</b>：每个 skill 的 <code>name + 一句话 description</code> 会进 AI 的工具目录，AI 靠它判断「该不该用这个 skill」。<b>实测 36 个项目 skill 的目录合计 8569 字节 ≈ 2678 token</b>，哪怕一个正文都不读，这笔钱每轮固定花，且 36 选 1 本身就是选择负担（选项越多越难选对）。</li>
+        <li><b>正文层（按需，不固定烧）</b>：SKILL.md 全文只有 AI 判定需要时才 Read——你这点理解是对的。</li>
+      </ul>
+      <b>关于「要不要手动 / 调用」：</b>AI <b>可以全自动</b>——看到 description 匹配就自己去 Read，不需要你 / 键入；你 /xxx 只是「强制手动挡」。你观察到的「AI 不主动用」，是<b>路由槽位不够硬</b>（老问题），不是 skill 天生必须手动。
+      <div class="verdict watch">所以砍 skill 的硬理由成立：砍的是每轮 2.7k token 的目录税 + 选择噪音。确定无用的现在就能砍；拿不准的等观测命中数据。</div>
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">⑤ memory inject 到底注入啥？砍了有什么影响？</div>
+    <div class="a">
+      <b>注入内容（实测 9 行）：</b>loop_state 接续状态（上次停哪）+ 一句「遇错去查知识字典」的指针。ADR-027 <b>刻意</b>只给指针、不灌 lessons 全文，预算 1536 字符。
+      <br><b>关键修正：</b>inject 不止 SessionStart 触发——它还被嵌进 <code>fastcheck 第 8 道工序</code>，每次质检都重写 CLAUDE.local.md（所以该文件今天 8:18 被刷新过）。
+      <table>
+        <tr><th>做法</th><th>影响</th><th>判定</th></tr>
+        <tr><td>直接砍掉自动注入</td><td>AI 开会话不再知道「上次停哪 / 有字典可查」，退回你手动提醒；只省 9 行，得不偿失</td><td><span class="tag t-bad">不建议</span></td></tr>
+        <tr><td>保留但改强</td><td>加一块「L1–L45 + ADR 标题索引」(约 2KB)，让 AI 知道<b>有哪些坑</b>，全文仍按需 read；并接上断线的 autoinject 做按问题推送</td><td><span class="tag t-ok">推荐</span></td></tr>
+      </table>
+      它便宜、且已嵌进 fastcheck，<b>问题从来不是「它没用」，是「它只递了张图书馆导览牌、却没给书目清单」</b>。
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">⑥ amta-memory 自造轮子能滚吗？MCP 是不是只有 Claude Code 能用，DSH 行不行（context7/supabase/vercel 都是在 CC 终端授权的）？</div>
+    <div class="a">
+      <b>MCP 是开放标准</b>（Model Context Protocol），不是 Claude Code 专属——Cursor / Codex / DSH 都能接，一个 MCP server 可同时被多个客户端连。
+      <br><b>DSH 的接法（已查证）：</b>DSH 内核不自带 MCP，但官方有 <code>@deepseek-ai/dsh-mcp-client</code> 插件，装上后在 <code>cordis.patch.yml</code> 给每个 server 挂实例，工具以 <code>mcp__服务器__工具</code> 注册，<b>命名和 Claude Code 一致，.mcp.json 字段可「直接搬」</b>。
+      <ul>
+        <li>context7：标准 MCP server → 搬配置即可。</li>
+        <li>supabase / vercel：在 CC 里是官方插件形态，迁 DSH 要走 MCP/社区桥，不是自动继承。</li>
+      </ul>
+      <b>amta-memory（<code>mcp_memory.py</code>）去留：</b>它只是自研记忆 M1 的「MCP 拉取入口」之一（M1 另有 CLI 和注入两个入口）。你说没实战——静态看确实主要靠 CLI+注入。但<b>别急删</b>：① 有没有会话真调过要靠观测；② 一旦主力迁 DSH，MCP 反而是记忆最自然的接入方式，删了可能又要重建。先标 <span class="tag t-warn">待观测</span>。
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">⑦ DSH 插件是不是都只是 GUI 交互？agent-teams/context 有用，其他随便删？删了分不分 AI 注意力？</div>
+    <div class="a">
+      <b>判据只有一条：插件有没有「注册工具/skill 进 AI 的上下文」。</b>据此把 14 个分两类：
+      <div class="grid2">
+        <div class="card"><b class="keep">纯界面类（不占 AI token、不分 AI 心，去留只看你眼睛）</b>
+          <ul>
+            <li>maid-atelier / dsh-deep-whale：皮肤、桌宠</li>
+            <li>dsh-web-ui-all：UI 全家桶（task-board/git-graph/皮肤设置）</li>
+            <li>dshmarket：插件市场</li>
+            <li>dsh-pocket：<b>手机扫码远程同屏电脑 DSH</b>（你不在电脑前时反而有用）</li>
+          </ul>
+        </div>
+        <div class="card"><b class="watch">能力类（注册工具/skill，AI 看得到、占 token，要按使用率精简）</b>
+          <ul>
+            <li>dsh-context：上下文构成仪表盘＝<b>观测用，建议留并学会看</b></li>
+            <li>dsh-agent-teams：多 agent 协作（你要留）</li>
+            <li>dsh-genui：回复内交互图表；modlens：给纯文本模型加视觉</li>
+            <li>archify：架构图 skill；design-skills：6 种前端设计风格（汉化用不上，候删）</li>
+            <li>dsh-memory / graph-memory：见 ⑨</li>
+            <li class="cut"><b>aegis：一个插件自带 22 个 skill + 3 命令 + 一整套跨工具 hooks</b>——和你 113→31 的减脂正面对冲，<b>优先重点审查，大概率移除</b></li>
+          </ul>
+        </div>
+      </div>
+      回答你的原话：「只给你自己看的」去留随意、不耗 AI；「给 AI 增能力的」会分 AI 注意力，这类才需要精简。
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">⑧ 这么多，怎么重新排版、放到显眼位置？</div>
+    <div class="a">这份 HTML 就是答案的一半（分层、三态色、去留建议一眼可见）。长期机制上，「显眼」<b>不是堆更多文档</b>，而是两件事：
+      <ul>
+        <li><b>路由表</b>（CLAUDE.md 那张「症状 → 先做什么」）＝ 给 AI 的显眼位置；条目越少越显眼，所以要先减脂。</li>
+        <li><b>DSH 的 dsh-context 仪表盘</b> ＝ 给你自己的显眼位置，实时看 context 由什么构成。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="q"><div class="qt">⑨ M1 自研记忆能刨吗？M2/M3 重不重合、有没有追溯？</div>
+    <div class="a">
+      三者<b>不是简单重复，是三种记忆哲学</b>，但 M2/M3 高度重叠：
+      <table>
+        <tr><th></th><th>机制</th><th>追溯证据</th><th>判定</th></tr>
+        <tr><td><b>M1 自研</b></td><td>人工策展的教训库：45 lessons + 33 ADR，grep 检索 + 注入 + MCP，和 fastcheck/git 流程绑定，可审计</td><td>docs/lessons.md 等真实文件，fastcheck 每跑必校验</td><td><span class="tag t-ok">主力，别刨，修推送即可</span></td></tr>
+        <tr><td><b>M2 dsh-memory</b></td><td>GUI 自动长期记忆：项目级+全局，Trajectory 旁的 Memory 标签逐条管理</td><td>v2.0.0，未见独立数据文件（最近没用 DSH）</td><td><span class="tag t-warn">待观测</span></td></tr>
+        <tr><td><b>M3 graph-memory</b></td><td>知识图谱 + PageRank + 向量联想，跨会话回忆</td><td><code>graph-memory.db</code> 2.8MB，最后写入 8/31（确实用过，beta）</td><td><span class="tag t-warn">与 M2 二选一</span></td></tr>
+      </table>
+      <span class="verdict keep">建议：</span>M1 是<b>最可靠、可审计、和你工程流程长在一起</b>的主力，刨了等于扔掉 45 条用血换的教训——不刨，只把「推送」修强。M2/M3 都是「自动记忆」，哲学相近、都是社区/beta 件，回 DSH 后观测一周看谁真被召回，<b>自动记忆最多留一个</b>。三者都停在 8/31，恰好说明你最近没在 DSH 派活，回去跑起来才有数据。
+    </div>
+  </div>
+
+  <h2 id="plan">行动顺序（质疑 → 删除 → 简化 → 加速 → 自动化）</h2>
+  <div class="steps">
+    <div class="step now"><b>1 质疑</b>逐个问「没它会怎样」<br><span class="small">本台账已做</span></div>
+    <div class="step"><b>2 删除</b>确定无用的现在删</div>
+    <div class="step"><b>3 简化</b>剩下的收窄/去重</div>
+    <div class="step"><b>4 加速</b>流程跑顺</div>
+    <div class="step"><b>5 自动化</b>最后才 embedded</div>
+  </div>
+  <div class="card">
+    <h3>现在就能删/改（静态证据充分，一次只动一个变量）</h3>
+    <ul>
+      <li><span class="cut">删/停用 aegis</span>：先在 web profile 移除 bundle，它白带 22 skill + 3 command + 一套 hook（移除后用 <code>dsh --profile web --dump-config</code> 确认）。</li>
+      <li><span class="cut">AGENTS.md 收回入口</span>：删与 CLAUDE.md 重复的 Python 段、删过时 Hook 段，只留前 ~11 行指针。</li>
+      <li><span class="cut">清残留</span>：package.json.bak-dup-genui、hook_pretooluse.py 改 .disabled、design-skills 等确定用不上的能力插件。</li>
+      <li><span class="watch">安全</span>：DSH 权限从 danger-full-access 降回 workspace-write（无人值守前必做）。</li>
+    </ul>
+    <h3>必须先观测、一周后用命中数据再决定（不拍脑袋）</h3>
+    <ul>
+      <li>36+31 个 skill 砍哪些（看 Read SKILL.md 次数，0 命中归档）；能力类插件谁空转；M2/M3 留哪个；amta-memory MCP 去留；CLAUDE.md 6→3 具体删哪几行。</li>
+    </ul>
+    <h3>观测怎么开（回到电脑前 10 分钟）</h3>
+    <ul>
+      <li><code>dsh web</code> → http://127.0.0.1:3080 → 选 amta 工作区 → 派一个低风险小任务 → 盯 Trajectory 工具调用树；用 dsh-context 看上下文构成。</li>
+    </ul>
+  </div>
+
+  <p class="small" style="margin-top:26px">
+    状态图例：<span class="tag t-ok">挂载/保留</span> <span class="tag t-warn">待观测/改强</span> <span class="tag t-bad">断线/建议删</span> <span class="tag t-gray">自动/无关</g>。
+    本页为静态台账，回答「有什么、设计上接没接」；「运行时用没用」需 DSH 观测，二者是接力关系。配套文档：harness-inventory-tracing / governance-asset-ledger / dsh-dashboard-reading-guide。
+  </p>
+</div>
+</body>
+</html>

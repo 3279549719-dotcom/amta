@@ -20,8 +20,9 @@ SLIM_BUDGET = 512    # Q7：compact 瘦包 ≤0.5KB
 HARD_CAP = 10000     # CC hook 输出硬上限（官方文档），超出会被落盘替换
 
 DICTIONARY_FULL = (
-    "知识字典：坑库 docs/lessons.md（L##）+ 决策 docs/decisions/（ADR-N）+ 会话档案 .remember/。"
-    "遇错/决策前先查（memory_search / memory_read，或 CLI memory_grep / memory_read），别硬扛。"
+    "知识字典：坑库 docs/lessons.md（L1–L45，顶部有书脊目录）+ 决策 docs/decisions/（ADR-001–033，README 有索引）。"
+    "遇错/决策前先查（memory_search / memory_read，或 CLI memory_grep / memory_read），别硬扛；"
+    "拿不准馆里有什么书时，先读 lessons.md 顶部目录或 decisions/README.md 索引。"
 )
 DICTIONARY_SLIM = "遇错/决策前先 memory_search 查知识字典"
 

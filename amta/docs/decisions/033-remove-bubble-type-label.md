@@ -1,4 +1,4 @@
-# ADR-031: 移除 bubble_type (text_bubble/text_free) 标签
+# ADR-033: 移除 bubble_type (text_bubble/text_free) 标签
 
 **日期**: 2026-09-09
 **状态**: 已合入

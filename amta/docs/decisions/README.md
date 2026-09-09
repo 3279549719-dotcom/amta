@@ -39,3 +39,6 @@
 - [028 — Ralph Loop：外层循环 + 文件状态的无人值守开发循环](./028-ralph-loop-autonomous-development.md)
 - [029 — Lama-Manga 本地推理 + 整页模式：替代 Koharu HTTP Inpaint](./029-lama-manga-local-inference.md)
 - [030 — 验证阶梯补全：L5 按改动自选交给 agent + L6 独立 model 审核（review.py，含 --selfcheck 自检）](./030-verification-ladder-l5-l6.md)
+- [031 — 翻译质量三修复：术语表接入 + 数组契约防错位 + 字体大小第一性原理](./031-translation-quality-triple-fix.md)
+- [032 — Hook 体系审计收敛（停用 pre-commit + PreToolUse，保留 pre-push + SessionStart）](./032-hook-guard-convergence.md)
+- [033 — 移除 bubble_type (text_bubble/text_free) 标签](./033-remove-bubble-type-label.md)

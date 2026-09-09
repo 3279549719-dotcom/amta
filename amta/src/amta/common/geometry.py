@@ -6,7 +6,7 @@
 - union_boxes     ← 合并自 benchmark.union_boxes
 - union_blocks    ← 多 detector 并集，保留元数据（01_detect 输出扁平 blocks[]）
 - mark_contained  ← 嵌套框标记（contained_in，不丢弃，留给下游 LLM）
-- (removed) assign_category ← bubble_type → 3 级 category 映射 (ADR-031 移除)
+- (removed) assign_category ← bubble_type → 3 级 category 映射 (ADR-033 移除)
 - shrink_bubble_bbox ← 气泡框智能收缩（detect框比气泡大时，收缩到气泡实际边界）
 """
 from __future__ import annotations

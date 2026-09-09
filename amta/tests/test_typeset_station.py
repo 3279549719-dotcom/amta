@@ -47,7 +47,7 @@ def test_station_renders_all_and_checks_coverage(tmp_path):
     assert len(data["layout"]) == 2
     assert data["final_image"] == "final/page_1_final.png"
     overlay = [r for r in data["rendered_items"] if r["region_id"] == "page_0_u01"][0]
-    # ADR-031: 方向由双方向计算选最优，不再强制overlay_text竖排
+    # ADR-033: 方向由双方向计算选最优，不再强制overlay_text竖排
     assert overlay["layout_direction"] in ("horizontal", "vertical")
     assert overlay["font_size"] >= 25
     assert final.exists()

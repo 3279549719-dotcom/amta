@@ -5,7 +5,7 @@
 - OCR: hayai-OCR（src/amta/ocr_engines.py + ocr_station.py，本地 PyTorch）+ OCR confidence 过滤
 - VLM 三态过滤: vlm_filter.py（keep/fix/drop，默认未接入主链路）
 - 翻译: stage3_minimal.py（纯文本 LLM + 上下文 + 术语，VLM refine 已移除）
-- inpaint: 全 Lama 矩形 mask（bubble_type 标签已移除 ADR-031）
+- inpaint: 全 Lama 矩形 mask（bubble_type 标签已移除 ADR-033）
 
 对外稳定接口：
 - chat_client.* — OpenAI 兼容 chat/completions 深模块（翻译共用接缝）
