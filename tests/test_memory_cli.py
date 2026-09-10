@@ -56,8 +56,12 @@ def test_inject_stdout_non_empty() -> None:
 
 def test_read_positional_hits_estate_not_v0_miss() -> None:
     # 回归门（L6 review 2026-09-05 发现）：read <positional> 必须直走 estate。
-    # 历史 bug 恰在 CLI 路由层（positional L19 回落 v0 INDEX 报 [miss]），库层测试拦不到。
-    r = _run("read", "L19")
+    # 历史 bug 恰在 CLI 路由层（positional 回落 v0 INDEX 报 [miss]），库层测试拦不到。
+    #
+    # 2026-09-10：原先这里读的是 L19 —— 那条 lesson 已在 lessons 45→27 清理中删除，
+    # 测试于是永久红灯（断言一个已被删除的条目存在）。改用 L45（现存条目），
+    # 保住这条回归门的真实意图：positional 读取命中 estate 而非 v0 索引。
+    r = _run("read", "L45")
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip()
     assert "[miss]" not in r.stdout

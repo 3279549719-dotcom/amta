@@ -14,15 +14,15 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 |---|---|---|
 | 跑管线 | `uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>` | 启动时自动环境自检；阶段：detect,ocr,translate,inpaint,typeset；**必须包含所有上游依赖阶段**（跑 typeset 必须含 detect,ocr,translate,inpaint）；artifact_cache 自动跳过未变更阶段 |
 | 找代码 | `uv run python scripts/find_code.py <关键词>` | 搜索模块/函数/类，禁止瞎猜路径或硬 grep |
-| 找产物 | `uv run python scripts/artifact.py {find|list|status|invalidate} --work-id <id> --stage <阶段> --page <页>` | 支持 JSON 阶段和图片阶段(final/clean/crops)；page 传数字自动加 page_ 前缀；禁止 Get-ChildItem/glob 翻目录 |
-| 对话状态 | `uv run python scripts/state.py {bootstrap|finish}` | 对话开始 `bootstrap` 读取 git+env 状态（统一格式）；对话结束 `finish "summary"` commit；替代 progress.md，不需要手动跑 git log |
+| 找产物 | `uv run python scripts/artifact.py {find\|list\|status\|invalidate} ...` | 参数按子命令不同：`find` 要 `--stage`+`--page`；`list` 要 `--stage`；`status`/`invalidate` **不接受 `--stage`**（`invalidate` 要 `--page`）。公共参数 `--work-id <id>`。拿不准先 `--help`，别照抄本行 |
+| 对话状态 | `uv run python scripts/state.py {bootstrap\|finish}` | 对话开始 `bootstrap` 读 git+env+diff 状态（统一格式）；对话结束 `finish "summary"` 落盘——**它会先跑完整质检，红了就拒绝提交**（急用时 `--skip-check`）；替代 progress.md，不需要手动跑 git log |
 | 生成报告 | `uv run python scripts/gen_report.py` | 验收唯一视觉载体 |
 | 质检 | `uv run python scripts/fastcheck.py` | 收尾必跑 |
 | 记忆检索 | `uv run python scripts/memory.py {grep|recent|status}` | 先查记忆再动手，别重踩坑 |
 
 ## 必执行 Checklist（chained，AI 自主触发）
 - **对话开始**：先跑 `state.py bootstrap` 读取当前状态（git log + diff + status + env），不需要手动跑 git log，不需要读 progress.md
-- **对话结束**：用 `state.py finish "summary"` commit，不需要手动 git add/commit
+- **对话结束**：用 `state.py finish "summary"` 落盘——**它内置完整质检，红了拒绝提交**，所以"全量门槛没跑"在机制上不可能再发生；不需要手动 git add/commit
 - 找代码/模块/函数位置：**先用 `find_code.py <关键词>`**，再读目标文件
 - 找产物/查缓存/列某阶段文件：**用 `artifact.py`**，禁止翻目录
 - 遇到报错/异常/测试失败：**先按 diagnosing-bugs skill 流程定位根因**，禁止直接猜答案
@@ -42,8 +42,10 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 
 ## 工作协议
 - **任务收尾走 /finish**（cycle-close）：复读任务→审查 diff→确定性验证→修复→反思→知识晋升→只更新真正变化的工件→Finish Report→git 落盘
-- **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·瞬时(docs/progress.md)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
-- **机械护栏分层**：编码期 `fastcheck.py`（收尾必跑）→ pre-commit（每次 commit 跑完整 fastcheck 8 步）→ pre-push（只跑可选 smoke）。安装：`scripts/install_hooks.ps1`
+- **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
+- **机械护栏分层**：pre-commit `fastcheck --quick`（5 步：compile/ruff/pyright/ROOT/env，秒级，**不含 pytest**）→ `state.py finish` 强制跑完整 8 步（含 pytest/depguard/memory）→ pre-push 只跑可选 smoke。安装：`scripts/install_hooks.ps1`。
+  ⚠️ **--quick 不是门槛，是门槛的一半**：2026-09-10 事故——脚本清理后 12 条测试永久变红、无人察觉约两天，因为唯一的 commit 拦截层只跑 --quick。**"通过了"必须说明跑的是哪一层。**
+- **指针必须指向活着的东西**：本项目跑在 DSH 上，而 `.claude/`（settings.json hooks）与 `.mcp.json` 是 **Claude Code 方言，DSH 不读**。换 harness 时必须迁移配置面，否则整层 guard 静默死亡（2026-09-10 实测：hook 层与 MCP 层从未通电，而文档一直指向它们）。**任何"某机制已生效"的声明，都要有一条能跑的探针**
 - **知识落地**：可复用经验落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；检索一律 `memory.py grep/read`
 - **HTML 报告铁律**：必须用 `src/amta/report/` 深接口，禁止 scripts/ 下新建独立 HTML 生成脚本
 

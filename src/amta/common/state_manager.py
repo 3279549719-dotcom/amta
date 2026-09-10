@@ -2,9 +2,16 @@
 
 Embedded 模式：不是"告诉 AI 去跑 git log"，是"调用一个函数就拿到所有状态"。
 
-两个接口：
+三层接口：
 - bootstrap(): 对话开始，读取 git + env 状态，返回统一格式的 StateSnapshot
-- finish(summary): 对话结束，git add + git commit
+- finish(summary): 对话结束，git add + git commit（纯机制，不质检）
+- finish_verified(summary): **对话结束的强制收口**——先跑完整质检，红了拒绝提交
+
+为什么 finish_verified 存在（2026-09-10 事故）：全量 pytest 红了约两天无人察觉。
+原因不是"没有质检"，而是唯一的 commit 拦截层（pre-commit）只跑 `fastcheck --quick`
+（跳过 pytest），而交接文档把那次 QUICK PASS 记成了"关卡通过"——半扇门签发了假的通过。
+修法刻意不是再造一个 doctor 工具（那只会变成第三层各跑一段的护栏），
+而是把完整质检钉在**已经必须经过的那个收口点**上。
 
 设计原则：
 - 状态格式统一，AI 不需要解析多种输出
@@ -13,10 +20,14 @@ Embedded 模式：不是"告诉 AI 去跑 git log"，是"调用一个函数就�
 """
 from __future__ import annotations
 
+import subprocess
+import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from amta.common.encoding import run_text, run_text_or
+from amta.common.paths import ROOT
 
 
 @dataclass
@@ -131,8 +142,15 @@ class StateManager:
             dirty=dirty,
         )
 
+    def is_dirty(self) -> bool:
+        """工作区是否有未提交改动。"""
+        return bool(self._run_git("status", "--short").strip())
+
     def finish(self, summary: str, tag: str | None = None) -> None:
-        """对话结束：git add + git commit。
+        """对话结束：git add + git commit（纯机制，不做质检）。
+
+        要"质检不过就拒绝落盘"请用模块级 `finish_verified()`——那是收口层，
+        本方法保持单一职责，方便测试与被其他流程复用。
 
         Args:
             summary: commit message。不能为空或只有空白。
@@ -145,8 +163,7 @@ class StateManager:
             raise ValueError("summary 不能为空，commit message 必须有意义")
 
         # 检查是否有改动
-        status = self._run_git("status", "--short")
-        if not status.strip():
+        if not self.is_dirty():
             # 没有改动，不 commit（避免空 commit）
             return
 
@@ -157,3 +174,67 @@ class StateManager:
         # 打 tag（如果是里程碑）
         if tag:
             self._run_git("tag", tag)
+
+
+class QualityGateFailed(RuntimeError):
+    """质检未通过 → 拒绝落盘。"""
+
+    def __init__(self, returncode: int) -> None:
+        super().__init__(
+            f"质检未通过（exit {returncode}）：已拒绝提交，改动原样留在工作区。"
+            "先修红项；确实要绕过就用 --skip-check（会在收尾输出里留痕）",
+        )
+        self.returncode = returncode
+
+
+def quality_gate_command() -> list[str]:
+    """完整质检命令：`scripts/fastcheck.py` 全量 8 步（含 pytest）。
+
+    刻意**不是** `--quick`：--quick 跳过 pytest，而 2026-09-10 的事故正是
+    "只有半扇门在拦，却按整扇门记账"。
+    """
+    return [sys.executable, str(ROOT / "scripts" / "fastcheck.py")]
+
+
+def _run_quality_gate() -> int:
+    """跑完整质检，返回退出码（stdio 继承，让 AI 直接看到红在哪一步）。"""
+    return subprocess.run(quality_gate_command(), cwd=str(ROOT)).returncode
+
+
+def finish_verified(
+    summary: str,
+    tag: str | None = None,
+    *,
+    gate: Callable[[], int] | None = None,
+    repo_root: Path | str | None = None,
+    skip_check: bool = False,
+) -> None:
+    """对话结束的强制收口：先质检，红了拒绝落盘。
+
+    Args:
+        summary: commit message（不能为空）。
+        tag: 里程碑 tag。
+        gate: 质检函数，返回退出码。None 表示用真实的完整 fastcheck（约 107s）。
+            可注入是给测试用的接缝——不需要真跑两分钟验证"红了会不会拒绝"。
+        repo_root: git 仓库根。
+        skip_check: 逃生门，显式跳过质检。
+
+    Raises:
+        ValueError: summary 为空。
+        QualityGateFailed: 质检退出码非零（且未 skip_check）。
+    """
+    if not summary or not summary.strip():
+        raise ValueError("summary 不能为空，commit message 必须有意义")
+
+    manager = StateManager(repo_root=repo_root)
+
+    # 无改动 = 无事发生：不跑质检（别为 107 秒的空转买单），也不提交
+    if not manager.is_dirty():
+        return
+
+    if not skip_check:
+        code = (gate or _run_quality_gate)()
+        if code != 0:
+            raise QualityGateFailed(code)
+
+    manager.finish(summary, tag=tag)

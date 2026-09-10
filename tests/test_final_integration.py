@@ -35,14 +35,6 @@ class TestDetectionRTDETR:
         det = RTDetrDetector()
         assert det.conf_threshold == 0.3
 
-    def test_01_detect_module_importable(self):
-        """01_detect.py 可导入，有 detect_page 函数。"""
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("od", ROOT / "scripts" / "01_detect.py")
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        assert hasattr(mod, "detect_page")
-
     def test_detection_output_schema(self, tmp_path):
         """检测输出 JSON 包含必要字段（用 mock 数据验证格式）。"""
         fake_doc = {
@@ -166,38 +158,31 @@ class TestTranslationStage3Minimal:
 # ---- 废弃代码清理验证 ----
 
 class TestDeprecatedCodeRemoved:
-    """验证废弃的实验代码已删除。"""
+    """验证废弃的实验代码已删除——**墓碑测试**。
 
-    @pytest.mark.parametrize("path", [        "src/amta/pipeline.py",             # DETECTOR_STEPS 常量
-        "scripts/ctd_detector.py",          # CTD 检测器（方案B实验）
-        "scripts/ocr_detect.py",            # 旧 OCR 检测脚本
+    2026-09-10 改造：原先这里有 5 条"读 01_detect.py / 02_ocr.py / 00_run_all.py 源码
+    并断言其内容"的测试。那 6 个数字前缀脚本已在 harness 治理中删除（run_pipeline.py 取代），
+    这些测试于是变成永久红灯（FileNotFoundError），且**测的是已经不存在的世界**。
+    它们被替换成"这些文件不得复活"的墓碑断言：保留了"废弃代码别回来"的意图，
+    去掉了对已删文件内容的依赖。
+
+    那些内容断言（--vlm 是 opt-in、--engine 默认 hayai 等）现在的归属是
+    `scripts/run_pipeline.py` + `src/amta/orchestrator`，由 test_orchestrator_smoke.py 覆盖。
+    """
+
+    @pytest.mark.parametrize("path", [
+        "src/amta/pipeline.py",                 # DETECTOR_STEPS 常量
+        "scripts/ctd_detector.py",              # CTD 检测器（方案B实验）
+        "scripts/ocr_detect.py",                # 旧 OCR 检测脚本
         "scripts/translate_semantic_check.py",  # 语义护栏（已废弃）
+        # ---- 墓碑：数字前缀编号脚本，已由 scripts/run_pipeline.py 取代 ----
+        "scripts/00_run_all.py",
+        "scripts/01_detect.py",
+        "scripts/02_ocr.py",
+        "scripts/03_translate.py",
+        "scripts/04_inpaint.py",
+        "scripts/05_typeset.py",
     ])
     def test_file_removed(self, path):
         assert not (ROOT / path).exists(), f"{path} should be removed"
-
-    def test_no_koharu_import_in_main_flow(self):
-        """主流程脚本不再 import koharu 检测器。"""
-        for script in ["01_detect.py", "00_run_all.py"]:
-            content = (ROOT / "scripts" / script).read_text(encoding="utf-8")
-            assert "koharu" not in content.lower(), f"{script} still references koharu"
-
-    def test_02_ocr_vlm_is_opt_in(self):
-        """02_ocr.py VLM 校验是 opt-in（--vlm，默认关闭）；无 --no-vlm。"""
-        content = (ROOT / "scripts" / "02_ocr.py").read_text(encoding="utf-8")
-        assert "--vlm" in content
-        assert "--no-vlm" not in content
-
-    def test_02_ocr_engine_option_present(self):
-        """02_ocr.py 有 --engine（baberu/hayai，默认 hayai）；manga_ocr 已移除。"""
-        content = (ROOT / "scripts" / "02_ocr.py").read_text(encoding="utf-8")
-        assert "--engine" in content
-        assert "hayai" in content
-        assert "manga_ocr" not in content
-
-    def test_no_ocr_engine_in_00_run_all(self):
-        """00_run_all.py 不再有 --ocr-engine 选项。"""
-        content = (ROOT / "scripts" / "00_run_all.py").read_text(encoding="utf-8")
-        assert "--ocr-engine" not in content
-        assert "ocr_engine" not in content
 
