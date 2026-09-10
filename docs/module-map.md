@@ -15,6 +15,8 @@
 ## `common/` — amta.common — 跨阶段共享叶子库（纯通用，不依赖其他域）。
 
 - **`config.py`** — 密钥与模型配置 — env → .env 回退唯一归属（深接口改造，修 F4 三处重复解析）。（函数: _read_key, _resolve, get_chat_config, get_vlm_api_key, get_dashscope_key）
+- **`encoding.py`** — encoding — Windows 编码收口：跨边界文本只在这里处理一次。（类: TextResult；函数: _decode, run_text, run_text_or, force_utf8_stdio）
+- **`environment.py`** — 环境自检门卫 — 管线启动前自动检查并修复环境问题。（函数: _check_proxy, _check_root, _check_models, _check_env, run_environment_check）
 - **`evalkit.py`** — (无 docstring)
 - **`geometry.py`** — 共享几何库：bbox 解析、IoU、并集聚合、嵌套标记、category 映射。（函数: bbox_from_block, iou, union_boxes, union_blocks, _area）
 - **`images.py`** — 图片工具：带 padding 的裁剪（benchmark / recall_crop / ocr_run 共用）。（函数: crop_with_pad）
@@ -22,6 +24,7 @@
 - **`paths.py`** — 项目路径与公共 IO 工具 — 消除各脚本重复的 ROOT/OUTPUT/DATA 样板。（函数: ensure_output, ensure_utf8_stdio, read_json, write_json）
 - **`pipeline_log.py`** — pipeline_log — 流水线 step-level tracing(借鉴 OTel span 思想,零依赖,ADR-018)。（类: PipelineLog；函数: _now, git_head）
 - **`punctuation_align.py`** — 机械标点对齐（P2）：原文可删除标点数量是译文上限。（函数: _count_removable, align_punctuation）
+- **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, StateManager, QualityGateFailed；函数: quality_gate_command, _run_quality_gate, finish_verified）
 - **`tickets.py`** — tickets — needs_review 工单机制（ADR-017，借鉴 CMMS 工单状态机 + 维修手册归档）。（类: TicketStore；函数: _now, classify_kind）
 - **`workstate.py`** — per-work workspace + work_state — 产物结构 rebaseline（ADR-013）。（函数: work_dir, ensure_workspace, empty_state, init_workspace, load_state）
 
@@ -70,7 +73,9 @@
 - **`final_report.py`** — final_report — 三阶段流水线最终报告（自包含 HTML，内嵌原图 base64）。（函数: img_to_base64, _load_json, render_final_report）
 - **`inpaint_ab_report.py`** — inpaint_ab_report — Inpainting 速度 A/B 对比报告（深接口模块）。（函数: _img_to_base64, load_summary, build_speed_table, build_speed_chart, _build_page_comparison）
 - **`model.py`** — 报告工具数据模型 — PageReport / StageOutput / ReportResult + 构造校验。（类: StageOutput, PageReport, ReportResult）
+- **`pipeline_report.py`** — pipeline_report — 通用管线报告的文档外壳（深接口模块）。（函数: render_pipeline_report）
 - **`stage4_report.py`** — stage4_report — Stage4 mask+inpaint 逐页验证报告（深接口模块）。（函数: _img_to_b64, extract_inpaint_boxes, _render_page_section, _render_no_free_section, render_stage4_report）
+- **`typeset_review.py`** — typeset_review — typeset 成品图看图报告（深接口模块）。（函数: img_to_base64, render_typeset_review）
 
 ## `stations/` — amta.stations — 各 Stage 顶层薄工位（脚本 CLI 对接的确定性入口）。
 
@@ -98,13 +103,8 @@
 
 ## `scripts/` — CLI 工具入口
 
-- **`00_run_all.py`** — 00_run_all 编排器 — 断点续跑 + step tracing + 全链驱动(ADR-018)。
-- **`01_detect.py`** — 01_detect 工位 CLI — 检测: raw 页 → artifacts/{page}_detection.json（薄包装）。
-- **`02_ocr.py`** — 02_ocr 工位 — OCR: detection.json + raw 页 → artifacts/{page}_canon.json（薄 CLI）。
-- **`03_translate.py`** — 03_translate 工位 — 读 canon → DeepSeek 翻译 → translation.json（薄 CLI）。
-- **`04_inpaint.py`** — 04_inpaint 工位 CLI — detection.json + raw 页 → clean 图 + inpaint 产物（薄包装）。
-- **`05_typeset.py`** — 05_typeset 工位 CLI — clean 图 + canon + translation + detection → final.png（薄包装）。
 - **`apply_revisions.py`** — apply_revisions — 导演语义 loop 的修订落盘（ADR-016）。
+- **`artifact.py`** — artifact — 统一产物管理 CLI（ArtifactStore + ArtifactCache 的命令行包装）。
 - **`audit.py`** — audit — 轻量 Harness 熵审计（/audit 的确定性部分）。
 - **`baberu_ocr.py`** — Baberu OCR 封装：对裁剪图批量推理，输出每图文字。
 - **`benchmark.py`** — Benchmark A/B/C — 用数据钉死 koharu v0.59.1 的能力边界。
@@ -112,13 +112,14 @@
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
-- **`fastcheck.py`** — fastcheck — 编码期快速校验（Level 1，秒级，默认不连 koharu）。
+- **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 8 步）。
 - **`find_code.py`** — find_code — amta 代码/模块智能检索工具（深接口）。
 - **`gen_ab_report.py`** — gen_ab_report — Stage4 框外字去除 A/B 对比报告 CLI（amta.report.ab_report 的薄壳）。
 - **`gen_final_report.py`** — gen_final_report — 三阶段流水线最终报告 CLI（amta.report.final_report 的薄壳）。
 - **`gen_inpaint_ab_report.py`** — gen_inpaint_ab_report — Inpainting 速度 A/B 对比报告 CLI（amta.report.inpaint_ab_report 的薄壳）。
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口 amta.report 的薄壳 CLI）。
 - **`gen_stage4_report.py`** — gen_stage4_report — Stage4 验证报告 CLI（amta.report.stage4_report 的薄壳）。
+- **`gen_typeset_review.py`** — gen_typeset_review — typeset 成品图看图报告 CLI（amta.report.typeset_review 的薄壳）。
 - **`hook_pretooluse.py`** — Claude Code PreToolUse hook: git commit/merge 前自动跑快速 fastcheck。
 - **`hook_sessionstart.py`** — Claude Code SessionStart hook: 新会话自动加载项目状态。
 - **`loop_state.py`** — loop_state CLI — 查看 / 更新循环状态（RALPH 会话、进程、人共用）。
@@ -131,10 +132,11 @@
 - **`ralph_context.py`** — ralph_context — Ralph Loop 的确定性上下文生成。
 - **`ralph_sdk.py`** — ralph_sdk.py — Ralph Loop v5 薄壳（Claude Agent SDK 版）
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
-- **`review.py`** — review — L6 独立 model 审核门（ADR-030）：让一个"不知道你做了什么"的第二个模型独立审 diff。
+- **`review.py`** — review —  独立 model 审核门（ADR-030）：让一个"不知道你做了什么"的第二个模型独立审 diff。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
 - **`run_stage4_e2e_11_20.py`** — 批量跑 11-20 页 04_inpaint（精修mask + lama-manga）。
 - **`smoke_test.py`** — AMTA 冒烟测试：验证 koharu headless API 通路（建项目→传图→跑检测→读场景→关项目）。
+- **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
 - **`trace_probe.py`** — trace_probe — 读 claude 会话 JSONL 的轻量探针（心跳 / 卡死诊断 / trace 统计）。
 - **`verify_stage4.py`** — Stage 4 端到端验证: 修复bug后跑5页, 生成原图vs clean对比报告。
 

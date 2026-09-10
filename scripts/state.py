@@ -3,7 +3,7 @@
 对话开始：uv run python scripts/state.py bootstrap
 对话结束：uv run python scripts/state.py finish "feat: 做了什么"
 
-finish **不是**裸 commit：它先跑完整质检（fastcheck 全量 8 步，含 pytest），
+finish **不是**裸 commit：它先跑完整质检（fastcheck 全量，含 pytest），
 红了拒绝落盘、改动原样留在工作区。这是"对话结束"这个收口点的强制门——
 2026-09-10 事故的根因就是唯一的拦截层只跑了 --quick 却按整扇门记账。
 

@@ -188,7 +188,7 @@ class QualityGateFailed(RuntimeError):
 
 
 def quality_gate_command() -> list[str]:
-    """完整质检命令：`scripts/fastcheck.py` 全量 8 步（含 pytest）。
+    """完整质检命令：`scripts/fastcheck.py` 全量（含 pytest）。
 
     刻意**不是** `--quick`：--quick 跳过 pytest，而 2026-09-10 的事故正是
     "只有半扇门在拦，却按整扇门记账"。

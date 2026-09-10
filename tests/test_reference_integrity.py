@@ -253,6 +253,61 @@ class TestDocLinksResolve:
         )
 
 
+class TestGeneratedDocsAreFresh:
+    """生成物守卫：`docs/module-map.md` 是 `find_code.py --index` 的产物。
+
+    CLAUDE.md 明确要求 agent「找代码先看 module-map」。但它是**生成物**：
+    代码一删，地图就开始撒谎（体检实测：6/99 条指向几个月前删掉的文件），
+    而再生成是**手动**的 —— 手动步骤 = 迟早不跑。
+
+    这条守卫把「手动」变成「机械」：地图必须与当前代码一致。
+    判据不是「文件 mtime」，而是**重新生成一次看内容是否相同**（幂等性），
+    这样它既不依赖时间，也不会因为 git checkout 之类动作假红。
+    """
+
+    MODULE_MAP = ROOT / "docs" / "module-map.md"
+
+    def test_module_map_exists(self):
+        assert self.MODULE_MAP.is_file(), "docs/module-map.md 不存在（CLAUDE.md 要求 agent 读它）"
+
+    def test_module_map_lists_only_existing_modules(self):
+        """地图里点名的每个 .py 都必须在 src/amta/ 或 scripts/ 里真实存在。"""
+        import re
+
+        body = self.MODULE_MAP.read_text(encoding="utf-8")
+        listed = set(re.findall(r"\*\*`([A-Za-z0-9_]+\.py)`\*\*", body))
+        assert listed, "解析不到任何模块条目——地图格式变了，守卫会静默失效"
+
+        real = {f.name for f in (ROOT / "src").rglob("*.py")}
+        real |= {f.name for f in (ROOT / "scripts").glob("*.py")}
+        missing = sorted(m for m in listed if m not in real)
+
+        assert not missing, (
+            "module-map.md 指向不存在的模块（生成物已腐坏，需重新生成："
+            "`uv run python scripts/find_code.py --index`）：\n  " + "\n  ".join(missing)
+        )
+
+    def test_module_map_is_regenerable_and_current(self):
+        """重新生成一次，内容必须与磁盘上的一致 —— 否则地图是旧的。"""
+        import subprocess
+        import sys
+
+        before = self.MODULE_MAP.read_text(encoding="utf-8")
+        r = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "find_code.py"), "--index"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=str(ROOT), timeout=120,
+        )
+        assert r.returncode == 0, f"重新生成 module-map 失败：{r.stderr[-500:]}"
+        after = self.MODULE_MAP.read_text(encoding="utf-8")
+
+        assert before == after, (
+            "module-map.md 已过期（重新生成后内容不同）。\n"
+            "它不是手写文档，是生成物——代码改动后必须重跑：\n"
+            "  uv run python scripts/find_code.py --index"
+        )
+
+
 # ------------------------------------------------------- 守卫自身的有效性检查
 
 

@@ -234,7 +234,7 @@ def main() -> int:
             ("audit", au),
         ])
     else:
-        print("== [fastcheck] --quick: skip pytest/depguard/memory (full run at /finish) ==")
+        print("== [fastcheck] --quick: skip pytest/depguard/memory/audit (full run at /finish) ==")
     fails = [name for name, rc in checks if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
