@@ -2,8 +2,8 @@
 
 规则：一条 lesson 若能写成跑一次就知道对错的检查，就锁在这里（真强制层），
 不靠 agent 记得去查 lessons.md。本文件只放机器可判的：
-  - L5  ：含中文/非ASCII 的 .ps1 必须 UTF-8 带 BOM（PS5.1 按 GBK 误读中文路径）
-  - L42 ：core.hooksPath 必须绝对路径且指向存在目录（相对值会静默失效=guard 死亡）
+  -   ：含中文/非ASCII 的 .ps1 必须 UTF-8 带 BOM（PS5.1 按 GBK 误读中文路径）
+  -  ：core.hooksPath 必须绝对路径且指向存在目录（相对值会静默失效 = guard 死亡）
 
 机器判不了的启发（选型/环境姿势）不锁这里，留 lessons.md 一句话。
 """
@@ -45,7 +45,7 @@ def test_L5_ps1_with_nonascii_must_have_utf8_bom() -> None:
         if not raw.startswith(BOM):
             violations.append(str(p))
     assert not violations, (
-        "以下 .ps1 含非 ASCII 但缺 UTF-8 BOM（PS5.1 会按 GBK 误读中文路径，见 L5）:\n"
+        "以下 .ps1 含非 ASCII 但缺 UTF-8 BOM（PS5.1 会按 GBK 误读中文路径）:\n"
         + "\n".join(violations)
     )
 
@@ -56,10 +56,10 @@ def test_L42_hookspath_is_absolute_and_resolvable() -> None:
         ["git", "config", "--get", "core.hooksPath"],
         cwd=REPO_ROOT, capture_output=True, text=True,
     )
-    assert r.returncode == 0, "git config core.hooksPath 未设置 —— hook 门禁根本不在（L42）"
+    assert r.returncode == 0, "git config core.hooksPath 未设置 —— hook 门禁根本不在"
     val = r.stdout.strip()
     assert val.startswith("/") or (len(val) > 1 and val[1] == ":"), (
-        f"core.hooksPath 必须是绝对路径，当前是相对值: {val!r}（会静默失效，见 L42）"
+        f"core.hooksPath 必须是绝对路径，当前是相对值: {val!r}（会静默失效）"
     )
     hooks_dir = Path(val)
     assert hooks_dir.is_dir(), f"core.hooksPath 指向的目录不存在: {val}"

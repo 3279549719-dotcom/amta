@@ -83,13 +83,13 @@ def _typecheck() -> int:
 
 def _test() -> int:
     """跑 tests/ 单测。tests/ 是 pytest 风格（模块级 test_* 函数 + tmp_path/monkeypatch fixtures）；
-    `unittest discover` 只收 TestCase 类会静默跳过模块级函数（曾致 translate/workstate 测试不跑却报 PASS，L19/L20）。
-    Windows 下 pytest 尾部 PermissionError: pytest-current 是 tmp_path teardown 噪音（L19），
+    `unittest discover` 只收 TestCase 类会静默跳过模块级函数（曾致 translate/workstate 测试不跑却报 PASS）。
+    Windows 下 pytest 尾部 PermissionError: pytest-current 是 tmp_path teardown 噪音，
     结果以汇总行 "N passed" 判定，不以 exit code 判定。
     """
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     # --basetemp 规避 Windows 下 pytest 默认 basetemp 的 pytest-current symlink teardown
-    # PermissionError（L19）：指定显式目录后 pytest 不建该 symlink。
+    # PermissionError：指定显式目录后 pytest 不建该 symlink。
     # 每次用 pid 唯一目录（2026-09-10 修复）：固定目录一旦权限损坏（WinError 5 僵尸目录，
     # 连 icacls/rd 都删不掉），teardown 失败会让每个文件首个用例后的全部用例 ERROR
     # （436 passed 退化为 253 passed+183 ERROR）；唯一目录跑完即弃，坏目录无法再污染。
@@ -132,6 +132,19 @@ def _memory_inject() -> int:
     写模式：幂等重跑，只刷新 .gitignore 已覆盖（*.local）的生成文件，不碰 docs/ 权威源。
     既验证记忆包可构建，又保证每轮验证后注入包保持新鲜。"""
     return _run([sys.executable, str(ROOT / "scripts" / "memory.py"), "inject"], "memory inject (CLAUDE.local.md)")
+
+
+def _audit() -> int:
+    """Harness 熵审计（--strict 门禁模式）。
+
+    2026-09-10 体检的核心发现：**所有漂移探测器都存在、都算得对、然后接不到
+    任何会失败的东西上**。audit.py 是最典型的例子——它审计 workspace 空壳、
+    重复文件、顶层散落，但 exit 永远 0 且不在本文件里，于是它的结论没有任何人
+    能看见（workspace/ws-* 已从 595 涨到 2164，第三次长回来）。
+
+    所以这里用 --strict 把它变成真门禁。跑在**全量**分支：它要遍历目录。
+    """
+    return _run([sys.executable, str(ROOT / "scripts" / "audit.py"), "--strict"], "audit (Harness 熵)")
 
 
 def _root_check() -> int:
@@ -211,12 +224,14 @@ def main() -> int:
         m = _memory_lint()
         g = _memory_gc()
         inj = _memory_inject()
+        au = _audit()
         checks.extend([
             ("unit tests", u),
             ("depguard", d),
             ("memory lint", m),
             ("memory gc", g),
             ("memory inject", inj),
+            ("audit", au),
         ])
     else:
         print("== [fastcheck] --quick: skip pytest/depguard/memory (full run at /finish) ==")

@@ -7,7 +7,7 @@
 用法:
   # 知识地产（estate 单一事实源：lessons/ADR/remember/research）
   python scripts/memory.py grep --query "关键词|正则" [--scope all] [--limit N]
-  python scripts/memory.py read L19 [--section Problem]           # positional 或 --entry
+  python scripts/memory.py read  [--section Problem]           # positional 或 --entry
   python scripts/memory.py index [--type lessons|decisions|remember|all]
   python scripts/memory.py recent
   python scripts/memory.py status              # 活性自检（FAIL 不影响退出码）
@@ -116,8 +116,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="记忆系统统一 CLI（estate 单一事实源）")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p_read = sub.add_parser("read", help="按 ID 深读 estate 条目（L19 / ADR-N / remember 文件名）")
-    p_read.add_argument("rid", nargs="?", default=None, help="estate 条目 ID（L19 / ADR-N，positional）")
+    p_read = sub.add_parser("read", help="按 ID 深读 estate 条目（L<n> / ADR-<n> / remember 文件名）")
+    p_read.add_argument("rid", nargs="?", default=None, help="estate 条目 ID（L<n> / ADR-<n>，positional）")
     p_read.add_argument("--entry", default=None, help="estate 条目 ID（与 positional 等价）")
     p_read.add_argument("--section", default=None, help="仅 lessons 支持五段节名")
     p_read.set_defaults(func=_cmd_read)

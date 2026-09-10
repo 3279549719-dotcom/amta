@@ -64,14 +64,25 @@ ARTIFACT_NAMES = (
 STATE_FILES = ("touhou_knowledge.json", "work_state.json", "open_questions.json")
 
 
-def work_dir(work_id: str) -> Path:
-    """返回该本子工作区根目录。"""
-    return WORKSPACE / work_id
+def work_dir(work_id: str, *, tmp_workspace_root: Path | str | None = None) -> Path:
+    """返回该本子工作区根目录。
+
+    Args:
+        work_id: 工作区 ID。
+        tmp_workspace_root: 临时/试验工作区的根。**跑探针、benchmark、任何会
+            生成一次性 work_id 的代码必须传它**——否则会往中央 workspace/ 里
+            留下空壳目录（2026-09-10 体检实测积了 2164 个，零个有真实产物）。
+    """
+    base = Path(tmp_workspace_root) if tmp_workspace_root is not None else WORKSPACE
+    return base / work_id
 
 
-def ensure_workspace(work_id: str) -> Path:
-    """创建该本子的 raw/ artifacts/ state/ 目录，返回工作区根目录。"""
-    root = work_dir(work_id)
+def ensure_workspace(work_id: str, *, tmp_workspace_root: Path | str | None = None) -> Path:
+    """创建该本子的 raw/ artifacts/ state/ 目录，返回工作区根目录。
+
+    见 `work_dir` 关于 `tmp_workspace_root` 的说明。
+    """
+    root = work_dir(work_id, tmp_workspace_root=tmp_workspace_root)
     for sub in ("raw", "artifacts", "state"):
         (root / sub).mkdir(parents=True, exist_ok=True)
     return root
@@ -87,12 +98,12 @@ def empty_state() -> dict[str, dict[str, Any]]:
     )}
 
 
-def init_workspace(work_id: str) -> Path:
+def init_workspace(work_id: str, *, tmp_workspace_root: Path | str | None = None) -> Path:
     """创建工作区目录 + 写入三个空 state 文件，返回工作区根目录。
 
     幂等：文件已存在则不覆盖（保留既有状态）。
     """
-    root = ensure_workspace(work_id)
+    root = ensure_workspace(work_id, tmp_workspace_root=tmp_workspace_root)
     for name, template in (
         ("touhou_knowledge.json", TEMPLATE_KNOWLEDGE),
         ("work_state.json", TEMPLATE_WORK_STATE),

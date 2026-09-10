@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
@@ -10,22 +12,33 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
-def test_observed_status_in_statuses():
+@pytest.fixture
+def sandbox(tmp_path, monkeypatch):
+    """把 workstate 的工作区根指向 tmp_path。
+
+    2026-09-10 回归：此前这些测试不传沙箱根，每跑一次就往真实仓库的
+    workspace/ 漏几个 ws-<uuid> 空壳（累计 2164 个里测试侧的那部分）。
+    """
+    from amta.common import workstate as ws
+    monkeypatch.setattr(ws, "WORKSPACE", tmp_path)
+    return tmp_path
+
+
+def test_observed_status_in_statuses(sandbox):
     from amta.common import workstate as ws
     assert "observed" in ws.STATUSES
 
 
-def test_update_character_observed(tmp_path, monkeypatch):
+def test_update_character_observed(sandbox):
     from amta.common import workstate as ws
     work_id = "ws-test-observed"
-    monkeypatch.setattr(ws, "WORKSPACE", tmp_path)
     ws.init_workspace(work_id)
     ws.update_character(work_id, "サグメ", status="observed", source="page_0")
     state = ws.load_state(work_id)
     assert state["characters"]["サグメ"]["status"] == "observed"
 
 
-def test_ensure_workspace_creates_subdirs():
+def test_ensure_workspace_creates_subdirs(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     root = ws.ensure_workspace(wid)
@@ -33,7 +46,7 @@ def test_ensure_workspace_creates_subdirs():
         assert (root / sub).is_dir()
 
 
-def test_init_workspace_writes_empty_state_files():
+def test_init_workspace_writes_empty_state_files(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     root = ws.init_workspace(wid)
@@ -51,7 +64,7 @@ def test_empty_state_is_deepcopied():
     assert "x" not in b["work_state.json"]["characters"]
 
 
-def test_load_save_roundtrip():
+def test_load_save_roundtrip(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
@@ -62,7 +75,7 @@ def test_load_save_roundtrip():
     assert ws.load_state(wid)["characters"]["豊姫"]["status"] == "confirmed"
 
 
-def test_add_evidence_fact_with_confidence():
+def test_add_evidence_fact_with_confidence(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
@@ -72,9 +85,7 @@ def test_add_evidence_fact_with_confidence():
     assert ws.load_state(wid)["recent_context"][-1]["fact"] == "豊姫 distrusts 永琳"
 
 
-def test_add_evidence_fact_rejects_bad_status():
-    import pytest
-
+def test_add_evidence_fact_rejects_bad_status(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
@@ -82,7 +93,7 @@ def test_add_evidence_fact_rejects_bad_status():
         ws.add_evidence_fact(wid, "x", status="bogus", source="p")
 
 
-def test_update_character_upsert():
+def test_update_character_upsert(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)
@@ -93,7 +104,7 @@ def test_update_character_upsert():
     assert chars["豊姫"]["notes"] == "永琳の弟子"
 
 
-def test_add_open_question_increments_id():
+def test_add_open_question_increments_id(sandbox):
     from amta.common import workstate as ws
     wid = _new_id("ws")
     ws.init_workspace(wid)

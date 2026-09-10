@@ -1,4 +1,4 @@
-"""review — L6 独立 model 审核门（ADR-030）：让一个"不知道你做了什么"的第二个模型独立审 diff。
+"""review —  独立 model 审核门（ADR-030）：让一个"不知道你做了什么"的第二个模型独立审 diff。
 
 把 git diff + 验收标准（loop_state.json 或 --mission）打包，spawn 一个新鲜的 `claude -p` 会话，
 它没有任何本会话上下文，只能从 diff 和标准推断，审三件事：
@@ -121,7 +121,7 @@ def _load_criteria(mission: str | None) -> str:
 
 def _locate_session_jsonl(since: float | None = None) -> str:
     """spawn 后定位 claude 会话 JSONL（供 trace_probe 观测）。since 传 review 启动时间戳，
-    只认该时间之后有写入的会话，避免错指无关/并发会话（L6 review 首跑实测发现）。找不到返回空串。"""
+    只认该时间之后有写入的会话，避免错指无关/并发会话（ review 首跑实测发现）。找不到返回空串。"""
     proj = Path.home() / ".claude" / "projects"
     if not proj.is_dir():
         return ""
@@ -174,7 +174,7 @@ def _parse_verdict(text: str) -> str:
     return "CONCERN"
 
 
-# --selfcheck 用：给 L6 门本身"体检"的固定样例。
+# --selfcheck 用：给  门本身"体检"的固定样例。
 # 坏样例 = 含明确缺陷的 diff，门必须抓出（VERDICT=FAIL/CONCERN 且命中预设缺陷词）；
 # 干净样例 = 无缺陷的纯函数 diff，门不得误报（VERDICT 非 FAIL）。
 SELFCHECK_FIXTURES = [
@@ -215,8 +215,8 @@ SELFCHECK_FIXTURES = [
 
 
 def _run_selfcheck(timeout: int, model: str | None) -> int:
-    """L6 门有效性自检：坏样例必须被抓到，干净样例必须不误报。0 = 门有效，1 = 门失灵。"""
-    print("== [review:selfcheck] L6 门有效性体检：坏样例必须被抓到，干净样例必须不误报 ==")
+    """ 门有效性自检：坏样例必须被抓到，干净样例必须不误报。0 = 门有效，1 = 门失灵。"""
+    print("== [review:selfcheck] 门有效性体检：坏样例必须被抓到，干净样例必须不误报 ==")
     ok = True
     for fx in SELFCHECK_FIXTURES:
         prompt = PROMPT_TEMPLATE.format(criteria=fx["criteria"], base="(selfcheck fixture)",
@@ -239,12 +239,12 @@ def _run_selfcheck(timeout: int, model: str | None) -> int:
             status = "PASS（无误报）" if not false_pos else "FAIL（误报干净样例）"
             print(f"== [review:selfcheck] {fx['name']}: VERDICT={verdict} → {status}（期望非 FAIL）==")
             ok = ok and not false_pos
-    print("== [review:selfcheck] 总结:", "ALL PASS（L6 门有效）" if ok else "存在 FAIL（L6 门失灵，需排查）", "==")
+    print("== [review:selfcheck] 总结:", "ALL PASS（门有效）" if ok else "存在 FAIL（门失灵，需排查）", "==")
     return 0 if ok else 1
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="L6 独立 model 审核门（spawn 独立 claude -p 审 diff）")
+    ap = argparse.ArgumentParser(description="独立 model 审核门（spawn 独立 claude -p 审 diff）")
     ap.add_argument("--base", default="main", help="diff 基准 ref（默认 main，用三点 ...HEAD 比较）")
     ap.add_argument("--mission", default=None, help="验收标准文本；缺省读 loop_state.json")
     ap.add_argument("--out", default=None, help="报告输出路径（默认 output/logs/review-<时间戳>.md）")
@@ -253,7 +253,7 @@ def main() -> int:
     ap.add_argument("--no-worktree", action="store_true", help="只审已提交 diff，不含工作区改动")
     ap.add_argument("--timeout", type=int, default=300, help="claude 会话超时秒数（默认 300）")
     ap.add_argument("--selfcheck", action="store_true",
-                    help="L6 门有效性自检：用内置坏/好样例验证门真能抓错、不误报，不读真实 diff")
+                    help="门有效性自检：用内置坏/好样例验证门真能抓错、不误报，不读真实 diff")
     args = ap.parse_args()
 
     if not shutil.which("claude"):
@@ -294,7 +294,7 @@ def main() -> int:
     verdict = _parse_verdict(review_text)
 
     lines = [
-        "# L6 独立 model 审核报告",
+        "# 独立 model 审核报告",
         "",
         f"- 时间: {_dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"- 基准: {base}...HEAD" + ("" if args.no_worktree else " + 工作区改动"),

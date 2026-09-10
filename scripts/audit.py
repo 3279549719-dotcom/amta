@@ -11,7 +11,9 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -121,6 +123,36 @@ def check_workspace_empties(ws_root: Path) -> tuple[int, list[str]]:
     return len(empties), empties
 
 
+# 不该被任何扫描进去的目录（生成物 / 缓存 / 巨量噪声）。
+# 2026-09-10 接线时实测：find_duplicate_files 扫到了 output/ 下的临时残留
+# （a.md/b.md 各 5 份），把噪声当成了「重复文件」发现项。
+SCAN_EXCLUDE_DIRS = (
+    ".git", ".venv", ".worktrees", "output", "workspace", "models",
+    "node_modules", ".pytest_cache", ".ruff_cache", "__pycache__",
+    ".mypy_cache", "reference", "testsets",
+)
+
+# 归档目录：**归档时复制一份正是归档的语义**，所以这里的重复不算「事实源分裂」。
+# docs/archive/ 与 docs/superpowers/plans/ 各有一份内容完全相同的
+# 2026-08-27-front3-stages-v2.md —— 那是归档快照，不是重复维护。
+ARCHIVE_DIRS = ("archive", )
+
+# 仓库根**本该有**的文件/目录：它们不是「散落」，是项目本体。
+# 第一版白名单只列了几个目录，结果把 .gitignore/.mcp.json/AGENTS.md 等
+# 全部举报为散落文件（20 条误报）。一个动辄误报的门禁，第二天就会被人关掉。
+ROOT_ALLOWED = (
+    ".gitignore", ".gitattributes", ".mcp.json", ".editorconfig",
+    "AGENTS.md", "CLAUDE.md", "CLAUDE.local.md", "AGENTS.local.md",
+    "README.md", "RUNBOOK.md", "pyproject.toml", "pyrightconfig.json",
+    "uv.lock", "package.json", "auth_rules.json", "prompt.md",
+    "loop_state.json", "ralph.ps1", "run.ps1",
+    "research", "reference", ".firecrawl", ".remember", ".agent-teams",
+    ".dsh", ".claude", ".githooks", "context", "data", "docs", "examples",
+    "models", "output", "scripts", "src", "tests", "testsets", "tools",
+    "workspace", ".venv", ".pytest_cache", ".ruff_cache", ".worktrees",
+)
+
+
 def find_duplicate_files(root: Path, exts=(".md",)) -> list[list[Path]]:
     """按 (文件名, 大小, 内容前 500 字) 找重复文件（跨 research/docs 等目录）。"""
     from collections import defaultdict
@@ -131,7 +163,10 @@ def find_duplicate_files(root: Path, exts=(".md",)) -> list[list[Path]]:
     for p in root.rglob("*"):
         if not p.is_file() or p.suffix not in exts:
             continue
-        if any(name in p.relative_to(root).parts for name in (".git", ".venv", ".worktrees")):
+        parts = p.relative_to(root).parts
+        if any(name in parts for name in SCAN_EXCLUDE_DIRS):
+            continue
+        if any(name in parts for name in ARCHIVE_DIRS):
             continue
         try:
             key = (p.stat().st_size,
@@ -142,9 +177,7 @@ def find_duplicate_files(root: Path, exts=(".md",)) -> list[list[Path]]:
     return [ps for ps in groups.values() if len(ps) > 1]
 
 
-def check_top_level_clutter(root: Path,
-                           allowed=("amta", "research", "reference", ".firecrawl",
-                                    ".remember", ".agent-teams", ".dsh")) -> list[str]:
+def check_top_level_clutter(root: Path, allowed: tuple[str, ...] = ROOT_ALLOWED) -> list[str]:
     """顶层不应有的散落文件（白名单外且不是目录的条目）。"""
     if not root.is_dir():
         return []
@@ -153,7 +186,14 @@ def check_top_level_clutter(root: Path,
     return stray
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="amta Harness 熵审计")
+    ap.add_argument(
+        "--strict", action="store_true",
+        help="门禁模式：有发现即 exit 1（供 fastcheck 调用）；默认咨询模式恒 exit 0",
+    )
+    args = ap.parse_args(argv)
+
     findings: list[str] = []
     findings += audit_claude()
     findings += audit_lessons()
@@ -172,20 +212,22 @@ def main() -> int:
         findings.append(f"重复文件: {len(dups)} 组（同名同内容，建议只留单一事实源）")
         for g in dups[:5]:
             findings.append(f"    {' / '.join(Path(x).name for x in g)}")
-    stray = check_top_level_clutter(ROOT.parent)
+    stray = check_top_level_clutter(ROOT)
     if stray:
-        findings.append(f"顶层散落文件: {len(stray)} 个（应归位 research/reference/amta）")
+        findings.append(f"顶层散落文件: {len(stray)} 个（应归位 / 删除）")
         for s in stray[:5]:
             findings.append(f"    {Path(s).name}")
 
     if findings:
-        print("== [audit] 发现（建议项，非门禁）==")
+        tag = "门禁失败" if args.strict else "建议项，非门禁"
+        print(f"== [audit] 发现（{tag}）==")
         for f in findings:
             print(f"  - {f}")
-    else:
-        print("== [audit] 未发现 Harness 熵 ==")
+        return 1 if args.strict else 0
+
+    print("== [audit] 未发现 Harness 熵 ==")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

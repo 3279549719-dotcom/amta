@@ -65,7 +65,7 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "entry": {"type": "string", "description": "条目 ID，如 L19 / ADR-016 / now.md"},
+                "entry": {"type": "string", "description": "条目 ID，如 L45 / ADR-016 / now.md"},
                 "section": {
                     "type": "string",
                     "description": "可选 lessons 节名（Problem/Root cause/Durable lesson/Prevention/Regression）",
@@ -155,7 +155,7 @@ def handle_message(msg: dict) -> dict | None:
 
 
 def main() -> int:
-    # Windows 默认 locale 解码中文会炸（L32）；stdin/stdout 强制 UTF-8。
+    # Windows 默认 locale 解码中文会炸；stdin/stdout 强制 UTF-8。
     for stream in (sys.stdin, sys.stdout):
         if hasattr(stream, "reconfigure"):
             cast(Any, stream).reconfigure(encoding="utf-8", errors="replace")

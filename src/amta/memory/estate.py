@@ -20,7 +20,7 @@ SLIM_BUDGET = 512    # Q7：compact 瘦包 ≤0.5KB
 HARD_CAP = 10000     # CC hook 输出硬上限（官方文档），超出会被落盘替换
 
 DICTIONARY_FULL = (
-    "知识字典：坑库 docs/lessons.md（L1–L45，顶部有书脊目录）+ 决策 docs/decisions/（ADR-001–033，README 有索引）。"
+    "知识字典：坑库 docs/lessons.md（顶部有书脊目录）+ 决策 docs/decisions/（README 有索引）。"
     "遇错/决策前先查（memory_search / memory_read，或 CLI memory_grep / memory_read），别硬扛；"
     "拿不准馆里有什么书时，先读 lessons.md 顶部目录或 decisions/README.md 索引。"
 )
@@ -31,7 +31,7 @@ TRUNCATED_MARK = "\n[记忆包截断：地产超预算 — memory_recent/memory_
 
 @dataclass
 class Entry:
-    entry_id: str   # "L19" / "ADR-016" / remember 文件名
+    entry_id: str   # "L<n>" / "ADR-<n>" / remember 文件名
     title: str
     path: Path
     start_line: int # 1-based 含标题行

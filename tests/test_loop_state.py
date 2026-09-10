@@ -66,7 +66,7 @@ def test_summarize_empty():
 
 def test_plan_add_appends_chunk_not_done(tmp_path: Path):
     plan_add(tmp_path, "C1", "删除 v0 检索轨道", "fastcheck ALL PASS + grep 无引用")
-    plan_add(tmp_path, "C2", "prompt read 指 estate", "read L19 命中")
+    plan_add(tmp_path, "C2", "prompt read 指 estate", "read L45 命中")
     plan = plan_list(load(tmp_path))
     assert [c["chunk_id"] for c in plan] == ["C1", "C2"]
     assert all(c["done"] is False for c in plan)
