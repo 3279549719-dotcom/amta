@@ -4,6 +4,8 @@
 
 ## 决策
 
+本决策替代 [ADR-001](./001-koharu-v0.59.1-pin.md)（钉 koharu v0.59.1）和 [ADR-020](./020-stage4-inpaint-station.md)（koharu inpaint 链路）。
+
 1. **Inpaint 引擎从 Koharu HTTP 切换为本地 lama-manga 推理**：不再依赖 Koharu HTTP 服务（消除网络开销和服务依赖），直接在本地用 PyTorch 加载 lama-manga.safetensors 权重推理。
 2. **推理模式采用整页推理**：将整页图片缩小到 1024 宽后整页送模型推理，再放大回原尺寸，只替换 mask 区域。不采用裁剪推理（对每个文字框单独裁剪），因为裁剪推理在复杂背景（渐变、网点、阴影）会产生可见的白色方框。
 3. **预处理/后处理严格对齐 Koharu 参考实现**：

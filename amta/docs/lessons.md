@@ -10,15 +10,10 @@
 
 ## 目录（书脊速查）
 
-- L1 — describe_image 整页坐标不可靠
 - L2 — 假数据落盘（最致命）
 - L3 — wait_operation 卡死：completed_with_errors 未被识别
 - L4 — workers>1 在 CPU/集显下崩溃
-- L5 — .ps1 含中文路径必须 UTF-8 带 BOM
-- L6 — NO_PROXY：Clash 破坏 localhost
 - L7 — ctd_seg 只细化已有文字框（DAG 依赖）
-- L8 — patch 译文后必须重跑 koharu-renderer
-- L9 — koharu 内置 llama.cpp 太旧：paddle/mit48px OCR 引擎全不可用
 - L10 — 通用 VLM 竖排日语系统性差：必须用漫画微调模型
 - L11 — DSH 技能根 ≠ CC 约定：`.claude/skills` 是死配置 + #1401 frontmatter bug
 - L12 — 并集框去重 IoU>0.5 漏合并竖排碎片框：同文本多 crop 多统计
@@ -26,45 +21,25 @@
 - L14 — 数据文件缓存派生指标：norm 口径漂移后不重算 → 假 bug（GT=OCR 却 EM=0）
 - L15 — 报告叠加框必须标注真实来源：detector 检出框 ≠ GT bbox
 - L16 — OCR 评测坐标源必须用 detector 对齐框，勿用 GT 缩略 bbox 或误用单引擎框
-- L17 — llama-server prompt cache 误命中不同图像，本地 OCR 必须 cache_prompt:false
 - L18 — 本地 OCR 性能：BF16 未量化 + 缺省参数 = 30s/张；Q8_0 + 参数优化 + baberu 快路径
-- L19 — pytest Windows 尾部 PermissionError: pytest-current 是 teardown 噪音：exit 1 ≠ 失败；fastcheck 必须用 pytest 收集
-- L20 — 数字前缀脚本无法按名 import：测试需 `_NN_name.py` 桥
-- L21 — 日文残留检测判据只用假名范围：汉字 CJK 共用不可作残留依据
 - L22 — DeepSeek 模型 id 必须实测 models 端点：带日期后缀的 id 是雷
 - L23 — DeepSeek v4-pro 是推理模型、vision-exp 偶发空响应：调用要防"content 为空"
-- L24 — prompt 模板含字面花括号会被 .format() 当占位符
 - L25 — 声称"全量验证"必须有可复现基线：未提交旧版上跑的数不算
 - L26 — fastcheck/pre-commit 需要 Python 3.13 全局解释器：AutoClaw 的 python 无 pytest/ruff
 - L27 — OpenClaw 工具输出对 api_key= 赋值脱敏：写代码后必须校验实际内容
 - L28 — PowerShell 管道缓冲会让后台任务输出"消失"：Tee-Object 经 2>&1 可能整体延迟
 - L29 — 中文/多行字符串 JSON 勿用 PowerShell ConvertFrom-Json（PS5.1 解析失败）
 - L30 — CRLF 行尾文件 edit 工具精确匹配失败：用 Python 脚本替换并保持行尾
-- L31 — koharu mask/inpaint 契约（探针 2026-08-27 定案，详见 ADR-020）
-- L32 — Windows subprocess text=True 用 locale 解码，中文输出必炸
-- L33 — pytest 跨文件复用 fixture 勿 import，放 tests/conftest.py
 - L34 — 记忆检索要 hook push（UserPromptSubmit 注入），别只靠 MCP pull（工具自觉）
 - L35 — CLAUDE_CONFIG_DIR 改配置位置：查 MCP 授权先看 env 再动 ~/.claude.json
 - L36 — 发行名与 import 名只差分隔符（hayai_ocr vs hayai-ocr）：比较前做 PEP 503 归一化
 - L37 — 本地模块归档进 archive/ 后，残留 importer 被 depguard 误报"第三方未声明"：归档时须连带清 importer
-- L38 — 移植模型推理：预处理/后处理必须与参考实现完全对齐（归一化范围 + 输出激活）
-- L39 — Inpainting 对上下文敏感：裁剪推理在复杂背景易产生方框，整页推理质量更稳定
-- L40 — Pillow ≥10 移除顶层 Resampling 常量（Image.NEAREST 等）：用 Image.Resampling.* 枚举
 - L41 — depguard 补声明已传递安装的依赖时，版本读 uv.lock 的公共版本，别抄 `__version__` 的本地构建标签（+cpu）
-- L42 — 仓库根上移（filter-repo 到父目录）后 core.hooksPath 相对值失效：pre-commit/pre-push 静默不跑
 - L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
-- L44 — 归档探针到 scripts/probes/（豁免但活着的目录）：ROOT 深度 + depguard 本地识别两处必改
 - L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
 
 ---
 
-## L1 — describe_image 整页坐标不可靠
-
-- **Problem**：Benchmark A 用 describe_image 看整页大图返回的 bbox 坐标是错的（裁剪验证为空白/位置漂移），无法做像素级 IoU 对齐。
-- **Root cause**：VLM 对整页大图的空间定位不稳定，坐标不是其可靠输出。
-- **Durable lesson**：任何需要像素级对齐的判定，VLM 只适合"识别内容/判类别"，不适合"报坐标"。
-- **Prevention**：recall 改用**内容级匹配**（GT 内容清单 vs detector 并集框识别内容，字符重合度≥0.6 判定检出）；需要位置时用确定性 detector 的 bbox，不用 VLM 坐标。
-- **Regression**：内容级匹配逻辑见 git 历史（`scripts/archive/recall_score.py`，2026-09-07 随 archive/ 清理删除；复用 `src/amta/metrics.py`）；纯函数单测在 `tests/test_shared_lib.py` 锁定。
 
 ## L2 — 假数据落盘（最致命）
 
@@ -90,21 +65,6 @@
 - **Prevention**：任何并发相关代码/参数必须默认 workers=1。
 - **Regression**：暂无自动化（运行时约束）；规则见本条。[已自动化：否]
 
-## L5 — .ps1 含中文路径必须 UTF-8 带 BOM
-
-- **Problem**：PS5.1 把无 BOM 的 UTF-8 中文 .ps1 按 GBK 解析报错。
-- **Root cause**：Windows PowerShell 5.1 默认编码推断。
-- **Durable lesson**：含中文的 .ps1 必须 UTF-8 **带 BOM**。
-- **Prevention**：新建/编辑 .ps1 时用带 BOM 的 UTF-8 保存。
-- **Regression**：`tests/test_lessons_guard.py::test_L5_ps1_with_nonascii_must_have_utf8_bom`（扫描全仓 .ps1：纯 ASCII 免 BOM，含非 ASCII 必须有 BOM）。首次跑即抓到 run.ps1 / cleanup_orphan_worktrees.ps1 / install_hooks.ps1 三处活违规，已补 BOM。[已自动化：是]
-
-## L6 — NO_PROXY：Clash 破坏 localhost
-
-- **Problem**：Clash/V2Ray 代理劫持 localhost，koharu API 连不上。
-- **Root cause**：代理软件把 127.0.0.1 也走代理。
-- **Durable lesson**：必须 `NO_PROXY=127.0.0.1,localhost`。
-- **Prevention**：`koharu_client.ensure_no_proxy()` 自动处理；`start_koharu.ps1` 已设。
-- **Regression**：`tests/test_client_helpers.py` 校验 ensure_no_proxy 设置。
 
 ## L7 — ctd_seg 只细化已有文字框（DAG 依赖）
 
@@ -114,21 +74,6 @@
 - **Prevention**：Benchmark A 四 detector 同页对比验证召回；检测评估优先 recall。
 - **Regression**：`tests/test_pipeline.py` 校验 inpaint 引擎依赖 Segment+Bubble mask（结构不变量）。
 
-## L8 — patch 译文后必须重跑 koharu-renderer
-
-- **Problem**：改了译文但没重渲染，导出仍用缓存旧图。
-- **Root cause**：渲染器以渲染时输入为准，译文改动不自动触发重渲染。
-- **Durable lesson**：任何译文/mask 改动后必须重跑 koharu-renderer 再导出。
-- **Prevention**：koharu-drive skill 修复循环第 5 步强制。
-- **Regression**：暂无自动化（运行时序）；规则见本条。[已自动化：否]
-
-## L9 — koharu 内置 llama.cpp 太旧：paddle/mit48px OCR 引擎全不可用
-
-- **Problem**：koharu 的 paddle-ocr-vl-1.5 引擎每次跑都 `completed_with_errors`（detector 有 confidence 但 ocr 全空），日志：`unable to initialize multimodal projector: MTMD context initialization returned null`。
-- **Root cause**：koharu v0.59.1 内置 llama.cpp b8935（2026-05-18），初始化 PaddleOCR-VL 的视觉投影（mmproj）失败；同模型文件用现代 llama.cpp **b10582 秒加载、OCR 正常**。是运行时版本太旧，不是模型/调用问题。
-- **Durable lesson**：koharu 的 paddle/mit48px OCR 引擎在 v0.59.1 上不可用（只 manga-ocr 可用）；需要 VLM OCR 时绕开 koharu 引擎，用独立 llama-server（`models/llama-cpp/llama-server.exe`，版本 ≥b10582）+ GGUF 模型，OpenAI 兼容接口、prompt `OCR:`。
-- **Prevention**：漫画 OCR 统一走独立 llama-server:8118；koharu 引擎目录的 OCR 项当"坏的"处理，不尝试修复。
-- **Regression**：暂无自动化（外部二进制版本约束）；规则见本条。[已自动化：否]
 
 ## L10 — 通用 VLM 竖排日语系统性差：必须用漫画微调模型
 
@@ -190,13 +135,6 @@
 - **Prevention**：评测脚本从 recall_ocr.json（detector 内容）+ recall_crops（图）+ recall_gt.json（GT 内容）构造评测清单；页码注意偏移（ocr_result/recall_ocr 的 page_N 是 0 基 ↔ recall_gt 的 page_N 是 1 基）。
 - **Regression**：`tests/test_ocr_run.py` 已锁「评测坐标来自 det_boxes 而非 GT bbox」；OCR 评测跑批前需人工核对 crop dark% 非 0。[已自动化：部分]
 
-## L17 — llama-server prompt cache 误命中不同图像，本地 OCR 必须 cache_prompt:false
-
-- **Problem**：连续请求两张不同 crop 时，后一张 0.1s "秒回"，但内容是前一张图的识别结果（错图复用）——实测 gt05 开缓存 0.1s 返回 'と'，关缓存 39s 返回真实推理 'しかし、'。
-- **Root cause**：llama.cpp 的 prompt cache 按 token 序列匹配；PaddleOCR-VL mmproj 把所有图统一缩放处理，不同图可能产生相同 patch 网格 → token 序列相同 → 缓存误命中。
-- **Durable lesson**：多模态 OCR 逐张请求必须带 `cache_prompt:false`，禁止依赖默认缓存；"秒回"在 OCR 评测里是错误信号（教训 L2 的变体：快不一定是真）。
-- **Prevention**：`src/amta/ocr_engines.py` 的 send_chat 对本地引擎默认传 cache_prompt=False。
-- **Regression**：tests/test_refactor_shared.py 校验本地引擎 payload 含 `cache_prompt:false`。
 
 ## L18 — 本地 OCR 性能：BF16 未量化 + 缺省参数 = 30s/张；Q8_0 + 参数优化 + baberu 快路径
 
@@ -206,31 +144,6 @@
 - **Prevention**：start_llama_ocr.ps1 默认 Q8_0 + 优化参数；mmproj 保持 BF16（列 4304 非 32 倍数，Q8_0 量化会失败）。
 - **Regression**：实测基线 BF16 31.3s/张 → Q8_0+参数 27.1s/张（真实推理）；baberu 1.05s/张。
 
-## L19 — pytest Windows 尾部 PermissionError: pytest-current 是 teardown 噪音：exit 1 ≠ 失败；fastcheck 必须用 pytest 收集
-
-- **Problem**：Windows 上跑 pytest，测试全部 PASS 但进程 exit 1（stderr 尾行 `PermissionError: pytest-current`）；曾有两个 subagent 据 exit code 误判实现失败，实际全绿。
-- **Root cause**：pytest 的 tmp_path 清理（`cleanup_dead_symlinks`，含 symlink `pytest-current`）在 Windows 上抛 PermissionError，发生在所有测试结束后的 teardown 阶段，不影响测试结果但污染退出码并中断 stdout 缓冲（汇总行打不出）。另一层：本项目 `scripts/fastcheck.py` 原本用 `unittest discover` 只收集 `TestCase` 类，**静默跳过全部模块级 pytest 函数**（translate/workstate/ocr_run 的测试），报 "55 passed" 假信号。
-- **Durable lesson**：① Windows 判断 pytest 结果看**汇总行**（`N passed`）不看 exit code；委派 subagent 跑验证前必须预教此噪音，否则绿测试被当红。② **`tests/` 一律 pytest 风格，fastcheck 必须用 pytest 收集**——unittest discover 只收 TestCase 会漏掉模块级测试却报 PASS（唯一真强制层失效）。③ Windows 无 tail，取输出尾部用 PowerShell `Select-Object -Last N`。
-- **Prevention**：`scripts/fastcheck.py` `_test()` 改跑 `python -m pytest tests -q --basetemp <output/logs/.pytest-basetemp>`——`--basetemp` 指定显式目录后 pytest 不建 `pytest-current` symlink，正常输出汇总并退出 0；判定用正则 `(\d+) passed` 且无 `failed`。新测试一律 pytest 风格。
-- **Regression**：`python scripts/fastcheck.py` 输出 `== [fastcheck] pytest: 82 passed ==`（含全部 pytest 测试，非 55）。[已自动化：fastcheck 已修]
-
-## L20 — 数字前缀脚本无法按名 import：测试需 `_NN_name.py` 桥
-
-- **Problem**：`scripts/03_translate.py` 不能 `from 03_translate import run`（标识符不能以数字开头），tests 复用 CLI 的 run() 报 ImportError。
-- **Root cause**：数字前缀合法做文件名（可运行）但不合法做模块名（不可 import），Python 语法限制。
-- **Durable lesson**：`scripts/` 数字前缀工位脚本凡需被测试 import，必须另建 `_NN_name.py` 桥（importlib.util 按文件路径加载真实脚本并转导出 run/main）；脚本本体保持可 `python scripts/NN_name.py` 直跑。
-- **Prevention**：新建 00_run_all/01_detect/02_ocr/04_inpaint/05_typeset 时，凡测试需 import 的一律配桥。
-- **Regression**：`tests/test_translate.py::test_cli_translate_uses_llm_and_writes_translation` 经 `_03_translate` 桥覆盖 CLI。[已自动化：测试锁桥用法，fastcheck 改跑 pytest 后强制执行]
-
-## L21 — 日文残留检测判据只用假名范围：汉字 CJK 共用不可作残留依据
-
-- **Problem**：残留检测若用汉字范围（U+4E00-9FFF）会把中文译文误判为"日文残留"（中日汉字共用码位，如"完全译文"会被命中汉字）。
-- **Root cause**：CJK 统一汉字 U+4E00-U+9FFF 中日共用，无法区分中/日汉字；假名 U+3040-30FF 是日文独有特征。
-- **Durable lesson**：`_JAPANESE` 只匹配假名 `[\u3040-\u30ff]`；代价是"纯汉字无假名的日文残留"（如 完全）检测不到，属可接受漏报——换汉字范围则中文译文全灭，代价不可接受。
-- **Prevention**：任何"检测某语言残留"的正则用该语言**独有字符集**而非共享字符集；改 `src/amta/translate.py` 的 `_JAPANESE` 前先读本条。
-- **Regression**：`test_japanese_residue_detects_kanji` 锁定「纯中文不误报 + 含假名日文报出」。[已自动化：测试已锁，fastcheck 改跑 pytest 后强制执行]
-
----
 
 ## L22 — DeepSeek 模型 id 必须实测 models 端点：带日期后缀的 id 是雷
 
@@ -250,13 +163,6 @@
 
 ---
 
-## L24 — prompt 模板含字面花括号会被 .format() 当占位符
-
-- **Problem**：评审 prompt 模板里写 `accuracy:{1-5}` 等字面花括号，`.format(text=…, translation=…)` 直接抛 `KeyError('1-5')`——全量评审必崩。
-- **Root cause**：str.format() 把 `{}` 当占位符；模板里想表达"评分范围/JSON 示例"的字面花括号未转义。
-- **Durable lesson**：prompt 模板含字面花括号时禁止直接 .format()——双写 `{{ }}` 或改用 .replace()/命名占位符；任何"模板+format"组合，format 调用本身必须可测。
-- **Prevention**：新增含 `{` 的 prompt 后先跑一次 format 冒烟（test_judge_prompt_format_safe 已锁定）。
-- **Regression**：`tests/test_semantic_check.py::test_judge_prompt_format_safe`。[已自动化：是]
 
 ## L25 — 声称"全量验证"必须有可复现基线：未提交旧版上跑的数不算
 
@@ -306,29 +212,6 @@
 - **Prevention**：先 `Get-Content -Raw` 检查含 "\r\n"；替换后 `compile()` 验证语法。
 - **Regression**：暂无自动化。
 
-## L31 — koharu mask/inpaint 契约（探针 2026-08-27 定案，详见 ADR-020）
-
-- **Problem**：put_mask 400（裸像素非 PNG）；lama-manga completed_with_errors（缺 BubbleMask）；export 422（无 renderer 节点）。
-- **Root cause**：koharu REST 契约未文档化：mask 需 PNG 编码字节；lama-manga 需 segment+bubble 双 mask；inpainted 结果在 scene 节点 blob（WEBP）。
-- **Durable lesson**：koharu inpaint 链路 = put_mask(PNG) ×2 → run_pipeline([lama-manga]) → fetch_inpainted(blob WEBP)；勿用 export_page 取 inpaint 结果。
-- **Prevention**：客户端封装 run_inpaint/fetch_inpainted（已测）；ADR-020 固化。
-- **Regression**：tests/test_koharu_inpaint.py 4 测。
-
-## L32 — Windows subprocess text=True 用 locale 解码，中文输出必炸
-
-- **Problem**：memory_recent 真仓库冒烟崩溃：git log 中文提交 → UnicodeDecodeError（reader thread）→ stdout=None → AttributeError。
-- **Root cause**：subprocess.run(capture_output=True, text=True) 在 Windows 按 locale（gbk）解码子进程输出，而 git/Python 子进程输出是 utf-8。
-- **Durable lesson**：Windows 下捕获含中文的子进程输出必须显式 `encoding="utf-8", errors="replace"`，并对 stdout 做 None 防护；CLI 面向 agent 管道消费时 stdout reconfigure(utf-8)（与 L27 同族）。
-- **Prevention**：tools.do_recent 已修；新脚本照此模板（scripts/memory_*.py 四个均带 reconfigure）。
-- **Regression**：tests/test_memory_inject.py 4 测（真子进程链路，含坏 JSON/空输入）。
-
-## L33 — pytest 跨文件复用 fixture 勿 import，放 tests/conftest.py
-
-- **Problem**：按计划在 test_memory_tools.py 里 `from tests.test_memory_estate import estate` 复用 fixture，ruff 报 F401/F811 共 9 错，pre-commit lint 门禁拦截提交。
-- **Root cause**：ruff 把测试函数的同名参数视为对 import 名的 redefinition；跨文件 import fixture 本就是非常规用法。
-- **Durable lesson**：跨测试文件共享 fixture 一律放 tests/conftest.py（pytest 自动发现，无需 import）；项目已配 pytest pythonpath=["src","."]。
-- **Prevention**：estate fixture 已入 tests/conftest.py；新增 memory 测试直接声明 `estate: Path` 参数。
-- **Regression**：fastcheck lint 步全绿（357 测试 + ruff）。
 
 ## L34 — 记忆检索要 hook push（UserPromptSubmit 注入），别只靠 MCP pull（工具自觉）
 
@@ -362,29 +245,6 @@
 - **Prevention**：归档本地模块后跑 `py -3.13 scripts/depguard.py` 复查，新报的"未声明"若指向刚归档的本地名 → 去 grep 清 importer。
 - **Regression**：暂无自动化；规则见本条。当前红债（4 探针命运）见 loop_state escalation，待人类裁决。
 
-## L38 — 移植模型推理：预处理/后处理必须与参考实现完全对齐（归一化范围 + 输出激活）
-
-- **Problem**：本地 lama-manga 推理出现严重黑/白噪点，模型原始输出范围 [-307, 8755]（正常应在 [0,1]），clamp 后大部分像素被裁到极值形成噪点。
-- **Root cause**：① 输入归一化用了 `[-1,1]`（`/127.5 - 1`），而 Koharu 参考实现用 `[0,1]`（`/255.0`）；② 模型输出缺少 sigmoid 激活函数——Koharu 的 FFCResNetGenerator 在 final_conv 后显式调用 `.sigmoid()`，而我们复制的模型定义用了 `add_out_act=False`，想当然认为不需要输出激活。
-- **Durable lesson**：移植第三方模型推理时，**预处理（归一化范围、颜色空间、mask 二值化阈值）和后处理（输出激活函数、clamp 范围、颜色空间转换）必须与参考实现逐行对齐**；模型结构参数（如 `add_out_act`）不能想当然，必须核对参考实现的 forward 代码。模型输出范围异常（远超合理范围）是预处理/后处理不匹配的强信号。
-- **Prevention**：移植模型前先读参考实现的完整 forward 流程（含预处理和后处理）；推理后立即检查输出范围是否在合理区间（如 sigmoid 输出应在 [0,1]，tanh 应在 [-1,1]）；异常范围必须先排查预处理/后处理，不要怀疑模型权重。
-- **Regression**：`tests/test_local_lama_inpainter_manga.py` 4/4 通过（模型加载、输出形状、非正方形、默认类型）；5 页对比验证（page11-15）噪点完全消除。
-
-## L39 — Inpainting 对上下文敏感：裁剪推理在复杂背景易产生方框，整页推理质量更稳定
-
-- **Problem**：裁剪推理（padding=64，对每个文字框单独裁剪送模型）时，修复区域明显偏白，形成可见的白色方框（尤其在头发阴影、渐变背景区域）。
-- **Root cause**：裁剪后模型只有局部上下文（裁剪区域内的像素），在背景复杂区域（渐变、网点、阴影）会把背景"猜"成纯白；整页推理时模型能看到全局上下文，背景修复更准确，与周围自然融合。Koharu 默认用 Crop 策略但 margin=128，且其 mask 生成方式不同，方框感不明显。
-- **Durable lesson**：Inpainting 模型对上下文范围敏感；**裁剪推理在背景复杂区域（渐变、网点、阴影、非纯白背景）容易产生方框感**；整页推理（可适当缩小尺寸以控制速度）质量更稳定。如果必须用裁剪推理，padding/margin 要足够大（≥128），且验收时必须放大检查修复区域边缘。
-- **Prevention**：背景复杂的漫画优先整页推理（缩小到 1024 宽平衡速度与质量）；裁剪推理仅用于背景简单的区域（纯白对话框内）；验收标准必须包含"放大检查修复区域无方框/噪点"，不能只看整页缩略图。
-- **Regression**：5 页对比验证（page11-15），整页推理（19.7s/页）无方框，裁剪推理（7.3s/页）有方框；整页推理比 Baseline（152.5s/页）快 87%。
-
-## L40 — Pillow ≥10 移除顶层 Resampling 常量（Image.NEAREST 等）：用 Image.Resampling.* 枚举
-
-- **Problem**：`local_lama_inpainter.py` 调 `mask.resize(image.size, Image.NEAREST)` 在 Pillow 12 报 `AttributeError: module 'PIL.Image' has no attribute 'NEAREST'`（pyright: reportAttributeAccessIssue），Pillow 9.1 起顶层常量已弃用、10.0 移除。
-- **Root cause**：Pillow 把插值常量从 `Image` 模块顶层迁到 `Image.Resampling` 枚举；旧顶层 `Image.NEAREST/BILINEAR/BICUBIC/LANCZOS/BOX/HAMMING` 全部移除。类型桩只认 `Image.Resampling.*`。
-- **Durable lesson**：本项目 Pillow 版本无上限（venv 装最新），**插值参数一律写 `Image.Resampling.NEAREST` 等枚举，勿用顶层旧常量**；Pillow-heavy 代码（typeset/image 处理）新增 resize/thumbnail/transform 时直接照此写。
-- **Prevention**：pyright 会拦（reportAttributeAccessIssue），但仅覆盖已声明的 image 处理路径——写新 Pillow 代码时默认用 `Image.Resampling.*`；遇到旧代码报此类错直接改名常量即可，行为等价。
-- **Regression**：pyright src 0 errors；`tests/test_local_lama_inpainter_manga.py` 通过（resize 路径含在 local_lama_inpainter 单测中）。
 
 ## L41 — depguard 补声明已传递安装的依赖时，版本读 uv.lock 的公共版本，别抄 `__version__` 的本地构建标签（+cpu）
 
@@ -394,13 +254,6 @@
 - **Prevention**：改 pyproject 后必跑 `uv lock` 复核（退出 0 + `git diff uv.lock` 应只见 root 包 dependencies/requires-dist 增两行，无版本漂移），再跑 `py -3.13 scripts/depguard.py` 确认转绿。
 - **Regression**：depguard 0 项 + `uv lock` clean（amta root 包新增 safetensors==0.8.0 / torch==2.14.0 两条直声明）。
 
-## L42 — 仓库根上移（filter-repo 到父目录）后 core.hooksPath 相对值失效：pre-commit/pre-push 静默不跑
-
-- **Problem**：把仓库根从 `amta/` 迁到父目录（filter-repo 给内容加 `amta/` 前缀）后，从 amta 提交时 pre-commit/pre-push 不再触发——fastcheck/ruff 提交门禁（L26）静默失效，无人察觉。
-- **Root cause**：`.githooks` 物理位置仍在 `amta/.githooks`，没随根移动；而 `core.hooksPath=.githooks` 是相对值，git 按**运行 git 时的 cwd** 解析——实测 `git rev-parse --git-path hooks`：搬迁前 repo 根=amta、cwd=amta → `.githooks` 命中 `amta/.githooks`；搬迁后 repo 根=父目录、从 amta 跑 → 解析为 `../.githooks` = 父目录/.githooks（不存在）。hook 文件找不到时 git 不报错，直接跳过。
-- **Durable lesson**：`core.hooksPath` 别用相对值——仓库根/内容前缀只要可能变，一律写**绝对路径**；hook 失效是静默的（缺文件不报错），唯一核对手段是 `git rev-parse --git-path hooks` 看解析结果是否落在真实存在的目录。同理，凡"仓库根在 cwd 之下"的假设（`.githooks`、`.venv`、`package.json` 向上查找）在根上移后都要复查。
-- **Prevention**：已设 `git config core.hooksPath "E:/manga translator agent/amta/.githooks"`（绝对）；`scripts/install_hooks.ps1` 现在仍写相对 `.githooks`，应改成输出绝对路径；改完用 `git rev-parse --git-path hooks` 核对。Claude Code 启动目录仍是 `amta/`（根级无配置），勿从父目录启动。
-- **Regression**：`tests/test_lessons_guard.py::test_L42_hookspath_is_absolute_and_resolvable`（校验 core.hooksPath 绝对 + 目录存在 + pre-push 在；pre-commit 已按 5fac83f 停用）。[已自动化：是]
 
 ## L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
 
@@ -410,13 +263,6 @@
 - **Prevention**：review.py 已用 `os.name == "nt"` 分支切 `cmd /c claude`；新写 spawn 外部 CLI 的脚本沿用此模式。
 - **Regression**：`claude -p` 经 stdin 管道回 "OK"（实测，见 review.py L6 门）。
 
-## L44 — 归档探针到 scripts/probes/（豁免但活着的目录）：ROOT 深度 + depguard 本地识别两处必改
-
-- **Problem**：把 `scripts/exp_inpaint_speed.py` 等 6 个探针 `git mv` 到 `scripts/probes/` 后，脚本内部 `ROOT = Path(__file__).parent.parent` 全部少算一层（probes 比 scripts 深一级，仓库根需 `.parent.parent.parent`）；`tests/test_exp_p1_manga.py` 经 `sys.path.insert(..., "scripts")` import `exp_inpaint_speed` 也失效，需改指 `scripts/probes`。
-- **Root cause**：① 探针用 `Path(__file__).resolve().parent` 锚定仓库根/兄弟脚本目录，目录下移一层后所有深度常量静默错位（不报错、只在真跑时找错路径）。② probes/ 与 archive/ 语义不同：archive/ 是"已死代码"（importer 硬死，depguard 报未声明 = 死代码侧写，L37），probes/ 是"豁免 lint 但活着的实验脚本"——测试仍合法 import 它，而 depguard `_is_local_module()` 只查 src/scripts/tests 活动目录，probes/ 下的模块名会被当第三方顶层名 → 报"未声明"假阳。
-- **Durable lesson**：凡把 scripts 下脚本下移一层（scripts/X.py → scripts/probes/X.py）：① 全文搜 `Path(__file__)` 锚定的 ROOT/SCRIPT_DIR/SRC_DIR 深度常量与 `sys.path.insert`（深一层 = ROOT 多一个 `.parent`；要 import 的兄弟模块若留在 scripts/ 根，路径插 `SCRIPT_DIR.parent` 而非 `SCRIPT_DIR`）；② 若仍有测试/代码 import 它，去 `scripts/depguard.py::_is_local_module()` 加一条 `scripts/probes/` 检查（与 src/scripts/tests 并列），而不是清 importer——probes 模块不是死代码。
-- **Prevention**：移动后跑 `py -3.13 scripts/fastcheck.py`（ruff/pyright 已豁免 probes，红债只在 depguard + 引用它的测试）；任何"归档进豁免目录"先分清是 archive/（清 importer）还是 probes/（depguard 补本地识别）。
-- **Regression**：6 探针已在 scripts/probes/，depguard 已认 probes 为本地模块，fastcheck ALL PASS。[已自动化：fastcheck pytest 覆盖 test_exp_p1_manga import 通路]
 
 ## L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
 
