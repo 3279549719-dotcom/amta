@@ -1,17 +1,14 @@
-"""fastcheck — 编码期快速校验（Level 1，秒级，默认不连 koharu）。
+"""fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 8 步）。
 
-组合：
-  1. compileall（src + scripts 语法门）
-  2. ruff lint（代码风格/未使用导入）
-  3. pyright type check（类型错误）
-  4. 确定性单测（tests/，纯数据，不依赖引擎/网络）
-  5. depguard（依赖膨胀守卫：未声明/未使用第三方依赖拦截，ADR-015）
+两种模式（2026-09-10 分层，避免 pre-commit 与 /finish 重复跑 pytest）：
+  --quick  秒级快检（pre-commit 钩子用）：compileall + ruff lint + pyright
+  默认     完整 8 步（/finish 收尾用）：quick 三步 + pytest + depguard + mem-lint/gc/inject
 
-等价于 `npm run check` + lint + typecheck + `npm run test` + depguard，
-合并为一条命令。退出码：0 = 全过；非 0 = 有失败。
+退出码：0 = 全过；非 0 = 有失败。
 """
 from __future__ import annotations
 
+import argparse
 import compileall
 import os
 import shutil
@@ -59,13 +56,17 @@ def _test() -> int:
     """
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     # --basetemp 规避 Windows 下 pytest 默认 basetemp 的 pytest-current symlink teardown
-    # PermissionError（L19）：指定显式目录后 pytest 不建该 symlink，正常输出 "N passed" 汇总并退出 0。
-    basetemp = ROOT / "output" / "logs" / ".pytest-basetemp"
+    # PermissionError（L19）：指定显式目录后 pytest 不建该 symlink。
+    # 每次用 pid 唯一目录（2026-09-10 修复）：固定目录一旦权限损坏（WinError 5 僵尸目录，
+    # 连 icacls/rd 都删不掉），teardown 失败会让每个文件首个用例后的全部用例 ERROR
+    # （436 passed 退化为 253 passed+183 ERROR）；唯一目录跑完即弃，坏目录无法再污染。
+    basetemp = ROOT / "output" / "logs" / f".pytest-bt-{os.getpid()}"
     r = subprocess.run(
         [sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q", "--basetemp", str(basetemp)],
         cwd=str(ROOT), env=env, capture_output=True, text=True,
     )
     out = (r.stdout or "") + (r.stderr or "")
+    shutil.rmtree(basetemp, ignore_errors=True)  # best-effort: 删不掉不影响（下次换 pid 新目录）
     print(out[-2000:])
     import re as _re
     m = _re.search(r"(\d+) passed", out)
@@ -78,7 +79,7 @@ def _test() -> int:
 
 
 def _depguard() -> int:
-    """依赖膨胀守卫（ADR-015）：拦截未声明/未使用的第三方依赖。"""
+    """依赖膨胀守卫（ADR-015）：拦截未声明/未使用第三方依赖。"""
     return _run([sys.executable, str(ROOT / "scripts" / "depguard.py")], "depguard (依赖膨胀守卫)")
 
 
@@ -101,29 +102,39 @@ def _memory_inject() -> int:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description="amta fastcheck 机械质检")
+    ap.add_argument("--quick", action="store_true",
+                    help="only compile/lint/typecheck (seconds, used by pre-commit); full 8-step is for /finish")
+    args = ap.parse_args()
+
     c = _compile()
     lint_rc = _lint()
     t = _typecheck()
-    u = _test()
-    d = _depguard()
-    m = _memory_lint()
-    g = _memory_gc()
-    inj = _memory_inject()
     checks: list[tuple[str, int]] = [
         ("compile", c),
         ("lint", lint_rc),
         ("typecheck", t),
-        ("unit tests", u),
-        ("depguard", d),
-        ("memory lint", m),
-        ("memory gc", g),
-        ("memory inject", inj),
     ]
+    if not args.quick:
+        u = _test()
+        d = _depguard()
+        m = _memory_lint()
+        g = _memory_gc()
+        inj = _memory_inject()
+        checks.extend([
+            ("unit tests", u),
+            ("depguard", d),
+            ("memory lint", m),
+            ("memory gc", g),
+            ("memory inject", inj),
+        ])
+    else:
+        print("== [fastcheck] --quick: skip pytest/depguard/memory (full run at /finish) ==")
     fails = [name for name, rc in checks if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
         return 1
-    print("== [fastcheck] ALL PASS ==")
+    print("== [fastcheck] QUICK PASS ==" if args.quick else "== [fastcheck] ALL PASS ==")
     return 0
 
 

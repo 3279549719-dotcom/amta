@@ -1,0 +1,19 @@
+#!/bin/sh
+# pre-commit gate: QUICK checks only (compile + ruff + pyright), seconds-level.
+# 分层设计（2026-09-10 方案A）：pytest/depguard/memory 完整 8 步留给 /finish 收尾跑，
+# 避免 commit 时与收尾重复跑 47s pytest。完整验证: uv run python scripts/fastcheck.py
+# 必须走 uv run（.venv ruff 0.16.x）：全局 py -3.13 的旧 ruff 0.15.x 会误报 E402，
+# 与手动 uv run 结果不一致（2026-09-10 实证）。
+# Install: scripts/install_hooks.ps1 (git config core.hooksPath .githooks)
+set -e
+cd "$(dirname "$0")/.."
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "[pre-commit] ERROR: uv not found in PATH (need .venv via uv run)" >&2
+  exit 1
+fi
+
+echo "[pre-commit] quick fastcheck via uv (compile + ruff + pyright)..."
+uv run python scripts/fastcheck.py --quick
+
+echo "[pre-commit] OK (full 8-step fastcheck runs at /finish)"

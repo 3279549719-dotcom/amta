@@ -1,4 +1,4 @@
-"""纯文本翻译模块 — minimal 路径唯一实现（2 LLM calls/page, zero tools）。
+"""纯文本翻译模块 — minimal 路径唯一实现（1 LLM call/page, zero tools）。
 
 与 ocr_engines（带图多模态）互补：本模块只发纯文本 messages。
 机制来源（ADR-014）：

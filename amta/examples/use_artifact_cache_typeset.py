@@ -17,7 +17,7 @@ from pathlib import Path
 # 确保 src 在路径中
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amta.artifact_cache import run_stage_if_needed, cache_status
+from amta.artifact_cache import cache_status, run_stage_if_needed
 from amta.artifacts import artifact_paths
 
 
@@ -97,8 +97,8 @@ def main():
 
     print(f"\n统计: {cache_hits} 命中, {cache_misses} 未命中")
     print(f"缓存状态: {cache_status(art_dir)}")
-    print(f"\n提示：再次运行本脚本，所有页都应该 CACHE HIT。")
-    print(f"      修改 src/amta/typeset_engine.py 后再运行，会触发 CACHE MISS。")
+    print("\n提示：再次运行本脚本，所有页都应该 CACHE HIT。")
+    print("      修改 src/amta/typeset_engine.py 后再运行，会触发 CACHE MISS。")
 
 
 if __name__ == "__main__":

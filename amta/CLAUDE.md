@@ -1,82 +1,42 @@
 # CLAUDE.md
 
-AMTA — Automation Manga Translate Agent：会话驱动的漫画翻译自动化。DSH 会话（单 LLM Agent）= 导演（决策/翻译判断/修复决策/验收），amta Python 执行器 = 确定性工具层，koharu v0.59.1 headless（REST :4000）= 引擎。第一里程碑：Benchmark A/B/C。
+AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻译判断/修复决策/验收），amta Python=确定性工具层，koharu headless（REST :4000）=引擎。里程碑：Benchmark A/B/C。
 
 ## 核心事实
-- **原图目录**：`D:\我的汉化\汉化作品\东方\单翼停留之地\`（jpg 格式，`1.jpg`~`41.jpg`，页码即文件名；Stage 3 minimal 路径需整页图时从此目录读取，不复制进 workspace）
-本机是Windows环境，不是Linux或者Mac环境。键入命令行时要注意这点
+- **原图目录**：`D:\我的汉化\汉化作品\东方\单翼停留之地\`（jpg，`1.jpg`~`41.jpg`，页码即文件名；需整页图时从此目录读，不复制进 workspace）
+- 本机 Windows / PowerShell 环境
+- **翻译通道**：纯文本 DeepSeek LLM（1 call/page，配置走 .env CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY）；VLM refine 2026-09-09 已移除；架构细节见 `docs/module-map.md` + ADR-014/016/017/023
+- **本地 OCR / Stage 4-6 架构细节**：见 `docs/module-map.md` + ADR-019/020/021/023/024
+- **算力**：CPU-only（i5-1135G7 4C8T/16GB），workers 必须=1；inpainter 只有 lama-manga；本地 VLM 不可行
+- **代码地图**：`docs/module-map.md`（`find_code.py --index` 自动更新）；找模块/函数/类用 `uv run python scripts/find_code.py <关键词>`，禁止瞎猜路径或硬 grep
+- **关键入口**：管线 `scripts/run_pipeline.py --stages <阶段>`（artifact_cache 增量复用）｜报告 `scripts/gen_report.py`｜质检 `scripts/fastcheck.py`｜外部库文档 `scripts/context7.py`
 
+## 必执行 Checklist（chained，AI 自主触发，无需用户提醒）
+- 找代码/模块/函数位置/不确定功能在哪个文件：**先用 `scripts/find_code.py <关键词>` 搜索**，再读目标文件；禁止瞎猜路径或全目录硬 grep
+- 遇到任何报错/异常/测试失败/行为不符合预期：**先按 diagnosing-bugs skill 流程定位根因**（复现→读报错→二分定位→验证假设），禁止直接猜答案或瞎改
+- 做架构/选型/设计决策前（含"要不要重构""选哪个方案""加不加新依赖"）：**先调用 grilling skill 至少 3 轮苏格拉底追问**，逼出假设和 trade-off 再拍板
+- 需要外部信息/调研/查资料/对比方案：**委派 research skill 后台 subagent**，主 agent 不硬搜、不凭记忆答
+- 需要跑管线/从中间阶段续跑：**用 `scripts/run_pipeline.py --stages <阶段名>`**（支持 detect,ocr,translate,inpaint,typeset 任意子集；artifact_cache 自动复用上游产物，禁止从头重跑或自己拼 01/02/03 脚本）
+- 管线运行完成/阶段产物落盘后：**自动调用 `scripts/gen_report.py` 生成 HTML 报告**（验收唯一视觉载体，无需提醒）
+- 会话结束/用户说收尾/落盘：**先 cycle-close，Step 5 委派 finisher subagent 做知识归类**（lessons/CLAUDE.md/skill/ADR/progress 五路分流），主 agent 只审核应用
 
-- **翻译通道（minimal，2026-09-01 清理后唯一路径）**：`03_translate` 工位脚本直调 DeepSeek API（`.env` CHAT_BASE_URL/CHAT_MODEL/CHAT_API_KEY，`CHAT_MODEL=deepseek-v4-pro`，`https://api.deepseek.com`）；VLM refine 用 `qwen3.5-omni-plus`（`stage3_minimal.py`，contact sheet 逐格转写修正 OCR 文本，ADR-023）；LLM 翻译用 `deepseek-v4-pro`；机械护栏（pre-translate Input schema gate `canon_schema.py` + 结构/日文残留 `guardrails.py` + Glossary Validator `glossary.py` Knowledge guardrail + `suggestions.py` 片假名术语提取追加）；前页上下文 `build_semantic_context`（内联于 `stage3_minimal.py`，唯一消费者）；验收阈值 = 机械护栏全过 + 导演清 needs_review 工单；导演=终审/误报驳回/术语校准，**不手写译文**（ADR-016 修订 + ADR-017）**弃 koharu 内 `llm` 引擎**（ADR-014 修订决策 #5）。
-- **Vision QA**：`vqa()` 抽象，会话内 describe_image 实现。
-- **本地漫画 OCR**：`PaddleOCR-VL-For-Manga` GGUF（`models/paddle-manga/`）+ 独立 llama-server（`models/llama-cpp/llama-server.exe`，端口 8118，`--mmproj`）。koharu 内置 llama.cpp b8935 太旧，其 paddle/mit48px OCR 引擎全部不可用（MTMD 初始化失败），只 manga-ocr 可用；漫画 OCR 走独立 llama-server（OpenAI 兼容接口，prompt `OCR:`）。baberu-OCR（ONNX）作 fast path（1s/张，对白 CER 相当）。
-- **文档查询**：`scripts/context7.py`（`npm run ctx7:search` / `ctx7:ctx`），读 `.env` 的 `CONTEXT7_API_KEY`，查最新库文档。
-- **算力**：CPU-only（i5-1135G7 4C8T / 16GB），并发 workers 必须 =1；inpainter 现实选择只有 lama-manga；本地 VLM 不可行。
-- **工具面**：`src/amta/koharu_client.py`（REST 适配器，清单见 koharu-drive skill）+ `src/amta/koharu_blocks.py`（scene 节点→blocks 纯整形）+ `src/amta/pipeline.py`（引擎 DAG 常量）+ `src/amta/runner.py`（单页流水线执行器）+ `src/amta/chat_client.py`（OpenAI 兼容 HTTP 深模块，翻译/OCR 共用接缝）+ `src/amta/ocr_engines.py`（本地/DashScope/baberu OCR 引擎）+ `src/amta/translate.py`（翻译编排：minimal 路径 VLM refine + LLM 翻译 + 机械护栏，ADR-014/016）+ `src/amta/stage3_minimal.py`（Stage 3 核心：VLM contact sheet refine + LLM 翻译 + build_semantic_context 前页上下文，ADR-023）+ `src/amta/guardrails.py`（机械护栏：结构/日文残留）+ `src/amta/canon_schema.py`（Input gate）/`glossary.py`（Knowledge guardrail）/`suggestions.py`（片假名术语提取+追加+合并）/`evalkit.py`（评测聚合 CER/EM + TEXT_CLASSES，benchmark 共用）+ `src/amta/workstate.py`（per-work workspace + work_state 四层，ADR-013/016）+ `src/amta/tickets.py`（needs_review 工单状态机 + 判例库回写，ADR-017）+ `src/amta/paths.py`（路径/JSON/UTF-8 IO）/`metrics.py`/`geometry.py`/`images.py`（共享库）+ `src/amta/artifacts.py`（产物契约单一事实源，ADR-024）/`config.py`（密钥 env/.env 唯一归属）+ `src/amta/detect_station.py`/`ocr_station.py`/`translate_station.py`（Stage 1-3 深工位，脚本薄 CLI）+ `src/amta/inpaint_strategy.py`/`fonts.py`/`typeset_engine.py`/`typeset_render.py`（Stage 4-6，ADR-019/020/021）+ `src/amta/memory/`（agent 记忆机制：estate/tools/lint，ADR-025）+ `src/amta/report/`（深接口 HTML 报告引擎：行=文字框/列=stage，6阶段可插拔 detect/ocr/filter/translate/inpaint/typeset，区域对齐→图层叠加→HTML生成，统一入口 `scripts/gen_report.py --type {pipeline,final,stage4,inpaint_ab,ab}`，已在 main）。
-- **Stage 4-6（2026-08-27，ADR-019/020/021）**：01/02 契约升级（category 三级分类 + sub_tier 透传 + image_meta；canon 落盘 = doc 信封 schema 2.1，旧裸 list 由 load_canon 兼容读，ADR-024）；`04_inpaint` 工位（category→fill_white/inpaint/skip，koharu lama-manga：`run_inpaint`（双 mask PNG）+ `fetch_inpainted`（WEBP blob 取回），探针定案）；`05_typeset` 工位（自研 Pillow 引擎：方向/折行/字号二分（overlay 强制竖排）+ 渲染 + 4 级字体映射）；00_run_all 新增 `--with-inpaint`/`--with-typeset`。
-- **技能根三路径**：`.dsh/skills`=项目维护根（git 钉版/唯一事实源，包技能一律钉此）；`~/.agents/skills`=只读下载根（`npx skills add` 落点，update 后需重复制同步钉版）；`~/.dsh/skills`=个人跨项目。包技能勿只放 `~/.agents/skills`（ADR-009）。
-
-## 关键坑速查（完整经验见 docs/lessons.md）
-
-> 坑/经验的**唯一归属 = `docs/lessons.md`**（Problem/Root cause/Durable lesson/Prevention/Regression），本文件只留一行指针，不重复。
-
-NO_PROXY · .ps1 带 BOM · ctd_seg 只细化已有框 · patch 后重渲染 · workers>1 崩 · VLM 整页坐标不可靠 · 假数据落盘 · llama.cpp 版本必须 ≥b10582（旧版 MTMD 投影初始化失败） · 通用 VLM 竖排日语系统性差（需漫画微调模型） · 并集框去重漏竖排碎片框（IoU>0.5 不够） · 评测派生指标口径漂移（cer/em 随代码重算） · VLM per-crop GT 不可靠（正式 GT 用整页枚举） · 报告叠加框来源误标 · OCR 评测坐标须用 detector 对齐框（GT bbox 缩略不可靠、勿用单引擎框，页码注意 0/1 基偏移） · llama-server 多模态 cache 误命中不同图（必须 cache_prompt:false，见 L17） · 本地 OCR 默认 Q8_0（BF16 慢 ~30%，参数见 start_llama_ocr.ps1，见 L18） · baberu-OCR 快 28 倍（1s/张，对白 CER 相当，可作 fast path） · pytest Windows 尾部 PermissionError=teardown 噪音（fastcheck 已用 --basetemp 根治；手工跑看 N passed 别信 exit 1，见 L19） · 数字前缀脚本 import 需 `_NN_name.py` 桥（见 L20） · 日文残留判据只用假名（汉字 CJK 共用，见 L21） · `tests/` 一律 pytest 风格，fastcheck 用 pytest 收集（unittest discover 只收 TestCase 会漏，见 L19/L20） · prompt 模板含字面花括号禁 .format()（{{ }} 或 .replace()，见 L24） · 声称全量验证必须有当前 HEAD 可复现基线（未提交旧版跑的数不算，见 L25） · fastcheck/pre-commit 必须用 Python 3.13 全局解释器（PATH 默认 python 是 AutoClaw 的无 pytest/ruff，hook 会拦截 commit，见 L26） · OpenClaw 工具输出对 api_key= 赋值脱敏为 ***，写/读代码后须校验实际内容（见 L27）
-
-## 渐进式加载（问题域启发式：遇到 X → 先做 Y）
-
-> 记忆读取三通道：hook 注入（自动，CLAUDE.local.md 只含 loop_state 接续摘要 + 字典规则）· MCP 字典 memory_search/read（按需，工具面常驻，ADR-027）· memory_* 脚本（按需）· 下表（启发式提示）。完整清单 `python scripts/memory.py index`。
+## 渐进式加载（遇到 X → 先做 Y）
+> 完整 skill 清单看 catalog（name+description 自动注入），此处只列高频记忆检索动作；坑的唯一归属是 `docs/lessons.md`，不在此重复。
 
 | 症状 / 场景 | 先做 |
 |---|---|
-| 任何报错 / 测试失败 / 行为异常 | `python scripts/memory.py grep --query "<关键词>"`（先搜 lessons，别重踩） |
-| 接手任务 / 不知道停在哪 | `python scripts/memory.py recent` |
-| 管线运行完成 / 翻译测试结束 / 任何阶段产物落盘后 | **自动调用 `scripts/gen_report.py --type pipeline` 生成 HTML 报告**（`--work-id <id> --src-dir <原图目录> --pages <范围> --out <workspace>/report.html`），无需用户提醒；报告=原图叠加+每行一个文字框+每列一个stage（detect/ocr/translate/inpaint/typeset 全显示），是验收唯一视觉载体 |
-| 架构 / 选型决策前 | `python scripts/memory.py grep --scope decisions --query "<主题>"` |
-| 改 prompt 模板 / 翻译护栏前 | `python scripts/memory.py read --entry L24`（L21-L23 同查） |
-| 写评测 / 基准数字前 | `python scripts/memory.py grep --query "评测 坐标 GT" --scope lessons` |
-| 新增技能 / 改 SKILL.md | `python scripts/memory.py read --entry L11` |
-| 记忆可疑 / 机制自检 | `python scripts/memory.py status` |
-| 记忆机制设计依据 | `research/07-agent记忆机制详报.md` + `docs/decisions/025-agent-memory-mechanism.md` |
-| 外部调研委派（后台调研 subagent） | `.dsh/skills/research/SKILL.md` |
-| 盘问/苏格拉底式拷问（grill 触发词） | `.dsh/skills/grilling/SKILL.md` |
-| 跑 Benchmark A/B/C | `.dsh/skills/benchmark/SKILL.md` |
-| VLM 标注 crop（oracle 判真假/分类/评分） | `.dsh/skills/oracle-label/SKILL.md` |
-| 后台长任务自主监控（轮询/失败检测/汇报） | `.dsh/skills/background-monitoring/SKILL.md` |
-| 引入第三方依赖前（依赖膨胀拦截） | `.dsh/skills/dependency-guard/SKILL.md` |
-| 驱动 koharu（接口/mask/修复循环） | `.dsh/skills/koharu-drive/SKILL.md` |
-| 回归/发布流程 | `.dsh/skills/verify/SKILL.md` |
-| 任务收尾 / 学习落盘（/finish） | `.dsh/skills/cycle-close/SKILL.md` |
-| Harness 熵审计（/audit） | `.dsh/skills/audit/SKILL.md` |
-| 收尾知识归类委派（finisher subagent） | `.dsh/skills/finisher/SKILL.md` |
-| docs 导航（分工/目录） | `docs/README.md` |
-| 可复用经验库（坑的唯一归属） | `docs/lessons.md` |
-| 架构决策（为什么这样选） | `docs/decisions/README.md` |
-| 引擎 DAG / 目录结构 | `README.md` |
+| 任何报错 / 测试失败 / 行为异常 | `uv run python scripts/memory.py grep --query "<关键词>"`（先搜 lessons，别重踩） |
+| 接手任务 / 不知道停在哪 | `uv run python scripts/memory.py recent` |
+| 架构 / 选型决策前 | `uv run python scripts/memory.py grep --scope decisions --query "<主题>"` |
+| 记忆可疑 / 机制自检 | `uv run python scripts/memory.py status` |
+| docs 导航 | `docs/README.md`（分工）｜`docs/lessons.md`（坑）｜`docs/decisions/`（ADR） |
 
-Skills 与 docs 均按需加载：先看名字/一句话，任务触发时才读全文。
-
-## 工作协议（Finish / Audit / 知识晋升）
-
-- **任务收尾必须走 /finish**（cycle-close skill）：复读任务 → 审查 diff → 确定性验证（`npm run fastcheck`/`finish`，动引擎则加 `smoke`）→ 修复 → 反思 → 知识晋升 → 只更新真正变化的工件 → 输出 Finish Report → git 落盘。
-- **知识晋升管线**：`观察 → 可复用?No 丢弃 / Yes → 会复发?No lesson(docs/lessons.md) / Yes → 五路分流：全局规则(CLAUDE.md) · 流程(.dsh/skills/) · 架构(docs/decisions/ADR-N) · 瞬时(docs/progress.md) · 机械(test/lint/hook)`。反复犯错应逐步变成机器约束（test/lint/hook 是唯一真强制层，rules/lesson 都是 prompt 级），CLAUDE.md 保持精简（目标 <120 行）。
-- **机械护栏（2026-09-07 审计后收敛）**：编码期 `npm run fastcheck`（秒级，agent 收尾必跑）→ **pre-push（.githooks，合 main 前唯一 git 验证门，含可选 smoke）**。pre-commit 与 PreToolUse hook 已停用（改扩展名 `.disabled` / 从 settings.json 移除，可恢复；原因：与 pre-push 逐字节重复、整树无 diff 归属、`git merge-base` 被 PreToolUse 子串误杀）。安装：`scripts/install_hooks.ps1`（`git config core.hooksPath .githooks`）。注意：本地 merge 不 push 时 pre-push 不触发，合 main 前验证以 agent 收尾 fastcheck 为准（CLAUDE.md /finish）。
-- **知识落地产（estate 单一事实源，ADR-027）**：迭代结束产出可复用经验（等价 lesson/ADR 级的决策/踩坑/口径）时，直接落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；estate 动态解析 = 检索面，无需任何额外索引登记。检索一律 `memory.py grep/read`（estate 命名空间 L##/ADR-N），勿用 v0 的 `search`/`add`/`stats`（已退役）。
-- **记忆自举（JIT 触发纪律，补充全量）**：记忆包已自动注入近况/经验摘要，但**完整 lessons/ADR 仍按需读**——每轮任务按关键词 `python scripts/memory.py grep --query <主题> --scope all` 查相关 lessons/ADR（压缩后必读 now.md 全量 `python scripts/memory.py recent`），先查记忆再动手，避免重踩已有坑。记忆机制自检：`python scripts/memory.py status`。
-- **记忆 GC（腐坏自动清理）**：`python scripts/memory.py gc` 归档未归档 today→recent、刷新 now.md（压缩恢复现场）、清空一次性临时目录；已并入 fastcheck 机械护栏。收尾前跑一次确认记忆地产干净。
-- **审计**：每 2-4 周或大里程碑后 `npm run audit` + audit skill，检测记忆膨胀/规则重复/验证缺口/仓库卫生。
-
----
-
-## HTML 报告工具强制规范（违反=造轮子）
-
-**生成任何 HTML 报告必须用 `src/amta/report/` 深接口，禁止在 scripts/ 下新建独立 HTML 生成脚本。**
-
-- 数据模型铁律：`PageReport` = 原图 + `list[StageOutput]`；**行=文字框(region_id)，列=stage**。引擎自动跨阶段按 region_id + bbox IoU 对齐，新增 stage 只需加一个适配器。
-- 统一入口：`scripts/gen_report.py --type {pipeline,final,stage4,inpaint_ab,ab}`。pipeline 类型自动加载 workspace 下全部 6 阶段 artifact（缺哪个自动少一列，不报错）。
-- 新增报告类型 = 在 `src/amta/report/stages/` 加适配器（`from_xxx(data) -> StageOutput`）+ assembler 接一行 + `__init__.py` 导出，**不是**新写一个 `gen_xxx_report.py`。
-- 一次性实验脚本（A/B 探针、验证脚本）归档到 `scripts/probes/`，不占 scripts/ 根目录。
-- 报告规范全文见 `src/amta/report/__init__.py` 文档字符串。
+## 工作协议
+- **任务收尾走 /finish**（cycle-close）：复读任务→审查 diff→确定性验证→修复→反思→知识晋升→只更新真正变化的工件→Finish Report→git 落盘
+- **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·瞬时(docs/progress.md)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层，rules/lesson 是 prompt 级；CLAUDE.md 保持精简
+- **机械护栏分层**：编码期 `uv run python scripts/fastcheck.py`（收尾必跑）→ **pre-commit（每次 commit 跑完整 fastcheck 8 步）→ pre-push（只跑可选 smoke，koharu 可达才跑，不重复 fastcheck）**。安装：`scripts/install_hooks.ps1`（`git config core.hooksPath .githooks`）
+- **知识落地**：可复用经验落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；检索一律 `memory.py grep/read`，先查记忆再动手；GC 用 `memory.py gc`（已并入 fastcheck）；每 2-4 周 `npm run audit`
+- **HTML 报告铁律**：必须用 `src/amta/report/` 深接口，禁止 scripts/ 下新建独立 HTML 生成脚本；新增报告类型=在 `report/stages/` 加适配器，扩展方式见 `src/amta/report/__init__.py` docstring
 
 ## Python 运行规范（强制）
-
-所有 Python 命令必须用 `uv run python`，禁止直接用 `python`。系统 Python 3.14 无依赖，项目 `.venv` 是 Python 3.12 有全部依赖。`uv run` 自动选对解释器。项目包在 `src/` 下，运行模块时需设 `$env:PYTHONPATH="src"`（项目脚本内部已自动处理）。常用短命令见 `run.ps1`。详见 AGENTS.md。
+所有 Python 命令用 `uv run python`，禁止裸 `python`（系统 Python 3.14 无依赖，`.venv` 是 3.12）。项目包在 `src/` 下，脚本内部已自动处理 PYTHONPATH。详见 AGENTS.md。
