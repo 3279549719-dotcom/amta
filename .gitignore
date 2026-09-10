@@ -25,6 +25,13 @@ CLAUDE.local.md
 # ---- 产物目录（默认忽略，特定数据文件例外）----
 output/*
 !output/.gitkeep
+# ⚠️ 目录本身必须先放行，否则下面 3 个 ! 例外永远不会生效。
+# git 规则：父目录被排除时，无法再包含其子文件。`output/*` 会连 `output/data/`
+# 一起排除 → 那 3 个 tracked JSON 一直处于「被忽略」状态。
+# 2026-09-10 实测证据：`git check-ignore --no-index output/data/labels_a.json`
+# 命中 `.gitignore:26:output/*`；后果是任何搬移都得 `git add -f` 才跟得上。
+!output/data/
+output/data/*
 !output/data/labels_a.json
 !output/data/label_manifest.json
 !output/data/ocr_result.json

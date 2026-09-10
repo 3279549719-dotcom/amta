@@ -1,0 +1,10 @@
+# 行尾策略：不做任何转换（字节原样进出）。
+#
+# 背景（2026-09-10）：仓库里几乎所有文本文件都是 LF，而 Windows 上
+# core.autocrlf=true 会在 checkout 时换成 CRLF —— 于是每次 git add 都刷一屏
+# "LF will be replaced by CRLF the next time Git touches it" 警告。
+# 声明 `-text` = 关掉该文件的文本属性推断，git 不再改行尾，警告消失、内容不变。
+#
+# 将来若要把仓库统一成 LF-in-repo，改成 `* text=auto eol=lf`，
+# 并做一次 `git add --renormalize .`（会有一轮大 diff，属预期）。
+* -text

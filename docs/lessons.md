@@ -219,6 +219,10 @@
 - **Root cause**：① MCP 是 pull 模型，触发权在模型行为，无法强制；② 项目记忆包预算 1.5KB 只装接续状态+字典规则（ADR-027 内容契约），坑库全文从不注入；③ 无任何 hook 在提问时按关键词检索记忆。
 - **Durable lesson**：真强制层 = **UserPromptSubmit hook 按 prompt 关键词检索地产并 stdout 注入**（Claude Code 四个 stdout 注入例外事件之一，见 hooks 文档）；"遇错/决策前先查"这种 prompt 级纪律没 hook 就是空话。MCP/CLI 降级为按需打捞（pull），hook 管每轮推送（push）。
 - **Prevention**：scripts/memory_autoinject.py（extract_tokens→do_grep→≤3KB stdout，恒 exit 0，无命中零输出）+ .claude/settings.json UserPromptSubmit 挂载；注入预算 ≤3KB（CC 实测 ~10K 落盘替换为 2KB 预览）。
+- **⚠️ 2026-09-10 更正（DSH 环境）**：上面这条 Prevention **在 DSH 上不成立**——`.claude/settings.json` 的 hook 不被 DSH 解释（见 L11），所以 UserPromptSubmit push 通道**从未存在过**。本条"别只靠 MCP pull"的结论仍然成立，但可用的 push 通道是另一个：
+  - DSH 上每轮必达的是 **agent-instructions 对 `CLAUDE.md` / `AGENTS.md` / `CLAUDE.local.md` 的注入**（不靠模型自觉）；
+  - 所以 push 的正确做法是**喂饱那个注入面**（即 `memory.py inject` 的产出内容与预算），而不是挂 CC hook；
+  - 2026-09-10 实测：MCP 已在 DSH 接通（cordis 插件行 + `scripts/install_dsh_mcp.ps1`，工具名 `mcp__amta-memory__memory_search`），但 **pull 层依旧靠自觉**——该轮改造中我一次都没主动调 `memory_search`，本条描述的失效模式原样复发。**结论：只把 MCP 接通 ≠ 记忆会被用到。**
 - **Regression**：暂无自动化（hook 效果肉眼验证）；规则见本条 + memory_autoinject.py 契约头注释。
 
 ## L35 — CLAUDE_CONFIG_DIR 改配置位置：查 MCP 授权先看 env 再动 ~/.claude.json

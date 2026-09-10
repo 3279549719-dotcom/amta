@@ -45,7 +45,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
 - **机械护栏分层**：pre-commit `fastcheck --quick`（5 步：compile/ruff/pyright/ROOT/env，秒级，**不含 pytest**）→ `state.py finish` 强制跑完整 8 步（含 pytest/depguard/memory）→ pre-push 只跑可选 smoke。安装：`scripts/install_hooks.ps1`。
   ⚠️ **--quick 不是门槛，是门槛的一半**：2026-09-10 事故——脚本清理后 12 条测试永久变红、无人察觉约两天，因为唯一的 commit 拦截层只跑 --quick。**"通过了"必须说明跑的是哪一层。**
-- **指针必须指向活着的东西**：本项目跑在 DSH 上，而 `.claude/`（settings.json hooks）与 `.mcp.json` 是 **Claude Code 方言，DSH 不读**。换 harness 时必须迁移配置面，否则整层 guard 静默死亡（2026-09-10 实测：hook 层与 MCP 层从未通电，而文档一直指向它们）。**任何"某机制已生效"的声明，都要有一条能跑的探针**
+- **指针必须指向活着的东西**：本项目跑在 DSH 上，而 `.claude/`（settings.json hooks）与 `.mcp.json` 是 **Claude Code 方言，DSH 不读**。**具体哪些路径失效、以及当初为什么决定不装 CC hook 桥，见 lessons `L11`**——此处只留指针不复述，免得又长出一份要同步的漂移。推论：任何"某机制已生效"的声明都必须配一条能跑的探针
 - **知识落地**：可复用经验落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；检索一律 `memory.py grep/read`
 - **HTML 报告铁律**：必须用 `src/amta/report/` 深接口，禁止 scripts/ 下新建独立 HTML 生成脚本
 

@@ -34,7 +34,11 @@ def main() -> int:
 
     # finish
     p_fin = sub.add_parser("finish", help="对话结束：先跑完整质检，通过后 git add + commit")
-    p_fin.add_argument("summary", help="commit message（不能为空）")
+    p_fin.add_argument("summary", nargs="?", default=None, help="commit message（不能为空）")
+    p_fin.add_argument(
+        "--message-file", type=Path, default=None,
+        help="从文件读 commit message（多行/含引号时用，绕开 shell 引号地狱）",
+    )
     p_fin.add_argument("--tag", default=None, help="打 tag（里程碑用）")
     p_fin.add_argument(
         "--skip-check", action="store_true",
@@ -54,17 +58,28 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
 
 
 def _cmd_finish(args: argparse.Namespace) -> int:
+    # --message-file 优先：Windows PowerShell 会把多行 message 里的引号当参数分隔符，
+    # 把一条 message 拆成十几个 argv（实测），文件传递绕开这条路。
+    if args.message_file is not None:
+        summary = args.message_file.read_text(encoding="utf-8")
+    else:
+        summary = args.summary
+
+    if not summary or not summary.strip():
+        print("ERROR: 必须提供 summary（positional 或 --message-file）", file=sys.stderr)
+        return 1
+
     if args.skip_check:
         print("[state] !! --skip-check：跳过完整质检直接提交（这次没有门）", file=sys.stderr)
     try:
-        finish_verified(args.summary, tag=args.tag, skip_check=args.skip_check)
+        finish_verified(summary, tag=args.tag, skip_check=args.skip_check)
     except QualityGateFailed as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
-    print(f"[state] finish OK: {args.summary}")
+    print(f"[state] finish OK: {summary.strip().splitlines()[0]}")
     return 0
 
 

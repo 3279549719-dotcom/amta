@@ -26,6 +26,7 @@ from amta.report import (
     render_report,
     render_stage4_report,
 )
+from amta.report.pipeline_report import render_pipeline_report
 
 ROOT = _PATHS_ROOT  # 统一用 paths.ROOT，不自己算
 
@@ -82,48 +83,16 @@ def _cmd_pipeline(a: argparse.Namespace) -> int:
         print("[gen_report] 没有成功渲染任何页面")
         return 1
 
-    html = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>amta 管线报告 — {a.work_id}</title>
-<style>
-body {{ font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:#f0f2f5; color:#1a1a2e; margin:0; padding:24px; line-height:1.6; }}
-.container {{ max-width:1400px; margin:0 auto; }}
-h1 {{ font-size:22px; margin-bottom:4px; }}
-.subtitle {{ color:#666; font-size:13px; margin-bottom:20px; }}
-.stats {{ display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }}
-.stat {{ background:#fff; border-radius:10px; padding:12px 18px; box-shadow:0 1px 4px rgba(0,0,0,.06); min-width:100px; }}
-.stat .num {{ font-size:24px; font-weight:700; color:#1e40af; }}
-.stat .lbl {{ font-size:11px; color:#666; }}
-.page-section {{ background:#fff; border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,.06); }}
-.page-header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f0f0f0; }}
-.page-title {{ font-size:16px; font-weight:700; color:#1e40af; }}
-.layout {{ display:flex; gap:20px; align-items:flex-start; }}
-.img-panel {{ flex:0 0 45%; }}
-.img-panel img {{ width:100%; border-radius:8px; border:1px solid #e5e7eb; }}
-.table-panel {{ flex:1; overflow-x:auto; }}
-table {{ width:100%; border-collapse:collapse; font-size:12px; }}
-th {{ background:#f3f4f6; padding:6px 8px; text-align:left; border-bottom:2px solid #e5e7eb; }}
-td {{ padding:6px 8px; border-bottom:1px solid #f3f4f6; vertical-align:top; }}
-tr:hover {{ background:#f9fafb; }}
-.rid {{ font-weight:600; color:#1e40af; white-space:nowrap; }}
-.footer {{ text-align:center; color:#999; font-size:11px; margin-top:24px; padding:16px; }}
-</style>
-</head>
-<body>
-<div class="container">
-  <h1>amta 管线报告 — {a.work_id}</h1>
-  <div class="subtitle">页面: {a.pages} ｜ 总区域: {total_regions} ｜ 对齐: {total_aligned} ｜ 警告: {total_warnings}</div>
-  {''.join(page_sections)}
-  <div class="footer">amta report tool — 深接口渲染引擎</div>
-</div>
-</body>
-</html>"""
-
-    a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(html, encoding="utf-8")
-    print(f"[gen_report] 报告 -> {a.out} ({a.out.stat().st_size / 1024:.0f} KB)")
+    out = render_pipeline_report(
+        page_sections,
+        work_id=a.work_id,
+        pages=a.pages,
+        out_path=a.out,
+        regions_total=total_regions,
+        regions_aligned=total_aligned,
+        warnings=total_warnings,
+    )
+    print(f"[gen_report] 报告 -> {out} ({out.stat().st_size / 1024:.0f} KB)")
     return 0
 
 

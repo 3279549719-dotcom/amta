@@ -36,16 +36,45 @@ def _compile() -> int:
     return 0 if ok else 1
 
 
+def _resolve_tool(name: str) -> str | None:
+    """确定性地解析工具链：**先本 venv，再 PATH**。
+
+    为什么必须定死（2026-09-10 实测，旧账见 lessons L26）：`shutil.which(name)` 的结果
+    取决于谁在跑——`uv run` 把 PATH 收窄到 venv，于是拿到 `.venv\\Scripts\\ruff.EXE`；
+    直接在 pwsh 里跑则拿到全局 Python313 的 ruff。**同一条命令两个判定**：
+    实测 venv 的报 `I001`，全局的说"无问题"。
+
+    收口原则：一切以 uv 环境为准（CLAUDE.md 规定所有 Python 命令走 `uv run python`）。
+    """
+    exe = ".exe" if os.name == "nt" else ""
+    local = Path(sys.executable).parent / f"{name}{exe}"
+    if local.exists():
+        return str(local)
+    return shutil.which(name)
+
+
+def _resolve_and_report(name: str) -> str | None:
+    """解析工具并**打印结果 + 漂移告警**——让"两个 ruff"这种事可见而不是静默。"""
+    chosen = _resolve_tool(name)
+    if chosen:
+        print(f"== [fastcheck] {name} = {chosen} ==")
+    on_path = shutil.which(name)
+    if chosen and on_path and Path(on_path).resolve() != Path(chosen).resolve():
+        print(f"== [fastcheck] !! {name} 漂移：venv={chosen} ｜ PATH={on_path}（以 venv 为准）==")
+    return chosen
+
+
 def _lint() -> int:
-    py = shutil.which("ruff") or shutil.which("py") or sys.executable
-    if py.lower().endswith("ruff.exe") or Path(py).name.lower() == "ruff":
-        return _run([py, "check", "src", "scripts", "tests"], "ruff lint")
-    # ruff 作为 python 模块
+    ruff = _resolve_and_report("ruff")
+    if ruff:
+        return _run([ruff, "check", "src", "scripts", "tests"], "ruff lint")
+    # 兜底：ruff 作为 python 模块
+    print("== [fastcheck] ruff 未找到可执行文件，回退 python -m ruff ==")
     return _run([sys.executable, "-m", "ruff", "check", "src", "scripts", "tests"], "ruff lint")
 
 
 def _typecheck() -> int:
-    pyright = shutil.which("pyright")
+    pyright = _resolve_and_report("pyright")
     if not pyright:
         print("== [fastcheck] pyright 未安装，跳过 type check ==")
         return 0
