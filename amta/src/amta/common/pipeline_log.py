@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from amta.common.paths import ROOT
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
@@ -25,7 +27,7 @@ def git_head() -> str:
     try:
         r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                            capture_output=True, text=True, timeout=5,
-                           cwd=str(Path(__file__).resolve().parent.parent))
+                           cwd=str(ROOT))
         return r.stdout.strip() or "unknown"
     except Exception:
         return "unknown"

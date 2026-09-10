@@ -13,12 +13,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from amta.common import workstate
+
+# Default master dict path (relative to project root: data/thbwiki_master_dict.json)
+from amta.common.paths import ROOT
 from amta.guards.term_dict import load_master_dict, match_terms
 from amta.stores import artifacts
 from amta.stores.artifact_store import ArtifactStore
 
-# Default master dict path (relative to project root: data/thbwiki_master_dict.json)
-DEFAULT_MASTER_DICT = Path(__file__).parent.parent.parent / "data" / "thbwiki_master_dict.json"
+DEFAULT_MASTER_DICT = ROOT / "data" / "thbwiki_master_dict.json"
 
 
 def run_pre_scan(work_id: str, artifacts_dir: Path | str,

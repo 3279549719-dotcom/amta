@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent.parent  # amta/ 仓库根
+ROOT = Path(__file__).resolve().parent.parent.parent.parent  # amta/ 仓库根（src/amta/common/paths.py → 上溯四级）
 OUTPUT = ROOT / "output"
 DATA = OUTPUT / "data"
 REPORTS = OUTPUT / "reports"

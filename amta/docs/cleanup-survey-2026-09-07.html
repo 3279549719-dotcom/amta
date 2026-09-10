@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>amta 仓库清理盘查 · review-cleanup (2026-09-07)</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --ink: #141414;
+    --ink-2: #4a4a4a;
+    --ink-3: #7a7a7a;
+    --line: #d9d9d9;
+    --accent: #0f766e;
+    --danger: #b3261e;
+    --panel: #f2f2f2;
+    --mono: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+    --sans: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1080px; margin: 0 auto; padding: 72px 48px 96px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 20px; }
+  h1 { font-size: 40px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; margin-bottom: 16px; }
+  .sub { font-size: 17px; color: var(--ink-2); max-width: 60ch; margin-bottom: 32px; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 14px; display: flex; gap: 32px; flex-wrap: wrap; }
+  .meta b { color: var(--ink-2); font-weight: 500; }
+  .toc { margin: 48px 0; padding: 24px 28px; border: 1px solid var(--line); background: var(--panel); }
+  .toc h2 { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
+  .toc ol { list-style: none; counter-reset: t; }
+  .toc li { counter-increment: t; padding: 4px 0; font-size: 14px; }
+  .toc li::before { content: counter(t, decimal-leading-zero) "  "; font-family: var(--mono); color: var(--accent); font-size: 12px; margin-right: 6px; }
+  .toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  section { margin-top: 56px; }
+  h2.sec { font-size: 22px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 6px; }
+  .secnum { font-family: var(--mono); font-size: 12px; color: var(--accent); display: block; margin-bottom: 4px; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin-bottom: 24px; }
+  h3 { font-size: 16px; font-weight: 600; margin: 32px 0 12px; }
+  p.body { max-width: 68ch; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 16px 0 8px; }
+  th { text-align: left; font-weight: 550; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--ink); padding: 8px 10px; white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 1px solid var(--ink); }
+  td.mono, .m { font-family: var(--mono); font-size: 12.5px; }
+  .num { text-align: right; font-family: var(--mono); font-size: 12.5px; }
+  .ok { color: var(--accent); font-weight: 600; }
+  .note { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; }
+  figure { margin: 28px 0; border: 1px solid var(--line); padding: 24px; background: #fff; }
+  figcaption { font-size: 12.5px; color: var(--ink-3); margin-top: 14px; font-family: var(--mono); }
+  .box { border: 1px solid var(--line); border-left: 3px solid var(--accent); padding: 16px 20px; margin: 20px 0; background: var(--panel); font-size: 14px; }
+  .box b { font-weight: 600; }
+  ul.tight { margin: 8px 0 8px 20px; }
+  ul.tight li { margin: 3px 0; }
+  .colophon { margin-top: 72px; border-top: 1px solid var(--line); padding-top: 18px; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  .colophon span { margin-right: 24px; }
+  @media print { body { background: #fff; } .page { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="kicker">amta · repo hygiene survey · 2026-09-07</div>
+  <h1>amta 仓库清理盘查(执行版)</h1>
+  <p class="sub">盘查 + L1/L2 清理已执行完毕:实验脚本清零、运行时状态出库、过期报告归档。本报告记录处置清单与剩余第二波候选,并保留四层定义框架供后续参考。</p>
+  <div class="meta">
+    <span><b>repo</b> E:\manga translator agent</span>
+    <span><b>执行分支</b> review/cleanup-scope → main</span>
+    <span><b>基线</b> d59622d(含 exp/tiling-full 合并 54747cf)</span>
+    <span><b>日期</b> 2026-09-07</span>
+  </div>
+
+  <div class="toc">
+    <h2>目录</h2>
+    <ol>
+      <li><a href="#s1">执行摘要与处置清单</a></li>
+      <li><a href="#s2">架构地图(pipeline + stations + orchestrator)</a></li>
+      <li><a href="#s3">四层定义:清理、梳理、重构、治理</a></li>
+      <li><a href="#s4">配置分离:现状与可能形态</a></li>
+      <li><a href="#s5">剩余第二波候选(可选)</a></li>
+    </ol>
+  </div>
+
+  <section id="s1">
+    <span class="secnum">01</span>
+    <h2 class="sec">执行摘要与处置清单</h2>
+    <p class="lede">Patrick 在 21:17–21:19 已自行完成:exp/tiling-full 合并进 main(merge 54747cf)、瓦片化副引擎正式接入 detect_station(5b68a11)、清理瓦片化实验临时产物(d59622d:删除 18 个根级 _*.py、_tiling_audit/ 44 文件、旧 tiling_report.html)。随后本次清理提交 e9f15aa 完成剩余部分。</p>
+    <table>
+      <tr><th>对象</th><th>处置</th><th>归属</th></tr>
+      <tr><td class="m">根级 _*.py 实验脚本 18 个</td><td class="ok">已删除</td><td>d59622d(Patrick)</td></tr>
+      <tr><td class="m">_tiling_audit/ 44 文件 ~5.1MB</td><td class="ok">已删除</td><td>d59622d(Patrick)</td></tr>
+      <tr><td class="m">scripts/_00_run_all.py 等 5 个旧版重复</td><td class="ok">已删除</td><td>e9f15aa</td></tr>
+      <tr><td class="m">loop_state.json(ralph 运行时状态)</td><td class="ok">移出跟踪 + 入 .gitignore</td><td>e9f15aa</td></tr>
+      <tr><td class="m">docs/ 日期报告 8 个(lesson03/post3/stage4/memory-probe)</td><td class="ok">归档 → docs/archive/2026-09-07/</td><td>e9f15aa</td></tr>
+      <tr><td class="m">research/ 8-27 交接件 4 个 + ralph-log.md</td><td class="ok">归档 → docs/archive/2026-09-07/</td><td>e9f15aa</td></tr>
+      <tr><td class="m">根目录 _*.py 残留</td><td class="ok">0 个</td><td>验收 ✓</td></tr>
+    </table>
+    <div class="box"><b>保留(有意不动):</b>docs/lessons.md(测试守卫锁定)、docs/progress.md(唯一事实来源)、docs/ralph-loop.md(ralph v4 现行文档)、prompt.md(ralph 使命模板)、auth_rules.json(空扩展点)、ADR 001–032、docs/debug(09-05 近期)、docs/superpowers(流程记录)。</div>
+  </section>
+
+  <section id="s2">
+    <span class="secnum">02</span>
+    <h2 class="sec">架构地图</h2>
+    <p class="lede">五站管线 + orchestration 层的 clean architecture(ADR-012/014/018),深接口改造已完成一轮(ADR-024)。为后续 L3 参考保留。</p>
+    <figure>
+      <svg viewBox="0 0 940 340" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Consolas, monospace">
+        <g font-size="11" fill="#0f766e" text-anchor="middle">
+          <text x="80" y="30">漫画页(输入)</text>
+          <text x="470" y="30">pipeline(scripts/00-05_run_all + run.ps1 驱动)</text>
+          <text x="860" y="30">output/(标注+结果)</text>
+        </g>
+        <g font-size="12" fill="#141414" text-anchor="middle">
+          <rect x="10" y="48" width="140" height="52" fill="#f2f2f2" stroke="#0f766e" stroke-width="1"/>
+          <text x="80" y="70">detect_station</text><text x="80" y="86" font-size="10" fill="#4a4a4a">RT-DETR + HayaiOCR</text>
+          <rect x="180" y="48" width="140" height="52" fill="#f2f2f2" stroke="#0f766e" stroke-width="1"/>
+          <text x="250" y="70">ocr_station</text><text x="250" y="86" font-size="10" fill="#4a4a4a">dual-engine</text>
+          <rect x="350" y="48" width="140" height="52" fill="#f2f2f2" stroke="#0f766e" stroke-width="1"/>
+          <text x="420" y="70">translate_station</text><text x="420" y="86" font-size="10" fill="#4a4a4a">term-pre-scan + 3层审校</text>
+          <rect x="520" y="48" width="140" height="52" fill="#f2f2f2" stroke="#0f766e" stroke-width="1"/>
+          <text x="590" y="70">inpaint_station</text><text x="590" y="86" font-size="10" fill="#4a4a4a">lama-manga local</text>
+          <rect x="690" y="48" width="140" height="52" fill="#f2f2f2" stroke="#0f766e" stroke-width="1"/>
+          <text x="760" y="70">typeset_station</text><text x="760" y="86" font-size="10" fill="#4a4a4a">engine+render</text>
+        </g>
+        <g stroke="#7a7a7a" stroke-width="1" fill="none">
+          <path d="M150 74 H178"/><path d="M320 74 H348"/><path d="M490 74 H518"/><path d="M660 74 H688"/>
+          <path d="M80 100 V118"/><path d="M420 100 V118"/><path d="M760 100 V118"/>
+        </g>
+        <g font-size="10" fill="#4a4a4a">
+          <text x="86" y="132">artifact cache/store</text>
+          <text x="300" y="132">memory 机制(ADR-025 四层)</text>
+          <text x="645" y="132">report/(ab/final/stage4)</text>
+        </g>
+        <rect x="10" y="150" width="920" height="60" fill="#0f766e" fill-opacity="0.07" stroke="#0f766e" stroke-width="1"/>
+        <text x="30" y="174" font-size="11" fill="#0f766e">orchestrator/</text>
+        <text x="30" y="192" font-size="11" fill="#141414">pipeline.py · registry.py · context.py · adapters/(detect·ocr·translate·inpaint·typeset) —— 站与适配器解耦(深接口 ADR-024)</text>
+        <g font-size="10" fill="#4a4a4a">
+          <rect x="10" y="230" width="250" height="44" fill="#f2f2f2" stroke="#d9d9d9" stroke-width="1"/>
+          <text x="20" y="250">横切工具:rule_filter · vlm_filter · vlm_verify</text>
+          <text x="20" y="264">term_dict · term_replace · punctuation_align</text>
+          <rect x="290" y="230" width="250" height="44" fill="#f2f2f2" stroke="#d9d9d9" stroke-width="1"/>
+          <text x="300" y="250">koharu_client/blocks · chat_client · ocr_engines</text>
+          <text x="300" y="264">local_lama_inpainter · _lama_ffc/model/util</text>
+          <rect x="570" y="230" width="360" height="44" fill="#f2f2f2" stroke="#d9d9d9" stroke-width="1"/>
+          <text x="580" y="250">治理:CLAUDE/AGENTS hooks(.githooks) · auth_rules.json</text>
+          <text x="580" y="264">(空扩展点) · ralph.ps1 · run.ps1 · .dsh</text>
+        </g>
+      </svg>
+      <figcaption>图 1 · amta 组件视图(观察自 src/ 与 scripts/)</figcaption>
+    </figure>
+  </section>
+
+  <section id="s3">
+    <span class="secnum">03</span>
+    <h2 class="sec">四层定义:清理、梳理、重构、治理</h2>
+    <p class="lede">"优化架构"按风险与动作拆成四层。本次执行 L1 + L2;L3/L4 留作后续(需测试保护与成文约定)。</p>
+    <table>
+      <tr><th>层</th><th>名字</th><th>动作</th><th>风险</th><th>状态</th></tr>
+      <tr><td><b>L1</b></td><td>卫生(清理)</td><td>删临时/过期/重复;补 .gitignore 缺口</td><td>低</td><td class="ok">已完成(d59622d + e9f15aa)</td></tr>
+      <tr><td><b>L2</b></td><td>组织(梳理)</td><td>目录归属、归档规则、docs 分层</td><td>中</td><td class="ok">已完成(docs/archive 生效)</td></tr>
+      <tr><td><b>L3</b></td><td>结构(重构)</td><td>深接口、去重、职责边界、配置分离</td><td>高</td><td>未开始(ADR-024 已有基础)</td></tr>
+      <tr><td><b>L4</b></td><td>治理(防复发)</td><td>实验脚本归置约定、hooks、红线</td><td>低</td><td>未开始(建议下次)</td></tr>
+    </table>
+    <div class="box"><b>L4 一句话建议:</b>约定"一次性实验脚本只进 scripts/probes/ 或 scripts/archive/,根目录与 docs/ 不出现 _ 前缀文件",写进 AGENTS.md,比任何事后清理都省钱。</div>
+  </section>
+
+  <section id="s4">
+    <span class="secnum">04</span>
+    <h2 class="sec">配置分离:现状与可能形态</h2>
+    <p class="lede">若后续做 L3,配置分离有三种形态,按动机选择;当前未做(P 未拍板动机)。</p>
+    <table>
+      <tr><th>形态</th><th>做法</th><th>适合动机</th><th>代价</th></tr>
+      <tr><td><b>a</b></td><td>单一 settings 文件</td><td>"别让魔法数散落"、调参免 grep</td><td>小</td></tr>
+      <tr><td><b>b</b></td><td>环境变量 + .env</td><td>多机/CI 一致</td><td>小</td></tr>
+      <tr><td><b>c</b></td><td>registry 注入(基于 orchestrator/registry.py)</td><td>配置对比实验矩阵(conf sweep 有真实需求)</td><td>最大</td></tr>
+    </table>
+  </section>
+
+  <section id="s5">
+    <span class="secnum">05</span>
+    <h2 class="sec">剩余第二波候选(可选,未动)</h2>
+    <table>
+      <tr><th>对象</th><th>说明</th><th>建议</th></tr>
+      <tr><td class="m">scripts/archive/ 40 个</td><td>已有归档意识</td><td>保留(按需复查)</td></tr>
+      <tr><td class="m">tests/archive/ 8 个</td><td>同左</td><td>保留</td></tr>
+      <tr><td class="m">research/guardrails_exp_v1/</td><td>守卫实验文件夹</td><td>确认后删/归档</td></tr>
+      <tr><td class="m">research/ 编号调研 01–11 + reference/ 3 篇</td><td>调研记录(仅你一人消费)</td><td>可再删,按需</td></tr>
+      <tr><td class="m">docs/superpowers/specs+plans</td><td>SDD 流程记录</td><td>保留(流程资产)</td></tr>
+    </table>
+  </section>
+
+  <div class="colophon">
+    <span>generated by eirin · openclaw</span>
+    <span>worktree: E:\manga translator agent\amta\.worktrees\review-cleanup</span>
+    <span>base: d59622d · cleanup: e9f15aa</span>
+  </div>
+</div>
+</body>
+</html>
