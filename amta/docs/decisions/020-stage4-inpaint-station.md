@@ -1,5 +1,8 @@
 # 020 — Stage 4 inpaint 工位:koharu lama-manga 链路 + 探针定案
 
+> **本决策已被 [ADR-029](./029-lama-manga-local-inference.md) 替代**（2026-09-04：Inpaint 从 Koharu lama-manga HTTP 链路切换为本地 lama-manga 推理）。保留本文档作为历史决策记录。
+
+
 ## Context
 
 - Stage 4（Mask/Inpainting）工位需要基于 ADR-019 的 category 三级分类做擦除（dialogue_bubble 白底直填 bypass / overlay_text+sfx mask+inpaint）。

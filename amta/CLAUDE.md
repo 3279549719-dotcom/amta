@@ -15,11 +15,14 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 | 跑管线 | `uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>` | 启动时自动环境自检；阶段：detect,ocr,translate,inpaint,typeset；**必须包含所有上游依赖阶段**（跑 typeset 必须含 detect,ocr,translate,inpaint）；artifact_cache 自动跳过未变更阶段 |
 | 找代码 | `uv run python scripts/find_code.py <关键词>` | 搜索模块/函数/类，禁止瞎猜路径或硬 grep |
 | 找产物 | `uv run python scripts/artifact.py {find|list|status|invalidate} --work-id <id> --stage <阶段> --page <页>` | 支持 JSON 阶段和图片阶段(final/clean/crops)；page 传数字自动加 page_ 前缀；禁止 Get-ChildItem/glob 翻目录 |
+| 对话状态 | `uv run python scripts/state.py {bootstrap|finish}` | 对话开始 `bootstrap` 读取 git+env 状态（统一格式）；对话结束 `finish "summary"` commit；替代 progress.md，不需要手动跑 git log |
 | 生成报告 | `uv run python scripts/gen_report.py` | 验收唯一视觉载体 |
 | 质检 | `uv run python scripts/fastcheck.py` | 收尾必跑 |
 | 记忆检索 | `uv run python scripts/memory.py {grep|recent|status}` | 先查记忆再动手，别重踩坑 |
 
 ## 必执行 Checklist（chained，AI 自主触发）
+- **对话开始**：先跑 `state.py bootstrap` 读取当前状态（git log + diff + status + env），不需要手动跑 git log，不需要读 progress.md
+- **对话结束**：用 `state.py finish "summary"` commit，不需要手动 git add/commit
 - 找代码/模块/函数位置：**先用 `find_code.py <关键词>`**，再读目标文件
 - 找产物/查缓存/列某阶段文件：**用 `artifact.py`**，禁止翻目录
 - 遇到报错/异常/测试失败：**先按 diagnosing-bugs skill 流程定位根因**，禁止直接猜答案

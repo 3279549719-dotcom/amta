@@ -61,6 +61,20 @@ def main() -> int:
         print("[pipeline] 环境自检未通过，终止运行")
         return 1
 
+    # 状态摘要（Embedded，自动打印当前 git 状态，不需要 AI 记得跑 state bootstrap）
+    from amta.common.state_manager import StateManager
+    sm = StateManager()
+    snap = sm.bootstrap(env_check=False)  # 环境已自检过，不重复
+    print(f"[pipeline] branch={snap.branch}, dirty={snap.dirty}")
+    if snap.dirty:
+        print("[pipeline] 未提交改动:")
+        for line in snap.git_status.strip().splitlines()[:5]:
+            print(f"  {line}")
+    print("[pipeline] 最近 3 commits:")
+    for line in snap.git_log.strip().splitlines()[:3]:
+        print(f"  {line}")
+    print()
+
     result = run_pipeline(config)
 
     # 摘要输出

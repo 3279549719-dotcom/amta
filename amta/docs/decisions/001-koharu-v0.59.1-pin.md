@@ -1,5 +1,8 @@
 # ADR-001：钉 koharu v0.59.1 headless
 
+> **本决策已被 [ADR-029](./029-lama-manga-local-inference.md) 替代**（2026-09-04：Inpaint 引擎从 Koharu HTTP 切换为本地 lama-manga 推理，不再依赖 Koharu 服务）。保留本文档作为历史决策记录。
+
+
 **状态**：已采纳（勿改）
 
 ## 决策
