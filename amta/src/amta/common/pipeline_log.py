@@ -9,12 +9,12 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from amta.common.encoding import run_text_or
 from amta.common.paths import ROOT
 
 
@@ -24,13 +24,7 @@ def _now() -> str:
 
 def git_head() -> str:
     """当前代码版本(commit 短 hash);失败返回 unknown。"""
-    try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                           capture_output=True, text=True, timeout=5,
-                           cwd=str(ROOT))
-        return r.stdout.strip() or "unknown"
-    except Exception:
-        return "unknown"
+    return run_text_or(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, timeout=5).strip() or "unknown"
 
 
 class PipelineLog:

@@ -13,9 +13,10 @@ Embedded 模式：不是"告诉 AI 去跑 git log"，是"调用一个函数就�
 """
 from __future__ import annotations
 
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+from amta.common.encoding import run_text, run_text_or
 
 
 @dataclass
@@ -70,25 +71,24 @@ class StateManager:
             repo_root: git 仓库根目录。None 表示用当前目录（自动向上找 .git）。
         """
         if repo_root is None:
-            # 自动找仓库根
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, check=True,
-            )
+            # 自动找仓库根（走 encoding 收口点：UTF-8 解码，不含宿主 locale）
+            result = run_text(["git", "rev-parse", "--show-toplevel"], timeout=10)
+            if result.returncode != 0 or not result.stdout.strip():
+                raise RuntimeError(
+                    "不在 git 仓库内，无法自动定位 repo_root；请显式传 repo_root",
+                )
             self.repo_root = Path(result.stdout.strip())
         else:
             self.repo_root = Path(repo_root)
 
     def _run_git(self, *args: str) -> str:
-        """跑 git 命令，返回 stdout。失败返回空串。"""
-        try:
-            result = subprocess.run(
-                ["git", *args],
-                cwd=self.repo_root, capture_output=True, text=True, timeout=10,
-            )
-            return result.stdout
-        except (subprocess.TimeoutExpired, OSError):
-            return ""
+        """跑 git 命令，返回 stdout。失败/超时返回空串。
+
+        返回类型**永远是 str**：曾经用 `subprocess.run(text=True)` 时，中文 commit
+        message 会让解码在 reader thread 内失败并静默产出 `stdout=None`，
+        一路传到 `StateSnapshot.__str__` 炸成 AttributeError。
+        """
+        return run_text_or(["git", *args], cwd=self.repo_root, timeout=10)
 
     def bootstrap(self, env_check: bool = True) -> StateSnapshot:
         """对话开始：读取 git + env 状态，返回 StateSnapshot。

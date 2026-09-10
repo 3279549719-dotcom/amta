@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from amta.common.encoding import run_text_or
 from amta.memory.estate import (
     Entry,
     estate_root,
@@ -143,15 +143,11 @@ def do_recent(root: Path) -> str:
     dangling = [f.name for f in r.glob("today-*.md") if not f.name.endswith(".done.md")]
     if dangling:
         out.append(f"## 未归档 today: {', '.join(dangling)}")
-    try:
-        g = subprocess.run(
-            ["git", "log", "-3", "--oneline", "--", "docs", ".remember", "research", "CLAUDE.md"],
-            cwd=str(root), capture_output=True, text=True, timeout=10,
-            encoding="utf-8", errors="replace",  # Windows 默认 locale(gbk) 解码中文提交会炸
-        )
-        if g.returncode == 0 and g.stdout and g.stdout.strip():
-            out.append("## estate 最近提交")
-            out += g.stdout.strip().splitlines()[:3]
-    except (OSError, subprocess.TimeoutExpired):
-        pass  # git 不可用不影响其余输出
+    g = run_text_or(
+        ["git", "log", "-3", "--oneline", "--", "docs", ".remember", "research", "CLAUDE.md"],
+        cwd=root, timeout=10,
+    )
+    if g.strip():
+        out.append("## estate 最近提交")
+        out += g.strip().splitlines()[:3]
     return "\n".join(out)

@@ -29,6 +29,7 @@
 """
 from amta.backends import chat_client, ocr_engines
 from amta.common import config, evalkit, geometry, images, metrics, paths, pipeline_log, workstate
+from amta.common.encoding import force_utf8_stdio
 from amta.guards import guardrails, rule_filter, vlm_filter
 from amta.stations import ocr_station
 from amta.stores import artifacts
@@ -54,3 +55,12 @@ __all__ = [
     "vlm_filter",
     "workstate",
 ]
+
+# ── 包级收口点（Embedded，不是 Chained）────────────────────────────────────────
+# AMTA 是纯库包，只被自己的 scripts/ 与 tests/ 引用（见上 docstring）。因此把
+# stdio 归一化放在包导入期：任何脚本只要 `import amta` 就自动获得 UTF-8 输出，
+# 新增脚本无需记得写 reconfigure。放在末尾是为了不打断上面的 import 块（E402）。
+# 背景：Windows 上 Python 对管道默认用 cp936 编码中文，而 DSH/管道按 UTF-8 读，
+# 结果 agent 侧全是 `�ؼ���`，深接口因此被弃用。详见 amta.common.encoding。
+force_utf8_stdio()
+

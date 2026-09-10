@@ -103,6 +103,49 @@ class TestBootstrap:
         assert "newfile.txt" in snap.git_status
 
 
+class TestWindowsEncodingRegression:
+    """回归（2026-09-10）：中文 commit message 曾让 bootstrap() 直接崩。
+
+    事故链：`git log` 输出 UTF-8 → `subprocess.run(text=True)` 按宿主 locale(cp936) 解码
+    → 解码异常发生在 reader thread 内，run() **不抛异常而返回 stdout=None**
+    → `StateSnapshot.__str__` 的 `self.git_log.strip()` 抛 AttributeError。
+    旧测试全用 ASCII 的 "init" 提交，所以 11 条全绿而接口在真实仓库上必崩。
+    """
+
+    @pytest.fixture
+    def cn_repo(self, tmp_path):
+        """一个带中文 commit message 的仓库——真实仓库的样子。"""
+        repo = tmp_path / "cn-repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, check=True)
+        (repo / "README.md").write_text("# 中文仓库\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "feat: 中文提交信息 修复编码"],
+            cwd=repo, capture_output=True, check=True,
+        )
+        return StateManager(repo_root=repo)
+
+    def test_bootstrap_git_log_is_str_not_none(self, cn_repo):
+        """git_log 永远非 None（None 曾被静默传播成 AttributeError）。"""
+        snap = cn_repo.bootstrap(env_check=False)
+        assert isinstance(snap.git_log, str)
+        assert snap.git_log
+
+    def test_bootstrap_reads_chinese_commit_message(self, cn_repo):
+        """中文 commit message 必须原样读回，不是乱码也不是空。"""
+        snap = cn_repo.bootstrap(env_check=False)
+        assert "中文提交信息" in snap.git_log
+
+    def test_str_snapshot_survives_chinese_repo(self, cn_repo):
+        """str(snap) 不抛异常且含中文——这是 CLI 实际走的那条路径。"""
+        text = str(cn_repo.bootstrap(env_check=False))
+        assert "=== GIT LOG ===" in text
+        assert "中文提交信息" in text
+
+
 class TestFinish:
     """finish(summary) — 对话结束写入状态。"""
 
