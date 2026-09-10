@@ -23,9 +23,14 @@ from __future__ import annotations
 
 import argparse
 import ast
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from amta.common.paths import ROOT as _PATHS_ROOT
+
+ROOT = _PATHS_ROOT  # 统一用 paths.ROOT，不自己算
 SRC = ROOT / "src" / "amta"
 
 # 跳过的目录/文件

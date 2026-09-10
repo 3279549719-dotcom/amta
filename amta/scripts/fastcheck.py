@@ -16,7 +16,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from amta.common.paths import ROOT as _PATHS_ROOT
+
+ROOT = _PATHS_ROOT  # 统一用 paths.ROOT，不自己算
 
 
 def _run(cmd: list[str], label: str) -> int:
@@ -101,6 +105,59 @@ def _memory_inject() -> int:
     return _run([sys.executable, str(ROOT / "scripts" / "memory.py"), "inject"], "memory inject (CLAUDE.local.md)")
 
 
+def _root_check() -> int:
+    """ROOT 路径回归检查（2026-09-10）：确保 paths.ROOT 指向正确的项目根。
+
+    历史教训：paths.py 的 ROOT 上溯级数曾算错（三级→四级），导致 detect 找不到模型、
+    inpaint 找不到 lama 权重、pre_scan 找不到 master dict。此检查在 commit 时自动拦截
+    此类回归，不需要等跑管线才发现。
+    """
+    from amta.common.paths import ROOT
+    expected_dirs = ["models", "src/amta", "scripts", "tests", "docs"]
+    missing = [d for d in expected_dirs if not (ROOT / d).exists()]
+    if missing:
+        print(f"== [fastcheck] ROOT check FAIL: ROOT={ROOT}")
+        print(f"   缺失目录: {', '.join(missing)}")
+        print("   请检查 src/amta/common/paths.py 的 ROOT 上溯级数")
+        return 1
+    # 关键文件检查
+    key_files = ["models/CTBD/detector.onnx", "models/big-lama.pt", "pyproject.toml"]
+    missing_files = [f for f in key_files if not (ROOT / f).exists()]
+    if missing_files:
+        print(f"== [fastcheck] ROOT check FAIL: 缺失关键文件: {', '.join(missing_files)}")
+        return 1
+    print(f"== [fastcheck] ROOT check OK (ROOT={ROOT}) ==")
+    return 0
+
+
+def _env_check() -> int:
+    """环境配置检查（2026-09-10）：确保 .env 存在、API key 能加载。
+
+    只读检查，不修改环境变量（不自动关代理）。完整的环境自检（含自动修复）
+    在 run_pipeline.py 启动时由 amta.common.environment 执行。
+    """
+    from amta.common.paths import ROOT
+    # .env 可以在项目根或父目录
+    env_paths = [ROOT / ".env", ROOT.parent / ".env"]
+    env_found = any(p.exists() for p in env_paths)
+    if not env_found:
+        print("== [fastcheck] env check FAIL: 未找到 .env 文件")
+        print(f"   查找位置: {env_paths[0]} 或 {env_paths[1]}")
+        return 1
+    # 尝试加载配置，确认 API key 存在
+    try:
+        from amta.common.config import get_chat_config
+        cfg = get_chat_config()
+        if not cfg.get("api_key"):
+            print("== [fastcheck] env check FAIL: .env 已加载但 CHAT_API_KEY 为空")
+            return 1
+    except Exception as e:
+        print(f"== [fastcheck] env check FAIL: 加载配置异常: {e}")
+        return 1
+    print("== [fastcheck] env check OK (.env 已加载, API key 存在) ==")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="amta fastcheck 机械质检")
     ap.add_argument("--quick", action="store_true",
@@ -110,10 +167,14 @@ def main() -> int:
     c = _compile()
     lint_rc = _lint()
     t = _typecheck()
+    root_rc = _root_check()
+    env_rc = _env_check()
     checks: list[tuple[str, int]] = [
         ("compile", c),
         ("lint", lint_rc),
         ("typecheck", t),
+        ("ROOT path", root_rc),
+        ("env config", env_rc),
     ]
     if not args.quick:
         u = _test()

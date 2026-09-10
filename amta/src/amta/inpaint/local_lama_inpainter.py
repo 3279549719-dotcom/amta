@@ -18,9 +18,11 @@ import numpy as np
 import torch
 from PIL import Image
 
+from amta.common.paths import ROOT
+
 from ._lama_model import SimpleLama
 
-MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "big-lama.pt"
+MODEL_PATH = ROOT / "models" / "big-lama.pt"
 
 # lama-manga.safetensors 在 Koharu 数据目录下
 _LAMA_MANGA_GLOB = r"D:\我的汉化\workflow\koharu_data\models\**\lama-manga.safetensors"

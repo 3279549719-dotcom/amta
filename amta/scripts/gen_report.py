@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
+from amta.common.paths import ROOT as _PATHS_ROOT
 from amta.report import (
     load_from_workspace,
     render_ab_report,
@@ -27,7 +27,7 @@ from amta.report import (
     render_stage4_report,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = _PATHS_ROOT  # 统一用 paths.ROOT，不自己算
 
 
 def parse_pages(spec: str) -> list[int]:

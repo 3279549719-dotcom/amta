@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from amta.common.paths import ROOT
 from amta.memory.estate import build_pack
 
 DEFAULT_BUDGET = 4096  # DSH 本地 overlay 包预算（CC hook 1.5KB 上限不适用文件加载；4KB 兼顾内容与成本）
@@ -29,7 +30,7 @@ SOURCES = ("startup", "compact", "resume", "clear", "fork")
 
 # 仓库根 = 本模块 src/amta/memory 的上三级（amta）。AGENTS.md/CLAUDE.md 与记忆地产 .remember/ 都在此，
 # DSH 的 agent-instructions 以此扫描注入；不依赖调用时 cwd（fastcheck 在 amta 跑、手工在别处跑都对）。
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = ROOT  # 统一用 paths.ROOT，不自己算
 
 
 def _pack(root: Path, source: str, budget: int) -> str:

@@ -24,7 +24,8 @@ from PIL import Image
 
 SCRIPT_DIR = Path(__file__).resolve().parent  # scripts/probes
 ROOT = SCRIPT_DIR.parent.parent  # 仓库根
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 sys.path.insert(0, str(SCRIPT_DIR.parent))  # 04_inpaint 位于 scripts/ 根
 
 from amta.inpaint.inpaint_station import _apply_fill_white, _build_mask, run as inpaint_run  # noqa: E402

@@ -20,7 +20,8 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 
 from amta.memory.tools import Hit, do_grep, do_read, do_recent
 

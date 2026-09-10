@@ -13,7 +13,8 @@ import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 sys.path.insert(0, str(SCRIPT_DIR))
 
 

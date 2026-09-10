@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from amta.common.environment import run_environment_check
 from amta.orchestrator import PipelineConfig, available_stages, run_pipeline
 
 
@@ -54,6 +55,11 @@ def main() -> int:
         force_rerun=a.force_rerun,
         continue_on_error=a.continue_on_error,
     )
+
+    # 环境自检门卫（Embedded，自动执行，不需要 AI 记得调用）
+    if not run_environment_check(stages):
+        print("[pipeline] 环境自检未通过，终止运行")
+        return 1
 
     result = run_pipeline(config)
 

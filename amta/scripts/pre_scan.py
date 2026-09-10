@@ -16,7 +16,8 @@ from pathlib import Path
 
 # Ensure project root is on sys.path for `amta` import
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 
 from amta.guards.pre_scan import run_pre_scan
 

@@ -19,11 +19,9 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
-from amta.common.paths import write_json
+from amta.common.paths import ROOT, write_json
 
-# 项目根：src/amta/detect_station.py → 上溯三级到项目根
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-MODEL_PATH = _PROJECT_ROOT / "models" / "CTBD" / "detector.onnx"
+MODEL_PATH = ROOT / "models" / "CTBD" / "detector.onnx"
 
 
 # ---- 几何工具 ----
