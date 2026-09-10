@@ -1,22 +1,88 @@
 # ============ 仓库根 = E:\manga translator agent ============
-# 本文件覆盖"父目录工作区"资产；amta/ 内部的忽略规则见 amta/.gitignore
+# 2026-09-10 平铺：原 amta/ 子目录已并入仓库根。
+# 本文件 = 原 amta/.gitignore 的全部规则 + 原父层独有规则（.firecrawl/）。
+# 原父层的迁移期条目（_relocation_backup/、_verify_relocation.ps1、amta-cleanup-wt/、
+# teach-skill.zip）已随迁移结束删除。
 
-# ---- 密钥（绝不入库）----
-.env
+# ---- Node / npm ----
+node_modules/
 
-# ---- 会话记忆 / 工具缓存 / 运行时状态 ----
-.remember/
-.agent-teams/
-.firecrawl/
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv*
+*.egg-info/
 .pytest_cache/
-.ruff_cache/
 
-# ---- worktree（嵌套仓库，不入库）----
-amta-cleanup-wt/
+# ---- 本地密钥 / 配置 ----
+.env
+.env.local
+*.local
+# DSH agent-instructions 自动注入的本地 overlay（记忆包，生成物，不入库）
+AGENTS.local.md
+CLAUDE.local.md
 
-# ---- 迁移期备份 / 临时验收脚本 ----
-_relocation_backup/
-_verify_relocation.ps1
+# ---- 产物目录（默认忽略，特定数据文件例外）----
+output/*
+!output/.gitkeep
+!output/data/labels_a.json
+!output/data/label_manifest.json
+!output/data/ocr_result.json
 
-# ---- 一次性模板 ----
-teach-skill.zip
+# ---- 模型权重 / 参考克隆（大文件，不入库）----
+models/
+
+# ---- 测试集页面（大图片，不入库，见 testsets/README.md）----
+testsets/pages/
+
+# ---- 记忆包 / 缓存 ----
+.remember/
+.firecrawl/
+
+# ---- VCS ----
+.git/
+
+# ---- git worktree 隔离目录 ----
+.worktrees/
+
+# ---- per-work 产物（ADR-013：raw/artifacts/state JSON 不入库）----
+workspace/*/raw/
+workspace/*/artifacts/
+
+# ---- workstate 动态目录（init_workspace 创建，不入库）----
+workspace/ws-*/
+
+# SDD workspace (superpowers subagent-driven ledger, 不入库)
+.superpowers/
+
+# ---- realrun 备份 ----
+workspace/*/backup*/
+
+# DSH agent-teams 运行时状态(不入库)
+.agent-teams/
+
+# ---- research reference repos (cloned, 不入库) ----
+reference/repos/
+research/reference-repos/
+research/mb-research/
+
+# ---- temp debug / research notes ----
+workspace/dbg/
+research_tmp_*.md
+
+
+# workspace 运行时数据（全量不入库）
+workspace/
+
+
+# ---- 调研/参考的重资产（从根级移入：第三方克隆 / 探针产物 / 模板，可再生成）----
+reference/_vendor/
+reference/other artifacts/
+research/koharu-upstream/
+research/08-ocr-vlm-audit-probe/
+
+# ---- 运行时状态(ralph loop 状态文件,不入库)----
+loop_state.json
+
+# ---- 平铺迁移期留存（确认无用后删）----
+.remember.parent-era-20260906/
