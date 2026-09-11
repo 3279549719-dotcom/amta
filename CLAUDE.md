@@ -16,7 +16,8 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 | 找代码 | `uv run python scripts/find_code.py <关键词>` | 搜索模块/函数/类，禁止瞎猜路径或硬 grep |
 | 找产物 | `uv run python scripts/artifact.py {find\|list\|status\|invalidate} ...` | 参数按子命令不同：`find` 要 `--stage`+`--page`；`list` 要 `--stage`；`status`/`invalidate` **不接受 `--stage`**（`invalidate` 要 `--page`）。公共参数 `--work-id <id>`。拿不准先 `--help`，别照抄本行 |
 | 对话状态 | `uv run python scripts/state.py {bootstrap\|finish}` | 对话开始 `bootstrap` 读 git+env+diff 状态（统一格式）；对话结束 `finish "summary"` 落盘——**它会先跑完整质检，红了就拒绝提交**（急用时 `--skip-check`）；替代 progress.md，不需要手动跑 git log |
-| 生成报告 | `uv run python scripts/gen_report.py` | 验收唯一视觉载体 |
+| 生成报告 | `uv run python scripts/gen_report.py` | 验收唯一视觉载体；深接口：`--granularity page|region` + `--stages raw,detect,ocr,translate,inpaint,typeset` 自由组合 |
+| 分享文件 | `uv run python scripts/share_file.py --file <路径>` | 一键上传到飞书云空间并生成公网链接（互联网任何人可阅读）；手机端查看产物时必用，禁止给本地路径 |
 | 质检 | `uv run python scripts/fastcheck.py` | 收尾必跑 |
 | 记忆检索 | `uv run python scripts/memory.py {grep|recent|status}` | 先查记忆再动手，别重踩坑 |
 
