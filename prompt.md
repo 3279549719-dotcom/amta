@@ -111,7 +111,6 @@ commit body 写清：做了什么、依据、验证结果。每个 chunk 至少�
    - 架构/选型方向 → `docs/decisions/ADR-N`
    - 全局规则 → `CLAUDE.md`（精简一行）
    - 流程/程序 → `.dsh/skills/`
-   - 瞬时/进程级观察（本轮循环暴露的洞，非任务专属）→ `docs/progress.md`
    - 机械可校验 → tests/lint/hook（唯一真强制层）
    没真货就不写：纯执行、无新坑的 mission 零 lesson 是**正常的**。任务专属细节进 commit body，别进 lessons。
 5. **Finish Report**：把 成果/验证/遗留/晋升了啥 写进 `loop_state.last_verified` 和 escalation（有遗留才写），

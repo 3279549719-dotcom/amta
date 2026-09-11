@@ -2,7 +2,7 @@
 
 唯一归属：产物信封与 schema、页键与 region_id 规则（全链单空间
 page_{idx}_u{i:02d}）、产物/trace 文件命名、load_*(normalize+validate) /
-save_*(信封盖章)。设计依据 docs/superpowers/specs/2026-08-30-stage123-deep-interfaces-design.md。
+save_*(信封盖章)。
 schema_version "2.1" = front3 "2.0" → canon doc 化 + region_id 单空间。
 """
 from __future__ import annotations

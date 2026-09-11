@@ -5,7 +5,6 @@
 约定：
 - 每条一个文件，`NNN-标题.md`，短小。
 - 只有**改动架构/方向**的决策才写；日常实现细节不写。
-- 与 `docs/progress.md` 的「已锁定决策」互补：这里存**理由**，progress.md 只存当前状态指针。
 
 ## 索引
 
@@ -42,3 +41,4 @@
 - [031 — 翻译质量三修复：术语表接入 + 数组契约防错位 + 字体大小第一性原理](./031-translation-quality-triple-fix.md)
 - [032 — Hook 体系审计收敛（停用 pre-commit + PreToolUse，保留 pre-push + SessionStart）](./032-hook-guard-convergence.md)
 - [033 — 移除 bubble_type (text_bubble/text_free) 标签](./033-remove-bubble-type-label.md)
+- [034 — 从 rule_filter 移除几何规则（edge_box / extreme_aspect）](./034-remove-geometric-rules-from-rule-filter.md)

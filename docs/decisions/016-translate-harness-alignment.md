@@ -66,5 +66,5 @@ work_state 状态由三层（confirmed/inferred/candidate）**加 observed 层�
 - ✅ Tools 有契约（TERM_BUDGET/VISION_BUDGET），vision token 受控。
 - ✅ State 四层语义完整，observed→confirmed 自动晋升 + 导演降级。
 - ⚠️ **修订 ADR-014 的"③ 是粗筛+随机"表述**：保留"粗筛+随机"性质判定，补充"四维评分=导演排序/监控、不当闸门"。
-- ✅ 参考：实现见 `docs/superpowers/plans/2026-08-26-translate-harness-alignment.md`；判例库 `testsets/case_law.json`。
+- ✅ 参考：实现见本仓库 git history；判例库 `testsets/case_law.json`。
 - ✅ 修订两处（2026-08-26）：§4 预取→真 FC（a44f7e4，86/86 全译出、探针 8 次自主工具调用、机械护栏零错、首轮评审 79/86）；§6 导演语义 loop→DeepSeek 自修复+工单（d78ed74，判例 5 fail 样本 4 条 round1 自动修好（2 条与手动修订一字不差），1 条术语冲突进工单→导演校准术语表→1 轮通过）。

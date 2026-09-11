@@ -6,7 +6,7 @@
 ## Context
 
 - Stage 4（Mask/Inpainting）工位需要基于 ADR-019 的 category 三级分类做擦除（dialogue_bubble 白底直填 bypass / overlay_text+sfx mask+inpaint）。
-- 引擎选型：koharu v0.59.1 内置 lama-manga（CPU-only 唯一现实选择，CLAUDE.md 定案）；koharu 文档未明示 mask 上传/结果取回契约 → **2026-08-27 探针实测定案**（`docs/superpowers/plans/2026-08-27-stage4-probe-findings.md`）。
+- 引擎选型：koharu v0.59.1 内置 lama-manga（CPU-only 唯一现实选择，CLAUDE.md 定案）；koharu 文档未明示 mask 上传/结果取回契约 → **2026-08-27 探针实测定案**（探针结论已沉淀在本 ADR 中）。
 
 ## Decision
 

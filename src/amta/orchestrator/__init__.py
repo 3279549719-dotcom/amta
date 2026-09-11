@@ -13,7 +13,6 @@
   get_registry()   — 获取所有阶段声明
   available_stages() — 列出可用阶段名
 
-设计依据：docs/superpowers/specs/2026-09-02-pipeline-orchestrator-design.md
 """
 from .context import (
     PipelineConfig,

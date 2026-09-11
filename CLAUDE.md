@@ -39,7 +39,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 | 任何报错 / 测试失败 / 行为异常 | `memory.py grep --query "<关键词>"`（先搜 lessons，别重踩） |
 | 接手任务 / 不知道停在哪 | `memory.py recent` |
 | 架构 / 选型决策前 | `memory.py grep --scope decisions --query "<主题>"` |
-| docs 导航 | `docs/README.md`（分工）｜`docs/lessons.md`（坑）｜`docs/decisions/`（ADR）｜`docs/module-map.md`（代码地图） |
+| docs 导航 | `docs/lessons.md`（坑）｜`docs/decisions/`（ADR）｜`docs/module-map.md`（代码地图） |
 
 ## 工作协议
 - **任务收尾走 /finish**（cycle-close）：复读任务→审查 diff→确定性验证→修复→反思→知识晋升→只更新真正变化的工件→Finish Report→git 落盘

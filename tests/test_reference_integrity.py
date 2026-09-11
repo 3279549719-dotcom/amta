@@ -16,7 +16,7 @@
 
 ## 扫描范围（关键决定）
 
-**只扫活文件**。`docs/archive/`、`docs/superpowers/`、`research/`、`docs/progress.md`
+**只扫活文件**。`research/`
 是历史记录：里面的旧编号是**当时的事实**，不要求符合今天的状态。
 对它们报错等于伪造历史，而且会让守卫永久变红 → 被人关掉 → 白做。
 
@@ -48,7 +48,6 @@ LIVE_DOCS = (
     "docs/lessons.md",
     "docs/decisions",
     "docs/module-map.md",
-    "docs/README.md",
 )
 
 # 明确豁免：这些是历史记录或生成物，不适用「今天必须成立」
@@ -61,7 +60,6 @@ EXEMPT_PARTS = (
     "output",
     "workspace",
     "superpowers",   # 历史实施计划（sdd ledger）
-    "progress.md",   # append-only 日志
 )
 
 _LESSON_REF = re.compile(r"\bL(\d{1,3})\b")

@@ -39,7 +39,7 @@
 - **detection 漏检问题**：部分竖排文字/拟声词未被 detection 检测到（如 page11"はっ……"、page13"ビッ"），Baseline 也有同样问题，属于 detection 模块而非 inpainting 问题，后续可单独优化 detection 召回率。
 - **速度优化空间**：当前用 CPU 推理（PyTorch 不支持 DirectML），如有 GPU 可进一步加速；也可探索 ONNX 导出 + ONNX Runtime 加速。
 - **相关经验教训**：L38（模型推理预处理/后处理必须对齐参考实现）、L39（整页推理 vs 裁剪推理）。
-- **设计文档**：`docs/superpowers/specs/2026-09-04-inpaint-speed-ab-test.md`（第十二节记录最终结果和决策）。
+- **设计文档**：AB 测试结论已沉淀在本 ADR 第十二节。
 - **实验报告**：飞书公开链接 https://my.feishu.cn/file/PV2WbA6jroH04dxb0rncTkOznpe
 - **commit 记录**：
   - `d39bc76` FFC ResNet 模型定义

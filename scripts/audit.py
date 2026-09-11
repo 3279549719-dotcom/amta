@@ -133,7 +133,7 @@ SCAN_EXCLUDE_DIRS = (
 )
 
 # 归档目录：**归档时复制一份正是归档的语义**，所以这里的重复不算「事实源分裂」。
-# docs/archive/ 与 docs/superpowers/plans/ 各有一份内容完全相同的
+# 历史归档已清理（2026-09-11）：docs/archive/ 与 docs/superpowers/ 已删除
 # 2026-08-27-front3-stages-v2.md —— 那是归档快照，不是重复维护。
 ARCHIVE_DIRS = ("archive", )
 

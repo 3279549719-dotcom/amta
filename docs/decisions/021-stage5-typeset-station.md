@@ -4,7 +4,7 @@
 
 - Stage 4-6 蓝图（Gemini）Stage 5 Typesetting 要求自适应排版（椭圆内切折行/字号二分/避头尾/字体映射）。两路线：koharu 自带 renderer vs 自研 Pillow 纯算法引擎。
 - 2026-08-27 架构讨论，Patrick 拍板 **Q1：自研 Pillow 引擎**（零依赖铁律 ADR-009/018，契约自控，可单测，不受 koharu 钉版约束）；**Q2：系统字体跑 MVP**（不下载不打包）。
-- Spec：`docs/superpowers/specs/2026-08-27-stage5-typeset-design.md`；契约前置：ADR-019（category/sub_tier/items/image_meta）。
+- 契约前置：ADR-019（category/sub_tier/items/image_meta）。
 
 ## Decision
 

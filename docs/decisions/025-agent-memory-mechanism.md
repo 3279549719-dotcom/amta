@@ -15,4 +15,4 @@
 
 ## 备注
 - 原 024 编号已被《Stage 1-3 深接口改造》（024-deep-interface-refactor.md）占用，本 ADR 顺延为 025。
-- 实施细节见 docs/superpowers/plans/2026-08-30-agent-memory-system.md；实施中的实现修正（end_line 换算、ADR 索引 MULTILINE、subprocess 编码、budget 量法）记录在 feature/agent-memory 分支各 commit。
+- 实施细节见 feature/agent-memory 分支各 commit；实施中的实现修正（end_line 换算、ADR 索引 MULTILINE、subprocess 编码、budget 量法）记录在 feature/agent-memory 分支各 commit。

@@ -135,6 +135,7 @@
 - **`review.py`** — review —  独立 model 审核门（ADR-030）：让一个"不知道你做了什么"的第二个模型独立审 diff。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
 - **`run_stage4_e2e_11_20.py`** — 批量跑 11-20 页 04_inpaint（精修mask + lama-manga）。
+- **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
 - **`smoke_test.py`** — AMTA 冒烟测试：验证 koharu headless API 通路（建项目→传图→跑检测→读场景→关项目）。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
 - **`trace_probe.py`** — trace_probe — 读 claude 会话 JSONL 的轻量探针（心跳 / 卡死诊断 / trace 统计）。
