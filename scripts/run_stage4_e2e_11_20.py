@@ -53,7 +53,13 @@ for n in PAGE_RANGE:
         "--refine-mask",
         "--engine", "lama-manga",
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    # encoding 必须显式指定（2026-09-11）：子进程是 amta CLI，输出中文日志；
+    # 裸 text=True 按宿主 locale(cp936) 解码，失败会在 reader thread 里被吞掉，
+    # proc.stdout / proc.stderr **静默变成 None**，下面的 .strip() / 切片立刻炸 AttributeError。
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=600,
+    )
     elapsed = time.time() - t0
     if proc.returncode == 0:
         print(f"[ok  ] page_{n} ({elapsed:.1f}s) {proc.stdout.strip()[-120:]}")

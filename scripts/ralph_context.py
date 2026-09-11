@@ -7,7 +7,7 @@
   - done-msg：从 loop_state 搬运 mission/current_step/next_action，生成 DONE commit message
 
 被 ralph.ps1 调用（uv run python scripts/ralph_context.py <cmd>）。
-零依赖（stdlib only）。
+仅依赖 stdlib + amta.common.encoding（UTF-8 子进程收口，见 _cmd_preamble 注释）。
 """
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 MAX_LINE = 200  # DONE message 单行上限，避免 commit message 过长
 
@@ -58,27 +60,30 @@ def build_done_message(state: dict) -> str:
 
 
 def _cmd_preamble(args: argparse.Namespace) -> int:
-    """CLI: preamble — 跑 memory_index + git log，输出开工注入块。"""
+    """CLI: preamble — 跑 memory_index + git log，输出开工注入块。
+
+    **两个子进程都必须走 `run_text`（UTF-8 收口），不能用裸 `subprocess.run(text=True)`**
+    （2026-09-11 修）：这里读的是 **中文记忆索引 + 中文 commit message**，
+    而 `text=True` 按宿主 locale（本机 cp936/gbk）解码 —— 解码在 reader thread 里
+    抛 UnicodeDecodeError 并被吞掉，`stdout` **静默变成 None**，随后 `rstrip()` 炸
+    AttributeError。这是 ralph.ps1:107 的开工注入路径：一炸，agent 就带着空 preamble 醒来。
+    同一个坑 2026-09-10 已修过 `state.py bootstrap`，此处是它在 ralph 链路里的复发。
+    """
+    from amta.common.encoding import run_text
+
     root = Path(args.root).resolve() if args.root else Path.cwd()
     # memory_index
     try:
-        import subprocess as _sp
-
-        mi = _sp.run(
+        mi = run_text(
             [sys.executable, str(root / "scripts" / "memory.py"), "index"],
-            capture_output=True, text=True, cwd=str(root), timeout=30,
+            cwd=root, timeout=30,
         )
         memory_index = mi.stdout
     except Exception:
         memory_index = "(memory_index 调用失败)"
     # git log
     try:
-        import subprocess as _sp
-
-        gl = _sp.run(
-            ["git", "log", "--oneline", "-20"],
-            capture_output=True, text=True, cwd=str(root), timeout=15,
-        )
+        gl = run_text(["git", "log", "--oneline", "-20"], cwd=root, timeout=15)
         git_log = gl.stdout
     except Exception:
         git_log = "(git log 调用失败)"

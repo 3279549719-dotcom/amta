@@ -105,3 +105,118 @@ class TestRunTextOr:
     def test_returns_default_on_timeout(self):
         code = "import time; time.sleep(5)"
         assert run_text_or([sys.executable, "-c", code], timeout=0.2, default="timeout") == "timeout"
+
+
+# ------------------------------------------------- 系统守卫：不许再长出裸 text=True
+#
+# 为什么加这条（2026-09-11 实测）：
+# 同一个坑在这一天**第三次复发**——新写的 `tests/test_artifact_cli.py` 里
+# `subprocess.run(..., text=True)` 读中文 stderr，解码在线程里炸掉、stderr 静默变
+# None，断言 `result.stderr.lower()` 抛 AttributeError，全量门 501 passed → 1 failed。
+#
+# 前两次（state.py bootstrap、run_text 收口）都是**逐点修复**，所以坑又长回来了。
+# 这条守卫把「逐点修」升级为「系统性拦截」：直接扫源码，发现裸 text=True 就红。
+
+# 允许保留的白名单：这些调用**只读 ASCII**（git config 值、本机路径），
+# 不接触中文，改造它们的收益为负（引入 amta 依赖反而扩大耦合面）。
+_ALLOWED_BARE_TEXT_TRUE = {
+    # 只读 git config（ASCII 路径/布尔值）
+    ("tests/test_lessons_guard.py", "subprocess.run"),
+    ("tests/test_state_manager.py", "subprocess.run"),
+    ("tests/test_ralph_context.py", "subprocess.run"),
+    # hook 脚本：调用方是 CC 方言的 hook 运行时，输出是 JSON（ASCII）
+    ("scripts/hook_pretooluse.py", "subprocess.run"),
+    ("scripts/hook_sessionstart.py", "subprocess.run"),
+    # fastcheck 的 pytest 调用：输出含中文，但它自己解析 "N passed"（ASCII 正则）
+    ("scripts/fastcheck.py", "subprocess.run"),
+}
+
+_BARE_TEXT_TRUE_OWNERS = {"subprocess.run", "subprocess.Popen", "_sp.run", "sp.run"}
+
+
+def _bare_text_true_calls(path: Path) -> list[tuple[int, str]]:
+    """AST 找出「有 text=True 但没有 encoding=」的 subprocess 调用。
+
+    用 AST 而不是正则：正则会被 docstring 里描述这个坑的**说明文字**误伤
+    （本仓库已经因为"把提及当成引用"假红过两次，见 test_reference_integrity）。
+    """
+    import ast
+
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        # 归一化被调用者名字：subprocess.run / _sp.run / sp.run
+        if isinstance(fn, ast.Attribute):
+            name = fn.attr
+            owner = getattr(fn.value, "id", "") or getattr(fn.value, "attr", "")
+            dotted = f"{owner}.{name}" if owner else name
+        elif isinstance(fn, ast.Name):
+            dotted = fn.id
+        else:
+            continue
+        if dotted not in _BARE_TEXT_TRUE_OWNERS:
+            continue
+        kwargs = {k.arg for k in node.keywords if k.arg}
+        if "text" not in kwargs and "universal_newlines" not in kwargs:
+            continue
+        if "encoding" in kwargs:
+            continue
+        found.append((node.lineno, dotted))
+    return found
+
+
+class TestNoBareTextTrueInLiveCode:
+    """活代码里不许出现「text=True 但没有 encoding=」——那是 Windows 上的静默炸弹。"""
+
+    def _scan(self) -> list[str]:
+        offenders: list[str] = []
+        for base in ("src", "scripts", "tests"):
+            for path in (REPO_ROOT / base).rglob("*.py"):
+                if "__pycache__" in path.parts or ".venv" in path.parts:
+                    continue
+                rel = path.relative_to(REPO_ROOT).as_posix()
+                for lineno, dotted in _bare_text_true_calls(path):
+                    if (rel, dotted) in _ALLOWED_BARE_TEXT_TRUE:
+                        continue
+                    offenders.append(f"{rel}:{lineno} → {dotted}(text=True) 缺 encoding=")
+        return offenders
+
+    def test_no_bare_text_true(self):
+        offenders = self._scan()
+        assert not offenders, (
+            "发现裸 `text=True`（缺 encoding=）：Windows 上按 cp936 解码中文会在线程内\n"
+            "抛 UnicodeDecodeError 并被吞掉，导致 stdout/stderr **静默变成 None**，\n"
+            "下游 `.lower()` / `.strip()` 抛 AttributeError（2026-09-11 实测复发）。\n"
+            "修法：改用 `amta.common.encoding.run_text` / `run_text_or`，\n"
+            "或就地加 `encoding=\"utf-8\", errors=\"replace\"`。\n  " + "\n  ".join(offenders)
+        )
+
+    def test_scanner_actually_detects_violations(self, tmp_path):
+        """守卫必须真的能红——用一个人造违规文件证明扫描器不是空转。"""
+        bad = tmp_path / "bad_module.py"
+        bad.write_text(
+            "import subprocess\n"
+            "def f():\n"
+            "    return subprocess.run(['git', 'log'], capture_output=True, text=True)\n",
+            encoding="utf-8",
+        )
+        assert _bare_text_true_calls(bad), "扫描器没能识别人造违规——守卫是空转的"
+
+    def test_scanner_accepts_compliant_call(self, tmp_path):
+        """对照组：带 encoding= 的调用不该被报。"""
+        good = tmp_path / "good_module.py"
+        good.write_text(
+            "import subprocess\n"
+            "def f():\n"
+            "    return subprocess.run(['git', 'log'], capture_output=True,\n"
+            "                          text=True, encoding='utf-8', errors='replace')\n",
+            encoding="utf-8",
+        )
+        assert not _bare_text_true_calls(good), "带 encoding= 的合规调用被误报"

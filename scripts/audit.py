@@ -16,6 +16,8 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
 ROOT = Path(__file__).resolve().parent.parent
 
 CLAUDE_MAX_LINES = 120
@@ -83,13 +85,20 @@ def audit_output_json() -> list[str]:
 
 
 def audit_gitignore_leak() -> list[str]:
-    import subprocess
+    """git ls-files 走 run_text（UTF-8 收口）。
+
+    这里列的是**仓库里真实存在的文件路径**，本项目路径含中文（如 `docs/决策/…`、
+    `workspace/touhou-…/`）。裸 `subprocess.run(text=True)` 按宿主 locale(cp936)
+    解码，遇到非 GBK 字节会在 reader thread 里抛 UnicodeDecodeError 并被吞掉，
+    `.stdout` **静默变成 None**，随后 `.strip()` 炸 AttributeError ——
+    一个"审计工具自己崩了"的假象。同坑 2026-09-10 修过 state.py，2026-09-11 修本处。
+    """
+    from amta.common.encoding import run_text
 
     try:
-        out = subprocess.run(
+        out = run_text(
             ["git", "-C", str(ROOT), "ls-files", "output/", "models/", "testsets/pages/"],
-            capture_output=True,
-            text=True,
+            cwd=ROOT,
         ).stdout.strip()
     except Exception:
         return ["无法运行 git ls-files（跳过 gitignore 泄漏检查）"]
