@@ -80,7 +80,7 @@
 ## `stations/` — amta.stations — 各 Stage 顶层薄工位（脚本 CLI 对接的确定性入口）。
 
 - **`detect_station.py`** — (无 docstring)
-- **`ocr_station.py`** — Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。（函数: _crop_by_region, _should_filter_by_conf, ocr_page）
+- **`ocr_station.py`** — (无 docstring)
 
 ## `stores/` — amta.stores — 产物/工件存储层。
 
@@ -97,14 +97,14 @@
 ## `typeset/` — amta.typeset — Stage 5/6 排版（自研 Pillow 引擎，ADR-019/020/021）。
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
-- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: infer_direction_from_bbox, wrap_text, wrap_vertical, _fits, _max_size_for_direction）
+- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, wrap_text, wrap_vertical, _fits）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: render_item, _render_vertical, _draw_rotated_char）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
 
 ## `scripts/` — CLI 工具入口
 
 - **`apply_revisions.py`** — apply_revisions — 导演语义 loop 的修订落盘（ADR-016）。
-- **`artifact.py`** — artifact — 统一产物管理 CLI（ArtifactStore + ArtifactCache 的命令行包装）。
+- **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
 - **`audit.py`** — audit — 轻量 Harness 熵审计（/audit 的确定性部分）。
 - **`baberu_ocr.py`** — Baberu OCR 封装：对裁剪图批量推理，输出每图文字。
 - **`benchmark.py`** — Benchmark A/B/C — 用数据钉死 koharu v0.59.1 的能力边界。

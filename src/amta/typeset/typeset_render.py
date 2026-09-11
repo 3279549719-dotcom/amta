@@ -3,6 +3,8 @@
 ADR-033 决策C：render_item 不再接收 direction，由 fit_font_size 双方向选优返回。
 竖排支持多列（从右到左排列，每列从上到下），与横排多行对称。
 方向推断：从 bbox 长宽比推断原文方向，作为 preferred_direction 传入 fit_font_size。
+
+2026-09-11 基准字号改造：render_item 新增 base_size 参数，传给 fit_font_size。
 """
 from __future__ import annotations
 
@@ -15,12 +17,16 @@ from amta.typeset.typeset_engine import CHAR_WIDTH_RATIO, LINE_HEIGHT_RATIO, fit
 
 def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
                 stroke: int, color=(0, 0, 0),
-                preferred_direction: str | None = None) -> dict:
+                preferred_direction: str | None = None,
+                base_size: int | None = None) -> dict:
     """渲染一条译文到 img(就地修改)。
 
     preferred_direction: 首选排版方向（"horizontal"|"vertical"|None）。
         若为 None，自动从 bbox 长宽比推断。
         传入显式值时覆盖自动推断。
+
+    base_size: 基准字号（px）。传入时大框不撑满、小框才缩小到相对下限。
+        None 时用旧行为（框内最大化字号）。
 
     返回 {layout_direction, font_size, lines, anchor_pos, preferred_direction}。
     横排: 多行居中于 bbox 中心; 竖排: 多列从右到左排列，每列从上到下。
@@ -31,7 +37,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     if preferred_direction is None:
         preferred_direction = infer_direction_from_bbox(bbox)
     font_size, direction, lines = fit_font_size(
-        text, Path(font_path), bbox, preferred_direction=preferred_direction
+        text, Path(font_path), bbox, preferred_direction=preferred_direction,
+        base_size=base_size
     )
     font = ImageFont.truetype(font_path, font_size)
     draw = ImageDraw.Draw(img)

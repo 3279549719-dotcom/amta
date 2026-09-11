@@ -17,7 +17,7 @@ from amta.common.metrics import levenshtein, norm
 from amta.common.paths import ROOT
 from amta.guards.guardrails import mechanical_guardrails
 
-_ENV_PATH = ROOT.parent / ".env"  # 测试会 monkeypatch 它
+_ENV_PATH = ROOT / ".env"  # 测试会 monkeypatch 它；默认指向项目根目录 .env（非 ROOT.parent）
 
 # System prompt（Q8, 2026-09-08）：
 # "乱码→空"条款经 Q1 实验验证（25 框：24 正常 + 1 乱码正确输出空）后正式固化。
@@ -121,12 +121,17 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     - 二分拆分是为"批量太大导致错乱"设计的补丁，小批量下不需要
     - 无句末标点重试执行的是已被 prompt-slim 废弃的标点标准，日漫口语短句天然可无标点
 
+    标点精简约束（2026-09-11 加回）：prompt-slim 完全放开后 LLM 句号过多，
+    气泡框观感差。在 instr 中加回"口语化、句末少用句号、标点精简"引导，
+    非机械删除（保留 2026-09-06 决策：原文标点必须保留，机械删标点自毁）。
+
     "乱码→空"条款已固化进 _SYSTEM_PROMPT（Q8, 2026-09-08），system_extra 仅保留
     实验/临时追加能力，拼在正式条款之后。
     """
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
-                 '输出JSON数组，长度和顺序与输入一致。\n')
+                 '输出JSON数组，长度和顺序与输入一致。'
+                 '漫画口语化表达，句末尽量不用句号，标点精简（能不带就不带）。\n')
         # 不写 region_id 前缀（r01|）：数组契约按位置绑定，前缀是多余标签，
         # 反而可能被 LLM 抄进译文（Q6 实验：移除前缀 + 移除前缀剥离补丁）
         blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]
