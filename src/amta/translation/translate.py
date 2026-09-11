@@ -131,7 +131,7 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
                  '输出JSON数组，长度和顺序与输入一致。'
-                 '漫画口语化表达，句末尽量不用句号，标点精简（能不带就不带）。\n')
+                 '漫画口语化表达，句末尽量不要句号。\n')
         # 不写 region_id 前缀（r01|）：数组契约按位置绑定，前缀是多余标签，
         # 反而可能被 LLM 抄进译文（Q6 实验：移除前缀 + 移除前缀剥离补丁）
         blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]

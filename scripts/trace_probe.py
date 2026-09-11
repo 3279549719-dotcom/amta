@@ -22,6 +22,15 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+# UTF-8 收口（包导入即执行 amta/__init__.py 的 force_utf8_stdio）：
+# Windows 上 stdout 默认按 cp936 编码中文，而 DSH/管道按 UTF-8 读，
+# agent 侧收到的就是乱码，于是弃用深接口退回 read/grep。见 amta.common.encoding。
+from amta.common.encoding import force_utf8_stdio
+
+force_utf8_stdio()
+
 _stdout = sys.stdout
 if hasattr(_stdout, "reconfigure"):
     _stdout.reconfigure(encoding="utf-8", errors="replace")

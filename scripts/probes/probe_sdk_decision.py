@@ -13,6 +13,7 @@ probe_sdk_decision.py — SDK 决策点闭环探针 v2（2026-09-07，官方 Ask
 
 import asyncio
 import sys
+from pathlib import Path
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -61,7 +62,8 @@ async def handle_tool_request(
 
 async def main() -> int:
     options = ClaudeAgentOptions(
-        cwd=r"E:\manga translator agent\amta",
+        # 仓库已平铺（2026-09-11）：原 `...\amta` 子目录不存在了，从本文件位置推导仓库根。
+        cwd=str(Path(__file__).resolve().parent.parent.parent),
         model="deepseek-v4-flash",
         can_use_tool=handle_tool_request,
     )

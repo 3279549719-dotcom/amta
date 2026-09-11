@@ -46,10 +46,21 @@ from claude_agent_sdk.types import (
     ToolPermissionContext,
 )
 
+# UTF-8 收口（包导入即执行 amta/__init__.py 的 force_utf8_stdio）：
+# Windows 上 stdout 默认按 cp936 编码中文，而 DSH/管道按 UTF-8 读，
+# agent 侧收到的就是乱码，于是弃用深接口退回 read/grep。见 amta.common.encoding。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from amta.common.encoding import force_utf8_stdio
+
+force_utf8_stdio()
+
 MODEL = "deepseek-v4-flash"  # 本机端点模型，必须显式指定（SDK 默认校验会失败）
-CWD = r"E:\manga translator agent\amta"
-AUTH_FILE = Path(CWD) / "auth_rules.json"
-PROJECT_ROOT = Path(r"E:\manga translator agent").resolve()
+# 仓库已于 2026-09-11 平铺（amta/ 子目录并入仓库根，commit ca958c6），
+# 原值 `...\amta` 已不存在 —— SDK 会以一个不存在的 cwd 启动。
+# 从本文件位置推导仓库根，不再硬编码（硬编码路径会在仓库移动/改名时静默失效）。
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CWD = str(PROJECT_ROOT)
+AUTH_FILE = PROJECT_ROOT / "auth_rules.json"
 
 # 敏感路径：凭据/配置/仓库内部，任何读写都需问人（铁律①：凭据永不自动交）
 SENSITIVE_PATH_PARTS = (

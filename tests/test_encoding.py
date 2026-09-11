@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -220,3 +221,134 @@ class TestNoBareTextTrueInLiveCode:
             encoding="utf-8",
         )
         assert not _bare_text_true_calls(good), "带 encoding= 的合规调用被误报"
+
+
+# ------------------------------------------- 系统守卫：中文输出的脚本必须到达收口点
+#
+# 为什么加这条（2026-09-11 实测）：
+# `amta/__init__.py` 末尾的 `force_utf8_stdio()` 是**包级**收口点——但它是
+# **Chained（链式）契约**：只有 `import amta` 的脚本才继承它。
+# 实测 `scripts/share_file.py --help` 输出中文全是 `һ���ϴ��ļ�` 乱码，
+# 因为它不 import amta。全仓扫出 **13 个脚本** 绕过了收口点。
+#
+# CLAUDE.md 的原则是「指针必须指向活着的东西」+「test/lint/hook 是唯一真强制层」：
+# 一条"新脚本记得 import amta"的口头约定不是强制层，这条守卫才是。
+
+
+def _emits_chinese(path: Path) -> bool:
+    """脚本是否会向用户输出中文（docstring 不算——那是给读代码的人看的）。
+
+    判定：`print` / `sys.stdout.write` / `sys.stderr.write` / argparse 的
+    `help=` / `description=` 里出现中日韩字符。
+    """
+    import ast
+
+    CJK = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff]")
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return False
+
+    for node in ast.walk(tree):
+        # print("中文") / sys.stdout.write("中文")
+        if isinstance(node, ast.Call):
+            fn = node.func
+            name = getattr(fn, "attr", None) or getattr(fn, "id", None)
+            if name in {"print", "write", "error", "exit"}:
+                for arg in list(node.args) + [k.value for k in node.keywords]:
+                    if (
+                        isinstance(arg, ast.Constant)
+                        and isinstance(arg.value, str)
+                        and CJK.search(arg.value)
+                    ):
+                        return True
+            # argparse: help="中文" / description="中文"
+            for k in node.keywords:
+                if (
+                    k.arg in {"help", "description"}
+                    and isinstance(k.value, ast.Constant)
+                    and isinstance(k.value.value, str)
+                    and CJK.search(k.value.value)
+                ):
+                    return True
+    return False
+
+
+def _reaches_choke_point(path: Path) -> bool:
+    """脚本是否触发 `amta/__init__.py` 的 force_utf8_stdio()。
+
+    三种合法途径——用 **AST** 判定，不用字符串搜索：
+    ① `import amta` / `import amta.xxx`
+    ② `from amta... import ...`（**同样会执行包 __init__**，这是最容易漏判的一种）
+    ③ 显式调用 `force_utf8_stdio()`
+
+    第一版用 `"import amta" in body` 做子串匹配，把 21 个**已经合规**的脚本
+    （`from amta.common.paths import ROOT` 这种）全部误报成违规——
+    正是本仓库反复踩的「把提及/子串当成事实」那类假红。用 AST 看真实导入语句。
+    """
+    import ast
+
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return False
+
+    for node in ast.walk(tree):
+        # import amta / import amta.xxx
+        if isinstance(node, ast.Import):
+            if any(a.name == "amta" or a.name.startswith("amta.") for a in node.names):
+                return True
+        # from amta... import ...
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "amta" or (node.module or "").startswith("amta."):
+                return True
+        # 显式调用 force_utf8_stdio()
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            name = getattr(fn, "attr", None) or getattr(fn, "id", None)
+            if name == "force_utf8_stdio":
+                return True
+    return False
+
+
+class TestChineseScriptsReachTheChokePoint:
+    """输出中文的 scripts/ 必须到达 UTF-8 收口点，否则 agent 侧读到的就是乱码。"""
+
+    def _offenders(self) -> list[str]:
+        bad: list[str] = []
+        for path in sorted((REPO_ROOT / "scripts").rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            if _emits_chinese(path) and not _reaches_choke_point(path):
+                bad.append(path.relative_to(REPO_ROOT).as_posix())
+        return bad
+
+    def test_chinese_scripts_reach_choke_point(self):
+        offenders = self._offenders()
+        assert not offenders, (
+            "以下脚本会输出中文，但**没有**到达 UTF-8 收口点（`import amta` 或显式\n"
+            "`force_utf8_stdio()`）。Windows 上 stdout 按 cp936 编码，DSH/管道按 UTF-8 读，\n"
+            "agent 侧收到的就是 `һ���ϴ��ļ�` 这类乱码，于是弃用深接口退回 read/grep。\n"
+            "修法二选一：\n"
+            "  a) `import amta`（顺便获得全部深接口）\n"
+            "  b) `from amta.common.encoding import force_utf8_stdio; force_utf8_stdio()`\n"
+            "     （需先 `sys.path.insert(0, .../src)`）\n  " + "\n  ".join(offenders)
+        )
+
+    def test_detector_recognizes_chinese_output(self, tmp_path):
+        """守卫不能空转：人造一个输出中文的脚本必须被识别。"""
+        f = tmp_path / "cn.py"
+        f.write_text('print("中文输出")\n', encoding="utf-8")
+        assert _emits_chinese(f), "扫描器识别不出中文输出——守卫是空转的"
+
+    def test_detector_ignores_docstring_only_chinese(self, tmp_path):
+        """对照组：只有 docstring 是中文的脚本不算「输出中文」。"""
+        f = tmp_path / "doc.py"
+        f.write_text('"""这是一个中文模块说明，但不输出任何中文。"""\nprint("ok")\n', encoding="utf-8")
+        assert not _emits_chinese(f), "只有 docstring 中文被误判为输出中文"
+
+    def test_detector_accepts_choke_point_import(self, tmp_path):
+        """对照组：import amta 的脚本应被判为已到达收口点。"""
+        f = tmp_path / "good.py"
+        f.write_text("import amta\nprint('中文')\n", encoding="utf-8")
+        assert _reaches_choke_point(f)
