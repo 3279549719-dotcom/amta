@@ -69,7 +69,7 @@
 - **`ab_report.py`** — ab_report — Stage4 框外字去除 A/B 对比实验报告（深接口模块）。（函数: _img_to_base64, _compute_averages, _build_table_rows, render_ab_report）
 - **`align.py`** — 跨阶段区域对齐 — 优先 region_id 精确匹配，回退 bbox IoU 物理匹配。（函数: iou, match_region）
 - **`assembler.py`** — 数据组装器 — 从 artifacts JSON 读取各阶段产物，组装成 PageReport。（函数: _load_json, _resolve_image, load_page_report, load_from_workspace）
-- **`engine.py`** — 报告引擎 — render_report 核心实现（纯函数，零 IO，零副作用）。（函数: _load_image, _composite_overlays, _img_to_base64, _align_regions, _render_table）
+- **`engine.py`** — 报告引擎 — 深接口渲染原语 + 薄封装入口。（函数: _load_image, _composite_overlays, _img_to_base64, _align_regions, _compute_stats）
 - **`final_report.py`** — final_report — 三阶段流水线最终报告（自包含 HTML，内嵌原图 base64）。（函数: img_to_base64, _load_json, render_final_report）
 - **`inpaint_ab_report.py`** — inpaint_ab_report — Inpainting 速度 A/B 对比报告（深接口模块）。（函数: _img_to_base64, load_summary, build_speed_table, build_speed_chart, _build_page_comparison）
 - **`model.py`** — 报告工具数据模型 — PageReport / StageOutput / ReportResult + 构造校验。（类: StageOutput, PageReport, ReportResult）
@@ -117,7 +117,7 @@
 - **`gen_ab_report.py`** — gen_ab_report — Stage4 框外字去除 A/B 对比报告 CLI（amta.report.ab_report 的薄壳）。
 - **`gen_final_report.py`** — gen_final_report — 三阶段流水线最终报告 CLI（amta.report.final_report 的薄壳）。
 - **`gen_inpaint_ab_report.py`** — gen_inpaint_ab_report — Inpainting 速度 A/B 对比报告 CLI（amta.report.inpaint_ab_report 的薄壳）。
-- **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口 amta.report 的薄壳 CLI）。
+- **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
 - **`gen_stage4_report.py`** — gen_stage4_report — Stage4 验证报告 CLI（amta.report.stage4_report 的薄壳）。
 - **`gen_typeset_review.py`** — gen_typeset_review — typeset 成品图看图报告 CLI（amta.report.typeset_review 的薄壳）。
 - **`hook_pretooluse.py`** — Claude Code PreToolUse hook: git commit/merge 前自动跑快速 fastcheck。

@@ -1,14 +1,22 @@
-"""gen_report — amta HTML 报告统一入口（深接口 amta.report 的薄壳 CLI）。
+"""gen_report — amta HTML 报告统一入口（深接口模式）。
+
+统一接口，不再枚举报告类型。通过 --granularity 和 --stages 自由组合。
 
 用法:
-  # 通用管线报告（默认）
-  python scripts/gen_report.py --work-id <id> --src-dir <原图目录> --pages 1-5 --out report.html
+  # 框级详细报告（默认）：左图右表，所有阶段
+  python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages 1-5
 
-  # 其他报告类型
-  python scripts/gen_report.py --type final --work-id <id> --src-dir <dir> --pages 1-5 --out report.html
-  python scripts/gen_report.py --type stage4 --src-dir <dir> --result-dir <dir> --pages 11-20 --out report.html
-  python scripts/gen_report.py --type inpaint_ab --exp-dir <dir> --src-dir <dir> --pages 11-15 --out report.html
-  python scripts/gen_report.py --type ab --plan-a-dir <dir> --plan-b-dir <dir> --out report.html
+  # 页级快速对比：只看原图和干净图
+  python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages 11-15 \
+      --granularity page --stages raw,inpaint
+
+  # 页级三阶段对比
+  python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages 11-15 \
+      --granularity page --stages raw,inpaint,typeset
+
+  # 框级但只看 detect 和 ocr
+  python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages 1-5 \
+      --granularity region --stages detect,ocr
 """
 from __future__ import annotations
 
@@ -18,17 +26,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from amta.common.paths import ROOT as _PATHS_ROOT
-from amta.report import (
-    load_from_workspace,
-    render_ab_report,
-    render_final_report,
-    render_inpaint_ab_report,
-    render_report,
-    render_stage4_report,
+from amta.report import load_from_workspace
+from amta.report.engine import (
+    _composite_overlays,
+    _load_image,
+    render_compare_section,
+    render_page_section,
+    render_report_shell,
 )
-from amta.report.pipeline_report import render_pipeline_report
 
-ROOT = _PATHS_ROOT  # 统一用 paths.ROOT，不自己算
+ROOT = _PATHS_ROOT
 
 
 def parse_pages(spec: str) -> list[int]:
@@ -44,16 +51,73 @@ def parse_pages(spec: str) -> list[int]:
     return sorted(set(pages))
 
 
-def _cmd_pipeline(a: argparse.Namespace) -> int:
-    if not a.work_id or not a.src_dir or not a.pages or not a.out:
-        print("[gen_report] pipeline 类型需要 --work-id --src-dir --pages --out")
-        return 1
+def _extract_stage_image(page_report, stage_key: str, raw_img):
+    """从 PageReport 提取某个阶段的代表图（页级对比用）。
+
+    - raw: 原图
+    - inpaint: page_artifact 里的 clean_image
+    - typeset: page_artifact 里的 final_image
+    - 其他阶段(detect/ocr/translate/filter): 原图叠加该阶段 overlay
+    """
+    if stage_key == "raw":
+        return raw_img
+
+    stage = next((s for s in page_report.stages if s.key == stage_key), None)
+    if stage is None:
+        return None
+
+    # inpaint / typeset 有整页产出图
+    if stage_key == "inpaint" and stage.page_artifact:
+        img = stage.page_artifact.get("clean_image")
+        if img is not None:
+            return img
+    if stage_key == "typeset" and stage.page_artifact:
+        img = stage.page_artifact.get("final_image")
+        if img is not None:
+            return img
+
+    # 其他阶段：原图叠加 overlay
+    return _composite_overlays(raw_img, [stage])
+
+
+_STAGE_LABELS = {
+    "raw": "原图",
+    "detect": "检测框",
+    "ocr": "OCR",
+    "filter": "筛选",
+    "translate": "翻译",
+    "inpaint": "干净图",
+    "typeset": "最终成图",
+}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="amta HTML 报告统一入口（深接口模式）")
+    ap.add_argument("--work-id", required=True, help="workspace 工作区 ID")
+    ap.add_argument("--src-dir", required=True, type=Path, help="源图目录 (N.jpg)")
+    ap.add_argument("--pages", required=True, help="页码范围，如 1-5 或 1,3,5")
+    ap.add_argument("--granularity", choices=["page", "region"], default="region",
+                    help="展示粒度：page=全图快速对比，region=全图+区域表格（默认）")
+    ap.add_argument("--stages", default=None,
+                    help="展示阶段，逗号分隔，如 raw,detect,inpaint。默认全部存在的阶段")
+    ap.add_argument("--out", type=Path, default=None, help="输出 HTML 路径")
+    ap.add_argument("--workspace-root", type=Path, default=None, help="workspace 根目录")
+    a = ap.parse_args()
 
     page_nums = parse_pages(a.pages)
-    page_sections = []
-    total_warnings = 0
-    total_aligned = 0
+    stages_filter = None
+    if a.stages:
+        stages_filter = [s.strip() for s in a.stages.split(",") if s.strip()]
+
+    # assembler 的 stages_filter 不认识 "raw"，过滤掉
+    artifact_stages = [s for s in stages_filter if s != "raw"] if stages_filter else None
+
+    out = a.out or ROOT / "output" / f"{a.work_id}-report.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    sections = []
     total_regions = 0
+    total_warnings = 0
 
     for n in page_nums:
         try:
@@ -62,107 +126,65 @@ def _cmd_pipeline(a: argparse.Namespace) -> int:
                 page_idx=n,
                 src_dir=a.src_dir,
                 workspace_root=a.workspace_root,
+                stages_filter=artifact_stages,
             )
         except (FileNotFoundError, ValueError) as e:
             print(f"[gen_report] page {n} 跳过: {e}")
             continue
 
-        result = render_report(page)
-        inner = result.html.split('<div class="page-section">', 1)[-1]
-        inner = inner.rsplit('</div>\n  <div class="footer">', 1)[0]
-        page_sections.append(f'<div class="page-section">{inner}')
+        if a.granularity == "page":
+            # 页级：多图左右对比
+            raw_img = _load_image(page.raw_image)
+            # 确定要展示的阶段列表
+            if stages_filter:
+                show_stages = [s for s in stages_filter if s == "raw" or
+                               any(st.key == s for st in page.stages)]
+            else:
+                show_stages = ["raw"] + [s.key for s in page.stages]
 
-        total_warnings += len(result.warnings)
-        total_aligned += result.regions_aligned
-        total_regions += result.regions_total
-        print(f"[gen_report] page_{n}: stages={result.stages_rendered} "
-              f"regions={result.regions_total} aligned={result.regions_aligned} "
-              f"warnings={len(result.warnings)} ({result.render_time_ms:.0f}ms)")
+            images = []
+            for sk in show_stages:
+                img = _extract_stage_image(page, sk, raw_img)
+                if img is not None:
+                    label = _STAGE_LABELS.get(sk, sk)
+                    images.append((img, label))
 
-    if not page_sections:
+            if not images:
+                print(f"[gen_report] page {n} 没有可展示的图片，跳过")
+                continue
+
+            section = render_compare_section(images, n)
+            sections.append(section)
+            print(f"[gen_report] page_{n}: page级对比 ({len(images)} 张图)")
+
+        else:
+            # region 级：全图 + 区域表格
+            section, stats_info = render_page_section(page, granularity="region")
+            sections.append(section)
+            total_regions += stats_info.get("regions_total", 0)
+            total_warnings += len(stats_info.get("warnings", []))
+            print(f"[gen_report] page_{n}: region级 "
+                  f"stages={stats_info['stages_rendered']} "
+                  f"regions={stats_info.get('regions_total', 0)} "
+                  f"warnings={len(stats_info.get('warnings', []))}")
+
+    if not sections:
         print("[gen_report] 没有成功渲染任何页面")
         return 1
 
-    out = render_pipeline_report(
-        page_sections,
-        work_id=a.work_id,
-        pages=a.pages,
-        out_path=a.out,
-        regions_total=total_regions,
-        regions_aligned=total_aligned,
-        warnings=total_warnings,
-    )
-    print(f"[gen_report] 报告 -> {out} ({out.stat().st_size / 1024:.0f} KB)")
-    return 0
+    title = f"amta 报告 — {a.work_id}"
+    subtitle = f"第 {a.pages} 页 ｜ 粒度: {a.granularity}"
+    if stages_filter:
+        subtitle += f" ｜ 阶段: {', '.join(stages_filter)}"
+    if total_regions:
+        subtitle += f" ｜ 区域: {total_regions}"
+    if total_warnings:
+        subtitle += f" ｜ 警告: {total_warnings}"
 
-
-def _cmd_final(a: argparse.Namespace) -> int:
-    if not a.work_id or not a.src_dir or not a.pages:
-        print("[gen_report] final 类型需要 --work-id --src-dir --pages")
-        return 1
-    pages = parse_pages(a.pages)
-    out = a.out or ROOT / "output" / f"{a.work_id}-final-report.html"
-    html = render_final_report(a.work_id, a.src_dir, pages, artifacts_dir=a.workspace_root)
-    out.parent.mkdir(parents=True, exist_ok=True)
+    html = render_report_shell(sections, title=title, subtitle=subtitle)
     out.write_text(html, encoding="utf-8")
     print(f"[gen_report] 报告 -> {out} ({out.stat().st_size / 1024:.0f} KB)")
     return 0
-
-
-def _cmd_stage4(a: argparse.Namespace) -> int:
-    if not a.src_dir or not a.result_dir:
-        print("[gen_report] stage4 类型需要 --src-dir --result-dir")
-        return 1
-    pages = parse_pages(a.pages or "11-20")
-    out = a.out or ROOT / "output" / "stage4-report.html"
-    render_stage4_report(a.src_dir, a.result_dir, pages, out_path=out)
-    return 0
-
-
-def _cmd_inpaint_ab(a: argparse.Namespace) -> int:
-    if not a.exp_dir or not a.src_dir:
-        print("[gen_report] inpaint_ab 类型需要 --exp-dir --src-dir")
-        return 1
-    pages = parse_pages(a.pages or "11-15")
-    out = a.out or Path(a.exp_dir) / "inpaint_speed_ab_report.html"
-    render_inpaint_ab_report(a.exp_dir, a.src_dir, pages=pages, out_path=out)
-    return 0
-
-
-def _cmd_ab(a: argparse.Namespace) -> int:
-    if not a.plan_a_dir or not a.plan_b_dir:
-        print("[gen_report] ab 类型需要 --plan-a-dir --plan-b-dir")
-        return 1
-    out = a.out or ROOT / "output" / "stage4-ab-comparison-report.html"
-    render_ab_report(a.plan_a_dir, a.plan_b_dir, out_path=out)
-    return 0
-
-
-_DISPATCH = {
-    "pipeline": _cmd_pipeline,
-    "final": _cmd_final,
-    "stage4": _cmd_stage4,
-    "inpaint_ab": _cmd_inpaint_ab,
-    "ab": _cmd_ab,
-}
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser(description="amta HTML 报告统一入口")
-    ap.add_argument("--type", choices=list(_DISPATCH.keys()), default="pipeline",
-                    help="报告类型（默认 pipeline）")
-    ap.add_argument("--work-id", default=None, help="workspace 工作区 ID")
-    ap.add_argument("--src-dir", type=Path, default=None, help="源图目录 (N.jpg)")
-    ap.add_argument("--pages", default=None, help="页码范围，如 1-5 或 1,3,5")
-    ap.add_argument("--out", type=Path, default=None, help="输出 HTML 路径")
-    ap.add_argument("--workspace-root", type=Path, default=None, help="workspace 根目录")
-    ap.add_argument("--result-dir", type=Path, default=None, help="stage4 结果目录")
-    ap.add_argument("--exp-dir", type=Path, default=None, help="inpaint A/B 实验目录")
-    ap.add_argument("--plan-a-dir", type=Path, default=None, help="A/B 方案A 目录")
-    ap.add_argument("--plan-b-dir", type=Path, default=None, help="A/B 方案B 目录")
-    a = ap.parse_args()
-
-    return _DISPATCH[a.type](a)
 
 
 if __name__ == "__main__":

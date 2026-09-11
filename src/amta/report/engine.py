@@ -1,7 +1,14 @@
-"""报告引擎 — render_report 核心实现（纯函数，零 IO，零副作用）。
+"""报告引擎 — 深接口渲染原语 + 薄封装入口。
 
-职责：区域对齐 → 图层叠加 → HTML 生成 → 可观测返回。
-不读文件、不调 API、不写磁盘。
+渲染原语（可自由组合）：
+  render_image_panel(img, label)       → 一张图 + 标签的 HTML 片段
+  render_region_table(rows, stages)    → 区域×阶段表格的 HTML 片段
+  render_page_section(page, granularity) → 一页的 HTML 片段（不含 <html> 外壳）
+  render_compare_section(images, labels, page_idx) → 多图左右对比的 HTML 片段
+  render_report_shell(sections, title) → 把多页片段装进完整 HTML
+
+薄封装（向后兼容）：
+  render_report(page) → ReportResult（单页完整 HTML，等价于旧行为）
 """
 from __future__ import annotations
 
@@ -9,6 +16,7 @@ import base64
 import io
 import time
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageDraw
 
@@ -36,12 +44,18 @@ h1 { font-size:22px; margin-bottom:4px; }
 .table-panel { flex:1; overflow-x:auto; }
 table { width:100%; border-collapse:collapse; font-size:12px; }
 th { background:#f3f4f6; padding:6px 8px; text-align:left; border-bottom:2px solid #e5e7eb; position:sticky; top:0; }
-td { padding:6px 8px; border-bottom:1px solid #f3f4f6; vertical-align:top; }
+td { padding:6px 8px; border-bottom:1px solid #f3f4f; vertical-align:top; }
 tr:hover { background:#f9fafb; }
 .rid { font-weight:600; color:#1e40af; white-space:nowrap; }
+.compare-row { display:flex; gap:16px; flex-wrap:wrap; }
+.compare-col { flex:1; min-width:280px; text-align:center; }
+.compare-col .label { font-size:13px; color:#666; margin-bottom:8px; font-weight:600; }
+.compare-col img { max-width:100%; height:auto; border-radius:8px; border:1px solid #e5e7eb; }
 .footer { text-align:center; color:#999; font-size:11px; margin-top:24px; padding:16px; }
 """
 
+
+# ---- 底层工具 ----
 
 def _load_image(path: str | Path) -> Image.Image:
     return Image.open(path).convert("RGB")
@@ -56,7 +70,7 @@ def _composite_overlays(img: Image.Image, stages: list[StageOutput]) -> Image.Im
             try:
                 s.render_overlay(draw, s.cells, scale=1.0)
             except Exception:
-                pass  # 单个阶段叠图失败不影响整体报告
+                pass
     return result
 
 
@@ -67,14 +81,9 @@ def _img_to_base64(img: Image.Image) -> str:
 
 
 def _align_regions(page: PageReport) -> tuple[list[dict], list[str]]:
-    """跨阶段对齐区域，返回 (行数据列表, warnings)。
-
-    每行: {"rid": 统一region_id, "cells": {stage_key: data_or_None}}
-    """
+    """跨阶段对齐区域，返回 (行数据列表, warnings)。"""
     warnings: list[str] = []
     union = page.all_region_ids
-
-    # 收集每个阶段的 bbox 映射（用于 IoU 回退）
     stage_bboxes: dict[str, dict[str, list[float]]] = {}
     for s in page.stages:
         bboxes = {}
@@ -86,48 +95,26 @@ def _align_regions(page: PageReport) -> tuple[list[dict], list[str]]:
     rows = []
     for rid in union:
         row = {"rid": rid, "cells": {}}
-        # 取该区域的 bbox（从有 bbox 的阶段）
         target_bbox = None
         for s in page.stages:
             d = s.cells.get(rid)
             if isinstance(d, dict) and "bbox" in d:
                 target_bbox = d["bbox"]
                 break
-
         for s in page.stages:
-            matched = match_region(
-                rid, target_bbox,
-                list(s.cells.keys()),
-                stage_bboxes.get(s.key, {}),
-            )
+            matched = match_region(rid, target_bbox, list(s.cells.keys()),
+                                   stage_bboxes.get(s.key, {}))
             if matched is not None:
                 row["cells"][s.key] = s.cells[matched]
             else:
                 row["cells"][s.key] = None
                 warnings.append(f"区域 {rid} 在阶段 {s.key} 缺失")
         rows.append(row)
-
     return rows, warnings
 
 
-def _render_table(rows: list[dict], stages: list[StageOutput]) -> str:
-    headers = "".join(f"<th>{s.label}</th>" for s in stages)
-    body_rows = []
-    for row in rows:
-        rid_cell = f'<td class="rid">{row["rid"]}</td>'
-        data_cells = []
-        for s in stages:
-            data = row["cells"].get(s.key)
-            data_cells.append(f"<td>{s.render_cell(data)}</td>")
-        body_rows.append(f"<tr>{rid_cell}{''.join(data_cells)}</tr>")
-    return f"""<table>
-<thead><tr><th>region</th>{headers}</tr></thead>
-<tbody>{''.join(body_rows)}</tbody>
-</table>"""
-
-
 def _compute_stats(page: PageReport, rows: list[dict]) -> list[dict]:
-    """计算每页统计卡片数据（泛化：每个 stage 自动有计数卡）。"""
+    """计算每页统计卡片数据。"""
     stats = []
     for s in page.stages:
         stats.append({"num": len(s.cells), "lbl": s.label, "cls": ""})
@@ -146,86 +133,165 @@ def _compute_stats(page: PageReport, rows: list[dict]) -> list[dict]:
     return stats
 
 
-def render_report(page: PageReport) -> ReportResult:
-    """深模块唯一入口：吃 PageReport，吐 ReportResult。纯函数。"""
-    t0 = time.time()
-    warnings: list[str] = []
+# ---- 渲染原语（公开，可自由组合）----
 
-    # 1. 加载原图 + 叠加图层
+def render_image_panel(img: Image.Image, label: str = "") -> str:
+    """渲染一张图 + 可选标签的 HTML 片段。"""
+    img_b64 = _img_to_base64(img)
+    label_html = f'<div class="label">{label}</div>' if label else ""
+    return f'<div class="img-panel">{label_html}<img src="data:image/jpeg;base64,{img_b64}" alt="{label}"></div>'
+
+
+def render_region_table(rows: list[dict], stages: list[StageOutput]) -> str:
+    """渲染区域×阶段表格的 HTML 片段。"""
+    headers = "".join(f"<th>{s.label}</th>" for s in stages)
+    body_rows = []
+    for row in rows:
+        rid_cell = f'<td class="rid">{row["rid"]}</td>'
+        data_cells = []
+        for s in stages:
+            data = row["cells"].get(s.key)
+            data_cells.append(f"<td>{s.render_cell(data)}</td>")
+        body_rows.append(f"<tr>{rid_cell}{''.join(data_cells)}</tr>")
+    return f"""<table>
+<thead><tr><th>region</th>{headers}</tr></thead>
+<tbody>{''.join(body_rows)}</tbody>
+</table>"""
+
+
+def render_page_section(page: PageReport, granularity: str = "region") -> tuple[str, dict]:
+    """渲染一页的 HTML 片段（不含 <html> 外壳）。
+
+    granularity:
+      - "region": 全图（叠加 overlay）+ 区域表格（详细调试用）
+      - "page": 只渲染全图（叠加 overlay），不渲染表格（快速浏览用）
+
+    返回 (html片段, 统计信息dict)
+    """
     img = _load_image(page.raw_image)
     img = _composite_overlays(img, page.stages)
-    img_b64 = _img_to_base64(img)
 
-    # 2. 跨阶段区域对齐
-    rows, align_warnings = _align_regions(page)
-    warnings.extend(align_warnings)
+    stats_info: dict[str, Any] = {"stages_rendered": [s.key for s in page.stages]}
 
-    # 3. 统计
+    if granularity == "page":
+        # 页级：只放一张全图
+        img_b64 = _img_to_base64(img)
+        section = f"""
+    <div class="page-section">
+      <div class="page-header">
+        <div class="page-title">page_{page.page_idx} — {page.page_idx}.jpg</div>
+      </div>
+      <div class="layout">
+        <div class="img-panel"><img src="data:image/jpeg;base64,{img_b64}" alt="page {page.page_idx}"></div>
+      </div>
+    </div>"""
+        stats_info["regions_total"] = 0
+        stats_info["regions_aligned"] = 0
+        stats_info["warnings"] = []
+        return section, stats_info
+
+    # region 级：全图 + 区域表格
+    rows, warnings = _align_regions(page)
     stats = _compute_stats(page, rows)
-    regions_aligned = sum(
-        1 for row in rows
-        if all(row["cells"].get(s.key) is not None for s in page.stages)
-    )
-    regions_dropped = [
-        row["rid"] for row in rows
-        if any(row["cells"].get(s.key) is None for s in page.stages)
-    ]
+    regions_aligned = sum(1 for row in rows
+                          if all(row["cells"].get(s.key) is not None for s in page.stages))
+    table_html = render_region_table(rows, page.stages)
 
-    # 4. 渲染表格
-    table_html = _render_table(rows, page.stages)
-
-    # 5. 统计卡片
     stats_html = "".join(
         f'<div class="stat {s["cls"]}"><div class="num">{s["num"]}</div><div class="lbl">{s["lbl"]}</div></div>'
         for s in stats
     )
-
-    # 6. 警告栏
     warn_html = ""
     if warnings:
         warn_html = f'<div class="page-warnings">⚠ {len(warnings)} 条警告: {"; ".join(warnings[:5])}</div>'
 
-    # 7. 组装 HTML
-    page_num = page.page_idx
-    stages_str = " → ".join(s.label for s in page.stages)
-    html = f"""<!DOCTYPE html>
+    img_b64 = _img_to_base64(img)
+    section = f"""
+    <div class="page-section">
+      <div class="page-header">
+        <div class="page-title">page_{page.page_idx} — {page.page_idx}.jpg</div>
+        {warn_html}
+      </div>
+      <div class="stats">{stats_html}</div>
+      <div class="layout">
+        <div class="img-panel"><img src="data:image/jpeg;base64,{img_b64}" alt="page {page.page_idx}"></div>
+        <div class="table-panel">{table_html}</div>
+      </div>
+    </div>"""
+
+    stats_info["regions_total"] = len(rows)
+    stats_info["regions_aligned"] = regions_aligned
+    stats_info["regions_dropped"] = [row["rid"] for row in rows
+                                     if any(row["cells"].get(s.key) is None for s in page.stages)]
+    stats_info["warnings"] = warnings
+    return section, stats_info
+
+
+def render_compare_section(images: list[tuple[Image.Image, str]], page_idx: int) -> str:
+    """渲染多图左右对比的 HTML 片段（页级粒度用）。
+
+    images: [(PIL.Image, 标签), ...]
+    """
+    cols = []
+    for img, label in images:
+        img_b64 = _img_to_base64(img)
+        cols.append(f"""
+        <div class="compare-col">
+          <div class="label">{label}</div>
+          <img src="data:image/jpeg;base64,{img_b64}" alt="{label}">
+        </div>""")
+    return f"""
+    <div class="page-section">
+      <div class="page-header">
+        <div class="page-title">page_{page_idx} — {page_idx}.jpg</div>
+      </div>
+      <div class="compare-row">{''.join(cols)}</div>
+    </div>"""
+
+
+def render_report_shell(sections: list[str], title: str, subtitle: str = "") -> str:
+    """把多页 HTML 片段装进完整 HTML 外壳。"""
+    subtitle_html = f'<div class="subtitle">{subtitle}</div>' if subtitle else ""
+    return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>管线报告 — page_{page.page_idx} ({page_num}.jpg)</title>
+<title>{title}</title>
 <style>{_CSS}</style>
 </head>
 <body>
 <div class="container">
-  <h1>管线报告 — page_{page.page_idx} ({page_num}.jpg)</h1>
-  <div class="subtitle">阶段: {stages_str}</div>
-  <div class="stats">{stats_html}</div>
-  <div class="page-section">
-    <div class="page-header">
-      <div class="page-title">page_{page.page_idx} — {page_num}.jpg</div>
-      {warn_html}
-    </div>
-    <div class="layout">
-      <div class="img-panel">
-        <img src="data:image/jpeg;base64,{img_b64}" alt="page {page_num}">
-      </div>
-      <div class="table-panel">
-        {table_html}
-      </div>
-    </div>
-  </div>
-  <div class="footer">amta report tool — 深接口渲染引擎 ｜ 阶段可插拔 ｜ 区域 bbox IoU 对齐</div>
+  <h1>{title}</h1>
+  {subtitle_html}
+  {''.join(sections)}
+  <div class="footer">amta report tool — 深接口渲染引擎 ｜ 阶段可插拔 ｜ 粒度可切换</div>
 </div>
 </body>
 </html>"""
 
+
+# ---- 薄封装（向后兼容）----
+
+def render_report(page: PageReport) -> ReportResult:
+    """深模块唯一入口：吃 PageReport，吐 ReportResult。纯函数。
+
+    等价于 granularity="region" 的单页报告（旧行为）。
+    """
+    t0 = time.time()
+    section, stats_info = render_page_section(page, granularity="region")
+    stages_str = " → ".join(s.label for s in page.stages)
+    html = render_report_shell(
+        [section],
+        title=f"管线报告 — page_{page.page_idx} ({page.page_idx}.jpg)",
+        subtitle=f"阶段: {stages_str}",
+    )
     return ReportResult(
         html=html,
         page_idx=page.page_idx,
-        stages_rendered=[s.key for s in page.stages],
-        regions_total=len(rows),
-        regions_aligned=regions_aligned,
-        regions_dropped=regions_dropped,
-        warnings=warnings,
+        stages_rendered=stats_info["stages_rendered"],
+        regions_total=stats_info.get("regions_total", 0),
+        regions_aligned=stats_info.get("regions_aligned", 0),
+        regions_dropped=stats_info.get("regions_dropped", []),
+        warnings=stats_info.get("warnings", []),
         render_time_ms=(time.time() - t0) * 1000,
     )

@@ -25,7 +25,14 @@
 """
 from .ab_report import render_ab_report
 from .assembler import load_from_workspace, load_page_report
-from .engine import render_report
+from .engine import (
+    render_compare_section,
+    render_image_panel,
+    render_page_section,
+    render_region_table,
+    render_report,
+    render_report_shell,
+)
 from .final_report import render_final_report
 from .inpaint_ab_report import render_inpaint_ab_report
 from .model import PageReport, ReportResult, StageOutput
@@ -39,8 +46,13 @@ __all__ = [
     "load_from_workspace",
     "load_page_report",
     "render_ab_report",
+    "render_compare_section",
     "render_final_report",
+    "render_image_panel",
     "render_inpaint_ab_report",
+    "render_page_section",
+    "render_region_table",
     "render_report",
+    "render_report_shell",
     "render_stage4_report",
 ]

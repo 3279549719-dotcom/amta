@@ -290,6 +290,82 @@ def test_artifact_cache_rerun_when_input_changes(tmp_path, monkeypatch):
         print("✓ test_artifact_cache_rerun_when_input_changes passed")
 
 
+
+
+def test_downstream_only_with_disk_artifact(tmp_path, monkeypatch):
+    """测试磁盘回退：先跑 detect 落盘，再只跑 ocr（不含 detect），ocr 应从磁盘读 detect 产物并成功。"""
+    fake_detect, fake_ocr, _fake_translate = _setup_fake_registry()
+
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        src_dir = tmp / "raw"
+        src_dir.mkdir()
+        (src_dir / "1.jpg").write_bytes(b"\xff\xd8\xff\xe0fake")
+
+        # 第一次：只跑 detect，产物落盘
+        config1 = PipelineConfig(
+            work_id="test-disk-fallback",
+            src_dir=src_dir,
+            start_page=1, end_page=1,
+            stages=["detect"],
+        )
+        run_pipeline(config1)
+        assert fake_detect.state["calls"] == 1
+
+        # 验证 detect 产物确实在磁盘上
+        art_dir = tmp_path / "test-disk-fallback" / "artifacts"
+        det_path = art_dir / "detection" / "page_1.json"
+        assert det_path.exists(), "detect 产物应已落盘"
+
+        # 第二次：只跑 ocr（不含 detect）— 应从磁盘读 detect 产物，不报错
+        fake_ocr.state["calls"] = 0  # 重置计数
+        config2 = PipelineConfig(
+            work_id="test-disk-fallback",
+            src_dir=src_dir,
+            start_page=1, end_page=1,
+            stages=["ocr"],
+        )
+        result = run_pipeline(config2)
+
+        assert len(result.failed_pages) == 0, f"ocr 应从磁盘读到 detect 产物，不应失败: {result.failed_step}"
+        assert fake_ocr.state["calls"] == 1, "ocr 应被调用一次"
+        page_result = result.results["page_1"]
+        assert page_result["ocr"].status in ("ok", "skipped"), f"ocr 状态应为 ok/skipped，实际 {page_result['ocr'].status}"
+        print("\u2713 test_downstream_only_with_disk_artifact passed")
+
+
+def test_downstream_only_missing_disk_artifact_still_fails(tmp_path, monkeypatch):
+    """测试磁盘回退未命中：磁盘上没有上游产物时，仍应报上游缺失（不破坏原有错误处理）。"""
+    fake_ocr = _make_fake_station("ocr")
+
+    _reg_module._REGISTRY = {
+        "ocr": _reg_module.StageSpec(name="ocr", station=fake_ocr, consumes=["detect"], produces="canon"),
+    }
+
+    monkeypatch.setattr("amta.orchestrator.pipeline.ensure_workspace", lambda wid: tmp_path / wid)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        src_dir = tmp / "raw"
+        src_dir.mkdir()
+        (src_dir / "1.jpg").write_bytes(b"\xff\xd8\xff\xe0fake")
+
+        # 全新工作区，磁盘上没有 detect 产物
+        config = PipelineConfig(
+            work_id="test-no-disk",
+            src_dir=src_dir,
+            start_page=1, end_page=1,
+            stages=["ocr"],
+        )
+        result = run_pipeline(config)
+
+        assert len(result.failed_pages) == 1
+        page_result = result.results["page_1"]
+        assert "上游阶段缺失" in page_result["ocr"].error
+        assert fake_ocr.state["calls"] == 0, "ocr 不应被调用（上游缺失）"
+        print("\u2713 test_downstream_only_missing_disk_artifact_still_fails passed")
+
+
 if __name__ == "__main__":
     test_basic_pipeline()
     test_skip_existing()
@@ -298,4 +374,6 @@ if __name__ == "__main__":
     test_missing_upstream_dependency()
     test_artifact_cache_fingerprint_created()
     test_artifact_cache_rerun_when_input_changes()
+    test_downstream_only_with_disk_artifact()
+    test_downstream_only_missing_disk_artifact_still_fails()
     print("\n=== All smoke tests passed ===")

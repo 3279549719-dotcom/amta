@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import torch
 from PIL import Image, ImageChops, ImageDraw
 
 from amta.common.paths import read_json, write_json
@@ -26,7 +27,9 @@ _inpainter: LocalLamaInpainter | None = None
 def _get_inpainter() -> LocalLamaInpainter:
     global _inpainter
     if _inpainter is None:
-        _inpainter = LocalLamaInpainter(device="cpu", model_type="lama-manga")
+        # 自动检测设备：有 CUDA 用 GPU，否则用 CPU（禁止硬编码 device）
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _inpainter = LocalLamaInpainter(device=device, model_type="lama-manga")
     return _inpainter
 
 

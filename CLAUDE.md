@@ -48,6 +48,8 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - **指针必须指向活着的东西**：本项目跑在 DSH 上，而 `.claude/`（settings.json hooks）与 `.mcp.json` 是 **Claude Code 方言，DSH 不读**。**具体哪些路径失效、以及当初为什么决定不装 CC hook 桥，见 lessons `L11`**——此处只留指针不复述，免得又长出一份要同步的漂移。推论：任何"某机制已生效"的声明都必须配一条能跑的探针
 - **知识落地**：可复用经验落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；检索一律 `memory.py grep/read`
 - **HTML 报告铁律**：必须用 `src/amta/report/` 深接口，禁止 scripts/ 下新建独立 HTML 生成脚本
+- **CLI 工具原语化铁律**：工具必须提供可组合的原语（数据加载+处理原语+布局），禁止枚举使用场景（`--type a/b/c/d`）。新增需求 = 原语的新组合，不是新的 `--type`。反例：旧 gen_report 有 5 种写死类型，加"原图+干净图对比"得写第 6 种；正例：新 gen_report 只有 `--granularity page|region` + `--stages`，任意组合。
+- **模型推理设备铁律**：所有模型推理阶段必须自动检测设备（`cuda if available else cpu`），禁止硬编码 `device="cpu"`。换 GPU 环境后应自动提速，不需要改代码。
 
 ## Python 运行规范（强制）
 所有 Python 命令用 `uv run python`，禁止裸 `python`（系统 Python 无依赖，`.venv` 是 3.12）。项目包在 `src/` 下，脚本内部已自动处理 PYTHONPATH。详见 AGENTS.md。

@@ -25,6 +25,7 @@ from amta.common.pipeline_log import PipelineLog
 from amta.common.workstate import ensure_workspace
 from amta.stores import artifacts
 from amta.stores.artifact_cache import compute_fingerprint, is_fresh, save_fingerprint
+from amta.stores.artifact_store import ArtifactStore
 
 from .context import PipelineConfig, PipelineResult, StationContext, StationResult
 from .registry import StageSpec, get_stage
@@ -66,12 +67,27 @@ def _build_context(
     - inputs: 从该阶段的 consumes 声明中，查找上游阶段的 output_artifact
     - config: 合并 registry 中的 default_config 和 config.stage_configs 中的覆盖
     """
-    # 上游产物路径：从已完成的阶段结果中查找
+    # 上游产物路径：先从本次运行的阶段结果中找，找不到再去磁盘读（支持"只跑下游阶段"）
     inputs = {}
+    store = ArtifactStore(artifacts_dir)
     for dep_name in stage.consumes:
         dep_result = page_results.get(dep_name)
         if dep_result and dep_result.output_artifact:
             inputs[dep_name] = dep_result.output_artifact
+            continue
+        # 磁盘回退：上游阶段不在本次 stages 里，但 artifacts/ 里已有产物
+        # （例如只跑 --stages inpaint，detect 结果之前跑过存在磁盘上）
+        try:
+            dep_stage = get_stage(dep_name)
+        except ValueError:
+            # 上游阶段未注册（如测试里只注册了部分阶段）— 跳过磁盘回退，
+            # 留给后续 missing_deps 检查报"上游阶段缺失"
+            continue
+        produces_name = dep_stage.produces
+        if produces_name:
+            disk_path = store.resolve(produces_name, page_key)
+            if disk_path is not None:
+                inputs[dep_name] = disk_path
 
     # 配置合并：默认配置 + 调用方覆盖
     merged_config = dict(stage.default_config)
