@@ -1,8 +1,9 @@
-"""fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 8 步）。
+"""fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
 
 两种模式（2026-09-10 分层，避免 pre-commit 与 /finish 重复跑 pytest）：
-  --quick  秒级快检（pre-commit 钩子用）：compileall + ruff lint + pyright
-  默认     完整 8 步（/finish 收尾用）：quick 三步 + pytest + depguard + mem-lint/gc/inject
+  --quick  秒级快检（pre-commit 钩子用）：compileall + ruff lint + pyright（只读，不写文件）
+  默认     完整 9 步（/finish 收尾用）：quick 三步 + pytest + depguard + mem-lint/gc/inject
+           + audit + module-map 就地刷新（生成物在收口点更新，而不是事后检查）
 
 退出码：0 = 全过；非 0 = 有失败。
 """
@@ -134,6 +135,23 @@ def _memory_inject() -> int:
     return _run([sys.executable, str(ROOT / "scripts" / "memory.py"), "inject"], "memory inject (CLAUDE.local.md)")
 
 
+def _module_map() -> int:
+    """生成物就地刷新：重跑 `find_code.py --index` 重写 docs/module-map.md。
+
+    **为什么是"写"而不是"查"**（2026-09-10 决定）：
+    module-map 是 `find_code.py --index` 的产物，CLAUDE.md 要求 agent「找代码先看它」。
+    此前刷新是**手动**的，于是它腐化成 6/99 条指向几个月前删掉的文件；当时的修法是
+    加一条守卫测试（test_reference_integrity.TestGeneratedDocsAreFresh）——
+    但那只是**事后检查**：陈旧地图仍然躺在磁盘上被 agent 读到，守卫只在收尾喊一声。
+
+    收口原则：生成物应该在**它该更新的那一刻**更新，而不是等谁事后发现它旧了。
+    本步跑在**全量**分支（即 `state.py finish` 必经的收口点），因此跑完 fastcheck 后
+    磁盘上的地图必然与代码一致，守卫测试随之恒真——它从"拦截器"退化为"冗余保险"，
+    这正是它该有的位置。--quick 不跑本步（不写文件，保持 pre-commit 只读）。
+    """
+    return _run([sys.executable, str(ROOT / "scripts" / "find_code.py"), "--index"], "module-map (生成物刷新)")
+
+
 def _audit() -> int:
     """Harness 熵审计（--strict 门禁模式）。
 
@@ -203,7 +221,7 @@ def _env_check() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="amta fastcheck 机械质检")
     ap.add_argument("--quick", action="store_true",
-                    help="only compile/lint/typecheck (seconds, used by pre-commit); full 8-step is for /finish")
+                    help="only compile/lint/typecheck (seconds, read-only, used by pre-commit); full 9-step (incl. module-map refresh) is for /finish")
     args = ap.parse_args()
 
     c = _compile()
@@ -225,6 +243,7 @@ def main() -> int:
         g = _memory_gc()
         inj = _memory_inject()
         au = _audit()
+        mm = _module_map()
         checks.extend([
             ("unit tests", u),
             ("depguard", d),
@@ -232,9 +251,10 @@ def main() -> int:
             ("memory gc", g),
             ("memory inject", inj),
             ("audit", au),
+            ("module-map", mm),
         ])
     else:
-        print("== [fastcheck] --quick: skip pytest/depguard/memory/audit (full run at /finish) ==")
+        print("== [fastcheck] --quick: skip pytest/depguard/memory/audit/module-map (full run at /finish) ==")
     fails = [name for name, rc in checks if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")

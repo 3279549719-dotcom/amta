@@ -12,8 +12,9 @@ CLAUDE.md 自己写着「test/lint/hook 是唯一真强制层」——一个没�
 - audit 必须是 fastcheck 的一步（否则它永远不会失败，也就永远不会被看见）
 - audit 的作用域必须指向**仓库根**，不是它的父目录
 - audit 的白名单不能残留已删除的旧布局名（"amta"）
+- module-map 生成物必须在收口点**就地刷新**（而不是靠事后检查）
 
-对应手术清单第 ① 项。
+对应手术清单第 ① 项，以及 2026-09-10 追加的第 ③ 项。
 """
 from __future__ import annotations
 
@@ -135,3 +136,46 @@ class TestAuditCanActuallyFail:
             cwd=str(ROOT), timeout=300,
         )
         assert r.returncode == 0, f"默认模式不该失败\n{r.stdout[-800:]}"
+
+
+class TestModuleMapRefreshesAtTheGate:
+    """生成物必须在**收口点就地刷新**，而不是靠事后检查。
+
+    `docs/module-map.md` 是 `find_code.py --index` 的产物，CLAUDE.md 要求 agent
+    「找代码先看它」。它的刷新曾经是手动的，于是腐化成 6/99 条指向已删文件；
+    2026-09-10 的第一次修法是加守卫测试——但那是**事后检查**：陈旧地图仍然
+    躺在磁盘上被 agent 读到，守卫只在收尾喊一声。
+
+    真正的修法是把刷新接进 `fastcheck.py` 全量分支（`state.py finish` 必经的
+    收口点）：跑完 fastcheck，磁盘地图必然新鲜，过期在机制上不可能发生。
+
+    本类守的是**那条接线**。`TestGeneratedDocsAreFresh` 守的是产物本身；
+    两者独立——接线被摘掉时，这里会先红。
+    """
+
+    def test_fastcheck_has_a_module_map_step(self):
+        assert "def _module_map(" in _read(FASTCHECK), (
+            "fastcheck 缺少 _module_map() 步骤函数——module-map 又退回手动刷新了"
+        )
+
+    def test_fastcheck_actually_invokes_find_code_index(self):
+        body = _read(FASTCHECK)
+        assert "find_code.py" in body and '"--index"' in body, (
+            "fastcheck 的 module-map 步骤没有真正调用 find_code.py --index"
+        )
+
+    def test_module_map_runs_in_full_mode_not_quick(self):
+        """--quick 是 pre-commit 的只读路径，绝不能写文件。"""
+        body = _read(FASTCHECK)
+        quick_idx = body.find("if not args.quick:")
+        assert quick_idx != -1, "fastcheck 结构变了：找不到 if not args.quick 分支"
+        assert body.find('("module-map"') > quick_idx, (
+            "module-map 刷新应属于全量分支（if not args.quick 之后）——"
+            "放进 --quick 会让 pre-commit 静默改写工作区文件"
+        )
+
+    def test_module_map_is_listed_in_checks(self):
+        """只在分支里跑但不进 checks 列表 = 失败不会被计入 PASS/FAIL。"""
+        assert '("module-map"' in _read(FASTCHECK), (
+            "module-map 没有出现在 checks 列表里，它的失败不会影响 fastcheck 退出码"
+        )

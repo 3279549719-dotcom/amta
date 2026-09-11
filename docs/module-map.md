@@ -112,7 +112,7 @@
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
-- **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 8 步）。
+- **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
 - **`find_code.py`** — find_code — amta 代码/模块智能检索工具（深接口）。
 - **`gen_ab_report.py`** — gen_ab_report — Stage4 框外字去除 A/B 对比报告 CLI（amta.report.ab_report 的薄壳）。
 - **`gen_final_report.py`** — gen_final_report — 三阶段流水线最终报告 CLI（amta.report.final_report 的薄壳）。

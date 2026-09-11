@@ -43,7 +43,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 ## 工作协议
 - **任务收尾走 /finish**（cycle-close）：复读任务→审查 diff→确定性验证→修复→反思→知识晋升→只更新真正变化的工件→Finish Report→git 落盘
 - **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
-- **机械护栏分层**：pre-commit `fastcheck --quick`（秒级，**不含 pytest**）→ `state.py finish` 强制跑完整（含 pytest/depguard/memory/audit）→ pre-push 只跑可选 smoke。安装：`scripts/install_hooks.ps1`。
+- **机械护栏分层**：pre-commit `fastcheck --quick`（秒级，**不含 pytest**，只读不写文件）→ `state.py finish` 强制跑完整（含 pytest/depguard/memory/audit/**module-map 刷新**）→ pre-push 只跑可选 smoke。安装：`scripts/install_hooks.ps1`。
   ⚠️ **--quick 不是门槛，是门槛的一半**：2026-09-10 事故——脚本清理后 12 条测试永久变红、无人察觉约两天，因为唯一的 commit 拦截层只跑 --quick。**"通过了"必须说明跑的是哪一层。**
 - **指针必须指向活着的东西**：本项目跑在 DSH 上，而 `.claude/`（settings.json hooks）与 `.mcp.json` 是 **Claude Code 方言，DSH 不读**。**具体哪些路径失效、以及当初为什么决定不装 CC hook 桥，见 lessons `L11`**——此处只留指针不复述，免得又长出一份要同步的漂移。推论：任何"某机制已生效"的声明都必须配一条能跑的探针
 - **知识落地**：可复用经验落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；检索一律 `memory.py grep/read`

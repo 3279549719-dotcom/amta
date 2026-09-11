@@ -1,6 +1,6 @@
 # ADR-032：Hook 体系审计收敛（停用 pre-commit + PreToolUse，保留 pre-push + SessionStart）
 
-> **本决策部分被推翻**（2026-09-10）：pre-commit 已重新启用，但不再跑完整 fastcheck 8步，改为只跑 `fastcheck --quick`（5步：compile + ruff + pyright + ROOT check + env check，秒级）。完整 8 步留给 /finish 收尾。停用 pre-commit 的原始理由（完整8步太慢、误报历史债务）已通过分层设计解决。
+> **本决策部分被推翻**（2026-09-10）：pre-commit 已重新启用，但不再跑完整 fastcheck，改为只跑 `fastcheck --quick`（5步：compile + ruff + pyright + ROOT check + env check，秒级）。完整全量（现为 9 步，比当时多 audit + module-map 刷新）留给 /finish 收尾。停用 pre-commit 的原始理由（完整全量太慢、误报历史债务）已通过分层设计解决。
 
 
 > 状态：已采纳（2026-09-07 执行，commit 5fac83f）
