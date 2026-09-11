@@ -45,12 +45,17 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
             bbox_by_rid[rid] = b.get("bbox")
 
     img = Image.open(clean_path).convert("RGB")
+    img_long_side = max(img.size)
 
-    # ===== 第一遍：计算每个框能放下的最大字号（不渲染） =====
+    # ===== manga-image-translator 风格：原文基准字号 + 译文长度缩放 =====
+    # 参考：zyddnys/manga-image-translator PR #1168
+    # - 基准字号 = 原文在框内能放下的最大字号
+    # - 译文比原文长时缩放：scale = 1/(1+length_increase*0.5), clamp[0.6, 1.0]
+    # - 最小字号 = 图片长边 / 200
+    # - 每框独立，不统一整页基准
     canon_ids = {c.get("region_id") for c in canon_items}
-    item_contexts = []  # 存储每个item的上下文（text, font_path, stroke, bbox），供第二遍使用
-    max_sizes = []  # 每个框能放下的最大字号
-    skipped_no_bbox = []  # 找不到bbox的item（第一遍就记录，避免丢失）
+    item_contexts = []
+    skipped_no_bbox = []
 
     for item in canon_items:
         rid = item.get("region_id")
@@ -61,30 +66,39 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         if not bbox:
             skipped_no_bbox.append(rid)
             continue
-        # ADR-033: 对所有框排版前收缩到实际边界
-        # 2026-09-11 禁用：shrink_bubble_bbox 在黑色背景框上过度收缩
-        # （如 P18 r08 91x221 -> 10x17），导致整页基准字号被拉低到12px
-        # bbox = shrink_bubble_bbox(img, bbox)
         category = item.get("category")
         font_path, stroke = resolve_font(category or "dialogue_bubble", text)
-        # 计算这个框能放下的最大字号（不用base_size，从MAX_SIZE往下找）
-        max_size, _, _ = fit_font_size(text, Path(font_path), bbox)
-        max_sizes.append(max_size)
+
+        # 1. 用原文计算基准字号（原文在框内能放下的最大字号）
+        src_text = item.get("baberu_text") or item.get("text") or text
+        src_base_size, _, _ = fit_font_size(src_text, Path(font_path), bbox)
+
+        # 2. 译文长度缩放：译文比原文长时缩小，短时不放大
+        src_len = max(1, len(src_text.strip()))
+        dst_len = len(text.strip())
+        length_increase = max(0.0, (dst_len - src_len) / src_len)
+        scale = 1.0 / (1.0 + length_increase * 0.5)
+        scale = max(0.6, min(1.0, scale))
+
+        # 3. 目标字号 = 原文基准 * 缩放，不低于最小字号
+        min_font_size = max(12, img_long_side / 200)
+        target_size = max(min_font_size, src_base_size * scale)
+
         item_contexts.append({
             "rid": rid,
             "text": text,
             "font_path": str(font_path),
             "stroke": stroke,
             "bbox": bbox,
+            "target_size": target_size,
+            "src_base_size": src_base_size,
+            "scale": scale,
         })
 
-    # 取所有框的最小值作为整页基准字号（自适应，不硬编码）
-    if max_sizes:
-        base_font_size = min(max_sizes)
-    else:
-        base_font_size = 24  # 兜底：没有任何框时用默认值
+    # 无统一基准：每框用自己的目标字号
+    base_font_size = None
 
-    # ===== 第二遍：所有框统一用基准字号渲染 =====
+    # ===== 渲染：每框独立用目标字号 =====
     rendered_items = []
     overflow = []
     shrunk_boxes = []
@@ -95,17 +109,20 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         font_path = ctx["font_path"]
         stroke = ctx["stroke"]
         bbox = ctx["bbox"]
-        # 用基准字号渲染（base_size=base_font_size，所有框统一字号）
+        target_size = ctx["target_size"]
+        # 用目标字号渲染（fit_font_size 从 target_size 往下找能放下的最大字号）
         meta = render_item(img, text, font_path, bbox, stroke=stroke,
-                           base_size=base_font_size)
+                           base_size=target_size)
         meta["region_id"] = rid
         meta["font_family"] = Path(font_path).name
         meta["stroke_width"] = stroke
         meta["stroke_color"] = "#FFFFFF"
         meta["text_color"] = "#000000"
+        meta["src_base_size"] = ctx["src_base_size"]
+        meta["length_scale"] = ctx["scale"]
         rendered_items.append(meta)
-        # overflow 检测：字号等于基准字号但内容放不下（理论上不应该发生，因为基准是最小值）
-        if meta["font_size"] < base_font_size and len("".join(meta.get("lines") or [])) < len(text):
+        # 渲染前二次检查：实际字号 < 目标字号的 40% 说明严重溢出
+        if meta["font_size"] < target_size * 0.4:
             overflow.append(rid)
 
     if final_path:
@@ -129,7 +146,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         "work_id": work_id,
         "page": det.get("page", ""),
         "base_font_size": base_font_size,
-        "base_font_size_strategy": "adaptive_min_of_max_per_box",
+        "base_font_size_strategy": "mit_source_based_length_scaled",
         "rendered_items": rendered_items,
         "layout": layout,
         "final_image": final_image_rel,
