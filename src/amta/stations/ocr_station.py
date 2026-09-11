@@ -1,4 +1,4 @@
-"""Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
+﻿"""Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
 
 流程: 裁框 → OCR(engine可插拔: baberu/hayai) → [OCR confidence 过滤] → [规则过滤] → [VLM校验] → canon。
 藏匿：裁框（region_id 与 detect 输出顺序一一对应）、ocr_batch 分发、VLM contact sheet 批量校验、trace、save_canon。
@@ -70,13 +70,9 @@ def _should_filter_by_conf(row: dict, b: dict) -> tuple[bool, str]:
     Returns:
         (是否过滤, 过滤原因)
     """
-    source_engines = b.get("source_engines", [])
-    is_tiled_only = source_engines == ["rtdetr-v2-tiled"]
-    if not is_tiled_only:
-        return False, ""
     first_conf = row.get("first_token_conf", 1.0)
     if first_conf < OCR_CONF_THRESHOLD:
-        return True, f"tiled_only+first_conf={first_conf:.4f}<{OCR_CONF_THRESHOLD}"
+        return True, f"first_conf={first_conf:.4f}<{OCR_CONF_THRESHOLD}"
     return False, ""
 
 
@@ -241,3 +237,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
                            "vlm_status": vlm_result["status"]}, work_id, page)
     write_json(artifacts.artifact_paths(artifacts_dir, page)["canon"], doc)
     return doc
+
+
+
+

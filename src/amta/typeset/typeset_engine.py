@@ -3,6 +3,13 @@
 ADR-033 决策C：删除 decide_direction，fit_font_size 同时计算横/竖排最大字号选最优。
 第一性原理：在给定矩形内放给定文字，字号最大化且不溢出；横竖排只是两种排列方式。
 竖排支持多列（与横排多行完全对称），窄长框长文本不再被压成极小字号。
+
+2026-09-11 基准字号改造（ADR-033 补充）：
+- 专业排版原则：所有文字字号应基本一致，不为撑满框而放大字号。
+- 新增 compute_base_font_size()：基于图片长边自动计算基准字号。
+- fit_font_size 新增 base_size 参数：从基准字号往下找（而非从 MAX_SIZE 往下找），
+  大框不撑满、小框才缩小到相对下限（基准字号 * MIN_SIZE_RATIO）。
+- 不传 base_size 时保持旧行为（向后兼容）。
 """
 from __future__ import annotations
 
@@ -17,8 +24,29 @@ SAFE_RATIO = 0.85
 LINE_HEIGHT_RATIO = 1.2   # 行高 = 字号 * 1.2
 CHAR_WIDTH_RATIO = 1.15   # 字宽 = 字号 * 1.15（中文等宽近似）
 
+# 基准字号参数（2026-09-11）：
+# 基准字号 = 图片长边 / BASE_SIZE_DIVISOR（如 3258px 图 → 36px）
+# 相对下限 = 基准字号 * MIN_SIZE_RATIO（如 36px → 18px）
+BASE_SIZE_DIVISOR = 90
+MIN_SIZE_RATIO = 0.7  # 相对下限 = 基准字号 * 0.7（如 38px → 27px），低于此值宁可溢出也不缩小
+
 # 方向推断阈值：高宽比 >= 1.5 视为竖排框，宽高比 >= 1.5 视为横排框
 DIRECTION_RATIO_THRESHOLD = 1.5
+
+
+def compute_base_font_size(img_long_side: int) -> int:
+    """基于图片长边计算基准字号。
+
+    专业排版原则：所有文字字号应基本一致，基准字号由图片分辨率决定。
+    公式：base_size = max(MIN_SIZE, img_long_side // BASE_SIZE_DIVISOR)
+
+    Args:
+        img_long_side: 图片长边像素值（max(width, height)）
+
+    Returns:
+        基准字号（整数 px）
+    """
+    return max(MIN_SIZE, img_long_side // BASE_SIZE_DIVISOR)
 
 
 def infer_direction_from_bbox(bbox: list) -> str | None:
@@ -194,18 +222,28 @@ def _max_size_for_direction(text: str, font_path: Path, bbox: list,
 
 def fit_font_size(text: str, font_path: Path, bbox: list,
                   min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE,
-                  preferred_direction: str | None = None
+                  preferred_direction: str | None = None,
+                  base_size: int | None = None
                   ) -> tuple[int, str, list[str]]:
     """同时计算横排和竖排的最大可行字号，返回 (字号, 方向, 折行/分列)。
 
     第一性原理：在给定矩形内放给定文字，字号最大化且不溢出。
     两种方向约束方程一致（宽高互换），选字号更大者。
 
+    base_size（2026-09-11 新增）：基准字号模式。
+    - 传入时：max_sz = base_size（大框不撑满），min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))（相对下限）
+    - 不传时：用旧的 max_sz/min_sz（向后兼容，框内最大化字号）
+
     preferred_direction: 首选方向（"horizontal"|"vertical"|None）。
         - 若指定，优先在该方向最大化字号；
         - 仅当首选方向字号 < 次选方向字号 * 0.70 时才切换到次选方向；
         - None 时纯字号选优（旧行为）。
     """
+    # 基准字号模式：覆盖 max_sz 和 min_sz
+    if base_size is not None:
+        max_sz = base_size
+        min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))
+
     h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
     v_size, v_lines = _max_size_for_direction(text, font_path, bbox, "vertical", min_sz, max_sz)
 
