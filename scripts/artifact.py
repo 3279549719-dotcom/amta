@@ -52,15 +52,47 @@ class ArtifactInfo:
 
 
 def _read_fingerprint(path: Path) -> str | None:
-    """读取产物旁边的 .fingerprint 文件，返回前 16 位（足够识别）。"""
+    """读取产物旁边的 .fingerprint，返回一个**短、单行、可识别**的摘要。
+
+    2026-09-11 修：`.fingerprint` 文件是 **JSON**（`{"stage": "ocr", "page": ...,
+    "schema_version": ...}`），不是裸哈希串。旧实现 `content[:16]` 直接切前 16 个字符，
+    于是拿到的是 `'{\\n  "stage": "o'` —— 含换行，把 `--format table` 的列全部冲烂
+    （实测 fp 列打印出多行原始 JSON），而且那 16 个字符**根本不携带任何识别信息**
+    （永远是同样的 `{\n  "stage": "o`，所有产物看起来一模一样）。
+
+    正确做法：解析 JSON，优先用里面真正标识内容的字段；解析不了再退化为
+    "把全部空白压成单空格后取前 16 字符"（保证任何情况下都是单行短串）。
+    """
     fp = fingerprint_of(path)
-    if fp.exists():
-        try:
-            content = fp.read_text(encoding="utf-8").strip()
-            return content[:16] if content else None
-        except OSError:
-            return None
-    return None
+    if not fp.exists():
+        return None
+    try:
+        content = fp.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not content:
+        return None
+
+    # 首选：JSON 里的内容指纹字段。本仓库的实际 schema（amta.stores.artifact_cache）为
+    # {"stage","page","schema_version","generated_at","input_hash","code_hash","config_hash"}，
+    # 所以 input_hash 才是"这份产物对应哪份输入"的标识。
+    try:
+        data = json.loads(content)
+        if isinstance(data, dict):
+            for key in ("input_hash", "fingerprint", "hash", "sha256", "digest", "content_hash"):
+                val = data.get(key)
+                if isinstance(val, str) and val:
+                    return val[:16]
+            # 退而求其次：用 阶段-版本 标识（至少能区分产物种类）
+            parts = [str(data.get(k, "")) for k in ("stage", "schema_version")]
+            tag = "-".join(p for p in parts if p)
+            if tag:
+                return tag[:16]
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # 兜底：压平空白，保证单行
+    return " ".join(content.split())[:16]
 
 
 def _file_meta(path: Path) -> tuple[int, str]:

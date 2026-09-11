@@ -98,3 +98,102 @@ class TestFind:
 
         assert result.returncode != 0
         assert "not found" in result.stderr.lower() or "missing" in result.stderr.lower()
+
+
+# ---- query 命令（深接口原语） ----
+
+
+class TestReadFingerprint:
+    """`.fingerprint` 解析必须是**单行短串**（2026-09-11 实测修）。
+
+    真实 `.fingerprint` 文件是 **JSON**：
+        {"stage":"ocr","page":"page_16","schema_version":"1.0",
+         "generated_at":"...","input_hash":"83ad83...","code_hash":"...","config_hash":"..."}
+    旧实现 `content[:16]` 切出的是 `'{\\n  "stage": "o'` —— 含换行，把
+    `--format table` 整张表冲烂；而且**所有产物**的这 16 个字符完全相同（零识别价值）。
+
+    直接测函数而不是测 CLI：`query` 扫的是仓库自己的 `workspace/`（见
+    `_discover_workspaces`），不读任意 cwd，用 tmp_path 造 CLI 场景是假场景。
+    """
+
+    @staticmethod
+    def _fn():
+        """从 scripts/artifact.py 导入 _read_fingerprint（脚本内的私有函数）。
+
+        必须先把模块注册进 sys.modules —— 否则 `@dataclass` 解析注解时
+        `sys.modules[cls.__module__]` 取到 None，抛
+        `AttributeError: 'NoneType' object has no attribute '__dict__'`（实测）。
+        """
+        import importlib.util
+        import sys
+
+        name = "artifact_cli_mod_for_test"
+        if name in sys.modules:
+            return sys.modules[name]._read_fingerprint
+        spec = importlib.util.spec_from_file_location(name, SCRIPT)
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod          # ← dataclass 需要它
+        spec.loader.exec_module(mod)
+        return mod._read_fingerprint
+
+    def _artifact_with_fp(self, tmp_path: Path, payload: dict) -> Path:
+        d = tmp_path / "canon"
+        d.mkdir(parents=True, exist_ok=True)
+        art = d / "page_11.json"
+        art.write_text("{}", encoding="utf-8")
+        (d / "page_11.json.fingerprint").write_text(
+            json.dumps(payload), encoding="utf-8",
+        )
+        return art
+
+    def test_returns_input_hash_prefix(self, tmp_path):
+        """应从 JSON 取 input_hash 前缀，而不是切 JSON 的前 16 个字符。"""
+        art = self._artifact_with_fp(tmp_path, {
+            "stage": "ocr", "page": "page_11", "schema_version": "1.0",
+            "input_hash": "83ad8360cdb06a05bb72f8fbdcb24702cc",
+        })
+        assert self._fn()(art) == "83ad8360cdb06a05"
+
+    def test_no_newlines_in_result(self, tmp_path):
+        """结果绝不能含换行（含换行 = 表格被冲烂）。"""
+        art = self._artifact_with_fp(tmp_path, {
+            "stage": "ocr", "input_hash": "a" * 64,
+        })
+        got = self._fn()(art)
+        assert got is not None
+        assert "\n" not in got and "\r" not in got, f"fp 含换行：{got!r}"
+
+    def test_different_inputs_give_different_fp(self, tmp_path):
+        """两个不同产物的 fp 必须不同——否则这一列没有识别价值。"""
+        fn = self._fn()
+        a = self._artifact_with_fp(tmp_path / "a", {"input_hash": "a" * 64})
+        b = self._artifact_with_fp(tmp_path / "b", {"input_hash": "b" * 64})
+        assert fn(a) != fn(b)
+
+    def test_falls_back_to_stage_version(self, tmp_path):
+        """没有 hash 字段时退化为 stage-schema 标签，仍是单行短串。"""
+        art = self._artifact_with_fp(tmp_path, {
+            "stage": "ocr", "schema_version": "1.0",
+        })
+        got = self._fn()(art)
+        assert got is not None and "\n" not in got
+        assert "ocr" in got
+
+    def test_malformed_json_falls_back_to_flattened_text(self, tmp_path):
+        """非 JSON 内容也要压成单行（不可崩、不可含换行）。"""
+        d = tmp_path / "canon"
+        d.mkdir(parents=True, exist_ok=True)
+        art = d / "page_11.json"
+        art.write_text("{}", encoding="utf-8")
+        (d / "page_11.json.fingerprint").write_text("line1\nline2\nline3", encoding="utf-8")
+        got = self._fn()(art)
+        assert got is not None and "\n" not in got
+
+    def test_no_fingerprint_file_returns_none(self, tmp_path):
+        """没有 .fingerprint 就返回 None（CLI 显示 '-'）。"""
+        d = tmp_path / "canon"
+        d.mkdir(parents=True, exist_ok=True)
+        art = d / "page_11.json"
+        art.write_text("{}", encoding="utf-8")
+        assert self._fn()(art) is None
