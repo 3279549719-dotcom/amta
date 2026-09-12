@@ -45,7 +45,7 @@ description: 'Delegate the finish/reflection step to a background finisher subag
 5. 可机械校验的不变量 → tests / lint / git-hook（提案写"加一条测试/检查，校验 X"）。
    这是唯一真强制层；规则/lesson 都是 prompt 级。
 
-另外：瞬时状态（已完成/下一步/阻塞）→ docs/progress.md；一次性细节 → 丢弃，不提案。
+另外：瞬时状态 → git 与分支本身（`state.py bootstrap` 读；`loop_state.json` 已随 ralph 层删除，2026-09-12，不要再提案写它）；一次性细节 → 丢弃，不提案。
 
 输出格式：每条 `[目标文件] → [精确位置] → [草拟文本] → [理由]`，按影响排序。
 纪律：不直接改文件（只产提案，由主 agent 审查应用）；不提案没读过的文件；与现有内容重复则写

@@ -51,14 +51,14 @@ Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs
   全局规则/事实 → CLAUDE.md（精简一行，保持 <120 行）
   流程/程序   → .dsh/skills/<name>/SKILL.md（新增或修订技能）
   架构/方向   → docs/decisions/ADR-N（为什么这样选）
-  瞬时状态   → docs/progress.md（已完成/下一步/阻塞）
+  瞬时状态   → git 与分支本身（`state.py bootstrap` 读；loop_state.json 已随 ralph 层删除）
   机械可校验 → tests / lint / git-hook（唯一真强制层；规则/lesson 都是 prompt 级）
 ```
 
 ### Step 7 — 只更新真正变化的工件
 | 工件 | 何时更新 |
 |---|---|
-| `docs/progress.md` | 当前状态 / 里程碑 / 下一步 |
+| git（分支 + commit） | 当前状态 / 里程碑（`state.py bootstrap` 读；`loop_state.json` 已随 ralph 层删除） |
 | `docs/lessons.md` | 可复用 lesson |
 | `docs/decisions/` | 架构决策（为什么这样选） |
 | `CLAUDE.md` | 稳定操作规则（保持精简，别膨胀） |
@@ -106,7 +106,7 @@ Remaining risks:
 ## 常见坑
 
 - **假数据落盘（最致命）**：见上方数据真实性校验。实测教训：曾把虚构 "PaddleOCR-VL CER 0.11" 当真落盘推送需回滚。
-- **职责重复**：坑/经验只进 `docs/lessons.md`（唯一归属），CLAUDE.md 只留一行指针 + 稳定规则，progress.md 只写状态，不重复。
+- **职责重复**：坑/经验只进 `docs/lessons.md`（唯一归属），CLAUDE.md 只留一行指针 + 稳定规则，瞬时状态只进 `loop_state.json`/`.remember`（`docs/progress.md` 已废弃，由 `state.py` 替代），不重复。
 - **git add -A**：会把临时文件卷进去 → 明确文件列表。
 - **Windows stderr 误报**：push 成功但标 exit 1 → 看 `main -> main` 与 `git status -sb`。
 - **记忆膨胀**：lesson 已自动化（有测试/hook）后，在 lessons.md 标注 `[已自动化]`，不要把重复规则再堆进 CLAUDE.md。
