@@ -54,8 +54,7 @@
 - **`estate.py`** — estate — 知识地产的只读解析层。（类: Entry；函数: estate_root, read_lines, _entries_from_headers, parse_lessons, lesson_sections）
 - **`gc.py`** — gc — 记忆地产自动清理（腐坏不再等人工点出来）。（函数: _read, _write, archive_today, refresh_now, prune_tmp）
 - **`inject.py`** — inject — DSH 原生记忆注入：把记忆包写进 CLAUDE.local.md（随会话自动加载）。（函数: _pack, build_local_md, main）
-- **`lint.py`** — lint — 记忆机制检查引擎（同引擎双入口：memory_lint --strict 门禁 / memory_status agent 自检）。（类: Finding；函数: run_checks）
-- **`loop_state.py`** — loop_state — 循环接续状态（自主循环的记账本，schema v2）。（函数: path, load, plan_list, plan_progress, summarize）
+- **`lint.py`** — lint — 记忆机制检查引擎（同引擎双入口：memory_lint --strict 门禁 / memory_status agent 自检）。（类: Finding；函数: is_historical_note, run_checks）
 - **`tools.py`** — tools — 检索操作核心：grep/read/index/recent。（类: Hit；函数: _scopes, _fmt, do_grep, _valid_re, do_read）
 
 ## `orchestrator/` — amta.orchestrator — 管线编排器（深模块）。
@@ -97,7 +96,7 @@
 ## `typeset/` — amta.typeset — Stage 5/6 排版（自研 Pillow 引擎，ADR-019/020/021）。
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
-- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, wrap_text, wrap_vertical, _fits）
+- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, wrap_text, wrap_vertical, _font_metrics）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: render_item, _render_vertical, _draw_rotated_char）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
 
@@ -120,25 +119,18 @@
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
 - **`gen_stage4_report.py`** — gen_stage4_report — Stage4 验证报告 CLI（amta.report.stage4_report 的薄壳）。
 - **`gen_typeset_review.py`** — gen_typeset_review — typeset 成品图看图报告 CLI（amta.report.typeset_review 的薄壳）。
-- **`hook_pretooluse.py`** — Claude Code PreToolUse hook: git commit/merge 前自动跑快速 fastcheck。
-- **`hook_sessionstart.py`** — Claude Code SessionStart hook: 新会话自动加载项目状态。
-- **`loop_state.py`** — loop_state CLI — 查看 / 更新循环状态（RALPH 会话、进程、人共用）。
 - **`mcp_memory.py`** — mcp_memory — 记忆检索 MCP 字典工具（stdio，纯 stdlib）。
 - **`memory.py`** — memory.py — 记忆系统统一 CLI（ADR-025/026/027 收敛）。
 - **`memory_autoinject.py`** — memory_autoinject — UserPromptSubmit hook：按 prompt 关键词自动检索记忆并注入上下文。
 - **`merge_labels.py`** — 合并各 subagent 的 labels 片段到 labels_a.json。
 - **`merge_suggestions.py`** — merge_suggestions — suggestions.json → work_state 合并。
 - **`pre_scan.py`** — CLI: pre-scan a work's canon artifacts to build locked terminology dictionary.
-- **`ralph_context.py`** — ralph_context — Ralph Loop 的确定性上下文生成。
-- **`ralph_sdk.py`** — ralph_sdk.py — Ralph Loop v5 薄壳（Claude Agent SDK 版）
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
-- **`review.py`** — review —  独立 model 审核门（ADR-030）：让一个"不知道你做了什么"的第二个模型独立审 diff。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
 - **`run_stage4_e2e_11_20.py`** — 批量跑 11-20 页 04_inpaint（精修mask + lama-manga）。
 - **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
 - **`smoke_test.py`** — AMTA 冒烟测试：验证 koharu headless API 通路（建项目→传图→跑检测→读场景→关项目）。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
-- **`trace_probe.py`** — trace_probe — 读 claude 会话 JSONL 的轻量探针（心跳 / 卡死诊断 / trace 统计）。
 - **`verify_stage4.py`** — Stage 4 端到端验证: 修复bug后跑5页, 生成原图vs clean对比报告。
 
 ---

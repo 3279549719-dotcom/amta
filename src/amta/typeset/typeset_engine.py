@@ -168,21 +168,28 @@ def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
     return cols
 
 
+def _font_metrics(font: ImageFont.FreeTypeFont) -> tuple[float, float]:
+    """精确测量单个中文字符的宽和行高（利用字体本身的度量，不用硬编码比例）。"""
+    char_w = font.getlength("字")
+    ascent, descent = font.getmetrics()
+    line_h = ascent + descent
+    return char_w, line_h
+
+
 def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
           direction: str) -> bool:
-    """检查折行/分列结果是否放入框内。"""
+    """检查折行/分列结果是否放入框内（精确测量，无溢出容忍）。"""
     x1, y1, x2, y2 = bbox
     w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
+    _char_w, line_h = _font_metrics(font)
     if direction == "vertical":
         # 竖排：列数 * 字宽 <= 框宽；最长列字数 * 行高 <= 框高
         max_col_chars = max(len(col) for col in lines) if lines else 0
-        total_w = len(lines) * font.size * CHAR_WIDTH_RATIO
-        # 容忍避头尾导致的轻微溢出（最多2个字符高度），与横排 wrap_text 容忍溢出对称
-        vertical_tolerance = 2 * font.size * LINE_HEIGHT_RATIO
-        return total_w <= w and (max_col_chars * font.size * LINE_HEIGHT_RATIO) <= h + vertical_tolerance
+        total_w = len(lines) * _char_w
+        return total_w <= w and (max_col_chars * line_h) <= h
     # 横排：最长行像素宽 <= 框宽；行数 * 行高 <= 框高
     max_line = max(font.getlength(ln) for ln in lines) if lines else 0
-    return max_line <= w and len(lines) * font.size * LINE_HEIGHT_RATIO <= h
+    return max_line <= w and len(lines) * line_h <= h
 
 
 def _max_size_for_direction(text: str, font_path: Path, bbox: list,
@@ -199,8 +206,9 @@ def _max_size_for_direction(text: str, font_path: Path, bbox: list,
         mid = (lo + hi) // 2
         font = ImageFont.truetype(str(font_path), mid)
         if direction == "vertical":
-            # 竖排：每列字数 = 框高 / 行高，按列分割
-            chars_per_col = max(1, int(h / (mid * LINE_HEIGHT_RATIO)))
+            # 竖排：每列字数 = 框高 / 精确行高，按列分割
+            _char_w, line_h = _font_metrics(font)
+            chars_per_col = max(1, int(h / line_h))
             lines = wrap_vertical(text, chars_per_col)
         else:
             lines = wrap_text(text, font, w)
@@ -212,7 +220,8 @@ def _max_size_for_direction(text: str, font_path: Path, bbox: list,
     if not best_lines:  # min_sz 也放不下
         font = ImageFont.truetype(str(font_path), min_sz)
         if direction == "vertical":
-            chars_per_col = max(1, int(h / (min_sz * LINE_HEIGHT_RATIO)))
+            _char_w, line_h = _font_metrics(font)
+            chars_per_col = max(1, int(h / line_h))
             best_lines = wrap_vertical(text, chars_per_col)
         else:
             best_lines = wrap_text(text, font, w)

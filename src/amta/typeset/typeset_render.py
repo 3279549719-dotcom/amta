@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from amta.typeset.typeset_engine import CHAR_WIDTH_RATIO, LINE_HEIGHT_RATIO, fit_font_size, infer_direction_from_bbox
+from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
 
 
 def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
@@ -42,11 +42,14 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     )
     font = ImageFont.truetype(font_path, font_size)
     draw = ImageDraw.Draw(img)
-    lh = int(font_size * LINE_HEIGHT_RATIO)
+    # 精确行高和字宽（与 _fits 的测量方式一致，避免测量/渲染不一致导致溢出）
+    ascent, descent = font.getmetrics()
+    lh = ascent + descent
+    col_w = font.getlength("字")
 
     if direction == "vertical":
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
-                         col_width=font_size * CHAR_WIDTH_RATIO,
+                         col_width=col_w,
                          stroke=stroke, color=color)
     else:
         total_h = len(lines) * lh

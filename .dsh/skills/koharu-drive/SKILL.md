@@ -8,7 +8,7 @@ description: 驱动本地 koharu v0.59.1 headless（REST :4000）——项目/�
 ## 启动与健康
 
 - `npm start` → `scripts/start_koharu.ps1`（`--port 4000 --headless --cpu`，自带 NO_PROXY + 就绪轮询）
-- `npm run precheck` → 4000 端口可达性（exit 0/1）
+- `npm run koharu:check` → 4000 端口可达性（exit 0/1）。**不要再用旧名 `npm run precheck`**——它是 `check` 的 npm pre-hook，会劫持 `npm run check` 让语法门静默跳过（2026-09-12 修）。
 - `npm run smoke` → 冒烟测试（当前回归门槛）
 
 ## 稳定接口（src/amta/koharu_client.py — KoharuClient，16 方法）

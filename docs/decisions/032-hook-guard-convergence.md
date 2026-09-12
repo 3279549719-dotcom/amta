@@ -1,5 +1,23 @@
 # ADR-032：Hook 体系审计收敛（停用 pre-commit + PreToolUse，保留 pre-push + SessionStart）
 
+> ⚠️ **后记（2026-09-12 实测后补写）：本 ADR 是历史记录，不是现状说明书。**
+>
+> - **第 108 行「删除 `.githooks/pre-commit`」——未执行，且已被推翻。**
+>   2026-09-10 起了新的分层设计并写入 CLAUDE.md：pre-commit 跑
+>   `fastcheck --quick`（秒级、只读）→ `state.py finish` 跑全量 9 步 → pre-push 只跑可选 smoke。
+>   **pre-commit 现在是活的一层**，以 CLAUDE.md「机械护栏分层」为准。
+> - **第 110 行「保留 SessionStart 块」的理由不成立。**
+>   理由是「记忆注入推送的触发点」，但 `.claude/settings.json` 是 Claude Code 方言，
+>   **DSH 完全不读它**（见 L11）。DSH 侧证据：`packages/hooks/hooks-claude-code` 需**显式
+>   configPath** 才会加载 CC 方言 hook，而它在 `apps/cli/config/agent-presets/*/agent.cordis.yml`
+>   与 `~/.dsh/settings.yaml` 里**都没有注册**（搜 `hooks` → 0 命中）。
+>   也就是说：**这个 hook 在 DSH 下从未触发过**——"保留"保的是一个不跑的机制。
+>   实际承担注入的是 DSH 的 agent-instructions 直接读 `CLAUDE.local.md`，**不需要触发点**。
+> - **第 109 行「删除 `scripts/hook_pretooluse.py`」——同样未执行**（文件仍在磁盘上）。
+> - **可复用的教训**：一条决策若以「某机制已生效」为前提，就必须同时给出**能跑的探针**。
+>   本 ADR 的三条建议里，两条被后来的实践覆盖、一条的探测逻辑根本错（L45 记录它当时
+>   已经静默假死），而**没有任何东西会告诉你这一点**——这正是"护栏是唯一没有护栏的东西"。
+
 > **本决策部分被推翻**（2026-09-10）：pre-commit 已重新启用，但不再跑完整 fastcheck，改为只跑 `fastcheck --quick`（5步：compile + ruff + pyright + ROOT check + env check，秒级）。完整全量（现为 9 步，比当时多 audit + module-map 刷新）留给 /finish 收尾。停用 pre-commit 的原始理由（完整全量太慢、误报历史债务）已通过分层设计解决。
 
 

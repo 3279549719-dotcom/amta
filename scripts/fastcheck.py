@@ -97,7 +97,8 @@ def _test() -> int:
     basetemp = ROOT / "output" / "logs" / f".pytest-bt-{os.getpid()}"
     r = subprocess.run(
         [sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q", "--basetemp", str(basetemp)],
-        cwd=str(ROOT), env=env, capture_output=True, text=True,
+        cwd=str(ROOT), env=env, capture_output=True,
+        text=True, encoding="utf-8", errors="replace",
     )
     out = (r.stdout or "") + (r.stderr or "")
     shutil.rmtree(basetemp, ignore_errors=True)  # best-effort: 删不掉不影响（下次换 pid 新目录）

@@ -2,78 +2,54 @@
 
 自动化漫画翻译 Agent（会话驱动版）。
 
-## 架构（/grill-me 澄清会定案）
+## 架构（ADR-029：全本地管线）
 
 ```
 DSH 会话（我）= 单 LLM Agent（导演）
   ├── 决策：规划 / 翻译判断 / 修复决策 / 验收
   ├── 眼睛：describe_image（Vision QA）
   └── 手：amta Python 执行器（本仓库）
-        └── koharu v0.59.1 headless（D:\我的汉化\workflow\bin\koharu.exe）
-              REST /api/v1 + MCP /mcp，端口 4000
+        └── 统一入口 scripts/run_pipeline.py（detect → ocr → translate → inpaint → typeset）
 ```
 
-- 引擎基线：**本地 koharu v0.59.1 headless**（`--port 4000 --headless --cpu`）
-- 翻译通道：**工位脚本直调 DeepSeek API**（`.env` CHAT_*，ADR-014；弃 koharu 内 `llm` 引擎）
-- 产物结构：**per-work workspace**（`workspace/<work_id>/{raw, artifacts, state}`，ADR-013）+ 工位流水线（00_run_all 编排）
-- 第一里程碑：**Benchmark A/B/C**（10-20 页，VLM 当标注 oracle）
-- 算力约束：CPU-only（i5-1135G7 / Iris Xe），workers=1，inpainter 用 lama-manga
+- **全本地执行**（ADR-029）：detect = RT-DETR-v2，OCR = baberu/hayai，inpaint = 本地 lama-manga，typeset = 本地排版；除 translate 外不依赖任何外部服务
+- **translate 阶段用 DeepSeek API**（`.env` 的 CHAT_* 配置，ADR-014）
+- **koharu v0.59.1 已退出主链路**——legacy 客户端（`src/amta/backends/koharu_client.py`、`scripts/start_koharu.ps1`）仅作历史保留，不要在主线路上依赖它
+- **产物结构**：per-work workspace（`workspace/<work_id>/`，ADR-013）
+- **环境自检门卫**：`scripts/run_pipeline.py` 启动时自动检查代理 / 模型 / `.env` / ROOT 路径，不通过直接报错，不需要人工检查环境
+- **模型推理设备自动检测**（`cuda if available else cpu`），不硬编码设备
+- **唯一入口三个**：跑管线 `scripts/run_pipeline.py`、找代码 `scripts/find_code.py`、找产物 `scripts/artifact.py`
+- 细节（接口、流程、坑全表）→ `AGENTS.md`、`CLAUDE.md`；决策索引 → `docs/decisions/README.md`
+
+## 管线阶段
+
+```
+detect → ocr → translate → inpaint → typeset
+```
+
+阶段名以 `scripts/run_pipeline.py --help` 为准（现为 `detect,ocr,translate,inpaint,typeset,segment`）。
+跑下游阶段必须带上所有上游依赖阶段（跑 typeset 必须含 detect,ocr,translate,inpaint），未变更的阶段由 artifact_cache 自动跳过。
 
 ## 目录
 
 ```
-amta/
-├── src/amta/               # 纯库包（可被 import，脚本的上游）
-│   ├── koharu_client.py    # Koharu REST API 封装（建项目/传图/流水线/轮询/场景/mask/导出）
-│   ├── pipeline.py         # 流水线步骤常量 + 引擎 DAG 知识
-│   ├── metrics.py          # 共享指标库：norm/levenshtein/cer/best_match/match_score
-│   ├── geometry.py         # 共享几何库：bbox/iou/union_boxes
-│   ├── runner.py           # 流水线执行器：run_pipeline_once / run_all_pages（建项目→跑→回读→清理）
-│   ├── ocr_engines.py      # OpenAI 兼容 OCR 引擎：本地 llama-server / DashScope qwen-vl-ocr
-│   ├── gt_alignment.py     # GT→detector 框对齐裁剪（ADR-011：裁 detector 框、比 GT 内容）
-│   ├── images.py           # 图片工具：crop_with_pad
-│   ├── evalkit.py          # 评测聚合：TEXT_CLASSES / eval_rows / summarize_rows
-│   ├── workstate.py        # per-work workspace + work_state（ADR-013 产物结构）
-│   ├── artifacts.py        # 产物契约单一事实源（信封/schema/load-save/region_id，ADR-024）
-│   ├── config.py           # 密钥 env/.env 唯一归属（CHAT/VLM/DASHSCOPE）
-│   ├── suggestions.py      # 片假名术语提取+追加+跨页合并
-│   ├── detect_station.py   # Stage 1 深工位（raw → DetectionArtifact）
-│   ├── ocr_station.py      # Stage 2 深工位（det → CanonArtifact）
-│   ├── translate_station.py# Stage 3 深工位（canon → TranslationArtifact）
-│   └── paths.py            # ROOT/OUTPUT/DATA 常量 + read_json/write_json/ensure_utf8_stdio
-├── scripts/                # 可执行入口（薄 CLI，只做参数解析与落盘，逻辑在 src/amta）
-│   ├── benchmark.py        # Benchmark A/B/C（两阶段：emit crops → ingest 标注）
-│   ├── ocr_detect.py / ocr_score.py      # Benchmark B（OCR 探测 + CER/EM 评分）
-│   ├── recall_detect.py / recall_crop.py / recall_score.py  # recall 内容级匹配
-│   ├── sfx_compare.py / merge_labels.py / baberu_ocr.py
-│   ├── context7.py         # 文档查询（npm run ctx7:*）
-│   ├── fastcheck.py / audit.py / smoke_test.py
-│   └── start_koharu.ps1 / precheck.ps1 / install_hooks.ps1
-├── tests/                  # 确定性单测（fastcheck 第 4 步）
-├── docs/                   # progress / lessons / decisions（ADR-001..013）
-├── context/                # <作品>.story.json / cast 种子（Phase 2）
-├── workspace/              # per-work 同人志工作区（ADR-013：raw/ artifacts/ state/）
-├── testsets/               # benchmark 测试集（页面不入库）
-├── output/                 # 运行产物（gitignored，除 data/ 白名单 JSON）
-│   ├── data/               # 入库的 benchmark/label/recall JSON
-│   ├── reports/            # HTML 报表（含原图+检测框+OCR 全文）
-│   ├── crops/ recall_crops/ ocr_frag/ labels_frag/
-│   └── logs/ tmp/
-├── models/                 # 本地模型权重（gitignored：paddle-manga GGUF / llama-cpp / baberu-ocr）
-└── .dsh/skills/             # 按需加载技能（DSH 原生技能根：benchmark/cycle-close/finisher/researcher/...）
+amta/                        # 本仓库根
+├── src/amta/                # 纯库包（可被 import，脚本的上游）
+│                            #   模块地图见 docs/module-map.md —— 由 `scripts/find_code.py --index`
+│                            #   自动生成、永远与代码同步；README 不再手抄模块清单
+├── scripts/                 # 可执行入口（薄 CLI，只做参数解析与落盘，逻辑在 src/amta）
+│   ├── archive/             # 退役脚本
+│   └── probes/              # 一次性实验脚本
+├── tests/                   # 确定性单测（fastcheck 的一步）
+├── docs/                    # 坑库 lessons / 决策 ADR / 生成物模块地图
+├── context/                 # <作品>.story.json / cast 种子
+├── workspace/               # per-work 同人志工作区（ADR-013）
+├── testsets/                # benchmark 测试集（页面不入库）
+├── output/                  # 运行产物（gitignored）
+│   ├── data/                # 入库的 benchmark/label/recall JSON
+│   ├── reports/             # HTML 报表
+│   ├── recall_crops/ ocr_frag/ labels_frag/   # 裁剪 / 片段产物
+│   └── logs/ tmp/           # 日志 / 临时
+├── models/                  # 本地模型权重（gitignored）
+└── .dsh/skills/             # 按需加载技能（DSH 原生技能根）
 ```
-
-## 引擎 DAG（v0.59.1 实证）
-
-```
-pp-doclayout-v3 / comic-text-detector / anime-text / comic-text-bubble-detector → TextBoxes
-comic-text-detector-seg（needs TextBoxes）→ SegmentMask（像素级）
-speech-bubble-segmentation → BubbleMask
-manga-ocr / paddle-ocr-vl-1.5 / mit48px-ocr（needs TextBoxes）→ OcrText
-llm（needs OcrText）→ Translations
-lama-manga / flux2-klein / aot-inpainting（needs SegmentMask+BubbleMask）→ Inpainted
-yuzumarker-font-detection（needs TextBoxes）→ FontPredictions
-koharu-renderer（needs Inpainted+Translations+FontPredictions）→ FinalRender
-```
-
-框外字漏检根因：`pp-doclayout-v3` 是文档版面模型；`ctd_seg` 只细化已有框。

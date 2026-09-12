@@ -14,9 +14,9 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 |---|---|---|
 | 跑管线 | `uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>` | 启动时自动环境自检；阶段：detect,ocr,translate,inpaint,typeset；**必须包含所有上游依赖阶段**（跑 typeset 必须含 detect,ocr,translate,inpaint）；artifact_cache 自动跳过未变更阶段 |
 | 找代码 | `uv run python scripts/find_code.py <关键词>` | 搜索模块/函数/类，禁止瞎猜路径或硬 grep |
-| 找产物 | `uv run python scripts/artifact.py {find\|list\|status\|invalidate} ...` | 参数按子命令不同：`find` 要 `--stage`+`--page`；`list` 要 `--stage`；`status`/`invalidate` **不接受 `--stage`**（`invalidate` 要 `--page`）。公共参数 `--work-id <id>`。拿不准先 `--help`，别照抄本行 |
+| 找产物 | `uv run python scripts/artifact.py {query\|find\|invalidate} ...` | **一个 `query` 原语覆盖所有查询场景**：`--work-id <id>` 或 `--all`，可选 `--stage`/`--page`/`--format {json,table}`。`find` 是兼容层（要 `--stage`+`--page`+`--artifacts-dir`）。`invalidate` 失效单页缓存（要 `--work-id`+`--page`）。**拿不准先 `--help`，别照抄本行** |
 | 对话状态 | `uv run python scripts/state.py {bootstrap\|finish}` | 对话开始 `bootstrap` 读 git+env+diff 状态（统一格式）；对话结束 `finish "summary"` 落盘——**它会先跑完整质检，红了就拒绝提交**（急用时 `--skip-check`）；替代 progress.md，不需要手动跑 git log |
-| 生成报告 | `uv run python scripts/gen_report.py` | 验收唯一视觉载体；深接口：`--granularity page|region` + `--stages raw,detect,ocr,translate,inpaint,typeset` 自由组合 |
+| 生成报告 | `uv run python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages N-M` | 验收唯一视觉载体（前三个参数**必填**）；深接口：再叠加 `--granularity page\|region` + `--stages raw,detect,ocr,translate,inpaint,typeset` 自由组合 |
 | 分享文件 | `uv run python scripts/share_file.py --file <路径>` | 一键上传到飞书云空间并生成公网链接（互联网任何人可阅读）；手机端查看产物时必用，禁止给本地路径 |
 | 质检 | `uv run python scripts/fastcheck.py` | 收尾必跑 |
 | 记忆检索 | `uv run python scripts/memory.py {grep|recent|status}` | 先查记忆再动手，别重踩坑 |
@@ -46,7 +46,8 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
 - **机械护栏分层**：pre-commit `fastcheck --quick`（秒级，**不含 pytest**，只读不写文件）→ `state.py finish` 强制跑完整（含 pytest/depguard/memory/audit/**module-map 刷新**）→ pre-push 只跑可选 smoke。安装：`scripts/install_hooks.ps1`。
   ⚠️ **--quick 不是门槛，是门槛的一半**：2026-09-10 事故——脚本清理后 12 条测试永久变红、无人察觉约两天，因为唯一的 commit 拦截层只跑 --quick。**"通过了"必须说明跑的是哪一层。**
-- **指针必须指向活着的东西**：本项目跑在 DSH 上，而 `.claude/`（settings.json hooks）与 `.mcp.json` 是 **Claude Code 方言，DSH 不读**。**具体哪些路径失效、以及当初为什么决定不装 CC hook 桥，见 lessons `L11`**——此处只留指针不复述，免得又长出一份要同步的漂移。推论：任何"某机制已生效"的声明都必须配一条能跑的探针
+- **指针必须指向活着的东西**：本项目跑在 DSH 上。CC 方言的 hook 层已于 2026-09-12 **整体移除**（`.claude/settings.json`、`.claude/settings.local.json`、`scripts/hook_pretooluse.py`、`scripts/hook_sessionstart.py`）——它们声明的机制在 DSH 下**从未触发过**，是"看起来已生效"的死配置。仅存的 CC 方言文件是 `.mcp.json`，它是 `scripts/install_dsh_mcp.ps1` 的**输入源**（有用，不是死配置）。历史与理由见 lessons `L11` 与 ADR-032 后记。
+- **Harness 契约**：任何"某机制已生效"的声明都必须配一条能跑的探针——契约条款与探针焊在 `tests/test_harness_covenant.py`（H1 单一 Python 入口 / H2 声明的 hook 必须真被加载 / H3 排除名单不得有死路径 / H4 git hook 引用必须存在 / H5 契约自身无孤儿条款）。**新增声明 = 新增条款 + 新增探针，不接受只有散文的声明。**
 - **知识落地**：可复用经验落 `docs/lessons.md`（坑）或 `docs/decisions/ADR-N`（决策）；检索一律 `memory.py grep/read`
 - **HTML 报告铁律**：必须用 `src/amta/report/` 深接口，禁止 scripts/ 下新建独立 HTML 生成脚本
 - **CLI 工具原语化铁律**：工具必须提供可组合的原语（数据加载+处理原语+布局），禁止枚举使用场景（`--type a/b/c/d`）。新增需求 = 原语的新组合，不是新的 `--type`。反例：旧 gen_report 有 5 种写死类型，加"原图+干净图对比"得写第 6 种；正例：新 gen_report 只有 `--granularity page|region` + `--stages`，任意组合。
