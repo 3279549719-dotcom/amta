@@ -1,6 +1,7 @@
 # 028 — Ralph Loop：外层循环 + 文件状态的无人值守开发循环
 
-日期：2026-09-04　状态：已采纳（MVP 验证通过，3 次迭代）
+日期：2026-09-04　状态：**已废弃（2026-09-12）** —— 本文描述的整个 ralph 层（ralph.ps1 / prompt.md / loop_state.json / ralph_sdk.py / ralph_context.py / trace_probe.py / review.py）已删除。
+保留本文仅作历史记录：它记录的是「为什么当时要建」，不是「现在有什么」。
 
 ## 决策
 

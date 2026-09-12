@@ -51,20 +51,18 @@ def test_pack_slim_smaller_and_drops_state(estate: Path):
     assert len(slim) <= SLIM_BUDGET
 
 
-def test_pack_includes_loop_state_summary_when_present(estate: Path):
+def test_pack_has_no_continuation_state(estate: Path):
+    # 2026-09-12：loop_state 接续随 ralph 层整体删除 —— 即使文件在，也不许进注入包
     estate.joinpath("loop_state.json").write_text(
-        '{"mission": "检测调优", "next_action": "调 conf", "updated_at": "2026-09-01T22:00"}',
-        encoding="utf-8",
+        '{"mission": "检测调优", "next_action": "调 conf"}', encoding="utf-8"
     )
     pack = build_pack(estate, source="startup")
-    assert "## 接续状态" in pack
-    assert "检测调优" in pack
-    assert "调 conf" in pack
+    assert "## 接续状态" not in pack
+    assert "检测调优" not in pack
 
 
-def test_pack_hard_cap_on_huge_loop_state(estate: Path):
-    # 字典规则固定；超预算只能由巨大的 loop_state 摘要触发
-    estate.joinpath("loop_state.json").write_text('{"mission": "' + "x" * 20000 + '"}', encoding="utf-8")
-    pack = build_pack(estate, source="startup")
+def test_pack_hard_cap_truncates_on_tiny_budget(estate: Path):
+    # 预算被压到装不下字典块时：整块丢弃 + 附截断标记（防膨胀静默吞信息）
+    pack = build_pack(estate, source="startup", budget=32)
     assert len(pack) <= HARD_CAP
     assert "截断" in pack
