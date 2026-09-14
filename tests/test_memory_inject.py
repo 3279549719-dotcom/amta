@@ -24,15 +24,14 @@ def test_build_local_md_has_dictionary_rule_not_session_summaries(estate):
     assert "2026-08-30" not in text
 
 
-def test_build_local_md_includes_loop_state_summary(estate):
-    # loop_state.json 存在时，注入包带接续状态摘要
+def test_build_local_md_has_no_continuation_state(estate):
+    # 2026-09-12：接续状态随 ralph 层删除 —— 注入包只装字典规则
     estate.joinpath("loop_state.json").write_text(
-        '{"mission": "检测调优", "next_action": "调 conf", "updated_at": "2026-09-01T22:00"}',
-        encoding="utf-8",
+        '{"mission": "检测调优", "next_action": "调 conf"}', encoding="utf-8"
     )
     text = build_local_md(estate, "startup", 4096)
-    assert "## 接续状态" in text
-    assert "检测调优" in text
+    assert "## 接续状态" not in text
+    assert "检测调优" not in text
 
 
 def test_main_writes_utf8_local_file(estate, tmp_path):

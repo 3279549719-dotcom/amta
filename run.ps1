@@ -1,33 +1,46 @@
 ﻿<#
 .SYNOPSIS
-    AMTA unified command entry - forces uv run internally, never uses wrong Python.
+    AMTA 便捷入口 — 强制走 uv run，杜绝用错 Python。
 
 .DESCRIPTION
-    Wrapper for common commands:
-      .\run.ps1 all --pages 1-5           Run full pipeline
-      .\run.ps1 detect --pages 1-5        Run detect only
-      .\run.ps1 inpaint --pages 11-20     Run inpaint only (refined mask + lama-manga)
-      .\run.ps1 report                     Generate stage4 verification report
-      .\run.ps1 test                       Run pytest
-      .\run.ps1 python -c "..."           Pass through any python command (auto uv run)
+    ## 2026-09-12 大扫除记录（重要）
+
+    本脚本原有 9 个分支，其中 5 个（all / detect / ocr / translate / typeset）
+    调用 `scripts/00_run_all.py` / `01_detect.py` / `02_ocr.py` / `03_translate.py`——
+    **这些编号脚本早已全部删除**（统一入口变成了 `scripts/run_pipeline.py`）。
+    那 5 个分支里，两个直接报 FileNotFound，三个打印
+    "runs via 00_run_all, not supported standalone yet"——把人指向一个不存在的东西。
+
+    这就是"手写路径清单必然腐烂"的又一个实例：删脚本时没有任何机械检查盯着本文件。
+    现已接入守卫（`tests/test_reference_integrity.py` 的 S4）：操作文档/脚本里点名的
+    `scripts/*.py` 必须真实存在，否则测试变红。**以后删脚本，不要再靠记性。**
+
+    ## 2026-09-14 二次清理
+
+    inpaint 分支（run_stage4_e2e_11_20.py）和 report 分支（gen_stage4_report.py）
+    指向的脚本均已归档到 scripts/archive/，两个分支移除。生成报告请直接用统一入口
+    `scripts/gen_report.py`。
+
+    ## 跑管线请用统一入口（不在本脚本里）
+
+        uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> `
+            --start-page N --end-page M --stages detect,ocr,translate,inpaint,typeset
+
+    详见 CLAUDE.md 的「关键入口」表。本脚本只保留真正还成立的几个便捷分支。
 
 .NOTES
-    All commands use uv run python internally, ensuring project .venv (Python 3.12)
-    and all dependencies. Never use `python script.py` directly - that uses system
-    Python 3.14 which has no project dependencies and will raise ModuleNotFoundError.
+    所有 Python 命令走 `uv run python`，确保用项目 .venv。
 #>
 
-# No param() block - use $args to avoid PowerShell parameter prefix matching
-# (e.g. -c would ambiguously match -Command). $args[0] = command, rest = args.
+# 无 param() 块：用 $args 避免 PowerShell 参数前缀匹配歧义
+# （例如 -c 会歧义匹配 -Command）。$args[0] = 命令，其余为参数。
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
-$WorkId = "amta-run"
-$SrcDir = "D:\我的汉化\汉化作品\东方\单翼停留之地"
 
 $Command = if ($args.Count -gt 0) { $args[0] } else { "" }
 $CmdArgs = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
 
-$validCommands = @("all","detect","ocr","translate","inpaint","typeset","report","test","python")
+$validCommands = @("test", "python")
 if ($Command -and ($validCommands -notcontains $Command)) {
     Write-Output "Unknown command: '$Command'"
     $Command = ""
@@ -40,55 +53,7 @@ function Invoke-UvPython {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-function Parse-Pages {
-    param([string]$PagesStr)
-    if ($PagesStr -match "^(\d+)-(\d+)$") {
-        return @($Matches[1], $Matches[2])
-    }
-    Write-Error "Invalid page range: '$PagesStr'. Use format like 1-5 or 11-20"
-}
-
 switch ($Command) {
-    "all" {
-        $pagesIdx = [Array]::IndexOf($CmdArgs, "--pages")
-        if ($pagesIdx -lt 0 -or $pagesIdx + 1 -ge $CmdArgs.Count) {
-            Write-Error "Usage: .\run.ps1 all --pages 1-5"
-        }
-        $start, $end = Parse-Pages $CmdArgs[$pagesIdx + 1]
-        Invoke-UvPython @("scripts/00_run_all.py", "--work-id", $WorkId,
-            "--src-dir", $SrcDir, "--start-page", $start, "--end-page", $end,
-            "--with-inpaint", "--with-typeset")
-    }
-    "detect" {
-        $pagesIdx = [Array]::IndexOf($CmdArgs, "--pages")
-        if ($pagesIdx -lt 0 -or $pagesIdx + 1 -ge $CmdArgs.Count) {
-            Write-Error "Usage: .\run.ps1 detect --pages 1-5"
-        }
-        $start, $end = Parse-Pages $CmdArgs[$pagesIdx + 1]
-        $outDir = Join-Path $ProjectRoot "output\tmp\detect"
-        if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
-        for ($n = $start; $n -le $end; $n++) {
-            Invoke-UvPython @("scripts/01_detect.py", "--raw", "$SrcDir\$n.jpg",
-                "--out", "$outDir\page_$n`_detection.json")
-        }
-        Write-Output "detect done: page_$start - page_$end -> $outDir"
-    }
-    "ocr" {
-        Write-Output "ocr stage runs via 00_run_all, not supported standalone yet"
-    }
-    "translate" {
-        Write-Output "translate stage runs via 00_run_all, not supported standalone yet"
-    }
-    "inpaint" {
-        Write-Output "Note: run_stage4_e2e_11_20.py has hardcoded page range 11-20"
-        Invoke-UvPython @("scripts/run_stage4_e2e_11_20.py")
-    }
-    "typeset" {
-        Write-Output "typeset stage runs via 00_run_all, not supported standalone yet"
-    }
-    "report" {
-        Invoke-UvPython @("scripts/gen_stage4_report.py")
-    }
     "test" {
         & uv run pytest @CmdArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -100,16 +65,13 @@ switch ($Command) {
         Write-Output "Usage: .\run.ps1 COMMAND [args]"
         Write-Output ""
         Write-Output "Commands:"
-        Write-Output "  all --pages 1-5        Run full pipeline (detect+ocr+translate+inpaint+typeset)"
-        Write-Output "  detect --pages 1-5     Run detect only"
-        Write-Output "  inpaint --pages 11-20  Run inpaint only (refined mask + lama-manga)"
-        Write-Output "  report                  Generate stage4 verification report"
-        Write-Output "  test                    Run pytest"
-        Write-Output '  python -c "..."         Pass through any python command (auto uv run)'
+        Write-Output "  test                 Run pytest"
+        Write-Output '  python -c "..."      Pass through any python command (auto uv run)'
         Write-Output ""
-        Write-Output "Examples:"
-        Write-Output "  .\run.ps1 all --pages 1-5"
-        Write-Output "  .\run.ps1 report"
-        Write-Output '  .\run.ps1 python -c "import requests; print(''ok'')"'
+        Write-Output "跑管线用统一入口（不在这里）："
+        Write-Output "  uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>"
+        Write-Output ""
+        Write-Output "生成报告用统一入口："
+        Write-Output "  uv run python scripts/gen_report.py --work-id <id> [--granularity region|page] [--stages <阶段>]"
     }
 }

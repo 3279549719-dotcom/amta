@@ -88,8 +88,5 @@ reference/other artifacts/
 research/koharu-upstream/
 research/08-ocr-vlm-audit-probe/
 
-# ---- 运行时状态(ralph loop 状态文件,不入库)----
-loop_state.json
-
 # ---- 平铺迁移期留存（确认无用后删）----
 .remember.parent-era-20260906/

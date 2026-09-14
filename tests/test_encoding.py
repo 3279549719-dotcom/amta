@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import ast
 import os
 import re
 import subprocess
@@ -124,12 +125,25 @@ _ALLOWED_BARE_TEXT_TRUE = {
     # 只读 git config（ASCII 路径/布尔值）
     ("tests/test_lessons_guard.py", "subprocess.run"),
     ("tests/test_state_manager.py", "subprocess.run"),
-    ("tests/test_ralph_context.py", "subprocess.run"),
-    # hook 脚本：调用方是 CC 方言的 hook 运行时，输出是 JSON（ASCII）
-    ("scripts/hook_pretooluse.py", "subprocess.run"),
-    ("scripts/hook_sessionstart.py", "subprocess.run"),
-    # fastcheck 的 pytest 调用：输出含中文，但它自己解析 "N passed"（ASCII 正则）
-    ("scripts/fastcheck.py", "subprocess.run"),
+    # 以下两条白名单条目已删除（2026-09-12，随整个「CC 方言 hook 层」一起）：
+    #     ("scripts/hook_pretooluse.py", "subprocess.run")
+    #     ("scripts/hook_sessionstart.py", "subprocess.run")
+    # 理由：`.claude/settings.json` 声明的 hook 在 DSH 下**从未触发过**（证据见
+    # tests/test_harness_covenant.py 的 H2），两个脚本因此没有任何触发点；其职责分别由
+    # `state.py bootstrap`（状态展示）与 fastcheck 的 memory inject（注入刷新）
+    # + DSH agent-instructions 直接读 CLAUDE.local.md 承担。
+    # 留着这两条就是又一批"指向不存在文件的指针"。
+    # 2026-09-12 实测：这里原本还有一条
+    #     ("scripts/fastcheck.py", "subprocess.run")
+    # 理由写的是「输出含中文，但它自己解析 "N passed"（ASCII 正则）」。
+    # **这条豁免本身是错的**：它只考虑了「能不能*解析*」，没考虑「能不能*解码*」。
+    # 恰恰因为它输出含中文，GBK 解码在线程里当场炸掉：
+    #     UnicodeDecodeError: 'gbk' codec can't decode byte 0xab in position 890
+    # → reader 线程死掉 → stdout/stderr 静默变 None → 报「pytest 无通过汇总（exit 1）」，
+    #   而**所有测试其实全过**。护栏白名单把唯一必炸的位置豁免了，
+    #   于是它红了十几天没人当回事（大家只看到 "1 failed"）。
+    # 已改为 encoding="utf-8", errors="replace"，本条目就此删除。
+    # 教训：白名单的理由必须写清「为什么安全」，而「只读 ASCII」才是安全的理由。
 }
 
 _BARE_TEXT_TRUE_OWNERS = {"subprocess.run", "subprocess.Popen", "_sp.run", "sp.run"}
@@ -235,14 +249,30 @@ class TestNoBareTextTrueInLiveCode:
 # 一条"新脚本记得 import amta"的口头约定不是强制层，这条守卫才是。
 
 
+def _cjk_in_string_node(node: ast.AST, cjk: re.Pattern[str]) -> bool:
+    """节点里是否含中文字面量 —— 字符串常量**和 f-string** 都算。
+
+    2026-09-12 补：第一版只认 `ast.Constant`，于是 f-string 全部漏掉
+    （f-string 是 `ast.JoinedStr`，不是 Constant）。实测漏网者
+    `scripts/probes/eol_restore.py`：它的每一句中文输出都写在 f-string 里，
+    守卫判它"不输出中文"，而它在 Windows 上**确实**吐乱码。
+    盲点方向与 L26 同型：**"我没看见"被当成了"它没问题"。**
+    """
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str) and bool(cjk.search(node.value))
+    if isinstance(node, ast.JoinedStr):
+        return any(_cjk_in_string_node(v, cjk) for v in node.values)
+    if isinstance(node, ast.FormattedValue):
+        return _cjk_in_string_node(node.value, cjk)
+    return False
+
+
 def _emits_chinese(path: Path) -> bool:
     """脚本是否会向用户输出中文（docstring 不算——那是给读代码的人看的）。
 
     判定：`print` / `sys.stdout.write` / `sys.stderr.write` / argparse 的
-    `help=` / `description=` 里出现中日韩字符。
+    `help=` / `description=` 里出现中日韩字符（字符串常量与 f-string 都算）。
     """
-    import ast
-
     CJK = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff]")
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -250,26 +280,17 @@ def _emits_chinese(path: Path) -> bool:
         return False
 
     for node in ast.walk(tree):
-        # print("中文") / sys.stdout.write("中文")
+        # print("中文") / print(f"{x} 中文") / sys.stdout.write(...)
         if isinstance(node, ast.Call):
             fn = node.func
             name = getattr(fn, "attr", None) or getattr(fn, "id", None)
             if name in {"print", "write", "error", "exit"}:
                 for arg in list(node.args) + [k.value for k in node.keywords]:
-                    if (
-                        isinstance(arg, ast.Constant)
-                        and isinstance(arg.value, str)
-                        and CJK.search(arg.value)
-                    ):
+                    if _cjk_in_string_node(arg, CJK):
                         return True
             # argparse: help="中文" / description="中文"
             for k in node.keywords:
-                if (
-                    k.arg in {"help", "description"}
-                    and isinstance(k.value, ast.Constant)
-                    and isinstance(k.value.value, str)
-                    and CJK.search(k.value.value)
-                ):
+                if k.arg in {"help", "description"} and _cjk_in_string_node(k.value, CJK):
                     return True
     return False
 
@@ -346,6 +367,18 @@ class TestChineseScriptsReachTheChokePoint:
         f = tmp_path / "doc.py"
         f.write_text('"""这是一个中文模块说明，但不输出任何中文。"""\nprint("ok")\n', encoding="utf-8")
         assert not _emits_chinese(f), "只有 docstring 中文被误判为输出中文"
+
+    def test_detector_recognizes_fstring_chinese_output(self, tmp_path):
+        """反向验证：中文只写在 f-string 里，也必须被识别。
+
+        2026-09-12 补：第一版只认 `ast.Constant`，把 f-string（`ast.JoinedStr`）
+        整类漏掉。实测漏网者 `scripts/probes/eol_restore.py`——它的中文全在
+        f-string 里，于是"输出中文却没到收口点"，也就是**真会乱码**，守卫却说它没事。
+        没有这条，同一个盲点会再被踩回来。
+        """
+        f = tmp_path / "fstr.py"
+        f.write_text('x = 1\nprint(f"{x}: 中文输出")\n', encoding="utf-8")
+        assert _emits_chinese(f), "f-string 里的中文输出没被识别——盲点又回来了"
 
     def test_detector_accepts_choke_point_import(self, tmp_path):
         """对照组：import amta 的脚本应被判为已到达收口点。"""

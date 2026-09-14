@@ -204,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         # OCR 需要先有 TextBoxes：跑 detector 取并集，再对并集 crop 供 OCR 引擎（脚本外）
         detections = gather_detections(pages)
         emit_manifest(pages, detections)
-        print("[B] 先用 A 的并集 crops；对每 crop 跑三 OCR 引擎再标注。见 README/benchmark skill。")
+        print("[B] 先用 A 的并集 crops；对每 crop 跑三 OCR 引擎再标注。见 README 与本脚本 --help。")
     elif args.bench == "c":
         print("[C] 需 mask+inpaint（lama-manga）。当前脚本先跑 detector-seg+bubble 出 mask，")
         print("     inpaint 后对输出区域图供 describe_image 1-5 评分。实现见后续迭代。")

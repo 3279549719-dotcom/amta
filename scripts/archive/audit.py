@@ -1,4 +1,4 @@
-"""audit — 轻量 Harness 熵审计（/audit 的确定性部分）。
+"""audit — 轻量 Harness 熵审计（确定性检查部分；判断性建议在对话中按需做）。
 
 检查（可机械判定的）：
   1. CLAUDE.md 行数是否过大（阈值，避免无限膨胀）。
@@ -153,8 +153,7 @@ ROOT_ALLOWED = (
     ".gitignore", ".gitattributes", ".mcp.json", ".editorconfig",
     "AGENTS.md", "CLAUDE.md", "CLAUDE.local.md", "AGENTS.local.md",
     "README.md", "RUNBOOK.md", "pyproject.toml", "pyrightconfig.json",
-    "uv.lock", "package.json", "auth_rules.json", "prompt.md",
-    "loop_state.json", "ralph.ps1", "run.ps1",
+    "uv.lock", "package.json", "run.ps1",
     "research", "reference", ".firecrawl", ".remember", ".agent-teams",
     ".dsh", ".claude", ".githooks", "context", "data", "docs", "examples",
     "models", "output", "scripts", "src", "tests", "testsets", "tools",

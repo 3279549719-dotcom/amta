@@ -26,21 +26,26 @@ description: 'Use when a task/loop reaches its boundary — goal achieved (updat
 - 确认没有误改 `output/`、`models/`、`testsets/pages/` 等被忽略产物
 
 ### Step 3 — 确定性验证
-- 快门：`npm run check`（语法门）
-- 单测：`npm run test`（确定性结构/输出/常量不变量）
-- 合并快门：`npm run fastcheck`
-- 涉及 koharu_client / 流水线 / 引擎：`npm run smoke`（需先 `npm start`）
-- 发布前完整门禁：`npm run finish`
-- 遵循项目真实工具，不发明等价新工具
+
+**只有一个收尾入口，就是它**（2026-09-12 收敛；此前 check/test/fastcheck/finish 四个 npm 别名
++ 手工 git 是四套说法，已被删除）：
+
+    uv run python scripts/state.py finish "type: 摘要"
+
+它自己会做三件事：跑**全量**质检（compile+ruff+pyright+pytest+depguard+memory+audit+module-map 刷新）
+→ 通过则由它自己暂存并提交（**不要手工暂存**）→ 红了拒绝落盘、改动原样留在工作区。
+
+- 改到一半想快检（秒级、只读、不提交）：`uv run python scripts/state.py check`
+- 改动涉及 koharu_client / 引擎通路时，另外跑一次 `npm run smoke`（需先 `npm start`）
+- **不要发明等价的第三套工具**；本技能只准出现上面这两条命令名
 
 ### Step 4 — 修复
 失败 → 诊断 → 修复 → 重跑验证。**能修就修，不停在报错。**
 
-### Step 5 — 反思（委派 finisher subagent，AI 判断隔离到子代理）
+### Step 5 — 反思与知识归类（主 agent 直接做，不再委派子代理）
 1. 组装**会话摘要**（3-8 行：做了什么 / 决策 / 学到什么 / 验证结果）。
-2. **委派 finisher subagent**（读 `.dsh/skills/finisher/SKILL.md`，按其中的【finisher prompt 模板】把摘要交给子代理）：子代理在隔离上下文里完成五路分类 + 产出 proposals（lesson / CLAUDE.md / skill / ADR / test-hook / progress / 丢弃），不直接改文件。
-3. 主 agent **审查 proposals → 应用**（去重、保持精简、只改真正变化的工件）。
-4. 降级路径：子代理失败/超时 → 主 agent 亲自按 Step 6 分类树快速归类，不阻塞收尾。
+2. 主 agent 按 Step 6 的五路分流，把本会话真正可复用的观察归类，产出待落盘清单（lesson / CLAUDE.md / skill / ADR / test-hook / 丢弃）。
+3. **去重、保持精简**：只改真正变化的工件；拿不准可复用性的一律丢弃，不阻塞收尾。
 
 **不要每条观察都写进记忆**（防记忆污染）。晋升管线见下方。
 
@@ -51,14 +56,14 @@ Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs
   全局规则/事实 → CLAUDE.md（精简一行，保持 <120 行）
   流程/程序   → .dsh/skills/<name>/SKILL.md（新增或修订技能）
   架构/方向   → docs/decisions/ADR-N（为什么这样选）
-  瞬时状态   → docs/progress.md（已完成/下一步/阻塞）
+  瞬时状态   → git 与分支本身（`state.py bootstrap` 读；loop_state.json 已随 ralph 层删除）
   机械可校验 → tests / lint / git-hook（唯一真强制层；规则/lesson 都是 prompt 级）
 ```
 
 ### Step 7 — 只更新真正变化的工件
 | 工件 | 何时更新 |
 |---|---|
-| `docs/progress.md` | 当前状态 / 里程碑 / 下一步 |
+| git（分支 + commit） | 当前状态 / 里程碑（`state.py bootstrap` 读；`loop_state.json` 已随 ralph 层删除） |
 | `docs/lessons.md` | 可复用 lesson |
 | `docs/decisions/` | 架构决策（为什么这样选） |
 | `CLAUDE.md` | 稳定操作规则（保持精简，别膨胀） |
@@ -67,13 +72,13 @@ Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs
 **不要每个任务都改全部文件。**
 
 ### Step 8 — git 落盘
-- 明确文件 add（**不用 `git add -A`**）→ commit（type: 摘要）→ fetch → push
+- **就是 Step 3 的那条命令**：`state.py finish "type: 摘要"` —— 它负责 add + commit，不要再手工 add。
+- 推送前 `git fetch origin` 评估分叉 → rebase 后 push；确认 `git status -sb` ahead=0 behind=0
 - Windows 下 stderr 报错但看到 `main -> main` 即成功
-- 确认 `git status -sb` ahead=0 behind=0
 
 ## 数据真实性校验（先于任何落盘，最致命）
 
-每条要落盘的数据必须是**本会话实测/真实产出**，有证据文件可查（`output/*.json`、脚本输出）。**禁止把"假设/虚构/规划中"的结果当真数据落盘**。拿不出证据 → 只写"待验证/规划"。审计：`npm run audit`。
+每条要落盘的数据必须是**本会话实测/真实产出**，有证据文件可查（`output/*.json`、脚本输出）。**禁止把"假设/虚构/规划中"的结果当真数据落盘**。拿不出证据 → 只写"待验证/规划"。审计：`uv run python scripts/audit.py`。
 - **派生指标口径一致性**：入库数据里缓存的派生指标（cer/em 等）必须与当前代码口径一致——有一致性测试的由测试兜底；无测试的落盘前用现行 metrics 重算一遍（L14）。
 
 ## Finish Report（收尾输出，给下一个 Agent 读）
@@ -106,7 +111,7 @@ Remaining risks:
 ## 常见坑
 
 - **假数据落盘（最致命）**：见上方数据真实性校验。实测教训：曾把虚构 "PaddleOCR-VL CER 0.11" 当真落盘推送需回滚。
-- **职责重复**：坑/经验只进 `docs/lessons.md`（唯一归属），CLAUDE.md 只留一行指针 + 稳定规则，progress.md 只写状态，不重复。
-- **git add -A**：会把临时文件卷进去 → 明确文件列表。
+- **职责重复**：坑/经验只进 `docs/lessons.md`（唯一归属），CLAUDE.md 只留一行指针 + 稳定规则，瞬时状态由 git 与分支本身承载（`loop_state.json` 已随 ralph 层删除，`docs/progress.md` 已废弃，由 `state.py` 替代），不重复。
+- **不要手工暂存**：收尾由 `state.py finish` 统一暂存提交（它跑完质检才动 git）。
 - **Windows stderr 误报**：push 成功但标 exit 1 → 看 `main -> main` 与 `git status -sb`。
 - **记忆膨胀**：lesson 已自动化（有测试/hook）后，在 lessons.md 标注 `[已自动化]`，不要把重复规则再堆进 CLAUDE.md。

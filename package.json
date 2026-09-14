@@ -1,31 +1,16 @@
 {
   "name": "amta",
   "version": "0.1.0",
-  "description": "AMTA — Automation Manga Translate Agent：本地 koharu v0.59.1 headless（端口 4000）驱动的漫画翻译自动化编排层（Python）",
+  "description": "AMTA — Automation Manga Translate Agent：全本地漫画翻译管线（detect/ocr/inpaint/typeset 纯本地，仅 translate 走 LLM API）",
   "private": true,
   "engines": { "node": ">=18" },
   "scripts": {
     "start": "powershell -ExecutionPolicy Bypass -File scripts/start_koharu.ps1",
-    "precheck": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
-    "smoke": "python scripts/smoke_test.py",
-    "check": "python -m compileall -q src scripts",
-    "test": "python -m pytest tests -q --basetemp output/logs/.pytest-basetemp",
-    "lint": "python -m ruff check src scripts tests",
-    "typecheck": "pyright src",
-    "depcheck": "python scripts/depguard.py",
-    "dep:tree": "uv tree",
-    "fastcheck": "python scripts/fastcheck.py",
-    "finish": "npm run check && npm run test",
-    "audit": "python scripts/audit.py",
-    "hooks:install": "powershell -ExecutionPolicy Bypass -File scripts/install_hooks.ps1",
-    "bench": "python scripts/benchmark.py --all",
-    "bench:a": "python scripts/benchmark.py --bench a --pages",
-    "bench:b": "python scripts/benchmark.py --bench b --pages",
-    "bench:c": "python scripts/benchmark.py --bench c --pages",
-    "ingest:a": "python scripts/benchmark.py --bench a --ingest",
-    "prescreen": "python scripts/benchmark.py --bench a --prescreen --pages",
-    "ctx7:search": "python scripts/context7.py search",
-    "ctx7:ctx": "python scripts/context7.py ctx"
+    "koharu:check": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
+    "smoke": "uv run python scripts/smoke_test.py",
+    "check": "uv run python scripts/state.py check",
+    "finish": "uv run python scripts/fastcheck.py",
+    "hooks:install": "powershell -ExecutionPolicy Bypass -File scripts/install_hooks.ps1"
   },
   "dependencies": {}
 }

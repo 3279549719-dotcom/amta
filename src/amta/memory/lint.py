@@ -4,7 +4,6 @@
   staleness    recent.md >7 天未更新        → FAIL
   dangling     today-*.md 未归档且 >24h      → WARN
   ghost_path   CLAUDE.md 引用的地产路径不存在 → FAIL
-  budget       地产体量（未截断全量包）>1536 WARN；实际注入包 >10K FAIL（构造即知，无需起进程）
   adr_index    ADR 文件未进 README 索引      → WARN
 """
 from __future__ import annotations
@@ -17,13 +16,32 @@ from pathlib import Path
 
 from amta.memory.estate import (
     ADR_INDEX_LINE,
-    FULL_BUDGET,
-    HARD_CAP,
-    build_pack,
     parse_adrs,
 )
 
 GHOST_PATH = re.compile(r"`((?:docs|research|scripts|\.dsh)/[^`]+\.(?:md|py))`")
+
+#: 「这一行在陈述历史 / 宣告删除，不是在发指令」的标记词。
+#:
+#: ## 为什么需要它（2026-09-12 实测）
+#:
+#: ghost_path 原本对**整个 CLAUDE.md 做全文件正则**，没有行概念。于是这样一句
+#: 「CC 方言的 hook 层已整体移除（`.claude/settings.json`、`scripts/hook_pretooluse.py` …）」
+#: 会被当成"引用了不存在的脚本"而报 FAIL——**陈述历史被误判成发指令**。
+#:
+#: 同类判断在 `tests/test_reference_integrity.py` 的 S2（tests 里的引用）与
+#: S4（操作文档里的引用）也要用。故以此处为**单一事实源**，测试侧 import 它，
+#: 不再各写一份——否则又会多出一处"要同步的漂移"。
+DELETION_MARKERS: tuple[str, ...] = (
+    "已删", "删除", "删掉", "移除", "不存在", "替代", "废弃", "墓碑",
+    "legacy", "deprecated", "不要用", "曾经", "不再", "moved", "removed",
+    "gone", "tombstone",
+)
+
+
+def is_historical_note(line: str) -> bool:
+    """该行是否在陈述「某物已不存在 / 已被替代」，而非在发指令。"""
+    return any(mark in line for mark in DELETION_MARKERS)
 
 
 @dataclass
@@ -57,16 +75,13 @@ def run_checks(root: Path, today: datetime.date | None = None) -> list[Finding]:
 
     cm = root / "CLAUDE.md"
     if cm.exists():
-        for p in sorted(set(GHOST_PATH.findall(cm.read_text(encoding="utf-8")))):
-            if not (root / p).exists():
-                out.append(Finding("FAIL", "ghost_path", f"CLAUDE.md 引用不存在的 {p}"))
-
-    full = build_pack(root, "startup", budget=HARD_CAP)   # 未截断全量：量地产真实体量
-    injected = build_pack(root, "startup")                # 实际注入包（构造保证 ≤10K）
-    if len(injected) > HARD_CAP:  # 防御性 FAIL：注入包本身超硬上限（正常构造不可能触发）
-        out.append(Finding("FAIL", "budget", f"注入包 {len(injected)} 字符 > {HARD_CAP}"))
-    elif len(full) > FULL_BUDGET:
-        out.append(Finding("WARN", "budget", f"地产体量（未截断全量包）{len(full)} 字符 > 预算 {FULL_BUDGET}，注入已截断打捞"))
+        # 逐行判定，并放行「陈述历史」的行——全文件正则会把"宣告删除"误判成"引用"。
+        for line in cm.read_text(encoding="utf-8").splitlines():
+            if is_historical_note(line):
+                continue
+            for p in sorted(set(GHOST_PATH.findall(line))):
+                if not (root / p).exists():
+                    out.append(Finding("FAIL", "ghost_path", f"CLAUDE.md 引用不存在的 {p}"))
 
     d = root / "docs" / "decisions"
     if (d / "README.md").exists():

@@ -48,18 +48,17 @@ ALLOWLIST = {
     "modeling_hayai",
 }
 # 实验脚本排除（A/B 测试 / 调研用，等正式集成主流水线再补依赖声明）
+#
+# 2026-09-12 清理：原名单 11 条里有 8 条指向**早已删除**的文件——
+#   run_detect_ab.py / gen_detect_ab_report.py / ctd_detector.py / run_detect_multi.py /
+#   gen_detect_multi_report.py / test_detect_ctd.py /
+#   probes/_probe_hayai_confidence.py / probes/_probe_confidence_compare.py
+# 排除名单里的死路径**不会报错**：它只是静默失效，让人以为"这些已被豁免"。
+# 教训：排除名单也是"指针"，同样会腐烂，同样没人盯着（与 README/RUNBOOK 同型）。
 EXCLUDE_FILES = {
     "scripts/detect_rtdetr.py",
-    "scripts/run_detect_ab.py",
-    "scripts/gen_detect_ab_report.py",
     "tests/test_detect_rtdetr.py",
-    "scripts/ctd_detector.py",
     "scripts/detectors.py",
-    "scripts/run_detect_multi.py",
-    "scripts/gen_detect_multi_report.py",
-    "tests/test_detect_ctd.py",
-    "scripts/probes/_probe_hayai_confidence.py",
-    "scripts/probes/_probe_confidence_compare.py",
 }
 
 

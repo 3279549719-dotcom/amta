@@ -117,26 +117,14 @@ def parse_remember(root: Path) -> list[Entry]:
 
 
 def build_pack(root: Path, source: str = "startup", budget: int | None = None) -> str:
-    """构造注入包。优先级（超预算时从后往前丢）：标题行 > loop_state 摘要 > 字典规则。
-    budget=None 按 source 取默认（startup 1536 / compact 512）；显式传 budget 供 lint 量地产体量。
-    恒 ≤ HARD_CAP；超预算被丢弃的内容附「截断」标记（防地产膨胀静默吞信息）；
-    极端情况下超 HARD_CAP 硬截断（CC 官方上限 10K 字符）。
-    内容契约（ADR-027）：只装接续状态 + 字典规则，不采样 lessons/会话摘要（字典按需查）。"""
+    """构造注入包。
+    内容契约（ADR-027，2026-09-12 修订）：**只装字典规则**——接续状态随 ralph 层整体删除，
+    lessons/会话摘要不采样（字典按需查）。
+    budget=None 按 source 取默认（startup 1536 / compact 512）。
+    恒 ≤ HARD_CAP；超预算被丢弃的内容附「截断」标记（防地产膨胀静默吞信息）。"""
     budget = budget if budget is not None else (SLIM_BUDGET if source == "compact" else FULL_BUDGET)
     slim = source == "compact"
-    blocks: list[str] = []
-    ls = root / "loop_state.json"
-    if ls.exists() and ls.stat().st_size > 2:
-        try:
-            from amta.memory.loop_state import load as ls_load
-            from amta.memory.loop_state import summarize as ls_summarize
-
-            summary = ls_summarize(ls_load(root))
-            if summary:
-                blocks.append("## 接续状态\n" + summary)
-        except Exception:
-            pass
-    blocks.append(DICTIONARY_SLIM if slim else DICTIONARY_FULL)
+    blocks: list[str] = [DICTIONARY_SLIM if slim else DICTIONARY_FULL]
     header = f"=== AMTA 记忆包 ({source}) ==="
     pack = header
     dropped = False

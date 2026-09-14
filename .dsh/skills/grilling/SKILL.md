@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases.
+description: 反复质问用户的方案、决策或想法，逐层拆解决策树、暴露盲区，直到双方达成共识。当用户说"帮我把把关／挑挑刺／这想法靠谱吗／压力测试一下我的想法／反复质问我／给这个方案挑毛病／帮我审一下这个决定"，或明确要对某个 plan/decision/idea 做 stress-test、grill 时使用。普通问答、纯执行任务、用户只要快速答案不需要被追问时不要用——本技能会多轮追问，比较重。
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.

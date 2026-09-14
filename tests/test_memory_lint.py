@@ -45,9 +45,3 @@ def test_adr_index_gap_warn(estate: Path):
     findings = run_checks(estate, today=datetime.date(2026, 8, 30))
     assert any(f.rule == "adr_index" and f.level == "WARN" for f in findings)  # 002 未入索引
 
-
-def test_budget_warn_on_fat_pack(estate: Path):
-    # 内容契约（ADR-027）：会话摘要不再进包，胖包只能由巨大 loop_state 摘要触发
-    estate.joinpath("loop_state.json").write_text('{"mission": "' + "n" * 2000 + '"}', encoding="utf-8")
-    findings = run_checks(estate, today=datetime.date(2026, 8, 30))
-    assert any(f.rule == "budget" and f.level in ("WARN", "FAIL") for f in findings)

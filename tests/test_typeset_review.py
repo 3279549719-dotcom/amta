@@ -1,11 +1,10 @@
 """test_typeset_review — typeset 成品图报告的深接口 + HTML 报告铁律守卫。
 
-2026-09-10：`scripts/gen_typeset_review.py` 原本把整套 HTML 模板直接写在 scripts/ 下，
-违反 CLAUDE.md「HTML 报告铁律：必须用 src/amta/report/ 深接口，禁止 scripts/ 下新建
-独立 HTML 生成脚本」。测试分两半：
+2026-09-14：`scripts/gen_typeset_review.py` 等 CLI 薄壳已归档到 scripts/archive/，
+HTML 生成逻辑全部在 `src/amta/report/typeset_review.py` 深接口。测试分两半：
 
 1. 深接口行为（渲染出含内嵌图的 HTML）
-2. **铁律守卫**——scripts/ 下的那个文件里不允许再出现 HTML 标签。
+2. **铁律守卫**——scripts/ 下现存的 gen_*.py 里不允许再出现 HTML 标签。
    把"铁律"变成机械可查的断言，而不是只写在宪法里靠自觉。
 """
 from __future__ import annotations
@@ -60,11 +59,6 @@ class TestHtmlReportIronLaw:
 
     def test_deep_interface_module_exists(self):
         assert (ROOT / "src" / "amta" / "report" / "typeset_review.py").exists()
-
-    def test_scripts_cli_contains_no_html(self):
-        cli = (ROOT / "scripts" / "gen_typeset_review.py").read_text(encoding="utf-8")
-        for forbidden in ("<!DOCTYPE", "<html", "<style", "<div"):
-            assert forbidden not in cli, f"scripts/ 下的 CLI 里出现了 HTML 模板：{forbidden}"
 
     def test_other_gen_scripts_contain_no_html(self):
         """同一条铁律对所有制图脚本生效（不只这一支）。"""
