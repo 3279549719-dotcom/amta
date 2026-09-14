@@ -102,36 +102,21 @@
 
 ## `scripts/` — CLI 工具入口
 
-- **`apply_revisions.py`** — apply_revisions — 导演语义 loop 的修订落盘（ADR-016）。
 - **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
-- **`audit.py`** — audit — 轻量 Harness 熵审计（确定性检查部分；判断性建议在对话中按需做）。
-- **`baberu_ocr.py`** — Baberu OCR 封装：对裁剪图批量推理，输出每图文字。
-- **`benchmark.py`** — Benchmark A/B/C — 用数据钉死 koharu v0.59.1 的能力边界。
 - **`context7.py`** — Context7 CLI wrapper — query up-to-date library documentation.
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
 - **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
 - **`find_code.py`** — find_code — amta 代码/模块智能检索工具（深接口）。
-- **`gen_ab_report.py`** — gen_ab_report — Stage4 框外字去除 A/B 对比报告 CLI（amta.report.ab_report 的薄壳）。
-- **`gen_final_report.py`** — gen_final_report — 三阶段流水线最终报告 CLI（amta.report.final_report 的薄壳）。
-- **`gen_inpaint_ab_report.py`** — gen_inpaint_ab_report — Inpainting 速度 A/B 对比报告 CLI（amta.report.inpaint_ab_report 的薄壳）。
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
-- **`gen_stage4_report.py`** — gen_stage4_report — Stage4 验证报告 CLI（amta.report.stage4_report 的薄壳）。
-- **`gen_typeset_review.py`** — gen_typeset_review — typeset 成品图看图报告 CLI（amta.report.typeset_review 的薄壳）。
-- **`mcp_memory.py`** — mcp_memory — 记忆检索 MCP 字典工具（stdio，纯 stdlib）。
 - **`memory.py`** — memory.py — 记忆系统统一 CLI（ADR-025/026/027 收敛）。
 - **`memory_autoinject.py`** — memory_autoinject — UserPromptSubmit hook：按 prompt 关键词自动检索记忆并注入上下文。
-- **`merge_labels.py`** — 合并各 subagent 的 labels 片段到 labels_a.json。
-- **`merge_suggestions.py`** — merge_suggestions — suggestions.json → work_state 合并。
 - **`pre_scan.py`** — CLI: pre-scan a work's canon artifacts to build locked terminology dictionary.
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
-- **`run_stage4_e2e_11_20.py`** — 批量跑 11-20 页 04_inpaint（精修mask + lama-manga）。
 - **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
-- **`smoke_test.py`** — AMTA 冒烟测试：验证 koharu headless API 通路（建项目→传图→跑检测→读场景→关项目）。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
-- **`verify_stage4.py`** — Stage 4 端到端验证: 修复bug后跑5页, 生成原图vs clean对比报告。
 
 ---
 *本文件由 find_code.py 自动生成，请勿手动编辑。*

@@ -1,19 +1,4 @@
 #!/bin/sh
-# pre-push gate: optional smoke ONLY (full fastcheck already ran at pre-commit, no duplication).
-# 分层设计（2026-09-10）：koharu 可达才跑端到端 smoke，不可达直接放行。
-# Install: scripts/install_hooks.ps1 (git config core.hooksPath .githooks)
-set -e
-cd "$(dirname "$0")/.."
-if command -v python3.13 >/dev/null 2>&1; then PY=python3.13
-elif command -v py >/dev/null 2>&1 && py -3.13 -c "import pytest, ruff" >/dev/null 2>&1; then PY="py -3.13"
-elif command -v python >/dev/null 2>&1 && python -c "import pytest, ruff" >/dev/null 2>&1; then PY=python
-else echo "[pre-push] ERROR: need Python interpreter" >&2; exit 1; fi
-
-echo "[pre-push] optional smoke (only if koharu reachable; fastcheck already passed at pre-commit)..."
-if $PY -c "import requests,sys; sys.exit(0 if requests.get('http://127.0.0.1:4000/', timeout=2).ok else 1)" 2>/dev/null; then
-    $PY scripts/smoke_test.py
-else
-    echo "[pre-push] koharu unreachable, skip smoke (push continues; run npm start when needed)"
-fi
-
-echo "[pre-push] OK"
+# pre-push: 目前无强制检查（fastcheck 已在 pre-commit / state.finish 跑完）。
+# 2026-09-14: koharu 退出主链路，smoke_test.py 已归档，本钩子保留入口备用。
+echo "[pre-push] OK (no mandatory checks)"

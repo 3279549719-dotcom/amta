@@ -5,10 +5,11 @@
 | 类型 | 入口 | 用途 | CLI |
 |------|------|------|-----|
 | 通用管线报告 | `render_report()` + `load_from_workspace()` | 多页管线报告（detect/ocr/translate/inpaint/typeset），阶段可插拔 | `scripts/gen_report.py` |
-| 三阶段最终报告 | `final_report.render_final_report()` | 简洁三阶段视图 + base64 内嵌原图 | `scripts/gen_final_report.py` |
-| Stage4 验证报告 | `stage4_report.render_stage4_report()` | Stage4 mask+inpaint 逐页验证 | `scripts/gen_stage4_report.py` |
-| Inpaint A/B 对比 | `inpaint_ab_report.render_inpaint_ab_report()` | Inpainting 引擎速度对比 | `scripts/gen_inpaint_ab_report.py` |
-| 框外字 A/B 对比 | `ab_report.render_ab_report()` | Stage4 框外字去除方案 A/B 对比 | `scripts/gen_ab_report.py` |
+| 三阶段最终报告 | `final_report.render_final_report()` | 简洁三阶段视图 + base64 内嵌原图 | （深接口，CLI 薄壳已归档） |
+| Stage4 验证报告 | `stage4_report.render_stage4_report()` | Stage4 mask+inpaint 逐页验证 | （深接口，CLI 薄壳已归档） |
+| Inpaint A/B 对比 | `inpaint_ab_report.render_inpaint_ab_report()` | Inpainting 引擎速度对比 | （深接口，CLI 薄壳已归档） |
+| 框外字 A/B 对比 | `ab_report.render_ab_report()` | Stage4 框外字去除方案 A/B 对比 | （深接口，CLI 薄壳已归档） |
+| Typeset 成品看图 | `typeset_review.render_typeset_review()` | 最终翻译成品图逐页审阅 | （深接口，CLI 薄壳已归档） |
 
 ## 新增报告的规范
 

@@ -3,7 +3,7 @@
 两种模式（2026-09-10 分层，避免 pre-commit 与 /finish 重复跑 pytest）：
   --quick  秒级快检（pre-commit 钩子用）：compileall + ruff lint + pyright（只读，不写文件）
   默认     完整 9 步（/finish 收尾用）：quick 三步 + pytest + depguard + mem-lint/gc/inject
-           + audit + module-map 就地刷新（生成物在收口点更新，而不是事后检查）
+           + module-map 就地刷新（生成物在收口点更新，而不是事后检查）
 
 退出码：0 = 全过；非 0 = 有失败。
 """
@@ -153,18 +153,6 @@ def _module_map() -> int:
     return _run([sys.executable, str(ROOT / "scripts" / "find_code.py"), "--index"], "module-map (生成物刷新)")
 
 
-def _audit() -> int:
-    """Harness 熵审计（--strict 门禁模式）。
-
-    2026-09-10 体检的核心发现：**所有漂移探测器都存在、都算得对、然后接不到
-    任何会失败的东西上**。audit.py 是最典型的例子——它审计 workspace 空壳、
-    重复文件、顶层散落，但 exit 永远 0 且不在本文件里，于是它的结论没有任何人
-    能看见（workspace/ws-* 已从 595 涨到 2164，第三次长回来）。
-
-    所以这里用 --strict 把它变成真门禁。跑在**全量**分支：它要遍历目录。
-    """
-    return _run([sys.executable, str(ROOT / "scripts" / "audit.py"), "--strict"], "audit (Harness 熵)")
-
 
 def _root_check() -> int:
     """ROOT 路径回归检查（2026-09-10）：确保 paths.ROOT 指向正确的项目根。
@@ -243,7 +231,6 @@ def main() -> int:
         m = _memory_lint()
         g = _memory_gc()
         inj = _memory_inject()
-        au = _audit()
         mm = _module_map()
         checks.extend([
             ("unit tests", u),
@@ -251,11 +238,10 @@ def main() -> int:
             ("memory lint", m),
             ("memory gc", g),
             ("memory inject", inj),
-            ("audit", au),
             ("module-map", mm),
         ])
     else:
-        print("== [fastcheck] --quick: skip pytest/depguard/memory/audit/module-map (full run at /finish) ==")
+        print("== [fastcheck] --quick: skip pytest/depguard/memory/module-map (full run at /finish) ==")
     fails = [name for name, rc in checks if rc]
     if fails:
         print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")

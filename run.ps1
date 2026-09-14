@@ -15,6 +15,12 @@
     现已接入守卫（`tests/test_reference_integrity.py` 的 S4）：操作文档/脚本里点名的
     `scripts/*.py` 必须真实存在，否则测试变红。**以后删脚本，不要再靠记性。**
 
+    ## 2026-09-14 二次清理
+
+    inpaint 分支（run_stage4_e2e_11_20.py）和 report 分支（gen_stage4_report.py）
+    指向的脚本均已归档到 scripts/archive/，两个分支移除。生成报告请直接用统一入口
+    `scripts/gen_report.py`。
+
     ## 跑管线请用统一入口（不在本脚本里）
 
         uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> `
@@ -34,7 +40,7 @@ $ProjectRoot = $PSScriptRoot
 $Command = if ($args.Count -gt 0) { $args[0] } else { "" }
 $CmdArgs = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
 
-$validCommands = @("inpaint", "report", "test", "python")
+$validCommands = @("test", "python")
 if ($Command -and ($validCommands -notcontains $Command)) {
     Write-Output "Unknown command: '$Command'"
     $Command = ""
@@ -48,13 +54,6 @@ function Invoke-UvPython {
 }
 
 switch ($Command) {
-    "inpaint" {
-        Write-Output "Note: run_stage4_e2e_11_20.py has hardcoded page range 11-20"
-        Invoke-UvPython @("scripts/run_stage4_e2e_11_20.py")
-    }
-    "report" {
-        Invoke-UvPython @("scripts/gen_stage4_report.py")
-    }
     "test" {
         & uv run pytest @CmdArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -66,12 +65,13 @@ switch ($Command) {
         Write-Output "Usage: .\run.ps1 COMMAND [args]"
         Write-Output ""
         Write-Output "Commands:"
-        Write-Output "  inpaint              Run stage-4 inpaint e2e (hardcoded pages 11-20)"
-        Write-Output "  report               Generate stage-4 verification report"
         Write-Output "  test                 Run pytest"
         Write-Output '  python -c "..."      Pass through any python command (auto uv run)'
         Write-Output ""
         Write-Output "跑管线用统一入口（不在这里）："
         Write-Output "  uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>"
+        Write-Output ""
+        Write-Output "生成报告用统一入口："
+        Write-Output "  uv run python scripts/gen_report.py --work-id <id> [--granularity region|page] [--stages <阶段>]"
     }
 }

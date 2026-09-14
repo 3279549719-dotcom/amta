@@ -46,7 +46,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - **任务收尾走 /finish**（cycle-close）：复读任务→审查 diff→确定性验证→修复→反思→知识晋升→只更新真正变化的工件→Finish Report→git 落盘。
   **规程单一真相源**：收尾命令只有 `state.py finish`；任何人（含 AI）不得在 skill/文档里写第二套等价步骤——`tests/test_harness_covenant.py` 的 H7 会拦。
 - **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
-- **机械护栏分层**：pre-commit `fastcheck --quick`（秒级，**不含 pytest**，只读不写文件）→ `state.py finish` 强制跑完整（含 pytest/depguard/memory/audit/**module-map 刷新**）→ pre-push 只跑可选 smoke。安装：`scripts/install_hooks.ps1`。
+- **机械护栏分层**：pre-commit `fastcheck --quick`（秒级，**不含 pytest**，只读不写文件）→ `state.py finish` 强制跑完整（含 pytest/depguard/memory/**module-map 刷新**）→ pre-push 无强制检查。安装：`scripts/install_hooks.ps1`。
   ⚠️ **--quick 不是门槛，是门槛的一半**：2026-09-10 事故——脚本清理后 12 条测试永久变红、无人察觉约两天，因为唯一的 commit 拦截层只跑 --quick。**"通过了"必须说明跑的是哪一层。**
 - **指针必须指向活着的东西**：本项目跑在 DSH 上。CC 方言的 hook 层已于 2026-09-12 **整体移除**（`.claude/settings.json`、`.claude/settings.local.json`、`scripts/hook_pretooluse.py`、`scripts/hook_sessionstart.py`）——它们声明的机制在 DSH 下**从未触发过**，是"看起来已生效"的死配置。仅存的 CC 方言文件是 `.mcp.json`，它是 `scripts/install_dsh_mcp.ps1` 的**输入源**（有用，不是死配置）。历史与理由见 lessons `L11` 与 ADR-032 后记。
 - **Harness 契约**：任何"某机制已生效"的声明都必须配一条能跑的探针——契约条款与探针焊在 `tests/test_harness_covenant.py`（H1 单一 Python 入口 / H2 声明的 hook 必须真被加载 / H3 排除名单不得有死路径 / H4 git hook 引用必须存在 / H5 契约自身无孤儿条款）。**新增声明 = 新增条款 + 新增探针，不接受只有散文的声明。**
