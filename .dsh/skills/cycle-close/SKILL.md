@@ -42,11 +42,10 @@ description: 'Use when a task/loop reaches its boundary — goal achieved (updat
 ### Step 4 — 修复
 失败 → 诊断 → 修复 → 重跑验证。**能修就修，不停在报错。**
 
-### Step 5 — 反思（委派 finisher subagent，AI 判断隔离到子代理）
+### Step 5 — 反思与知识归类（主 agent 直接做，不再委派子代理）
 1. 组装**会话摘要**（3-8 行：做了什么 / 决策 / 学到什么 / 验证结果）。
-2. **委派 finisher subagent**（读 `.dsh/skills/finisher/SKILL.md`，按其中的【finisher prompt 模板】把摘要交给子代理）：子代理在隔离上下文里完成五路分类 + 产出 proposals（lesson / CLAUDE.md / skill / ADR / test-hook / progress / 丢弃），不直接改文件。
-3. 主 agent **审查 proposals → 应用**（去重、保持精简、只改真正变化的工件）。
-4. 降级路径：子代理失败/超时 → 主 agent 亲自按 Step 6 分类树快速归类，不阻塞收尾。
+2. 主 agent 按 Step 6 的五路分流，把本会话真正可复用的观察归类，产出待落盘清单（lesson / CLAUDE.md / skill / ADR / test-hook / 丢弃）。
+3. **去重、保持精简**：只改真正变化的工件；拿不准可复用性的一律丢弃，不阻塞收尾。
 
 **不要每条观察都写进记忆**（防记忆污染）。晋升管线见下方。
 

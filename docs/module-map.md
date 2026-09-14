@@ -104,7 +104,7 @@
 
 - **`apply_revisions.py`** — apply_revisions — 导演语义 loop 的修订落盘（ADR-016）。
 - **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
-- **`audit.py`** — audit — 轻量 Harness 熵审计（/audit 的确定性部分）。
+- **`audit.py`** — audit — 轻量 Harness 熵审计（确定性检查部分；判断性建议在对话中按需做）。
 - **`baberu_ocr.py`** — Baberu OCR 封装：对裁剪图批量推理，输出每图文字。
 - **`benchmark.py`** — Benchmark A/B/C — 用数据钉死 koharu v0.59.1 的能力边界。
 - **`context7.py`** — Context7 CLI wrapper — query up-to-date library documentation.

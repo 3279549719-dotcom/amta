@@ -32,7 +32,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - 需要外部信息/调研：**委派 research skill 后台 subagent**
 - 跑管线：**用 `run_pipeline.py`**，启动时自动环境自检，不需要手动检查代理/.env/模型
 - 管线完成后：**自动调用 `gen_report.py` 生成报告**
-- 会话结束/收尾：**先 cycle-close，委派 finisher subagent 做知识归类**
+- 会话结束/收尾：**走 cycle-close 收尾协议做反思与知识归类（质检/提交唯一入口 state.py finish）**
 
 ## 渐进式加载（遇到 X → 先做 Y）
 | 症状 / 场景 | 先做 |
