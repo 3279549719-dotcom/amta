@@ -8,24 +8,9 @@
     "start": "powershell -ExecutionPolicy Bypass -File scripts/start_koharu.ps1",
     "koharu:check": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
     "smoke": "uv run python scripts/smoke_test.py",
-    "check": "uv run python -m compileall -q src scripts",
-    "test": "uv run python -m pytest tests -q --basetemp output/logs/.pytest-basetemp",
-    "lint": "uv run python -m ruff check src scripts tests",
-    "typecheck": "pyright src",
-    "depcheck": "uv run python scripts/depguard.py",
-    "dep:tree": "uv tree",
-    "fastcheck": "uv run python scripts/fastcheck.py",
-    "finish": "npm run check && npm run test",
-    "audit": "uv run python scripts/audit.py",
-    "hooks:install": "powershell -ExecutionPolicy Bypass -File scripts/install_hooks.ps1",
-    "bench": "uv run python scripts/benchmark.py --all",
-    "bench:a": "uv run python scripts/benchmark.py --bench a --pages",
-    "bench:b": "uv run python scripts/benchmark.py --bench b --pages",
-    "bench:c": "uv run python scripts/benchmark.py --bench c --pages",
-    "ingest:a": "uv run python scripts/benchmark.py --bench a --ingest",
-    "prescreen": "uv run python scripts/benchmark.py --bench a --prescreen --pages",
-    "ctx7:search": "uv run python scripts/context7.py search",
-    "ctx7:ctx": "uv run python scripts/context7.py ctx"
+    "check": "uv run python scripts/state.py check",
+    "finish": "uv run python scripts/fastcheck.py",
+    "hooks:install": "powershell -ExecutionPolicy Bypass -File scripts/install_hooks.ps1"
   },
   "dependencies": {}
 }

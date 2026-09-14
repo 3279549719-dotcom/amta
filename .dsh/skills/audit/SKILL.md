@@ -5,13 +5,15 @@ description: 周期性 Harness 审计（/audit）——检测 Harness 熵：记�
 
 # Audit（Harness 熵审计）
 
-> 目的：检测"Harness 熵"并给出**可行动建议**，不是产出巨型报告。频率：每 2-4 周 / 每个大里程碑后跑一次。`npm run audit` 跑确定性部分；本 skill 跑需要判断的部分。
+> 目的：检测"Harness 熵"并给出**可行动建议**，不是产出巨型报告。频率：每 2-4 周 / 每个大里程碑后跑一次。确定性部分用下面这条命令；本 skill 跑需要判断的部分。
 
 ## 先跑确定性部分
 
 ```
-npm run audit
+uv run python scripts/audit.py
 ```
+
+（2026-09-12：`npm run audit` 等别名已随收尾规程收敛一起删除——`package.json` 现在只剩 `check`/`finish`/`smoke`/`koharu:check`/`start`/`hooks:install`。直调脚本反而更稳，且不受 npm 别名劫持影响。）
 
 自动检查：CLAUDE.md 是否过大、lessons.md 每条是否含模板小节、decisions 是否有索引、入库 JSON 是否可解析、被忽略产物是否意外入库。
 
@@ -27,7 +29,7 @@ npm run audit
 ### Architecture
 - 架构是否漂移？（对照 README / ADR）
 - 模块边界是否仍被尊重？（src 不应直接依赖不该依赖的层）
-- 新依赖是否合理？（本仓零运行时依赖原则，ADR-015：跑 `npm run depcheck` + `uv tree` 复核）
+- 新依赖是否合理？（本仓零运行时依赖原则，ADR-015：跑 `uv run python scripts/depguard.py` + `uv tree` 复核）
 
 ### Verification
 - 反复出现的失败是否缺回归测试？

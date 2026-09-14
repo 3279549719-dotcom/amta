@@ -1,6 +1,6 @@
 ---
 name: dependency-guard
-description: 依赖膨胀守卫（ADR-015）。当任务可能引入第三方依赖、或代码中出现新的 import 时加载——在动手加依赖前先自问"能否用原生/标准库实现"，拦截依赖膨胀源头。配合 scripts/depguard.py 机械扫描（npm run depcheck / fastcheck / pre-commit）。
+description: 依赖膨胀守卫（ADR-015）。当任务可能引入第三方依赖、或代码中出现新的 import 时加载——在动手加依赖前先自问"能否用原生/标准库实现"，拦截依赖膨胀源头。配合 scripts/depguard.py 机械扫描（收尾门 state.py finish / pre-commit）。
 ---
 
 # Dependency Guard（依赖膨胀守卫）
@@ -28,11 +28,11 @@ description: 依赖膨胀守卫（ADR-015）。当任务可能引入第三方依
 4. **最终决策：** 只有标准库确实无法承担、且替代方案都更重时，才允许新增，且：
    - 进 `[project].dependencies` 并锁定（`uv add <pkg>` 或手写 + `uv lock`）。
    - 在 `docs/decisions/` 记一句为什么（防复发）。
-   - 跑 `npm run depcheck` 确认通过。
+   - 跑 `uv run python scripts/depguard.py` 确认通过。
 
 ## 机械层（自动拦截，无需你记）
 
-- `npm run depcheck`（scripts/depguard.py）：扫 `src/scripts/tests` 的第三方 import，
+- `uv run python scripts/depguard.py`：扫 `src/scripts/tests` 的第三方 import，
   - **未声明**的第三方 import → 报错（要么补声明并审视，要么改标准库）。
   - **已声明但没用**的死依赖 → 报错（删掉）。
   - 已接进 `fastcheck` 与 `.githooks/pre-commit`，是硬门禁。
@@ -44,8 +44,8 @@ description: 依赖膨胀守卫（ADR-015）。当任务可能引入第三方依
 # 2. 进 pyproject.toml [project].dependencies（锁定版本）
 # 3. uv lock（联网）重建 uv.lock；离线则手写锁 + 注释
 # 4. uv sync 装进 .venv
-# 5. npm run depcheck   # 应通过
-# 6. npm run fastcheck  # 全绿
+# 5. uv run python scripts/depguard.py        # 应通过
+# 6. uv run python scripts/state.py check      # 秒级快检；收尾用 state.py finish
 ```
 
 ## 反模式（直接拒绝）

@@ -64,6 +64,7 @@ COVENANT: dict[str, str] = {
     "H4": "git hook 里引用的脚本必须存在",
     "H5": "契约自身完整：无孤儿条款，也无孤儿测试",
     "H6": "改动不得夹带行尾噪声：被改文件的行尾风格必须与 HEAD 一致",
+    "H7": "收尾规程单一真相源：skill/文档里不得出现第二套可执行收尾步骤",
 }
 
 
@@ -402,3 +403,95 @@ class TestH6_EditsCarryNoLineEndingNoise:
         assert _eol_style(blob.stdout) in ("lf", "crlf"), (
             f"判定器对真实文本文件给出了 {_eol_style(blob.stdout)}，判定已失效"
         )
+
+# --------------------------------------------------------------------------- H7
+
+
+class TestH7_FinishProcedureHasASingleSourceOfTruth:
+    """H7：收尾规程只有一个真相源——`state.py finish`。
+
+    ## 为什么需要它（2026-09-12 实测）
+
+    "收尾"这一个动作，仓库里曾同时有三种写法：
+
+    - CLAUDE.md：`state.py finish "summary"`（自动质检 + 自动提交）
+    - cycle-close skill：`npm run check` → `npm run test` → `npm run fastcheck`
+      → `npm run finish`，然后**手工** `git add` + commit + push
+    - verify skill：`npm run check` / `fastcheck` / `smoke` / `koharu:check` 又是一套
+
+    三套互相矛盾，其中 cycle-close 的 Finish Report 模板还写着"本仓无独立 lint / 无类型检查器"
+    ——而 `package.json` 里 `lint`=ruff、`typecheck`=pyright 一直在跑。**假事实 + 多真相源**
+    合起来的效果是：每次收尾都得现场仲裁该信哪一份，而仲裁者没有判断依据。
+
+    ## 判据
+
+    可执行动作只能挂在**唯一命令**上；skill/文档里允许写「为什么」，不允许写第二套步骤。
+    实现在 `_second_procedure_offenders`：扫规程面（CLAUDE.md + .dsh/skills），
+    出现 `git add` / `git commit` / 已删除的 npm 别名（test/lint/fastcheck/audit/typecheck/depcheck）
+    即算违规——它们在 2026-09-12 的收敛里已全部删除，再出现就是旧文案回流。
+
+    H5 同时保证本条款有探针、探针有条款。
+    """
+
+    #: 规程面：会被 AI 当作"照着做"的说明来读的文件。
+    _PROCEDURE_GLOBS = ("CLAUDE.md", ".dsh/skills/*/SKILL.md")
+
+    #: 第二套步骤的特征串。命中即违规（行内含删除/废弃标记的行豁免——那是在陈述历史）。
+    _FORBIDDEN = (
+        "git add ",
+        "git commit ",
+        "npm run test",
+        "npm run lint",
+        "npm run typecheck",
+        "npm run depcheck",
+        "npm run fastcheck",
+        "npm run audit",
+    )
+
+    def _procedure_files(self) -> list[Path]:
+        out: list[Path] = []
+        for pat in self._PROCEDURE_GLOBS:
+            out.extend(sorted(ROOT.glob(pat)))
+        return out
+
+    def _second_procedure_offenders(self, files: list[Path]) -> list[str]:
+        """纯函数式：对给定文件列表扫第二套步骤，返回违规描述（供合成样本反向验证）。"""
+        import sys as _sys
+
+        _sys.path.insert(0, str(ROOT / "src"))
+
+        from amta.memory.lint import is_historical_note
+
+        bad: list[str] = []
+        for path in files:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            for i, line in enumerate(text.splitlines(), 1):
+                if is_historical_note(line):
+                    continue
+                if "state.py finish" in line:  # 唯一合法入口所在行，豁免
+                    continue
+                for token in self._FORBIDDEN:
+                    if token in line:
+                        bad.append(f"{path.relative_to(ROOT)}:{i} 出现第二套收尾步骤 {token!r}")
+                        break
+        return bad
+
+    def test_only_one_finish_procedure_exists(self):
+        files = self._procedure_files()
+        assert len(files) >= 3, f"规程面只扫到 {len(files)} 个文件，执法面可能已失效"
+        offenders = self._second_procedure_offenders(files)
+        assert not offenders, (
+            "收尾规程出现了第二套可执行步骤（规程必须只有一个真相源：state.py finish）：\n  "
+            + "\n  ".join(offenders)
+        )
+
+    def test_h7_scanner_can_actually_fail(self, tmp_path):
+        """反向验证：喂一份含第二套步骤的合成规程，扫描器必须报出来。"""
+        fake = tmp_path / "SKILL.md"
+        fake.write_text(
+            "# 收尾\n\n### Step 8\n- git add <文件> → git commit -m \"x\"\n- npm run fastcheck\n",
+            encoding="utf-8",
+        )
+        offenders = self._second_procedure_offenders([fake])
+        assert any("git add" in o for o in offenders), offenders
+        assert any("npm run fastcheck" in o for o in offenders), offenders

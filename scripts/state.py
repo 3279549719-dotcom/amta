@@ -1,7 +1,15 @@
 """state — StateManager 的 CLI 入口（Embedded 模式）。
 
-对话开始：uv run python scripts/state.py bootstrap
-对话结束：uv run python scripts/state.py finish "feat: 做了什么"
+三个子命令，这就是全部（2026-09-12 收尾规程收敛：三套说法合成一套）：
+
+  对话开始：uv run python scripts/state.py bootstrap
+  改到一半：uv run python scripts/state.py check      # 秒级只读，任何时候都能跑
+  对话结束：uv run python scripts/state.py finish "说明"   # 全量质检 + 提交，唯一收尾入口
+
+**为什么只有这三条**：此前"收尾"有三种写法——CLAUDE.md 说 state.py finish、
+cycle-close skill 说 npm run finish + 手工 git add、verify skill 又说第三套，
+而这三份说法互相矛盾（其中一份还写着"本仓无 lint/无 typecheck"这样的假事实）。
+规程一多，AI 每次收尾都得现场仲裁该信哪一份——那才是真正的不顺畅。
 
 finish **不是**裸 commit：它先跑完整质检（fastcheck 全量，含 pytest），
 红了拒绝落盘、改动原样留在工作区。这是"对话结束"这个收口点的强制门——
@@ -32,6 +40,13 @@ def main() -> int:
     p_boot.add_argument("--no-env", action="store_true", help="跳过环境自检")
     p_boot.set_defaults(func=_cmd_bootstrap)
 
+    # check
+    p_chk = sub.add_parser(
+        "check",
+        help="改到一半随时跑：秒级只读快检（compile+ruff+pyright+ROOT+env，不含 pytest），不写文件不提交",
+    )
+    p_chk.set_defaults(func=_cmd_check)
+
     # finish
     p_fin = sub.add_parser("finish", help="对话结束：先跑完整质检，通过后 git add + commit")
     p_fin.add_argument("summary", nargs="?", default=None, help="commit message（不能为空）")
@@ -55,6 +70,15 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     snap = sm.bootstrap(env_check=not args.no_env)
     print(str(snap))
     return 0
+
+
+def _cmd_check(args: argparse.Namespace) -> int:
+    """快检：转调 fastcheck --quick（只读，秒级）。finish 才是那扇完整的门。"""
+    import subprocess
+
+    from amta.common.paths import ROOT
+
+    return subprocess.call([sys.executable, str(ROOT / "scripts" / "fastcheck.py"), "--quick"], cwd=str(ROOT))
 
 
 def _cmd_finish(args: argparse.Namespace) -> int:
