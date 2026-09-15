@@ -226,6 +226,19 @@ def _max_size_for_direction(text: str, font_path: Path, bbox: list,
         else:
             best_lines = wrap_text(text, font, w)
         return min_sz, best_lines
+    # 线性补扫：二分假设"字号越大越放不下"单调，但竖排 chars_per_col 跳变会导致
+    # 非单调（3列能放→2列卡住→再小又能放）。二分在 mid 失败后会跳过更大的可行字号。
+    # 这里从 best+1 到 max_sz 线性补扫一遍，捞回被跳过的大字号（最多 30 次，秒级）。
+    for sz in range(best + 1, max_sz + 1):
+        font = ImageFont.truetype(str(font_path), sz)
+        if direction == "vertical":
+            _char_w, line_h = _font_metrics(font)
+            cpc = max(1, int(h / line_h))
+            cand_lines = wrap_vertical(text, cpc)
+        else:
+            cand_lines = wrap_text(text, font, w)
+        if cand_lines and _fits(cand_lines, font, bbox, direction):
+            best, best_lines = sz, cand_lines
     return best, best_lines
 
 
@@ -250,22 +263,20 @@ def fit_font_size(text: str, font_path: Path, bbox: list,
     """
     # 基准字号模式：覆盖 max_sz 和 min_sz
     if base_size is not None:
-        max_sz = base_size
+        max_sz = int(base_size)
         min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))
 
     h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
     v_size, v_lines = _max_size_for_direction(text, font_path, bbox, "vertical", min_sz, max_sz)
 
+    if preferred_direction == "vertical":
+        # 强制竖排：日漫对话框一律竖排，不因为横排能放更大字号就切横排
+        return v_size, "vertical", v_lines
     if preferred_direction == "horizontal":
         # 首选横排：横排字号不小于竖排70%就选横排
         if h_size >= v_size * 0.70:
             return h_size, "horizontal", h_lines
         return v_size, "vertical", v_lines
-    if preferred_direction == "vertical":
-        # 首选竖排：竖排字号不小于横排70%就选竖排
-        if v_size >= h_size * 0.70:
-            return v_size, "vertical", v_lines
-        return h_size, "horizontal", h_lines
 
     # 无首选方向：纯字号选优，平局偏向竖排（旧行为）
     if v_size >= h_size:
