@@ -108,7 +108,7 @@
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
 - **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
-- **`find_code.py`** — find_code — amta 代码/模块智能检索工具（深接口）。
+- **`find_code.py`** — find_code — 在 src/amta/ 里找模块、看管线现状、搞懂代码库当前状态。
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
 - **`memory.py`** — memory.py — 记忆系统统一 CLI（ADR-025/026/027 收敛）。
 - **`memory_autoinject.py`** — memory_autoinject — UserPromptSubmit hook：按 prompt 关键词自动检索记忆并注入上下文。

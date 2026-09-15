@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Anthropic 三篇 · 原文 / 翻译 / 批注</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f6f7f9;color:#1a1d21;
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.7}
+header{background:#111827;color:#fff;padding:32px 28px}
+header h1{margin:0 0 8px;font-size:24px}
+header p{margin:4px 0;color:#c3c9d4;font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 8px;position:sticky;top:0;
+ background:#f6f7f9;padding:10px 0;z-index:5;border-bottom:1px solid #e3e6ea}
+.tab{padding:8px 16px;border:1px solid #d3d8de;border-radius:999px;background:#fff;
+ cursor:pointer;font-size:14px}
+.tab.on{background:#111827;color:#fff;border-color:#111827}
+.meta{background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:16px 18px;margin:16px 0}
+.meta h2{margin:0 0 6px;font-size:19px}
+.meta .sub{color:#5b6470;font-size:13px;margin:0 0 8px}
+.meta a{color:#2563eb;word-break:break-all}
+.para{background:#fff;border:1px solid #e3e6ea;border-radius:10px;
+ padding:14px 18px;margin:12px 0}
+.en{font-size:15px;color:#111}
+.zh{font-size:15px;color:#0f5132;margin-top:8px;padding-top:8px;
+ border-top:1px dashed #e3e6ea}
+.note{margin-top:10px;background:#fff8e6;border-left:3px solid #e0a800;
+ padding:10px 12px;font-size:14px;color:#5c4708;border-radius:0 6px 6px 0}
+.note-tag{display:inline-block;background:#e0a800;color:#fff;border-radius:4px;
+ padding:1px 6px;font-size:12px;margin-right:8px}
+.hidden{display:none}
+footer{color:#6b7280;font-size:13px;padding:20px}
+</style>
+</head>
+<body>
+<header><h1>Anthropic 三篇 · 原文 / 中文翻译 / 我的批注</h1>
+<p>原文逐段照录，未作删改；中文为逐段翻译；批注是我的解读，与原文分开标注。</p>
+<p>抓取日期：2026-09-14 · 来源：anthropic.com/engineering 与 claude.com/blog</p></header>
+<div class="wrap">
+<div class="tabs">
+<div class="tab on" id="tab-wt" onclick="show('wt')">01 · 为 AI agent 写有效的工具——用 agent 来写</div>
+<div class="tab" id="tab-sa" onclick="show('sa')">02 · 像 agent 一样看问题：我们如何设计 Claude Code 的工具</div>
+<div class="tab" id="tab-vl" onclick="show('vl')">03 · 用技能在 Claude Code 里构建验证循环</div>
+</div>
+<section class="art" id="art-wt">
+<div class="meta">
+<h2>01 · Writing effective tools for AI agents—using AI agents</h2>
+<p class="sub">为 AI agent 写有效的工具——用 agent 来写</p>
+<p class="sub">来源：Anthropic Engineering 官方博客 · （发布日期以原站为准） · 作者：Ken Aizawa</p>
+<p class="sub">原文：<a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank">https://www.anthropic.com/engineering/writing-tools-for-agents</a></p>
+<p class="sub"><b>这篇在讲什么：</b>工具（tool）怎么写。开篇第一句就点明主题是 MCP 工具。</p>
+</div>
+<div class="para" id="wt-0">
+<div class="en">The Model Context Protocol (MCP) can empower LLM agents with potentially hundreds of tools to solve real-world tasks. But how do we make those tools maximally effective?</div>
+<div class="zh">模型上下文协议（MCP）能让 LLM agent 拥有成百上千个工具去解决真实任务。但怎么才能让这些工具发挥最大效力？</div>
+</div>
+<div class="para" id="wt-1">
+<div class="en">In this post, we describe our most effective techniques for improving performance in a variety of agentic AI systems 1 .</div>
+<div class="zh">本文介绍我们在多种 agent 系统中提升表现的最有效技巧。</div>
+</div>
+<div class="para" id="wt-2">
+<div class="en">We begin by covering how you can:</div>
+<div class="zh">我们首先讲你怎么：</div>
+</div>
+<div class="para" id="wt-3">
+<div class="en">Build and test prototypes of your tools</div>
+<div class="zh">先做工具原型并测试</div>
+<div class="note"><span class="note-tag">我的批注</span>这一行就是你项目里 find_code.py 的位置：『先做原型并测试』。原文把它列为第一件事，说明连 Anthropic 也不认为可以不试就设计对。</div>
+</div>
+<div class="para" id="wt-4">
+<div class="en">Create and run comprehensive evaluations of your tools with agents</div>
+<div class="zh">为你的工具建立完整评测，并用 agent 来跑</div>
+</div>
+<div class="para" id="wt-5">
+<div class="en">Collaborate with agents like Claude Code to automatically increase the performance of your tools</div>
+<div class="zh">与 Claude Code 这类 agent 协作，自动提升你工具的表现</div>
+<div class="note"><span class="note-tag">我的批注</span>『用 agent 提升你工具的表现』——原文主张让 Claude Code 去分析评测记录、批量重构工具。这一条你从没做过。</div>
+</div>
+<div class="para" id="wt-6">
+<div class="en">We conclude with key principles for writing high-quality tools we’ve identified along the way:</div>
+<div class="zh">最后总结我们发现的、写出高质量工具的关键原则：</div>
+</div>
+<div class="para" id="wt-7">
+<div class="en">Choosing the right tools to implement (and not to implement)</div>
+<div class="zh">选对要实现的工具（以及不要实现的）</div>
+</div>
+<div class="para" id="wt-8">
+<div class="en">Namespacing tools to define clear boundaries in functionality</div>
+<div class="zh">用命名空间给工具划清功能边界</div>
+</div>
+<div class="para" id="wt-9">
+<div class="en">Returning meaningful context from tools back to agents</div>
+<div class="zh">让工具把有意义的上下文返回给 agent</div>
+</div>
+<div class="para" id="wt-10">
+<div class="en">Optimizing tool responses for token efficiency</div>
+<div class="zh">为 token 效率优化工具的返回内容</div>
+</div>
+<div class="para" id="wt-11">
+<div class="en">Prompt-engineering tool descriptions and specs</div>
+<div class="zh">对工具描述和规格做提示词工程</div>
+</div>
+<div class="para" id="wt-12">
+<div class="en">Building an evaluation allows you to systematically measure the performance of your tools. You can use Claude Code to automatically optimize your tools against this evaluation.</div>
+<div class="zh">有了评测，你就能系统地测量工具的表现。你可以用 Claude Code 针对这套评测自动优化工具。</div>
+<div class="note"><span class="note-tag">我的批注</span>注意这里的时间顺序：先有评测，才有优化。你的项目里评测层（tests/）是齐的，但它测的是代码正确性，不是『AI 会不会用这个工具』。</div>
+</div>
+<div class="para" id="wt-13">
+<div class="en">What is a tool?</div>
+<div class="zh">什么是工具？</div>
+</div>
+<div class="para" id="wt-14">
+<div class="en">In computing, deterministic systems produce the same output every time given identical inputs, while non-deterministic systems—like agents—can generate varied responses even with the same starting conditions.</div>
+<div class="zh">在计算领域，确定性系统在相同输入下永远产生相同输出；而像 agent 这样的非确定性系统，即使起点相同也可能给出不同回应。</div>
+</div>
+<div class="para" id="wt-15">
+<div class="en">When we traditionally write software, we’re establishing a contract between deterministic systems. For instance, a function call like getWeather(“NYC”) will always fetch the weather in New York City in the exact same manner every time it is called.</div>
+<div class="zh">传统软件是在确定性系统之间建立契约。比如 getWeather("NYC") 这个函数调用，每次都会以完全相同的方式取回纽约的天气。</div>
+</div>
+<div class="para" id="wt-16">
+<div class="en">Tools are a new kind of software which reflects a contract between deterministic systems and non-deterministic agents. When a user asks "Should I bring an umbrella today?,” an agent might call the weather tool, answer from general knowledge, or even ask a clarifying question about location first. Occasionally, an agent might hallucinate or even fail to grasp how to use a tool.</div>
+<div class="zh">工具是一种新的软件形态，它体现的是确定性系统与非确定性 agent 之间的契约。当用户问“今天要不要带伞”，agent 可能会调用天气工具、可能凭常识回答、也可能先反问地点。偶尔，agent 会幻觉，甚至会搞不懂该怎么用这个工具。</div>
+</div>
+<div class="para" id="wt-17">
+<div class="en">This means fundamentally rethinking our approach when writing software for agents: instead of writing tools and MCP servers the way we’d write functions and APIs for other developers or systems, we need to design them for agents.</div>
+<div class="zh">这意味着为 agent 写软件时，必须从根本上重新思考做法：不能像给其他开发者或系统写函数和 API 那样去写工具和 MCP server，而要**为 agent 而设计**。</div>
+<div class="note"><span class="note-tag">我的批注</span>这段话是理解整篇文章的钥匙：工具是『确定性系统与非确定性 agent 之间的契约』。你用写函数的方式写 find_code.py，正是原文点名的那种错。</div>
+</div>
+<div class="para" id="wt-18">
+<div class="en">Our goal is to increase the surface area over which agents can be effective in solving a wide range of tasks by using tools to pursue a variety of successful strategies. Fortunately, in our experience, the tools that are most “ergonomic” for agents also end up being surprisingly intuitive to grasp as humans.</div>
+<div class="zh">我们的目标，是扩大 agent 能有效解决问题的“作用面”——通过工具去尝试各种成功策略。好在根据我们的经验，对 agent 最好用的工具，对人类来说往往也出奇地直观。</div>
+</div>
+<div class="para" id="wt-19">
+<div class="en">How to write tools</div>
+<div class="zh">怎么写工具</div>
+</div>
+<div class="para" id="wt-20">
+<div class="en">In this section, we describe how you can collaborate with agents both to write and to improve the tools you give them. Start by standing up a quick prototype of your tools and testing them locally. Next, run a comprehensive evaluation to measure subsequent changes. Working alongside agents, you can repeat the process of evaluating and improving your tools until your agents achieve strong performance on real-world tasks.</div>
+<div class="zh">本节讲你如何与 agent 协作，来编写并改进你给它的工具。先做一个快速原型在本地测试；接着跑一套完整评测来衡量后续改动。与 agent 并肩工作，你可以反复“评测—改进”，直到 agent 在真实任务上表现足够强。</div>
+</div>
+<div class="para" id="wt-21">
+<div class="en">Building a prototype</div>
+<div class="zh">做原型</div>
+</div>
+<div class="para" id="wt-22">
+<div class="en">It can be difficult to anticipate which tools agents will find ergonomic and which tools they won’t without getting hands-on yourself. Start by standing up a quick prototype of your tools. If you’re using Claude Code to write your tools (potentially in one-shot), it helps to give Claude documentation for any software libraries, APIs, or SDKs (including potentially the MCP SDK ) your tools will rely on. LLM-friendly documentation can commonly be found in flat llms.txt files on official documentation sites (here’s our API’s ).</div>
+<div class="zh">不动手亲自试，很难预判哪些工具 agent 用着顺手、哪些不顺手。所以先做一版快速原型。如果你用 Claude Code 来写工具（可能一次就写出来），给它提供工具所依赖的软件库、API 或 SDK 的文档会很有帮助（包括 MCP SDK）。对 LLM 友好的文档通常以扁平的 llms.txt 形式放在官方文档站上。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 你这三周的核心困惑，Anthropic 用一句话回答了：『不动手亲自试，很难预判哪些工具 agent 用着顺手』。你从没试过，就判了自己死刑。</div>
+</div>
+<div class="para" id="wt-23">
+<div class="en">Wrapping your tools in a local MCP server or Desktop extension (DXT) will allow you to connect and test your tools in Claude Code or the Claude Desktop app.</div>
+<div class="zh">把你的工具包在本地 MCP server 或桌面扩展（DXT）里，就能在 Claude Code 或 Claude Desktop 里连接并测试。</div>
+</div>
+<div class="para" id="wt-24">
+<div class="en">To connect your local MCP server to Claude Code, run claude mcp add &lt;name&gt; &lt;command&gt; [args...] .</div>
+<div class="zh">要把本地 MCP server 接到 Claude Code，运行 claude mcp add &lt;name&gt; &lt;command&gt; [args...]。</div>
+</div>
+<div class="para" id="wt-25">
+<div class="en">To connect your local MCP server or DXT to the Claude Desktop app, navigate to Settings &gt; Developer or Settings &gt; Extensions , respectively.</div>
+<div class="zh">要接到 Claude Desktop，分别进 Settings &gt; Developer 或 Settings &gt; Extensions。</div>
+</div>
+<div class="para" id="wt-26">
+<div class="en">Tools can also be passed directly into Anthropic API calls for programmatic testing.</div>
+<div class="zh">工具也可以直接传进 Anthropic API 调用里做程序化测试。</div>
+</div>
+<div class="para" id="wt-27">
+<div class="en">Test the tools yourself to identify any rough edges. Collect feedback from your users to build an intuition around the use-cases and prompts you expect your tools to enable.</div>
+<div class="zh">自己试这些工具，找出粗糙的地方。收集用户反馈，建立你对“这些工具该支撑哪些用例和提示词”的直觉。</div>
+</div>
+<div class="para" id="wt-28">
+<div class="en">Running an evaluation</div>
+<div class="zh">跑评测</div>
+</div>
+<div class="para" id="wt-29">
+<div class="en">Next, you need to measure how well Claude uses your tools by running an evaluation. Start by generating lots of evaluation tasks, grounded in real world uses. We recommend collaborating with an agent to help analyze your results and determine how to improve your tools. See this process end-to-end in our tool evaluation cookbook .</div>
+<div class="zh">接下来要测量 Claude 用你这些工具用得多好，办法是跑评测。先围绕真实用途生成大量评测任务。我们建议与 agent 协作来分析结果、判断如何改进工具。完整流程见我们的 tool evaluation cookbook。</div>
+<div class="note"><span class="note-tag">我的批注</span>评测要围绕真实用途生成任务。你的真实用途是什么？『翻一页漫画让用户点头』——但你从没把它做成一条评测任务。</div>
+</div>
+<div class="para" id="wt-30">
+<div class="en">Held-out test set performance of our internal Slack tools</div>
+<div class="zh">我们内部 Slack 工具的留出测试集表现</div>
+</div>
+<div class="para" id="wt-31">
+<div class="en">Generating evaluation tasks</div>
+<div class="zh">生成评测任务</div>
+</div>
+<div class="para" id="wt-32">
+<div class="en">With your early prototype, Claude Code can quickly explore your tools and create dozens of prompt and response pairs. Prompts should be inspired by real-world uses and be based on realistic data sources and services (for example, internal knowledge bases and microservices). We recommend you avoid overly simplistic or superficial “sandbox” environments that don’t stress-test your tools with sufficient complexity. Strong evaluation tasks might require multiple tool calls—potentially dozens.</div>
+<div class="zh">有了早期原型，Claude Code 能很快探索你的工具、造出几十组“提示词—回答”对。提示词应当来源于真实用途，基于真实的数据源和服务（例如内部知识库和微服务）。我们建议避免过于简单或表面的“沙盒”环境——那种环境不足以压测你的工具。强的评测任务可能需要多次工具调用，甚至几十次。</div>
+<div class="note"><span class="note-tag">我的批注</span>原文要求避免『过于简单或表面的沙盒环境』。你那些 probe_*.py 恰好就是原文说的弱任务。</div>
+</div>
+<div class="para" id="wt-33">
+<div class="en">Here are some examples of strong tasks:</div>
+<div class="zh">强任务示例：</div>
+</div>
+<div class="para" id="wt-34">
+<div class="en">Schedule a meeting with Jane next week to discuss our latest Acme Corp project. Attach the notes from our last project planning meeting and reserve a conference room.</div>
+<div class="zh">安排下周和 Jane 开会，讨论最新的 Acme Corp 项目。附上上次项目规划会的笔记，并订一间会议室。</div>
+</div>
+<div class="para" id="wt-35">
+<div class="en">Customer ID 9182 reported that they were charged three times for a single purchase attempt. Find all relevant log entries and determine if any other customers were affected by the same issue.</div>
+<div class="zh">客户 ID 9182 报告说，一次购买尝试被扣了三次费。找出所有相关日志，并判断是否还有其他客户受同一问题影响。</div>
+</div>
+<div class="para" id="wt-36">
+<div class="en">Customer Sarah Chen just submitted a cancellation request. Prepare a retention offer. Determine: (1) why they're leaving, (2) what retention offer would be most compelling, and (3) any risk factors we should be aware of before making an offer.</div>
+<div class="zh">客户 Sarah Chen 刚提交了取消申请。准备一份挽留方案，判断：(1) 他为什么走；(2) 最有吸引力的挽留条件是什么；(3) 报价前我们该注意哪些风险。</div>
+</div>
+<div class="para" id="wt-37">
+<div class="en">And here are some weaker tasks:</div>
+<div class="zh">较弱的任务示例：</div>
+</div>
+<div class="para" id="wt-38">
+<div class="en">Schedule a meeting with jane@acme.corp next week.</div>
+<div class="zh">下周和 jane@acme.corp 安排一次会议。</div>
+</div>
+<div class="para" id="wt-39">
+<div class="en">Search the payment logs for purchase_complete and customer_id=9182 .</div>
+<div class="zh">在支付日志里搜索 purchase_complete 和 customer_id=9182。</div>
+</div>
+<div class="para" id="wt-40">
+<div class="en">Find the cancellation request by Customer ID 45892.</div>
+<div class="zh">按客户 ID 45892 找出这条取消申请。</div>
+</div>
+<div class="para" id="wt-41">
+<div class="en">Each evaluation prompt should be paired with a verifiable response or outcome. Your verifier can be as simple as an exact string comparison between ground truth and sampled responses, or as advanced as enlisting Claude to judge the response. Avoid overly strict verifiers that reject correct responses due to spurious differences like formatting, punctuation, or valid alternative phrasings.</div>
+<div class="zh">每条评测提示词都该配一个可验证的回答或结果。验证器可以简单到字符串精确比对，也可以高级到请 Claude 来当裁判。但要避免过于严格的验证器——不要因为它格式化、标点或另一种同样正确的说法就把对的判成错的。</div>
+<div class="note"><span class="note-tag">我的批注</span>验证器不要太严——不要因为它格式化、标点不同就把对的判成错的。你的 pytest 有几条正好犯这个毛病（EOL 检查、module-map 新鲜度）。</div>
+</div>
+<div class="para" id="wt-42">
+<div class="en">For each prompt-response pair, you can optionally also specify the tools you expect an agent to call in solving the task, to measure whether or not agents are successful in grasping each tool’s purpose during evaluation. However, because there might be multiple valid paths to solving tasks correctly, try to avoid overspecifying or overfitting to strategies.</div>
+<div class="zh">对每一组提示词—回答，你还可以（可选地）写明你期望 agent 调用哪些工具，用来衡量 agent 有没有抓住每个工具的用途。但由于解决任务可能有多种正确路径，要尽量避免把策略规定得过死、过拟合。</div>
+</div>
+<div class="para" id="wt-43">
+<div class="en">Running the evaluation</div>
+<div class="zh">跑评测</div>
+</div>
+<div class="para" id="wt-44">
+<div class="en">We recommend running your evaluation programmatically with direct LLM API calls. Use simple agentic loops ( while -loops wrapping alternating LLM API and tool calls): one loop for each evaluation task. Each evaluation agent should be given a single task prompt and your tools.</div>
+<div class="zh">我们建议用直接调 LLM API 的方式程序化地跑评测。用简单的 agent 循环（while 循环里交替进行 LLM API 调用和工具调用）：每个评测任务一个循环。每个评测 agent 拿到一个任务提示词和你的工具。</div>
+</div>
+<div class="para" id="wt-45">
+<div class="en">In your evaluation agents’ system prompts, we recommend instructing agents to output not just structured response blocks (for verification), but also reasoning and feedback blocks. Instructing agents to output these before tool call and response blocks may increase LLMs’ effective intelligence by triggering chain-of-thought (CoT) behaviors.</div>
+<div class="zh">在评测 agent 的系统提示里，我们建议不只是要求输出结构化回答块（供验证），还要它输出推理块和反馈块。把这些块放在工具调用和回答块之前输出，可能通过触发思维链（CoT）行为来提升 LLM 的有效智能。</div>
+</div>
+<div class="para" id="wt-46">
+<div class="en">If you’re running your evaluation with Claude, you can turn on interleaved thinking for similar functionality “off-the-shelf”. This will help you probe why agents do or don’t call certain tools and highlight specific areas of improvement in tool descriptions and specs.</div>
+<div class="zh">如果你用 Claude 跑评测，可以打开 interleaved thinking 来获得类似效果（开箱即用）。这有助于你探查 agent 为什么调用或不调用某些工具，并指出工具描述和规格里具体该改哪里。</div>
+</div>
+<div class="para" id="wt-47">
+<div class="en">As well as top-level accuracy, we recommend collecting other metrics like the total runtime of individual tool calls and tasks, the total number of tool calls, the total token consumption, and tool errors. Tracking tool calls can help reveal common workflows that agents pursue and offer some opportunities for tools to consolidate.</div>
+<div class="zh">除了顶层准确率，我们还建议收集其他指标：单次工具调用的耗时、任务总耗时、工具调用总次数、token 总消耗、工具报错。跟踪工具调用能揭示 agent 常采用的典型工作流，也提供了“哪些工具该合并”的线索。</div>
+<div class="note"><span class="note-tag">我的批注</span>原文建议记录：工具调用次数、耗时、token、报错。你今晚干的就是这件事（我数了 81 场会话），只是你把它当成了审判而不是测量。</div>
+</div>
+<div class="para" id="wt-48">
+<div class="en">Held-out test set performance of our internal Asana tools</div>
+<div class="zh">我们内部 Asana 工具的留出测试集表现</div>
+</div>
+<div class="para" id="wt-49">
+<div class="en">Analyzing results</div>
+<div class="zh">分析结果</div>
+</div>
+<div class="para" id="wt-50">
+<div class="en">Agents are your helpful partners in spotting issues and providing feedback on everything from contradictory tool descriptions to inefficient tool implementations and confusing tool schemas. However, keep in mind that what agents omit in their feedback and responses can often be more important than what they include. LLMs don’t always say what they mean .</div>
+<div class="zh">在发现问题、给出反馈这件事上，agent 是有用的伙伴——从前后矛盾的描述，到低效的实现，再到难懂的工具 schema，它都能提。但要记住：agent 反馈和回答里“没说的”，往往比“说了的”更重要。LLM 并不总是说它真正想说的。</div>
+</div>
+<div class="para" id="wt-51">
+<div class="en">Observe where your agents get stumped or confused. Read through your evaluation agents’ reasoning and feedback (or CoT) to identify rough edges. Review the raw transcripts (including tool calls and tool responses) to catch any behavior not explicitly described in the agent’s CoT. Read between the lines; remember that your evaluation agents don’t necessarily know the correct answers and strategies.</div>
+<div class="zh">留意 agent 在哪里卡住或困惑。通读评测 agent 的推理和反馈（或 CoT）找出粗糙处。检查原始记录（含工具调用与工具返回），抓住任何没被 CoT 显式描述的行为。要读弦外之音；记住评测 agent 未必知道正确答案和策略。</div>
+</div>
+<div class="para" id="wt-52">
+<div class="en">Analyze your tool calling metrics. Lots of redundant tool calls might suggest some rightsizing of pagination or token limit parameters is warranted; lots of tool errors for invalid parameters might suggest tools could use clearer descriptions or better examples. When we launched Claude’s web search tool , we identified that Claude was needlessly appending 2025 to the tool’s query parameter, biasing search results and degrading performance (we steered Claude in the right direction by improving the tool description).</div>
+<div class="zh">分析你的工具调用指标。大量冗余调用可能意味着分页或 token 上限该调整；大量“参数非法”的报错可能意味着工具描述该更清楚、或该给更好的例子。我们上线 Claude 的网页搜索工具时发现，Claude 会无谓地在查询参数后面追加“2025”，这引入了偏向、降低了表现（我们靠改进工具描述把它引向正轨）。</div>
+</div>
+<div class="para" id="wt-53">
+<div class="en">Collaborating with agents</div>
+<div class="zh">与 agent 协作</div>
+</div>
+<div class="para" id="wt-54">
+<div class="en">You can even let agents analyze your results and improve your tools for you. Simply concatenate the transcripts from your evaluation agents and paste them into Claude Code. Claude is an expert at analyzing transcripts and refactoring lots of tools all at once—for example, to ensure tool implementations and descriptions remain self-consistent when new changes are made.</div>
+<div class="zh">你甚至可以让 agent 自己分析结果、替你改进工具。只要把评测 agent 的记录拼起来，粘进 Claude Code 即可。Claude 是分析记录、批量重构大量工具的专家——比如在做出新改动时，确保工具的实现与描述保持一致。</div>
+</div>
+<div class="para" id="wt-55">
+<div class="en">In fact, most of the advice in this post came from repeatedly optimizing our internal tool implementations with Claude Code. Our evaluations were created on top of our internal workspace, mirroring the complexity of our internal workflows, including real projects, documents, and messages.</div>
+<div class="zh">事实上，本文大部分建议，都来自我们反复用 Claude Code 优化内部工具实现的过程。我们的评测建立在内部工作区之上，复刻了内部工作流的复杂度，包括真实项目、文档和消息。</div>
+</div>
+<div class="para" id="wt-56">
+<div class="en">We relied on held-out test sets to ensure we did not overfit to our “training” evaluations. These test sets revealed that we could extract additional performance improvements even beyond what we achieved with "expert" tool implementations—whether those tools were manually written by our researchers or generated by Claude itself.</div>
+<div class="zh">我们依赖留出测试集来确保没有对“训练用”评测过拟合。这些测试集显示：即便与“专家级”工具实现相比，我们仍能榨出额外的表现提升——无论那些工具是研究员手写的，还是 Claude 自己生成的。</div>
+</div>
+<div class="para" id="wt-57">
+<div class="en">In the next section, we’ll share some of what we learned from this process.</div>
+<div class="zh">下一节，我们分享从这一过程中学到的东西。</div>
+</div>
+<div class="para" id="wt-58">
+<div class="en">Principles for writing effective tools</div>
+<div class="zh">写出有效工具的原则</div>
+</div>
+<div class="para" id="wt-59">
+<div class="en">In this section, we distill our learnings into a few guiding principles for writing effective tools.</div>
+<div class="zh">本节把我们学到的东西提炼成几条指导原则。</div>
+</div>
+<div class="para" id="wt-60">
+<div class="en">Choosing the right tools for agents</div>
+<div class="zh">为 agent 选对工具</div>
+</div>
+<div class="para" id="wt-61">
+<div class="en">More tools don’t always lead to better outcomes. A common error we’ve observed is tools that merely wrap existing software functionality or API endpoints—whether or not the tools are appropriate for agents. This is because agents have distinct “affordances” to traditional software—that is, they have different ways of perceiving the potential actions they can take with those tools</div>
+<div class="zh">工具更多并不总是带来更好结果。我们观察到的一个常见错误，是工具只是把已有的软件功能或 API 端点包了一层——不管这个工具是否适合 agent。原因在于，agent 与传统软件有着不同的“可供性”，也就是它们感知“自己能做哪些动作”的方式不同。</div>
+</div>
+<div class="para" id="wt-62">
+<div class="en">LLM agents have limited "context" (that is, there are limits to how much information they can process at once), whereas computer memory is cheap and abundant. Consider the task of searching for a contact in an address book. Traditional software programs can efficiently store and process a list of contacts one at a time, checking each one before moving on.</div>
+<div class="zh">LLM agent 的“上下文”是有限的（一次能处理的信息量有上限），而计算机内存既便宜又充裕。想想在通讯录里找一个联系人：传统程序可以高效地逐个存储和处理联系人列表，一个一个查过去。</div>
+</div>
+<div class="para" id="wt-63">
+<div class="en">However, if an LLM agent uses a tool that returns ALL contacts and then has to read through each one token-by-token, it's wasting its limited context space on irrelevant information (imagine searching for a contact in your address book by reading each page from top-to-bottom—that is, via brute-force search). The better and more natural approach (for agents and humans alike) is to skip to the relevant page first (perhaps finding it alphabetically).</div>
+<div class="zh">但如果 LLM agent 用了一个返回“全部联系人”的工具，然后必须逐 token 读完每一个，那就是在把有限的上下文浪费在无关信息上（想象你在通讯录里找一个人，却是从第一页开始逐页读到尾——也就是暴力搜索）。更好也更自然的做法（对 agent 和对人一样），是先跳到相关的那一页（也许是按字母顺序找到它）。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 这是全文最重要的一段：LLM 的上下文有限，而『返回全部再让它读』是暴力搜索。原文主张 search_contacts 而不是 list_contacts。你的 find_code.py 是对的方向，只是没挂到调用面上。</div>
+</div>
+<div class="para" id="wt-64">
+<div class="en">We recommend building a few thoughtful tools targeting specific high-impact workflows, which match your evaluation tasks and scaling up from there. In the address book case, you might choose to implement a search_contacts or message_contact tool instead of a list_contacts tool.</div>
+<div class="zh">我们建议围绕特定的高价值工作流，精心构建少量工具，让它们与你的评测任务对应，再逐步扩展。在通讯录这个例子里，你可以选择实现 search_contacts 或 message_contact，而不是 list_contacts。</div>
+</div>
+<div class="para" id="wt-65">
+<div class="en">Tools can consolidate functionality, handling potentially multiple discrete operations (or API calls) under the hood. For example, tools can enrich tool responses with related metadata or handle frequently chained, multi-step tasks in a single tool call.</div>
+<div class="zh">工具可以合并功能，在底层处理多个离散操作（或 API 调用）。例如，工具可以在返回内容里附上相关元数据，或者把经常需要连续多步完成的任务，合并成一次工具调用。</div>
+<div class="note"><span class="note-tag">我的批注</span>『我们建议围绕高价值工作流构建少量工具』——不是多多益善。这跟你自己定的『机制准入条件』是同一个道理。</div>
+</div>
+<div class="para" id="wt-66">
+<div class="en">Here are some examples:</div>
+<div class="zh">示例如下：</div>
+</div>
+<div class="para" id="wt-67">
+<div class="en">Instead of implementing a list_users , list_events , and create_event tools, consider implementing a schedule_event tool which finds availability and schedules an event.</div>
+<div class="zh">不要分别实现 list_users、list_events 和 create_event，而应考虑实现 schedule_event——它自己会查可用时段并安排事件。</div>
+</div>
+<div class="para" id="wt-68">
+<div class="en">Instead of implementing a read_logs tool, consider implementing a search_logs tool which only returns relevant log lines and some surrounding context.</div>
+<div class="zh">不要实现 read_logs，而应考虑实现 search_logs——只返回相关日志行及其周边上下文。</div>
+</div>
+<div class="para" id="wt-69">
+<div class="en">Instead of implementing get_customer_by_id , list_transactions , and list_notes tools, implement a get_customer_context tool which compiles all of a customer’s recent &amp; relevant information all at once.</div>
+<div class="zh">不要实现 get_customer_by_id、list_transactions 和 list_notes，而要实现 get_customer_context——一次性汇总某客户近期且相关的全部信息。</div>
+</div>
+<div class="para" id="wt-70">
+<div class="en">Make sure each tool you build has a clear, distinct purpose. Tools should enable agents to subdivide and solve tasks in much the same way that a human would, given access to the same underlying resources, and simultaneously reduce the context that would have otherwise been consumed by intermediate outputs.</div>
+<div class="zh">确保你做的每个工具都有清晰、独特的用途。工具应当让 agent 能像人拿到同样底层资源时那样，把任务拆开、逐个解决，同时减少本来会消耗在中间产物上的上下文。</div>
+</div>
+<div class="para" id="wt-71">
+<div class="en">Too many tools or overlapping tools can also distract agents from pursuing efficient strategies. Careful, selective planning of the tools you build (or don’t build) can really pay off.</div>
+<div class="zh">工具太多、或功能重叠，也会分散 agent 的注意力，让它偏离高效策略。对“做哪些工具、不做哪些工具”做审慎而有取舍的规划，回报确实很大。</div>
+</div>
+<div class="para" id="wt-72">
+<div class="en">Namespacing your tools</div>
+<div class="zh">给工具加命名空间</div>
+<div class="note"><span class="note-tag">我的批注</span>『工具太多或功能重叠会分散 agent 的注意力』。你有 21 个脚本 + 6 个技能，而 485 : 15 那个比值就是这句话的实测。</div>
+</div>
+<div class="para" id="wt-73">
+<div class="en">Your AI agents will potentially gain access to dozens of MCP servers and hundreds of different tools–including those by other developers. When tools overlap in function or have a vague purpose, agents can get confused about which ones to use.</div>
+<div class="zh">你的 AI agent 可能会接触到几十个 MCP server、几百个不同的工具——包括别人开发的。当工具功能重叠或用途含糊时，agent 会搞不清该用哪个。</div>
+</div>
+<div class="para" id="wt-74">
+<div class="en">Namespacing (grouping related tools under common prefixes) can help delineate boundaries between lots of tools; MCP clients sometimes do this by default. For example, namespacing tools by service (e.g., asana_search , jira_search ) and by resource (e.g., asana_projects_search , asana_users_search ), can help agents select the right tools at the right time.</div>
+<div class="zh">命名空间（把相关工具归到共同前缀下）有助于在大量工具之间划清边界；MCP 客户端有时会默认这么做。例如按服务命名（如 asana_search、jira_search）或按资源命名（如 asana_projects_search、asana_users_search），能帮 agent 在正确的时候选到正确的工具。</div>
+</div>
+<div class="para" id="wt-75">
+<div class="en">We have found selecting between prefix- and suffix-based namespacing to have non-trivial effects on our tool-use evaluations. Effects vary by LLM and we encourage you to choose a naming scheme according to your own evaluations.</div>
+<div class="zh">我们发现，选择“前缀式”还是“后缀式”命名空间，对工具使用评测有不小的影响。影响因 LLM 而异，我们鼓励你按自己的评测来选择命名方案。</div>
+</div>
+<div class="para" id="wt-76">
+<div class="en">Agents might call the wrong tools, call the right tools with the wrong parameters, call too few tools, or process tool responses incorrectly. By selectively implementing tools whose names reflect natural subdivisions of tasks, you simultaneously reduce the number of tools and tool descriptions loaded into the agent’s context and offload agentic computation from the agent’s context back into the tool calls themselves. This reduces an agent’s overall risk of making mistakes.</div>
+<div class="zh">agent 可能调错工具、用错参数调对工具、调用得太少，或者错误处理工具返回。通过有选择地实现那些“名字反映任务自然划分”的工具，你能同时减少加载进 agent 上下文的工具数量和描述数量，并把 agent 的计算从“上下文里”卸载到“工具调用本身”里。这会降低 agent 整体犯错的风险。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 原文承认：前缀式还是后缀式命名，影响『不小』，且『因 LLM 而异』。也就是说，连 Anthropic 都不认为有标准答案，必须靠自己的评测来选。</div>
+</div>
+<div class="para" id="wt-77">
+<div class="en">Returning meaningful context from your tools</div>
+<div class="zh">让工具返回有意义的上下文</div>
+</div>
+<div class="para" id="wt-78">
+<div class="en">In the same vein, tool implementations should take care to return only high signal information back to agents. They should prioritize contextual relevance over flexibility, and eschew low-level technical identifiers (for example: uuid , 256px_image_url , mime_type ). Fields like name , image_url , and file_type are much more likely to directly inform agents’ downstream actions and responses.</div>
+<div class="zh">同理，工具实现要注意只把高信号的信息返回给 agent。它们应当优先考虑上下文相关性而非灵活性，并避免暴露底层技术标识符（例如 uuid、256px_image_url、mime_type）。而 name、image_url、file_type 这类字段，更可能直接指导 agent 后续的动作和回答。</div>
+</div>
+<div class="para" id="wt-79">
+<div class="en">Agents also tend to grapple with natural language names, terms, or identifiers significantly more successfully than they do with cryptic identifiers. We’ve found that merely resolving arbitrary alphanumeric UUIDs to more semantically meaningful and interpretable language (or even a 0-indexed ID scheme) significantly improves Claude’s precision in retrieval tasks by reducing hallucinations.</div>
+<div class="zh">agent 处理自然语言的名称、术语或标识符，也比处理晦涩标识符成功得多。我们发现，仅仅把任意字母数字的 UUID 解析成语义上更可解释的语言（甚至只是改成 0 开始的下标 ID），就能显著提升 Claude 在检索任务上的精度，因为它减少了幻觉。</div>
+</div>
+<div class="para" id="wt-80">
+<div class="en">In some instances, agents may require the flexibility to interact with both natural language and technical identifiers outputs, if only to trigger downstream tool calls (for example, search_user(name=’jane’) → send_message(id=12345) ). You can enable both by exposing a simple response_format enum parameter in your tool, allowing your agent to control whether tools return “concise” or “detailed” responses (images below).</div>
+<div class="zh">有时 agent 需要同时使用自然语言和技术标识符，哪怕只是为了触发后续工具调用（例如 search_user(name='jane') → send_message(id=12345)）。你可以通过暴露一个简单的 response_format 枚举参数来两者兼顾，让 agent 自己控制工具返回“简洁”还是“详细”的响应。</div>
+</div>
+<div class="para" id="wt-81">
+<div class="en">You can add more formats for even greater flexibility, similar to GraphQL where you can choose exactly which pieces of information you want to receive. Here is an example ResponseFormat enum to control tool response verbosity:</div>
+<div class="zh">你还可以增加更多格式以获得更大灵活性，类似 GraphQL——你可以精确选择想收到哪些信息。下面是一个控制工具响应详细程度的 ResponseFormat 枚举示例：</div>
+</div>
+<div class="para" id="wt-82">
+<div class="en">enum ResponseFormat {</div>
+<div class="zh">这是一个“详细”的工具响应示例（206 token）：</div>
+</div>
+<div class="para" id="wt-83">
+<div class="en">DETAILED = "detailed",</div>
+<div class="zh">这是一个“简洁”的工具响应示例（72 token）：</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 你问过『AI 是不是劣质模型』。原文在这里给的是：对工具描述做精确改进后，Claude Sonnet 3.5 在 SWE-bench 上达到当时最佳。也就是说，**工具描述的质量能真实改变模型表现**——这不是玄学。</div>
+</div>
+<div class="para" id="wt-84">
+<div class="en">CONCISE = "concise"</div>
+<div class="zh">Slack 的会话串和串内回复由唯一的 thread_ts 标识，取串内回复必须用到它。thread_ts 和其他 ID（channel_id、user_id）可以从“详细”响应里取到，用于后续需要这些 ID 的工具调用。“简洁”响应只返回串内容、不含 ID。这个例子里，“简洁”响应只用了约三分之一的 token。</div>
+</div>
+<div class="para" id="wt-85">
+<div class="en">}</div>
+<div class="zh">就连工具响应的结构——XML、JSON 还是 Markdown——也会影响评测表现：没有放之四海皆准的方案。因为 LLM 是按“预测下一个 token”训练的，对与训练数据相匹配的格式往往表现得更好。最优的响应结构因任务和 agent 差异极大。我们鼓励你基于自己的评测来选。</div>
+</div>
+<div class="para" id="wt-86">
+<div class="en">Copy</div>
+<div class="zh">为 token 效率优化工具响应</div>
+</div>
+<div class="para" id="wt-87">
+<div class="en">Here’s an example of a detailed tool response (206 tokens):</div>
+<div class="zh">优化上下文质量很重要，但优化工具响应返回给 agent 的上下文“数量”同样重要。</div>
+</div>
+<div class="para" id="wt-88">
+<div class="en">Here’s an example of a concise tool response (72 tokens):</div>
+<div class="zh">对任何可能吃掉大量上下文的工具响应，我们建议实现分页、范围选择、过滤和/或截断的某种组合，并配上合理的默认参数。对 Claude Code，我们默认把工具响应限制在 25,000 token。我们预计 agent 的有效上下文长度会随时间增长，但对上下文高效工具的需求会一直存在。</div>
+</div>
+<div class="para" id="wt-89">
+<div class="en">Slack threads and thread replies are identified by unique thread_ts which are required to fetch thread replies. thread_ts and other IDs ( channel_id , user_id ) can be retrieved from a “detailed” tool response to enable further tool calls that require these. “concise” tool responses return only thread content and exclude IDs. In this example, we use ~⅓ of the tokens with “concise” tool responses.</div>
+<div class="zh">如果你选择截断响应，一定要用有用的说明来引导 agent。你可以直接鼓励 agent 采用更省 token 的策略，比如在知识检索任务中做多次小而精准的搜索，而不是一次宽泛的大搜索。同理，如果工具调用报错（比如输入校验失败），你可以对错误响应做提示词工程，清楚传达具体、可执行的改进方向，而不是给出晦涩的错误码或堆栈。</div>
+</div>
+<div class="para" id="wt-90">
+<div class="en">Even your tool response structure—for example XML, JSON, or Markdown—can have an impact on evaluation performance: there is no one-size-fits-all solution. This is because LLMs are trained on next-token prediction and tend to perform better with formats that match their training data. The optimal response structure will vary widely by task and agent. We encourage you to select the best response structure based on your own evaluation.</div>
+<div class="zh">这是一个被截断的工具响应示例：</div>
+<div class="note"><span class="note-tag">我的批注</span>⭐ 原文承认：『没有放之四海皆准的方案』、『最优结构因任务和 agent 差异极大』、『我们鼓励你基于自己的评测来选』。这是 Anthropic 自己的话。</div>
+</div>
+<div class="para" id="wt-91">
+<div class="en">Optimizing tool responses for token efficiency</div>
+<div class="zh">这是一个不有帮助的错误响应示例（反例）：</div>
+</div>
+<div class="para" id="wt-92">
+<div class="en">Optimizing the quality of context is important. But so is optimizing the quantity of context returned back to agents in tool responses.</div>
+<div class="zh">这是一个有帮助的错误响应示例：</div>
+</div>
+<div class="para" id="wt-93">
+<div class="en">We suggest implementing some combination of pagination, range selection, filtering, and/or truncation with sensible default parameter values for any tool responses that could use up lots of context. For Claude Code, we restrict tool responses to 25,000 tokens by default. We expect the effective context length of agents to grow over time, but the need for context-efficient tools to remain.</div>
+<div class="zh">工具截断和错误响应可以引导 agent 走向更省 token 的工具使用行为（使用过滤器或分页），也可以给出正确格式的工具输入示例。</div>
+</div>
+<div class="para" id="wt-94">
+<div class="en">If you choose to truncate responses, be sure to steer agents with helpful instructions. You can directly encourage agents to pursue more token-efficient strategies, like making many small and targeted searches instead of a single, broad search for a knowledge retrieval task. Similarly, if a tool call raises an error (for example, during input validation), you can prompt-engineer your error responses to clearly communicate specific and actionable improvements, rather than opaque error codes or tracebacks.</div>
+<div class="zh">对工具描述做提示词工程</div>
+</div>
+<div class="para" id="wt-95">
+<div class="en">Here’s an example of a truncated tool response:</div>
+<div class="zh">现在我们来到改进工具最有效的方法之一：对工具描述和规格做提示词工程。因为它们会被加载进 agent 的上下文，它们能共同引导 agent 形成有效的工具调用行为。</div>
+<div class="note"><span class="note-tag">我的批注</span>『很多冗余的工具调用可能意味着分页或 token 上限该调整』——你项目里的 485 次 grep，正是原文说的『冗余调用』，它是症状，不是病因。</div>
+</div>
+<div class="para" id="wt-96">
+<div class="en">Here’s an example of an unhelpful error response:</div>
+<div class="zh">写工具描述和规格时，想想你会怎么向团队新同事介绍这个工具。考虑你可能会不自觉带入的上下文——特殊的查询格式、行话术语的定义、底层资源之间的关系——把它们明确写出来。通过清楚描述（并用严格的数据模型强制）期望的输入和输出，来避免歧义。尤其是输入参数要命名得毫无歧义：不要用名为 user 的参数，试着改成 user_id。</div>
+</div>
+<div class="para" id="wt-97">
+<div class="en">Here’s an example of a helpful error response:</div>
+<div class="zh">有了评测，你就能更有把握地衡量提示词工程带来的影响。哪怕对工具描述做很小的改进，也能带来显著提升。在我们对工具描述做出精确改进之后，Claude Sonnet 3.5 在 SWE-bench Verified 评测上取得了当时最佳表现，错误率大幅下降、任务完成率提升。</div>
+</div>
+<div class="para" id="wt-98">
+<div class="en">Tool truncation and error responses can steer agents towards more token-efficient tool-use behaviors (using filters or pagination) or give examples of correctly formatted tool inputs.</div>
+<div class="zh">你可以在我们的开发者指南里找到工具定义的其他最佳实践。如果你在为 Claude 构建工具，我们还建议阅读工具是如何被动态加载进 Claude 系统提示的。最后，如果你在给 MCP server 写工具，工具注解（tool annotations）有助于说明哪些工具需要开放世界访问、或会造成破坏性改动。</div>
+</div>
+<div class="para" id="wt-99">
+<div class="en">Prompt-engineering your tool descriptions</div>
+<div class="zh">展望</div>
+</div>
+<div class="para" id="wt-100">
+<div class="en">We now come to one of the most effective methods for improving tools: prompt-engineering your tool descriptions and specs. Because these are loaded into your agents’ context, they can collectively steer agents toward effective tool-calling behaviors.</div>
+<div class="zh">要为 agent 构建有效的工具，我们需要把软件开发实践从“可预测、确定性”的模式，重新调整为“非确定性”的模式。</div>
+</div>
+<div class="para" id="wt-101">
+<div class="en">When writing tool descriptions and specs, think of how you would describe your tool to a new hire on your team. Consider the context that you might implicitly bring—specialized query formats, definitions of niche terminology, relationships between underlying resources—and make it explicit. Avoid ambiguity by clearly describing (and enforcing with strict data models) expected inputs and outputs. In particular, input parameters should be unambiguously named: instead of a parameter named user , try a parameter named user_id .</div>
+<div class="zh">通过本文描述的、以评测驱动的迭代过程，我们识别出了一些一致的规律，说明什么样的工具能成功：有效的工具被有意且清晰地定义，审慎地使用 agent 的上下文，能组合进各种不同的工作流，并让 agent 直观地解决真实任务。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 结尾这句是诊断书：『我们需要把软件开发实践从可预测、确定的模式，重新调整为非确定的模式』。你的痛苦，本质是你一直在用一个确定性系统的标准，去要求一个非确定性系统。</div>
+</div>
+<div class="para" id="wt-102">
+<div class="en">With your evaluation you can measure the impact of your prompt engineering with greater confidence. Even small refinements to tool descriptions can yield dramatic improvements. Claude Sonnet 3.5 achieved state-of-the-art performance on the SWE-bench Verified evaluation after we made precise refinements to tool descriptions, dramatically reducing error rates and improving task completion.</div>
+<div class="zh">未来，我们预计 agent 与世界交互的具体机制会继续演化——从 MCP 协议的更新到模型本身的升级。只要采用系统的、以评测驱动的方法去改进 agent 的工具，我们就能确保：当 agent 变得更强时，它们所用的工具也随之进化。</div>
+</div>
+<div class="para" id="wt-103">
+<div class="en">You can find other best practices for tool definitions in our Developer Guide . If you’re building tools for Claude, we also recommend reading about how tools are dynamically loaded into Claude’s system prompt . Lastly, if you’re writing tools for an MCP server, tool annotations help disclose which tools require open-world access or make destructive changes.</div>
+<div class="zh">致谢</div>
+</div>
+<div class="para" id="wt-104">
+<div class="en">Looking ahead</div>
+<div class="zh">作者 Ken Aizawa，感谢 Research、MCP、Product Engineering、Marketing、Design、Applied AI 等部门同事的重要贡献。</div>
+</div>
+<div class="para" id="wt-105">
+<div class="en">To build effective tools for agents, we need to re-orient our software development practices from predictable, deterministic patterns to non-deterministic ones.</div>
+<div class="zh">1 这里说的不包括对底层 LLM 本身做训练。</div>
+</div>
+<div class="para" id="wt-106">
+<div class="en">Through the iterative, evaluation-driven process we’ve described in this post, we've identified consistent patterns in what makes tools successful: Effective tools are intentionally and clearly defined, use agent context judiciously, can be combined together in diverse workflows, and enable agents to intuitively solve real-world tasks.</div>
+<div class="zh">通过本文描述的、以评测驱动的迭代过程，我们识别出了一些一致的规律，说明什么样的工具能成功。</div>
+</div>
+<div class="para" id="wt-107">
+<div class="en">In the future, we expect the specific mechanisms through which agents interact with the world to evolve—from updates to the MCP protocol to upgrades to the underlying LLMs themselves. With a systematic, evaluation-driven approach to improving tools for agents, we can ensure that as agents become more capable, the tools they use will evolve alongside them.</div>
+<div class="zh">未来，我们预计 agent 与世界交互的具体机制会继续演化——从 MCP 协议的更新到模型本身的升级。只要采用系统的、以评测驱动的方法去改进 agent 的工具，我们就能确保：当 agent 变得更强时，它们所用的工具也随之进化。</div>
+</div>
+<div class="para" id="wt-108">
+<div class="en">Acknowledgements</div>
+<div class="zh">致谢</div>
+</div>
+<div class="para" id="wt-109">
+<div class="en">Written by Ken Aizawa with valuable contributions from colleagues across Research (Barry Zhang, Zachary Witten, Daniel Jiang, Sami Al-Sheikh, Matt Bell, Maggie Vo), MCP (Theodora Chu, John Welsh, David Soria Parra, Adam Jones), Product Engineering (Santiago Seira), Marketing (Molly Vorwerck), Design (Drew Roper), and Applied AI (Christian Ryan, Alexander Bricken).</div>
+<div class="zh">作者 Ken Aizawa，感谢 Research、MCP、Product Engineering、Marketing、Design、Applied AI 等部门同事的重要贡献。</div>
+</div>
+</section>
+<section class="art hidden" id="art-sa">
+<div class="meta">
+<h2>02 · Seeing like an agent: how we design tools in Claude Code</h2>
+<p class="sub">像 agent 一样看问题：我们如何设计 Claude Code 的工具</p>
+<p class="sub">来源：Claude Code 团队博客 · 2026-04-10 · 作者：Claude Code 团队</p>
+<p class="sub">原文：<a href="https://claude.com/blog/seeing-like-an-agent" target="_blank">https://claude.com/blog/seeing-like-an-agent</a></p>
+<p class="sub"><b>这篇在讲什么：</b>Claude Code 团队自述工具设计的试错史。含 AskUserQuestion 的三次失败。</p>
+</div>
+<div class="para" id="sa-0">
+<div class="en">One of the hardest parts about building an agent harness is constructing its tools.</div>
+<div class="zh">构建 agent harness 最难的部分之一，就是构造它的工具。</div>
+</div>
+<div class="para" id="sa-1">
+<div class="en">Claude acts completely through tool calling , but there are a number of ways tools can be constructed in the Claude API with primitives like bash , skills and code execution . (You can read more about programmatic tool calling on the Claude API in @RLanceMartin's new article ).</div>
+<div class="zh">Claude 完全通过工具调用来行动，而在 Claude API 里，工具可以用 bash、skills、代码执行等原语以多种方式构造出来。</div>
+</div>
+<div class="para" id="sa-2">
+<div class="en">So how do you design your agents' tools? Do you give it one general-purpose tool like bash or code execution? Or fifty specialized tools, one for each use case?</div>
+<div class="zh">那么你该怎么设计 agent 的工具？给它一个通用工具，比如 bash 或代码执行？还是给它五十个专用工具，一个用例一个？</div>
+</div>
+<div class="para" id="sa-3">
+<div class="en">To put yourself in the mind of the model, imagine being given a difficult math problem. What tools would you want in order to solve it? It would depend on your own skill set!</div>
+<div class="zh">要站到模型的角度去想，可以设想你被交给一道很难的数学题。你需要什么工具才能解出来？这取决于你自己的技能水平。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 这篇文章开篇就承认：『构建 agent harness 最难的部分之一，就是构造它的工具』。你说『我连最简单的 harness 都做不到』——Claude Code 团队说这件事最难。</div>
+</div>
+<div class="para" id="sa-4">
+<div class="en">Paper would be the minimum, but you’d be limited by manual calculations. A calculator would be better, but you would need to know how to operate the more advanced options. The fastest and most powerful option would be a computer, but you would have to know how to use it to write and execute code.</div>
+<div class="zh">纸是最低要求，但你会被手算拖住。计算器更好，但你需要知道怎么操作那些高级功能。最快最强的选择是计算机，但你得知道怎么用它来写代码、跑代码。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 原文明确列举了工具的几种构造方式：bash、skills、代码执行。**skill 和 tool 是两个不同的原语**，不是同一件事的两种叫法。你之前把它们混在一起，我也混了。</div>
+</div>
+<div class="para" id="sa-5">
+<div class="en">This is a useful framework for designing your agent. You want to give it tools that are shaped to its own abilities. But how do you know what those abilities are? You pay attention, read its outputs, experiment. You learn to see like an agent.</div>
+<div class="zh">这是设计 agent 的一个有用框架：你要给它的工具，应当贴合它自身的能力。但你怎么知道它的能力是什么？去观察它、读它的输出、做实验。你要学会“像 agent 一样看问题”。</div>
+</div>
+<div class="para" id="sa-6">
+<div class="en">If you're building an agent, you'll face the same questions we did: when to add a tool, when to remove one, and how to tell the difference. Here's how we've answered them while building Claude Code, including where we got it wrong first.</div>
+<div class="zh">如果你在构建 agent，你会面对和我们一样的问题：什么时候加一个工具，什么时候去掉一个，以及怎么区分这两者。以下是我们构建 Claude Code 时的答案，包括我们一开始做错的地方。</div>
+</div>
+<div class="para" id="sa-7">
+<div class="en">Improving elicitation with the AskUserQuestion tool</div>
+<div class="zh">用 AskUserQuestion 工具改进“提问能力”</div>
+</div>
+<div class="para" id="sa-8">
+<div class="en">When building the AskUserQuestion tool, our goal was to improve Claude’s ability to ask questions (often called elicitation).</div>
+<div class="zh">构建 AskUserQuestion 工具时，我们的目标是提升 Claude 提问的能力（通常称作 elicitation，引导用户表达）。</div>
+</div>
+<div class="para" id="sa-9">
+<div class="en">While Claude could just ask questions in plain text, we found answering those questions felt like they took an unnecessary amount of time. How could we lower this friction and increase the bandwidth of communication between the user and Claude?</div>
+<div class="zh">Claude 本来可以直接用纯文本提问，但我们发现回答这些问题感觉要多花不少时间。怎样才能降低这个摩擦、提高用户与 Claude 之间的沟通带宽？</div>
+</div>
+<div class="para" id="sa-10">
+<div class="en">Attempt 1: Editing the ExitPlanTool</div>
+<div class="zh">第一次尝试：改造 ExitPlanTool</div>
+</div>
+<div class="para" id="sa-11">
+<div class="en">The first approach we tried was adding a parameter to the ExitPlanTool to have an array of questions alongside the plan. This was the easiest fix to implement, but it confused Claude because we were simultaneously asking for a plan and a set of questions about the plan. What if the user’s answers conflicted with what the plan said? Would Claude need to call the ExitPlanTool twice? We knew this tactic wouldn’t work, so we went back to the drawing board. (You can read more about why we made an ExitPlanTool in our post on prompt caching )</div>
+<div class="zh">我们试的第一种做法，是给 ExitPlanTool 加一个参数，让它在给出计划的同时带一个问题数组。这是最容易实现的修法，但它把 Claude 搞糊涂了——我们同时在要一份计划、又要一组关于这份计划的问题。如果用户的回答和计划里的内容冲突怎么办？Claude 需要调用两次 ExitPlanTool 吗？我们知道这条路走不通，于是回到起点重新想。</div>
+</div>
+<div class="para" id="sa-12">
+<div class="en">Attempt 2: Changing output format</div>
+<div class="zh">第二次尝试：改输出格式</div>
+</div>
+<div class="para" id="sa-13">
+<div class="en">Next, we tried updating Claude’s output instructions to serve a slightly modified markdown format that it could use to ask questions. For example, we could ask it to output a list of bullet point questions with alternatives in brackets. We could then parse and format that question as UI for the user.</div>
+<div class="zh">接下来，我们试着更新 Claude 的输出指令，让它输出一种稍加修改的 markdown 格式来提问。比如让它输出一组带方括号选项的要点式问题，我们再把它解析成给用户看的 UI。</div>
+<div class="note"><span class="note-tag">我的批注</span>★★★ 全文最重要的一段，因为这是他们亲手做的实验：**改输出格式，Claude『通常能产出，但不可靠』**。你的 CLAUDE.md 里写『禁止用 grep』，属于同一类尝试——靠指令约束行为，结果是 485 : 15。</div>
+</div>
+<div class="para" id="sa-14">
+<div class="en">Claude could usually produce this format, but not reliably. It would append extra sentences, drop options, or abandon the structure altogether. Onto the next approach.</div>
+<div class="zh">Claude 通常能产出这种格式，但不可靠。它会多写几句、丢掉选项，或者干脆放弃这个结构。进入下一个方案。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 他们试了两次『改格式』都失败，**第三次才改成做成工具**。这不是他们比你聪明，是他们试了三次才试对。</div>
+</div>
+<div class="para" id="sa-15">
+<div class="en">Attempt 3: The AskUserQuestion Tool</div>
+<div class="zh">第三次尝试：AskUserQuestion 工具</div>
+</div>
+<div class="para" id="sa-16">
+<div class="en">Finally, we landed on creating a tool that Claude could call at any point, but it was particularly prompted to do so during plan mode. When the tool triggered we would show a modal to display the questions and block the agent's loop until the user answered.</div>
+<div class="zh">最终，我们落到了“做一个 Claude 随时可调用的工具”上，同时特别提示它在计划模式下要调用。工具触发时，我们弹出一个模态框展示问题，并阻塞 agent 循环，直到用户回答。</div>
+</div>
+<div class="para" id="sa-17">
+<div class="en">This tool allowed us to prompt Claude for a structured output and it helped us ensure that Claude gave the user multiple options. It also gave users ways to compose this functionality, for example calling it in the Agent SDK or using referring to it in skills.</div>
+<div class="zh">这个工具让我们能要求 Claude 给出结构化输出，也帮我们确保 Claude 给用户多个选项。它还给了用户组合这项能力的方式，比如在 Agent SDK 里调用它，或在 skill 里引用它。</div>
+</div>
+<div class="para" id="sa-18">
+<div class="en">Most importantly, Claude seemed to like calling this tool and we found its outputs worked well. After all, even the best designed tool doesn’t work if Claude doesn’t understand how to call it.</div>
+<div class="zh">最重要的是，Claude 似乎很喜欢调用这个工具，而且我们发现它的输出效果很好。毕竟，即便设计得再好，如果 Claude 不知道怎么调用，这个工具也白搭。</div>
+<div class="note"><span class="note-tag">我的批注</span>原文原话：『即便设计得再好，如果 Claude 不知道怎么调用，这个工具也白搭。』——这句就是你 find_code.py 的墓志铭。</div>
+</div>
+<div class="para" id="sa-19">
+<div class="en">Is this the final form of elicitation in Claude Code? We doubt it. As Claude gets more capable, the tools that serve it have to evolve too. The next section shows a case where a tool that once helped started getting in the way.</div>
+<div class="zh">这是 Claude Code 里提问能力的最终形态吗？我们很怀疑。随着 Claude 变得更强，服务于它的工具也必须跟着演化。下一节会讲一个案例：曾经有帮助的工具，后来开始碍事了。</div>
+</div>
+<div class="para" id="sa-20">
+<div class="en">Updating with capabilities: tasks &amp; todos</div>
+<div class="zh">随能力演进：tasks 与 todos</div>
+</div>
+<div class="para" id="sa-21">
+<div class="en">When we first launched Claude Code, we realized that the model needed a todo list to keep it on track. Todos could be written at the start and checked off as the model did work. To do this we gave Claude the TodoWrite tool, which would write or update Todos and display them to the user.</div>
+<div class="zh">Claude Code 刚发布时，我们意识到模型需要一个待办清单来保持正轨。Todo 可以在开头写好，模型做一件事就勾掉一件。为此我们给了 Claude 一个 TodoWrite 工具，用来写入或更新 Todo 并展示给用户。</div>
+</div>
+<div class="para" id="sa-22">
+<div class="en">But even then, we often saw Claude forgetting what it had to do. To adapt, we inserted system reminders every 5 turns that reminded Claude of its goal.</div>
+<div class="zh">但即便那时，我们也常看到 Claude 忘记自己该做什么。于是我们每 5 轮插入一次系统提醒，提醒它目标是什么。</div>
+</div>
+<div class="para" id="sa-23">
+<div class="en">As models improved, they found To-do lists limiting. Being sent reminders of the todo list made Claude think that it had to stick to the list instead of modifying it when it realized it needed to change course. We also saw Opus 4.5 also get much better at using subagents, but how could subagents coordinate on a shared todo list?</div>
+<div class="zh">随着模型变强，它们觉得待办清单成了限制。被反复提醒清单，会让 Claude 以为必须死守清单，而不是在发现该改方向时去修改它。我们还看到 Opus 4.5 在子 agent 使用上强了很多，但子 agent 怎么在一个共享的待办清单上协作？</div>
+</div>
+<div class="para" id="sa-24">
+<div class="en">Seeing this, we replaced the TodoWrite feature with the Task tool . Whereas todos are focused on keeping the model on track, tasks help agents communicate with each other. Tasks could include dependencies, share updates across subagents and the model could alter and delete them.</div>
+<div class="zh">看到这些，我们把 TodoWrite 功能换成了 Task 工具。todo 关注的是让模型保持正轨，而 task 帮助 agent 之间互相沟通。Task 可以带依赖、在子 agent 间共享更新，模型也可以修改和删除它们。</div>
+</div>
+<div class="para" id="sa-25">
+<div class="en">As model capabilities increase, the tools that your models once needed might now be constraining them. It’s important to constantly revisit previous assumptions on what tools are needed. This is also why it's useful to stick to a small set of models to support that have a fairly similar capabilities profile.</div>
+<div class="zh">随着模型能力提升，模型曾经需要的工具，现在可能反而在束缚它们。持续重新审视“到底需要哪些工具”这个假设很重要。这也是为什么坚持只支持一小批能力档位相近的模型是有好处的。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 模型变强之后，原本有用的工具反而成了限制。原文的结论是：**要持续重新审视『到底需要哪些工具』**。你的删除行为，方向是对的。</div>
+</div>
+<div class="para" id="sa-26">
+<div class="en">Designing a search interface</div>
+<div class="zh">设计搜索界面</div>
+</div>
+<div class="para" id="sa-27">
+<div class="en">The most consequential tools we've built are the ones that let Claude find its own context.</div>
+<div class="zh">我们做过的影响最深远的工具，是让 Claude 能自己找到上下文的那些。</div>
+</div>
+<div class="para" id="sa-28">
+<div class="en">When Claude Code was first released internally, we used RAG: a vector database would pre-index the codebase, and the harness would retrieve relevant snippets and hand them to Claude before each response.. While RAG was powerful and fast, it required indexing and setup and could be fragile across a host of different environments. Most importantly, Claude was given this context instead of finding the context itself.</div>
+<div class="zh">Claude Code 最初在内部发布时，我们用的是 RAG：向量数据库预先索引代码库，harness 在每次回答前检索相关片段交给 Claude。虽然 RAG 强大又快，但它需要索引和配置，而且在各种不同环境里容易出问题。最重要的是——这是把上下文“给”了 Claude，而不是让 Claude 自己去找。</div>
+</div>
+<div class="para" id="sa-29">
+<div class="en">But if Claude could search on the web, why couldn’t it also search your codebase? By giving Claude a Grep tool, we could let it search for files and build context itself.</div>
+<div class="zh">但如果 Claude 能在网上搜索，为什么不能搜你的代码库？给它一个 Grep 工具，我们就能让它自己搜文件、自己构建上下文。</div>
+<div class="note"><span class="note-tag">我的批注</span>⭐⭐ 这一段是全文最反直觉的地方：**他们主动废掉了 RAG**，因为 RAG 是『把上下文给 Claude』，而不是『让 Claude 自己找』。</div>
+</div>
+<div class="para" id="sa-30">
+<div class="en">As Claude gets smarter, it becomes increasingly good at building its context when given the right tools.</div>
+<div class="zh">随着 Claude 变聪明，只要给了合适的工具，它构建自己上下文的能力就越来越强。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 他们给 Claude 一个 Grep 工具，让它自己搜。**注意：他们给的是通用搜索工具，不是几十个专用工具。** 而你的项目里，grep 是原生工具、find_code 是命令行脚本——你的问题不是工具不对，是它没挂在手边。</div>
+</div>
+<div class="para" id="sa-31">
+<div class="en">When we introduced Agent Skills , we formalized the idea of progressive disclosure, which allows agents to incrementally discover relevant context through exploration.</div>
+<div class="zh">当我们推出 Agent Skills 时，我们把“渐进式披露”这个概念正式化了：让 agent 通过探索，逐步发现相关上下文。</div>
+</div>
+<div class="para" id="sa-32">
+<div class="en">Claude could now read skill files and those files could then reference other files that the model could read recursively. In fact, a common use of skills is to add more search capabilities to Claude like giving it instructions on how to use an API or query a database.</div>
+<div class="zh">Claude 现在能读技能文件，而那些文件又能引用其他文件供模型递归读取。事实上，技能的一个常见用法，就是给 Claude 增加更多搜索能力，比如教它怎么用一个 API、怎么查一个数据库。</div>
+</div>
+<div class="para" id="sa-33">
+<div class="en">Over the course of a year, Claude went from not really being able to build its own context to being able to do nested search across several layers of files to find the exact context it needed.</div>
+<div class="zh">一年之间，Claude 从几乎无法自建上下文，进化到能跨多层文件做嵌套搜索，找到它需要的精确上下文。</div>
+</div>
+<div class="para" id="sa-34">
+<div class="en">Progressive disclosure is now a common technique we use to add new functionality without adding a tool. In the next section, we explain why.</div>
+<div class="zh">渐进式披露现在是我们常用的技巧：在不增加新工具的前提下添加新功能。下一节解释为什么。</div>
+</div>
+<div class="para" id="sa-35">
+<div class="en">Progressive disclosure: the Claude Code Guide agent</div>
+<div class="zh">渐进式披露：Claude Code Guide agent</div>
+</div>
+<div class="para" id="sa-36">
+<div class="en">Claude Code currently has ~20 tools, and our team frequently revisits if we need all of them for Claude to be most effective. The bar to add a new tool is high, because this gives the model one more option to think about.</div>
+<div class="zh">Claude Code 目前大约有 20 个工具，我们团队经常重新审视：是不是全都需要，才能让 Claude 最有效。增加一个新工具的门槛很高，因为那等于多给模型一个要考虑的选项。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 原文承认：Claude Code 只有约 20 个工具，而且『增加一个新工具的门槛很高，因为那等于多给模型一个要考虑的选项』。这是 Anthropic 的官方立场，和你的『机制准入条件』完全一致。</div>
+</div>
+<div class="para" id="sa-37">
+<div class="en">For example, we noticed that Claude did not know enough about how to use Claude Code. If you asked it how to add a MCP or what a slash command did, it would not be able to reply.</div>
+<div class="zh">举个例子，我们注意到 Claude 对“怎么用 Claude Code”了解不够。如果你问它怎么添加一个 MCP、或者某个斜杠命令是干什么的，它答不出来。</div>
+</div>
+<div class="para" id="sa-38">
+<div class="en">We could have put all of this information in the system prompt, but given that users rarely asked about this, it would have added context rot and interfered with Claude Code’s main job: writing code.</div>
+<div class="zh">我们本可以把这些信息全塞进系统提示，但考虑到用户很少问这些，那会引入上下文腐化，并干扰 Claude Code 的主职：写代码。</div>
+</div>
+<div class="para" id="sa-39">
+<div class="en">Instead, we tried progressive disclosure: we gave Claude a link to its docs that it could load and search when needed. This worked, but Claude would pull large chunks of documentation into context to find an answer the user could have gotten in one sentence.</div>
+<div class="zh">于是我们试了渐进式披露：给 Claude 一个它可以在需要时加载和搜索的文档链接。这办法管用，但 Claude 会把大段文档拉进上下文，只为回答一句本可以一句话回答的问题。</div>
+</div>
+<div class="para" id="sa-40">
+<div class="en">So we built the Claude Code Guide — a subagent Claude calls whenever a user asks about Claude Code itself. The subagent does the doc-searching in its own context, follows detailed instructions on how to search and what to extract, and hands back only the answer. The main agent's context stays clean.</div>
+<div class="zh">于是我们做了 Claude Code Guide——一个子 agent，每当用户问起 Claude Code 自身时就被调用。这个子 agent 在自己的上下文里做文档搜索，遵循详细的搜索与提取指令，只把答案交回来。主 agent 的上下文保持干净。</div>
+</div>
+<div class="para" id="sa-41">
+<div class="en">While this isn’t a perfect solution (Claude can still get confused when you ask it about how to set itself up), we were able to add things to Claude's action space without adding a new tool.</div>
+<div class="zh">虽然这并非完美方案（当你问它怎么配置自己时，Claude 仍可能糊涂），但我们做到了在不增加新工具的情况下，给 Claude 的行动空间添加了内容。</div>
+</div>
+<div class="para" id="sa-42">
+<div class="en">Seeing like an agent is an art, not a science</div>
+<div class="zh">像 agent 一样看问题，是艺术，不是科学</div>
+</div>
+<div class="para" id="sa-43">
+<div class="en">Designing the tools for your models is as much an art as it is a science. It depends heavily on the model you're using, the goal of the agent and the environment it’s operating in.</div>
+<div class="zh">为你的模型设计工具，既是科学，也是艺术。它在很大程度上取决于你用的模型、agent 的目标，以及它所处的环境。</div>
+</div>
+<div class="para" id="sa-44">
+<div class="en">Our best advice? Experiment often, read your outputs, try new things. And most importantly, try to see like an agent.</div>
+<div class="zh">我们最好的建议？多做实验，读它的输出，去理解它。</div>
+<div class="note"><span class="note-tag">我的批注</span>★★ 这篇的结尾：『像 agent 一样看问题，是艺术，不是科学』。你自己定的标准是科学级别的保证——**连写这篇文章的团队都不承认这个标准存在**。</div>
+</div>
+</section>
+<section class="art hidden" id="art-vl">
+<div class="meta">
+<h2>03 · Building verification loops in Claude Code with skills</h2>
+<p class="sub">用技能在 Claude Code 里构建验证循环</p>
+<p class="sub">来源：Claude Code 团队博客 · 2026-07-22 · 作者：Delba de Oliveira</p>
+<p class="sub">原文：<a href="https://claude.com/blog/building-verification-loops-in-claude-code-with-skills" target="_blank">https://claude.com/blog/building-verification-loops-in-claude-code-with-skills</a></p>
+<p class="sub"><b>这篇在讲什么：</b>技能（skill）怎么写、验证循环如何启动。standalone/embedded/chained/tied to PR 四词出自此文。</p>
+</div>
+<div class="para" id="vl-0">
+<div class="en">Most agentic coding sessions follow a loop: you ask for a change, Claude gathers context, takes action, verifies the results, and if needed, loops back to gather additional context.</div>
+<div class="zh">构建验证循环：用技能把人工检查变成 Claude 自己闭合的反馈回路。</div>
+</div>
+<div class="para" id="vl-1">
+<div class="en">Verification is how agents check their work before responding. Claude already does some of this from observing the deterministic signals in your codebase, including type checkers, linters, tests, and runtime errors. Whatever Claude can't infer becomes the steps you take to manually check a feature.</div>
+<div class="zh">大多数 agent 编程会话都遵循一个循环：你提出改动，Claude 收集上下文、采取行动、验证结果，必要时回到收集更多上下文。</div>
+</div>
+<div class="para" id="vl-2">
+<div class="en">These manual steps, however, can be transformed into verification loops. In Claude Code , a verification loop is an iterative process where Claude checks and attempts to fix the work.</div>
+<div class="zh">验证是 agent 在回答前检查自己工作的方式。Claude 已经会从代码库里的确定性信号中做一部分验证，包括类型检查器、linter、测试和运行时错误。而 Claude 无法推断出来的那些，就变成了你手动检查功能时做的步骤。</div>
+</div>
+<div class="para" id="vl-3">
+<div class="en">The agentic loop: 1. gathering context, 2. taking action, 3. verifying results. In this article, we cover the most common types of verification loops and show you what we use inside Anthropic. Then we’ll show how to encode the manual checks you already do as skills, so Claude can close its own feedback loop and you can work on something else while it iterates.</div>
+<div class="zh">然而，这些手动步骤可以被转化成验证循环。在 Claude Code 里，验证循环是一个迭代过程：Claude 检查自己的工作并尝试修复。</div>
+</div>
+<div class="para" id="vl-4">
+<div class="en">New to agent loops? Start with getting started with loops .</div>
+<div class="zh">本文中，我们介绍最常见的几类验证循环，展示我们在 Anthropic 内部是怎么用的。然后演示如何把你已经在做的人工检查编码成技能，让 Claude 自己闭合反馈回路，而你可以在它迭代时去干别的事。</div>
+</div>
+<div class="para" id="vl-5">
+<div class="en">What is a verification loop?</div>
+<div class="zh">什么是验证循环？</div>
+</div>
+<div class="para" id="vl-6">
+<div class="en">A verification loop is a repeating cycle where an AI agent checks its own work — running tests, linters, or custom checks — and fixes what fails before moving on. In Claude Code, verification loops can be packaged as skills, so every session applies the same checks automatically instead of relying on a human to remember them.</div>
+<div class="zh">验证循环是一个重复的周期：AI agent 检查自己的工作——跑测试、linter 或自定义检查——并在继续之前修好失败的部分。在 Claude Code 里，验证循环可以打包成技能，这样每个会话都会自动套用同样的检查，而不是依赖人来记住。</div>
+</div>
+<div class="para" id="vl-7">
+<div class="en">Built-in verification loops</div>
+<div class="zh">内置的验证循环</div>
+</div>
+<div class="para" id="vl-8">
+<div class="en">Before diving into designing custom verification loops, it can be helpful to understand the built-in support Claude has for a number of different verification loops. Common features and approaches include:</div>
+<div class="zh">在设计自定义验证循环之前，先了解 Claude 对若干验证循环的内置支持会很有帮助。常见的功能与做法包括：</div>
+</div>
+<div class="para" id="vl-9">
+<div class="en">/verify skill : builds, runs, and observes the changes in your application.</div>
+<div class="zh">/verify 技能：构建、运行并观察你应用里的改动。</div>
+</div>
+<div class="para" id="vl-10">
+<div class="en">Toolchain : Claude aims to catch and act on error codes and warnings from any tool you provide such as a linter. A good practice is to list your exact build and test commands in CLAUDE.md so Claude doesn't have to infer them.</div>
+<div class="zh">工具链：Claude 会捕捉并响应你提供的任何工具发出的错误码和警告，比如 linter。一个好做法是在 CLAUDE.md 里列出你确切的构建与测试命令，这样 Claude 不用去猜。</div>
+</div>
+<div class="para" id="vl-11">
+<div class="en">Code Review (research preview) : A managed multi-agent service that runs an automated review pass on PRs in the repos you enable. You can manually fix the finding and push, or close the loop by commenting @claude on the finding (if you’ve already set up and configured GitHub Actions, below).</div>
+<div class="zh">代码审查（研究预览）：一个托管的多 agent 服务，在你启用的仓库里对 PR 跑自动审查。你可以手动修好发现的问题再 push，也可以在发现的问题下评论 @claude 来闭合循环。</div>
+</div>
+<div class="para" id="vl-12">
+<div class="en">GitHub Actions : Define a job that invokes Claude with a verification skill, and the same checks you run locally fire on every push or PR.</div>
+<div class="zh">GitHub Actions：定义一个作业，用验证技能调用 Claude，这样你本地跑的同一套检查会在每次 push 或 PR 时触发。</div>
+</div>
+<div class="para" id="vl-13">
+<div class="en">Spec validation : A skill that helps verify each change against a markdown spec in the repo and looks to fix violations.</div>
+<div class="zh">规格校验：一个技能，帮助你对照仓库里的一份 markdown 规格来验证每次改动，并试图修复违规。</div>
+</div>
+<div class="para" id="vl-14">
+<div class="en">Rubrics in Claude Managed Agents (beta) : A managed agentic service that allows you to verify outcomes against a rubric using a separate grader agent. Failures loop back for rework automatically.</div>
+<div class="zh">Claude 托管 agent 里的评分量表（beta）：一个托管的 agent 服务，允许你用另一个独立的评判 agent，对照评分量表来验证结果。失败会自动回到返工。</div>
+</div>
+<div class="para" id="vl-15">
+<div class="en">Writing verification loops</div>
+<div class="zh">写验证循环</div>
+</div>
+<div class="para" id="vl-16">
+<div class="en">When you have an existing project and you find yourself making the same small corrections every time Claude implements a new feature for you, it’s time to turn those steps into your own custom verification loop. The first step is to write down everything that you find yourself doing every time</div>
+<div class="zh">当你已有一个项目，并且发现每次 Claude 为你实现新功能时，你都要做同样的一些小修正，这时候就该把这些步骤变成你自己的自定义验证循环。第一步是写下你每次都在做的所有事情。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 原文给的定义：验证循环 = 『AI agent 检查自己的工作并尝试修复』。这就是你的 state.py finish。**你已经做到了这篇文章讲的核心。**</div>
+</div>
+<div class="para" id="vl-17">
+<div class="en">The same goes if you're starting a new project and need to figure out how the project should behave. Write the best-practices version in plain English, the way you'd hand it to a new teammate on day one.</div>
+<div class="zh">如果你是新建项目、需要弄清项目应当如何表现，道理也一样。用人话写出“最佳实践版”，就像你第一天交给一个新同事那样。</div>
+</div>
+<div class="para" id="vl-18">
+<div class="en">If you're struggling to articulate the verification check itself, ask Claude for best practices first and edit from there. Your version probably differs on a few specific points, and those differences are exactly what you want to capture.</div>
+<div class="zh">如果你连这条验证检查本身都难以说清，就先让 Claude 给出最佳实践，再在此基础上改。你的版本大概会在几个具体点上不同，而那些不同正是你想捕捉的东西。</div>
+</div>
+<div class="para" id="vl-19">
+<div class="en">Pro tip : The check doesn't have to be qualitative to belong here. "Reject any migration that drops a column without a backfill step" is a deterministic rule no generic linter will catch but a project-specific one will. Anything you keep having to enforce by hand as a manual check qualifies for capture as a loop.</div>
+<div class="zh">专业提示：检查不必是定性的才能放进来。“拒绝任何删除列却没有回填步骤的迁移”就是一条确定性规则——通用 linter 抓不到，项目专用的能抓到。任何你一直在手工强制的检查，都有资格被固化成循环。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 原文说：先写下你每次都在做的人工步骤。**这就是你缺的那一步**——你的判断每次都做了，但从没写下来过。</div>
+</div>
+<div class="para" id="vl-20">
+<div class="en">Make it a skill</div>
+<div class="zh">做成技能</div>
+</div>
+<div class="para" id="vl-21">
+<div class="en">The most common way to encode repetitive steps into a verification loop is to write it as a skill, and the fastest way to create a skill is to install the skill-creator plugin and let Claude interview you:</div>
+<div class="zh">把重复步骤编码成验证循环，最常见的方式是写成技能；而创建技能最快的方法，是装上 skill-creator 插件，让 Claude 来采访你。</div>
+</div>
+<div class="para" id="vl-22">
+<div class="en">Example:</div>
+<div class="zh">你也可以手写技能：在项目的 .claude/skills/ 里丢一个 markdown 文件。最简单的验证技能就是几行 frontmatter 加一段正文。</div>
+</div>
+<div class="para" id="vl-23">
+<div class="en">/skill-creator Create a skill for verifying frontend changes end-to-end. Interview me about my workflow.</div>
+<div class="zh">匹配检查与它的运行时机</div>
+</div>
+<div class="para" id="vl-24">
+<div class="en">You can also hand-write a skill by dropping a markdown file in .claude/skills/ inside your project. The simplest possible verification skill is a few lines of frontmatter plus a body:</div>
+<div class="zh">接下来要确定的，是验证循环如何启动：独立式、嵌入式、链式，还是绑定到 PR。</div>
+</div>
+<div class="para" id="vl-25">
+<div class="en"># .claude/skills/verify-log-hygiene/SKILL.md --- name: verify-log-hygiene description: Check that error logs include the request ID and never include the request body. Use when the diff touches error handling or logging. allowed-tools: [Read, Edit, Grep] --- Read the error-handling paths in the current diff. For each log call on an error path, confirm it includes the request ID and does not pass the request body, headers, or any user-supplied payload. Report each violation with file:line, then fix it: add the request ID where it's missing and strip the payload from the log call.</div>
+<div class="zh">独立式（Standalone）</div>
+</div>
+<div class="para" id="vl-26">
+<div class="en">The full schema and the philosophy behind it are in our complete guide to building skills.</div>
+<div class="zh">你刻意地调用它，在产物已经存在之后。独立式技能对“不是每次都适用”的横切检查有价值：提交前的安全扫描、PR 前的无障碍审计、全仓库的许可证头校验。任何你想在很多工作流里随时可用、但不想每次代码改动都触发的东西。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 专业提示里给了一个判断标准：『任何你一直在手工强制的检查，都有资格被固化成循环』。也就是说，先有人工重复，后有循环。你现在还没有重复。</div>
+</div>
+<div class="para" id="vl-27">
+<div class="en">Match the check to where it runs</div>
+<div class="zh">代价是：每次调用仍然是你要记得去做的一个回合。你已经“成长到超出独立式”的信号，是你每次改动之后都会去跑它。到那时，这个流程就挣到了一个永久的家：把它嵌入，或者链式串起来。</div>
+</div>
+<div class="para" id="vl-28">
+<div class="en">The next thing to determine will be how the verification loop kicks off: standalone, embedded, chained, or tied to PR.</div>
+<div class="zh">嵌入式（Embedded）</div>
+</div>
+<div class="para" id="vl-29">
+<div class="en">Standalone</div>
+<div class="zh">作为产出型技能的一部分自动触发。这项检查属于某个特定工作流，而该工作流现在会在你不要求的情况下就执行它。</div>
+</div>
+<div class="para" id="vl-30">
+<div class="en">You invoke it deliberately, after the artifact exists. A standalone skill earns its place for cross-cutting checks that don't apply every time: a pre-commit security scan, a pre-PR accessibility audit, license-header verification across a repo. Anything you want available across many workflows but don't want firing on every code change.</div>
+<div class="zh">最简单的版本，就是在产出型技能的正文末尾追加一行。</div>
+</div>
+<div class="para" id="vl-31">
+<div class="en">The cost is that each invocation is still a turn you have to remember to take. The signal that you've outgrown standalone is when you're running it after every change. At that point, the procedure has earned a permanent home: embed it or chain it.</div>
+<div class="zh">验证嵌入是否生效的办法是：在一个全新任务上调用该技能，确认新增的步骤作为输出的一部分被执行了。如果没有，说明该技能的描述或前面的指令没能把追加的检查带进来。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 注意这里的措辞：原文承认『不可靠』是常态，解决办法是**在新任务上再试一次**，不是『必须一次做对』。</div>
+</div>
+<div class="para" id="vl-32">
+<div class="en">Embedded</div>
+<div class="zh">嵌入式只适用于你能编辑的技能：你自己写的，或者安装在项目层、SKILL.md 文件在你控制之下的。内置技能和插件管理的技能（升级时会被覆盖的那种）不能这么用；对它们，改用链式。</div>
+</div>
+<div class="para" id="vl-33">
+<div class="en">Fires automatically as part of the producing skill. The check belongs to one specific workflow, and the workflow now runs it without you asking.</div>
+<div class="zh">跨多个工作流的检查不要用嵌入式；那些要用独立式，这样你能从任何上下文调用它们。</div>
+</div>
+<div class="para" id="vl-34">
+<div class="en">The simplest version is a one-line append to the producing skill's body:</div>
+<div class="zh">链式（Chained）</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 这是我读这篇文章时最想指给你看的一句：如果嵌入没生效，『说明技能的描述或前面的指令没能把追加的检查带进来』——**原文建议改描述再试，而不是判定这条路走不通。**</div>
+</div>
+<div class="para" id="vl-35">
+<div class="en"># .claude/skills/scaffold-component/SKILL.md --- name: scaffold-component description: Scaffold a new React component under src/components/, including the component file, its co-located test, and an index export. Use when the user asks to create a new component. allowed-tools: [Read, Write, Edit, Bash, Glob] --- # Scaffold a new React component Given a component name (PascalCase), create the following under `src/components/&lt;Name&gt;/`: 1. `&lt;Name&gt;.tsx`: function component with a typed props interface and a default export. 2. `&lt;Name&gt;.test.tsx`: React Testing Library test that renders the component and asserts it mounts without throwing. 3. `index.ts`: re-export the default and any named exports. Follow the patterns in `src/components/Button/` as the reference. Match the import alias style (`@/components/...`) used throughout the codebase. # code continues... After creating the component file, run eslint on it and address any errors before reporting completion.</div>
+<div class="zh">一个技能在结尾调用另一个技能，于是若干经过验证的交接就能端到端地跑起来。</div>
+</div>
+<div class="para" id="vl-36">
+<div class="en">Verify the embed works by invoking the skill on a fresh task and confirming the new step runs as part of the output. If it doesn't, the skill's description or earlier instructions aren't pulling the appended check in.</div>
+<div class="zh">Anthropic 的 Claude Code 团队成员在日常工作中就用这个模式：/code-review 找 bug，/simplify 清理 diff，一个 /verify 技能确认端到端行为，如果改动涉及 UI，再用一个自定义的 /design 技能对照 DESIGN.md 里的规范检查。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ Embedded 的门槛：只能用于『你能编辑的技能』。你的 .dsh/skills/ 是自己写的，所以在范围内。</div>
+</div>
+<div class="para" id="vl-37">
+<div class="en">Embedded only works on skills you can edit: ones you wrote yourself, or ones installed at a project level where the SKILL.md file is under your control. Built-in skills and plugin-managed skills (the kind that get overwritten on update) are off-limits for this pattern; for those, chain instead.</div>
+<div class="zh">链式也是给“你无法修改的技能”加上验证的办法：做一个自定义包装技能，先调用原来的技能，再调用你的验证技能。</div>
+</div>
+<div class="para" id="vl-38">
+<div class="en">Skip embedded for checks that span workflows; those want standalone, so you can invoke them from any context.</div>
+<div class="zh">一开始是一个习惯（“我总是先 /simplify 再 /verify”），后来变成一份契约（“/simplify 结束时总是会跑 /verify”）。这条链自己跑完整个开发周期。只有当有东西升级到你这里时，你才介入。</div>
+</div>
+<div class="para" id="vl-39">
+<div class="en">Chained</div>
+<div class="zh">当各个步骤足够独立、你有时想只跑其中一个而不跑其他，那就可以不用链式；链式是用灵活性换自动化。链式验证循环会增加 token 消耗，所以最好先小范围测试这些循环，再广泛铺开。</div>
+</div>
+<div class="para" id="vl-40">
+<div class="en">One skill calls another at its end, and several verified handoffs run end-to-end.</div>
+<div class="zh">在每个 PR 上</div>
+</div>
+<div class="para" id="vl-41">
+<div class="en">Members of Anthropic's Claude Code team use this pattern in their day-to-day: /code-review hunts for bugs, /simplify cleans up the diff, a /verify skill confirms end-to-end behavior, and a custom /design skill checks against guidelines in a DESIGN.md file if the change touched UI.</div>
+<div class="zh">一旦这条链在你自己的改动上稳定了，同一套流程就可以在每次 PR 上跑。队友的改动要过和你一样的关卡，无论他有没有记得去调用那条链。</div>
+</div>
+<div class="para" id="vl-42">
+<div class="en">Chaining is also how you add verification to a skill you can't modify: build a custom wrapper skill that invokes the original, then invokes your verification skill, as depicted below:</div>
+<div class="zh">这时验证就不再是个人基础设施，而变成了团队基础设施。你为了每周给自己省两分钟而写下的检查，现在每次改动都在为每个人省两分钟。当这条链还在频繁变动时，先不要在 PR 层面铺开；那时每一次调整都会变成团队可见的事件。</div>
+</div>
+<div class="para" id="vl-43">
+<div class="en"># .claude/skills/safe-refactor/SKILL.md Run /simplify on the current diff first. When /simplify finishes, invoke /verify-no-public-api-changes.</div>
+<div class="zh">一旦你把流程走顺了，你就可以扩展你的循环工程了。无论你在自动化什么、在什么环境里，验证循环的创建过程都是一致的：</div>
+</div>
+<div class="para" id="vl-44">
+<div class="en">What started as a habit ("I always run /verify after /simplify") becomes a contract ("/simplify always runs /verify when it finishes"). The chain runs the whole dev cycle on its own. You only step in when something escalates back to you.</div>
+<div class="zh">挑出你这周做得最频繁的那项人工跟进。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 链式的代价：『用灵活性换自动化』、『会增加 token 消耗』、『最好先小范围测试再广泛铺开』。**这不是一个要求你一次做对的模式。**</div>
+</div>
+<div class="para" id="vl-45">
+<div class="en">You can skip chaining when the steps are independent enough that you sometimes want to run one without the others; chaining trades flexibility for automation. Chained verification loops can increase token spend, so it's best to test these loops before deploying them broadly.</div>
+<div class="zh">先试用内置的 /verify 技能，看看它对你的流程有没有帮助。</div>
+</div>
+<div class="para" id="vl-46">
+<div class="en">On every PR</div>
+<div class="zh">用人话把流程写下来，就像你第一天交给新同事那样。</div>
+</div>
+<div class="para" id="vl-47">
+<div class="en">Once the chain is solid for your own changes, the same procedure can run on every PR. A teammate's change passes the same gates yours did, whether they remembered to invoke the chain or not. The infrastructure is the same kind of thing as the chain you already wrote, one step further along: the same skills, the same rubrics, the same standards, applied without depending on the author's diligence.</div>
+<div class="zh">把它交给 skill-creator，或者自己把 markdown 文件丢进 .claude/skills/。</div>
+</div>
+<div class="para" id="vl-48">
+<div class="en">This is where verification stops being personal infrastructure and becomes team infrastructure. The check you wrote down to save yourself two minutes a week is now saving everyone two minutes a week, on every change. Hold off on PR-wide gates while the chain is still in flux; every adjustment becomes a team-visible event.</div>
+<div class="zh">在一个新任务上调用它，确认这项检查作为输出的一部分被执行了；必要时迭代。</div>
+</div>
+<div class="para" id="vl-49">
+<div class="en">Once you have the process down, you’re ready to expand your loop engineering. The verification loop creation process is consistent, no matter what you’re automating or in what environment:</div>
+<div class="zh">尝试技能链式调用，构建一条端到端的验证流程。</div>
+</div>
+<div class="para" id="vl-50">
+<div class="en">Pick the manual follow-up you did most often this week.</div>
+<div class="zh">你能为 Claude 编码的东西越多，它的回答就越经常在第一次尝试时就接近你想要的样子。你不再需要反复摆弄的那些修正，就把你的注意力释放给了那些没有哪个技能能替你写下来的、独一无二的工作。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 四词的全部原文出处，就是这一句：standalone（独立式）、embedded（嵌入式）、chained（链式）、tied to PR（绑定到 PR）。**注意：它讲的是『验证循环如何启动』，不是『工具怎么设计』。** 豆包那张表把这个概念搬到了工具那一栏。</div>
+</div>
+<div class="para" id="vl-51">
+<div class="en">Try out the built-in /verify skill first and see if it helps your process.</div>
+<div class="zh">先试用内置的 /verify 技能，看看它对你的流程有没有帮助。</div>
+</div>
+<div class="para" id="vl-52">
+<div class="en">Write the procedure in plain English, the way you'd hand it to a new teammate on day one.</div>
+<div class="zh">用人话把流程写下来，就像你第一天交给新同事那样。</div>
+</div>
+<div class="para" id="vl-53">
+<div class="en">Hand it to skill-creator, or drop the markdown file in .claude/skills/ yourself.</div>
+<div class="zh">把它交给 skill-creator，或者自己把 markdown 文件丢进 .claude/skills/。</div>
+</div>
+<div class="para" id="vl-54">
+<div class="en">Invoke it on a new task and confirm the check runs as part of the output, iterate if needed.</div>
+<div class="zh">在一个新任务上调用它，确认这项检查作为输出的一部分被执行了；必要时迭代。</div>
+</div>
+<div class="para" id="vl-55">
+<div class="en">Experiment with skill chaining to create an end-to-end verification flow.</div>
+<div class="zh">尝试技能链式调用，构建一条端到端的验证流程。</div>
+<div class="note"><span class="note-tag">我的批注</span>★ 独立式的『成长信号』：当你每次改动之后都会去跑它时，就该把它嵌入或链式。**这是从实践中长出来的判断，不是预先设计的。**</div>
+</div>
+<div class="para" id="vl-56">
+<div class="en">The more you can encode for Claude to follow, the more often Claude's response will land closer to what you want on the very first try. The corrections you no longer have to fiddle with now free up your attention for the individual and exclusive work that no skill can write down for you.</div>
+<div class="zh">你能为 Claude 编码的东西越多，它的回答就越经常在第一次尝试时就接近你想要的样子。你不再需要反复摆弄的那些修正，就把你的注意力释放给了那些没有哪个技能能替你写下来的、独一无二的工作。</div>
+</div>
+</section>
+</div>
+<footer>原文版权归 Anthropic 所有，此处仅为本地阅读副本。</footer>
+<script>
+function show(k){
+  document.querySelectorAll('.art').forEach(e=>e.classList.add('hidden'));
+  document.getElementById('art-'+k).classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('on'));
+  document.getElementById('tab-'+k).classList.add('on');
+  window.scrollTo(0,0);
+}
+</script>
+</body></html>
