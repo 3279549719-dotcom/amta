@@ -132,8 +132,13 @@ def search_keyword(keyword: str, scope_dirs: list[Path] | None = None) -> list[d
 def print_search_results(results: list[dict], keyword: str) -> None:
     """打印搜索结果。"""
     if not results:
-        print(f"[find_code] 未找到匹配 '{keyword}' 的模块")
-        print("[find_code] 提示：用 --map 查看所有模块，或 --index 生成完整索引")
+        print(f"[find_code] 在 src/amta/ 的 Python 模块里没找到 '{keyword}'。")
+        print("[find_code] 我搜的范围：模块路径 + docstring + 顶层类名/函数名（AST 索引）。")
+        print("[find_code] 如果这词确实存在但我没找到，可能是：")
+        print("  · 会话层工具/VQA 插件（不在 Python 里）→ 看 AGENTS.md")
+        print("  · 你问'为什么改成这样' → 跑 memory.py grep")
+        print("  · 你要 grep 函数体里的字符串/注释 → 直接用 grep，我不索引这些")
+        print("[find_code] 浏览全部模块: --map")
         return
 
     print(f"[find_code] 关键词 '{keyword}' 匹配 {len(results)} 个模块：\n")
