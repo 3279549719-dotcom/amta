@@ -270,8 +270,10 @@ def fit_font_size(text: str, font_path: Path, bbox: list,
     v_size, v_lines = _max_size_for_direction(text, font_path, bbox, "vertical", min_sz, max_sz)
 
     if preferred_direction == "vertical":
-        # 强制竖排：日漫对话框一律竖排，不因为横排能放更大字号就切横排
-        return v_size, "vertical", v_lines
+        # 首选竖排：竖排字号不小于横排70%就选竖排
+        if v_size >= h_size * 0.70:
+            return v_size, "vertical", v_lines
+        return h_size, "horizontal", h_lines
     if preferred_direction == "horizontal":
         # 首选横排：横排字号不小于竖排70%就选横排
         if h_size >= v_size * 0.70:
