@@ -15,6 +15,41 @@ from PIL import Image, ImageDraw, ImageFont
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
 
 
+def _decide_color_and_stroke(img: Image.Image, bbox: list,
+                             suggested_color, suggested_stroke,
+                             font_size: int) -> tuple[tuple, int]:
+    """采样 bbox 区域背景，自适应决定字色和描边宽度。
+
+    第一性原理：文字可读需要对比度。
+    - 亮底平背景（亮度高、方差小）→ 黑字无描边
+    - 暗底（亮度低）→ 白字反色
+    - 碎底（网点/斜线，方差大）→ 黑字 + 白描边
+    - 中间灰 → 黑字 + 细白描边
+    """
+    x1, y1, x2, y2 = [int(v) for v in bbox]
+    region = img.crop((x1, y1, x2, y2)).convert("L")
+    pixels = list(region.getdata())
+    if not pixels:
+        return suggested_color, suggested_stroke
+    n = len(pixels)
+    brightness = sum(pixels) / n
+    # 方差：衡量背景纹理复杂度
+    mean = brightness
+    variance = sum((p - mean) ** 2 for p in pixels) / n
+
+    if brightness > 140 and variance < 800:
+        # 亮底平背景：黑字不描边
+        return (0, 0, 0), 0
+    if brightness < 80:
+        # 暗底：白字反色，不需要描边
+        return (255, 255, 255), 0
+    if variance > 1500:
+        # 碎底（网点/斜线）：黑字 + 白描边
+        return (0, 0, 0), max(2, int(font_size * 0.08))
+    # 中间灰/低对比度：黑字 + 细白描边
+    return (0, 0, 0), max(1, int(font_size * 0.05))
+
+
 def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
                 stroke: int, color=(0, 0, 0),
                 preferred_direction: str | None = None,
@@ -47,6 +82,9 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     lh = ascent + descent
     col_w = font.getlength("字")
 
+    # 背景自适应：覆盖传入的 color/stroke
+    color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
+
     if direction == "vertical":
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
@@ -62,7 +100,9 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
 
     return {"layout_direction": direction, "font_size": font_size,
             "lines": lines, "anchor_pos": [cx, cy],
-            "preferred_direction": preferred_direction}
+            "preferred_direction": preferred_direction,
+            "rendered_color": "#%02x%02x%02x" % color,
+            "rendered_stroke": stroke}
 
 
 def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
@@ -79,8 +119,10 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
 
     for col_idx, col_text in enumerate(lines):
         x = x_start - col_idx * col_width
-        col_h = len(col_text) * lh
-        y = cy - col_h // 2
+        # 竖排列顶对齐：所有列顶部对齐到同一水平线（整组列垂直居中），
+        # 不再每列各自居中导致短列漂浮。
+        max_col_h = max(len(c) for c in lines) * lh
+        y = cy - max_col_h // 2
         i = 0
         while i < len(col_text):
             ch = col_text[i]
