@@ -68,9 +68,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     """
     x1, y1, x2, y2 = [int(v) for v in bbox]
     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-    # 未指定首选方向时，从 bbox 长宽比自动推断
-    if preferred_direction is None:
-        preferred_direction = infer_direction_from_bbox(bbox)
+    # 方向不预筛选：纯字号选优（横长框横排自然字号大，竖长框竖排自然字号大）
+    preferred_direction = None
     font_size, direction, lines = fit_font_size(
         text, Path(font_path), bbox, preferred_direction=preferred_direction,
         base_size=base_size
