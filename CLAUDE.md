@@ -13,7 +13,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 | 用途 | 命令 | 说明 |
 |---|---|---|
 | 跑管线 | `uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>` | 启动时自动环境自检；阶段：detect,ocr,translate,inpaint,typeset；**必须包含所有上游依赖阶段**（跑 typeset 必须含 detect,ocr,translate,inpaint）；artifact_cache 自动跳过未变更阶段 |
-| 找代码 | `uv run python scripts/find_code.py <关键词>` | 搜索模块/函数/类，禁止瞎猜路径或硬 grep |
+| 搞懂代码现状 | `uv run python scripts/find_code.py <关键词>` 或 `--pipeline` | 找模块/函数/类；`--pipeline` 打印当前 stage/engine/上下游/占位与孤儿阶段（读当前源码，非文档）。禁止瞎猜路径或硬 grep |
 | 找产物 | `uv run python scripts/artifact.py {query\|find\|invalidate} ...` | **一个 `query` 原语覆盖所有查询场景**：`--work-id <id>` 或 `--all`，可选 `--stage`/`--page`/`--format {json,table}`。`find` 是兼容层（要 `--stage`+`--page`+`--artifacts-dir`）。`invalidate` 失效单页缓存（要 `--work-id`+`--page`）。**拿不准先 `--help`，别照抄本行** |
 | 对话状态 | `uv run python scripts/state.py {bootstrap\|check\|finish}` | **唯一入口，三条子命令**：`bootstrap` 开局读 git+env+diff；`check` 改到一半秒级只读快检（不写文件不提交）；`finish "summary"` 收尾——**先跑全量质检，红了拒绝提交**（急用 `--skip-check`）。替代 progress.md，不需要手动 git log |
 | 生成报告 | `uv run python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages N-M` | 验收唯一视觉载体（前三个参数**必填**）；深接口：再叠加 `--granularity page\|region` + `--stages raw,detect,ocr,translate,inpaint,typeset` 自由组合 |
@@ -25,7 +25,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - **对话开始**：先跑 `state.py bootstrap` 读取当前状态（git log + diff + status + env），不需要手动跑 git log，不需要读 progress.md
 - **对话结束**：用 `state.py finish "summary"` 落盘（**唯一**收尾命令；npm 只有 `check`/`finish` 两个别名指向它，其余别名已删）——**它内置完整质检，红了拒绝提交**，所以"全量门槛没跑"在机制上不可能再发生；不需要手动 git add/commit
 - **改到一半**：`state.py check` 秒级只读快检，不用等收尾
-- 找代码/模块/函数位置：**先用 `find_code.py <关键词>`**，再读目标文件
+- 搞懂代码现状/找代码：**先 `find_code.py --pipeline` 看管线全貌，再 `find_code.py <关键词>` 定位模块**，然后才读目标文件；不要先翻 workspace/ 旧产物
 - 找产物/查缓存/列某阶段文件：**用 `artifact.py`**，禁止翻目录
 - 遇到报错/异常/测试失败：**先按 diagnosing-bugs skill 流程定位根因**，禁止直接猜答案
 - 做架构/选型决策前：**先调用 grilling skill 至少 3 轮苏格拉底追问**

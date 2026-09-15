@@ -1,22 +1,28 @@
-"""find_code — amta 代码/模块智能检索工具（深接口）。
+"""find_code — 在 src/amta/ 里找模块、看管线现状、搞懂代码库当前状态。
 
-解决的问题：AI 每次找模块功能都要 cd + grep + 翻文件，效率低。
-这个工具一键搜索 src/amta/ 下所有模块的 docstring、类名、函数名，
-返回匹配的文件路径 + 模块摘要 + 匹配符号。
+这是进来的 agent 用来"搞懂代码现状"的首选入口。它读的是当前源码，
+不是文档快照、不是旧跑批产物。registry.py / stage 文件改了，下次跑它输出自动变。
 
-用法:
-  # 关键词搜索（功能描述/函数名/模块名都可以）
+什么时候用我（trigger scenarios）：
+  - 你要改某个功能，想知道代码在哪个文件        → 直接给关键词：find_code translate
+  - 你想知道 pipeline 现在有哪几个 stage、用什么引擎、上下游谁依赖谁
+                                              → find_code --pipeline
+  - 你接手任务不知道 src/amta/ 模块怎么分    → find_code --map
+  - 你不确定某字段/某阶段是活的还是死的      → find_code --pipeline（标出占位和孤儿阶段）
+
+什么时候别用我（disambiguate）：
+  - 找某次跑批产物文件、查缓存、列阶段输出   → 用 scripts/artifact.py
+  - 看 git log / diff / env / 会话状态       → 用 scripts/state.py
+  - 跑翻译管线                               → 用 scripts/run_pipeline.py
+  - 只是想 grep 字符串                       → 别用我（我索引 docstring/类名/函数名，不索引函数体字符串字面量）
+
+例子:
   uv run python scripts/find_code.py 翻译
   uv run python scripts/find_code.py artifact cache
   uv run python scripts/find_code.py inpaint
-
-  # 生成/更新模块功能索引文档 docs/module-map.md
-  uv run python scripts/find_code.py --index
-
-  # 打印文件夹级地图（每个子包有什么模块）
-  uv run python scripts/find_code.py --map
-
-  # 只搜特定子包
+  uv run python scripts/find_code.py --pipeline      # 打印当前管线全貌
+  uv run python scripts/find_code.py --map            # 文件夹级地图
+  uv run python scripts/find_code.py --index          # 生成 docs/module-map.md（维护命令，平时不用）
   uv run python scripts/find_code.py 翻译 --scope translation stations
 """
 from __future__ import annotations
@@ -240,11 +246,63 @@ def print_folder_map() -> None:
     print("  完整索引: uv run python scripts/find_code.py --index")
 
 
+
+def print_pipeline_status() -> None:
+    """打印当前管线全貌：import 真 registry，标出占位阶段和孤儿阶段。
+
+    这不是文档快照——每次运行都实时读 registry.py，registry 改了输出自动变。
+    占位阶段：station 是 _not_implemented 闭包（调用会报尚未实现）。
+    孤儿阶段：在 JSON_STAGES 里声明了，但没有任何 stage 生产它。
+    """
+    from amta.orchestrator.registry import get_registry
+    from amta.stores.artifact_store import JSON_STAGES
+
+    registry = get_registry()
+    produced_by_stage = {spec.produces: name for name, spec in registry.items() if spec.produces}
+
+    print("[find_code] 当前管线（import 真 registry，非文档快照）：\n")
+    print(f"  {'阶段':<10} {'上游':<28} {'产出':<12} 默认配置")
+    print("  " + "-" * 78)
+
+    placeholders = []
+    for name, spec in registry.items():
+        is_placeholder = getattr(spec.station, "__name__", "") == "_placeholder"
+        if is_placeholder:
+            placeholders.append(name)
+        upstream = ", ".join(spec.consumes) if spec.consumes else "—"
+        cfg = ", ".join(f"{k}={v}" for k, v in spec.default_config.items()) or ""
+        mark = "  ⚠占位" if is_placeholder else ""
+        print(f"  {name:<10} {upstream:<28} {spec.produces:<12} {cfg}{mark}")
+
+    print()
+
+    orphans = [s for s in JSON_STAGES if s not in produced_by_stage]
+    if placeholders:
+        print("  ⚠ 占位阶段（已注册但工位未接，调用会报错）：")
+        for pname in placeholders:
+            print(f"    - {pname}")
+        print()
+    if orphans:
+        print("  ⚠ 孤儿阶段（在 JSON_STAGES 里声明但没有任何 stage 生产它）：")
+        for o in orphans:
+            print(f"    - {o}")
+        print()
+
+    print("  每个阶段的实现文件（code_files，要改某阶段就读这些）：")
+    for name, spec in registry.items():
+        if spec.code_files:
+            files = ", ".join(spec.code_files[:6])
+            extra = f"  (+{len(spec.code_files)-6})" if len(spec.code_files) > 6 else ""
+            print(f"    {name}: {files}{extra}")
+    print()
+    print("  要找具体模块/函数：find_code.py <关键词>")
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="amta 代码/模块智能检索工具")
     ap.add_argument("keyword", nargs="*", help="搜索关键词（功能/函数/模块名）")
     ap.add_argument("--index", action="store_true", help="生成/更新 docs/module-map.md")
     ap.add_argument("--map", action="store_true", help="打印文件夹级地图")
+    ap.add_argument("--pipeline", action="store_true", help="打印当前管线全貌（stage/engine/上下游/占位/孤儿阶段）")
     ap.add_argument("--scope", nargs="+", default=None,
                     help="限定搜索子包（如 translation stations）")
     args = ap.parse_args()
@@ -259,6 +317,10 @@ def main() -> int:
 
     if args.map:
         print_folder_map()
+        return 0
+
+    if args.pipeline:
+        print_pipeline_status()
         return 0
 
     if not args.keyword:
