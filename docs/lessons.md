@@ -37,6 +37,7 @@
 - L41 — depguard 补声明已传递安装的依赖时，版本读 uv.lock 的公共版本，别抄 `__version__` 的本地构建标签（+cpu）
 - L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
 - L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
+- L46 — VLM 逐框字体风格分类：contact sheet 可行但不精准，整页带框因分辨率不够全错
 - L47 — 行为变更必同步测试断言；烂 venv 的门是纸糊的（6 红静默溜进 main 实证）；方向选择由几何推断决定，不由 1px 字号噪声决定
 
 ---
