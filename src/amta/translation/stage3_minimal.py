@@ -29,7 +29,6 @@ from amta.common.metrics import norm
 from amta.guards import guardrails
 from amta.guards.canon_schema import validate_canon
 from amta.stores import artifacts
-from amta.stores.artifact_store import ArtifactStore
 from amta.translation.translate import extract_relevant_terms, get_chat_config, text_chat, translate_plain
 
 # === Semantic context builder (moved from translate_tools.py, sole consumer here) ===
@@ -94,7 +93,7 @@ def _read_page_blocks_from_artifacts(state_dir, pages: int) -> list[tuple[int, l
     if not artifacts_dir.exists():
         return []
 
-    store = ArtifactStore(artifacts_dir)
+    store = artifacts.ArtifactStore(artifacts_dir)
     page_keys = store.pages("translation")
     if not page_keys:
         return []

@@ -25,7 +25,6 @@ from amta.common.pipeline_log import PipelineLog
 from amta.common.workstate import ensure_workspace
 from amta.stores import artifacts
 from amta.stores.artifact_cache import compute_fingerprint, is_fresh, save_fingerprint
-from amta.stores.artifact_store import ArtifactStore
 
 from .context import PipelineConfig, PipelineResult, StationContext, StationResult
 from .registry import StageSpec, get_stage
@@ -69,7 +68,7 @@ def _build_context(
     """
     # 上游产物路径：先从本次运行的阶段结果中找，找不到再去磁盘读（支持"只跑下游阶段"）
     inputs = {}
-    store = ArtifactStore(artifacts_dir)
+    store = artifacts.ArtifactStore(artifacts_dir)
     for dep_name in stage.consumes:
         dep_result = page_results.get(dep_name)
         if dep_result and dep_result.output_artifact:

@@ -29,7 +29,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from amta.stores.artifact_store import JSON_STAGES, ArtifactStore, fingerprint_of
+from amta.stores.artifacts import JSON_STAGES, ArtifactStore, fingerprint_of
 
 # ---------------------------------------------------------------------------
 # 哈希计算

@@ -18,7 +18,6 @@ from amta.common import workstate
 from amta.common.paths import ROOT
 from amta.guards.term_dict import load_master_dict, match_terms
 from amta.stores import artifacts
-from amta.stores.artifact_store import ArtifactStore
 
 DEFAULT_MASTER_DICT = ROOT / "data" / "thbwiki_master_dict.json"
 
@@ -53,7 +52,7 @@ def run_pre_scan(work_id: str, artifacts_dir: Path | str,
     all_text_parts: list[str] = []
     skipped_files = 0
     if art_dir.exists():
-        store = ArtifactStore(art_dir)
+        store = artifacts.ArtifactStore(art_dir)
         canon_files = [p for k in store.pages("canon")
                        if (p := store.resolve("canon", k)) is not None]
         for cf in canon_files:

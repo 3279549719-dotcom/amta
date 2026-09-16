@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from amta.common.paths import ROOT
 from amta.stores.artifact_cache import invalidate_cache_for_page
-from amta.stores.artifact_store import JSON_STAGES, ArtifactStore, fingerprint_of
+from amta.stores.artifacts import JSON_STAGES, ArtifactStore, fingerprint_of
 
 # 图片类阶段（不经 ArtifactStore，直接按文件名找）
 IMAGE_STAGES = ("final", "clean", "crops")

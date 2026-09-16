@@ -73,7 +73,6 @@
 ## `stores/` — amta.stores — 产物/工件存储层。
 
 - **`artifact_cache.py`** — Artifact Cache — 基于内容哈希的增量构建模块。（函数: compute_file_hash, compute_code_hash, compute_config_hash, compute_fingerprint, fingerprint_path）
-- **`artifact_store.py`** — ArtifactStore — 目录即索引（dir-as-index）产物访问门。（类: ArtifactStore；函数: fingerprint_of, _page_no, _unlink_if_exists, _rmdir_if_empty, resolve_artifact）
 - **`artifacts.py`** — (无 docstring)
 
 ## `translation/` — amta.translation — Stage 3 翻译核心（minimal 纯文本 LLM 路径，ADR-014/016/023）。

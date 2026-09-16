@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from amta.stores.artifact_store import ArtifactStore
+from amta.stores.artifacts import ArtifactStore
 
 from .model import PageReport
 from .stages.detect import from_detection

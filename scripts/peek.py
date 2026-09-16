@@ -181,7 +181,7 @@ def print_pipeline_status() -> None:
     孤儿阶段：在 JSON_STAGES 里声明了，但没有任何 stage 生产它。
     """
     from amta.orchestrator.registry import get_registry
-    from amta.stores.artifact_store import JSON_STAGES
+    from amta.stores.artifacts import JSON_STAGES
 
     registry = get_registry()
     produced_by_stage = {spec.produces: name for name, spec in registry.items() if spec.produces}
