@@ -16,4 +16,10 @@ fi
 echo "[pre-commit] quick fastcheck via uv (compile + ruff + pyright)..."
 uv run python scripts/fastcheck.py --quick
 
-echo "[pre-commit] OK (full 9-step fastcheck, incl. module-map refresh, runs at /finish)"
+echo "[pre-commit] OK (compile + ruff + pyright)"
+echo ""
+echo "==================================================================="
+echo "  WARNING: skipped finish gate: pytest / depguard / memory / module-map NOT run"
+echo "  (only the quick half-gate ran, the 2026-09-10 incident shape)"
+echo "  to close out: uv run python scripts/state.py finish \"summary\""
+echo "==================================================================="

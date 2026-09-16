@@ -300,6 +300,13 @@ def cmd_query(args: argparse.Namespace) -> int:
         )
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
+        print("正确用法示例：", file=sys.stderr)
+        print("  uv run python scripts/artifact.py query --all --stage typeset --format table",
+              file=sys.stderr)
+        print("  uv run python scripts/artifact.py query --work-id <id> --stage ocr --page 11",
+              file=sys.stderr)
+        print("  （stage 是 query 的可选过滤参数，不是顶层子命令；--work-id 与 --all 二选一）",
+              file=sys.stderr)
         return 2
 
     output = format_output(artifacts, args.format)
