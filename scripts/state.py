@@ -1,10 +1,9 @@
 """state — StateManager 的 CLI 入口（Embedded 模式）。
 
-三个子命令，这就是全部（2026-09-12 收尾规程收敛：三套说法合成一套）：
+一个子命令，这就是全部：
 
-  对话开始：uv run python scripts/state.py bootstrap
-  改到一半：uv run python scripts/state.py check      # 秒级只读，任何时候都能跑
   对话结束：uv run python scripts/state.py finish "说明"   # 全量质检 + 提交，唯一收尾入口
+  改到一半想快检：uv run python scripts/fastcheck.py --quick   # 秒级只读（不经过 state.py）
 
 **为什么只有这三条**：此前"收尾"有三种写法——CLAUDE.md 说 state.py finish、
 cycle-close skill 说 npm run finish + 手工 git add、verify skill 又说第三套，
@@ -28,24 +27,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.common.state_manager import QualityGateFailed, StateManager, finish_verified
+from amta.common.state_manager import QualityGateFailed, finish_verified
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="amta 对话状态管理（bootstrap + finish）")
+    ap = argparse.ArgumentParser(description="amta 对话状态管理（finish）")
     sub = ap.add_subparsers(dest="command", required=True)
-
-    # bootstrap
-    p_boot = sub.add_parser("bootstrap", help="对话开始：读取 git + env 状态，输出统一格式的状态摘要")
-    p_boot.add_argument("--no-env", action="store_true", help="跳过环境自检")
-    p_boot.set_defaults(func=_cmd_bootstrap)
-
-    # check
-    p_chk = sub.add_parser(
-        "check",
-        help="改到一半随时跑：秒级只读快检（compile+ruff+pyright+ROOT+env，不含 pytest），不写文件不提交",
-    )
-    p_chk.set_defaults(func=_cmd_check)
 
     # finish
     p_fin = sub.add_parser("finish", help="对话结束：先跑完整质检，通过后 git add + commit")
@@ -64,21 +51,6 @@ def main() -> int:
     args = ap.parse_args()
     return args.func(args)
 
-
-def _cmd_bootstrap(args: argparse.Namespace) -> int:
-    sm = StateManager()
-    snap = sm.bootstrap(env_check=not args.no_env)
-    print(str(snap))
-    return 0
-
-
-def _cmd_check(args: argparse.Namespace) -> int:
-    """快检：转调 fastcheck --quick（只读，秒级）。finish 才是那扇完整的门。"""
-    import subprocess
-
-    from amta.common.paths import ROOT
-
-    return subprocess.call([sys.executable, str(ROOT / "scripts" / "fastcheck.py"), "--quick"], cwd=str(ROOT))
 
 
 def _cmd_finish(args: argparse.Namespace) -> int:

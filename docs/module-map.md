@@ -1,7 +1,7 @@
 # AMTA 模块功能地图（自动生成）
 
-> 由 `scripts/find_code.py --index` 自动生成。AI 找代码先看这个，再 grep。
-> 更新：`uv run python scripts/find_code.py --index`
+> 由 `scripts/peek.py --index` 自动生成。AI 找代码先看这个，再 grep。
+> 更新：`uv run python scripts/peek.py --index`
 
 ## `backends/` — amta.backends — 引擎/传输后端（本地或远程确定性执行面）。
 
@@ -108,10 +108,9 @@
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
 - **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
-- **`find_code.py`** — find_code — 在 src/amta/ 里找模块、看管线现状、搞懂代码库当前状态。
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
 - **`memory.py`** — memory.py — 记忆系统统一 CLI（ADR-025/026/027 收敛）。
-- **`memory_autoinject.py`** — memory_autoinject — UserPromptSubmit hook：按 prompt 关键词自动检索记忆并注入上下文。
+- **`peek.py`** — peek — 看一眼这个项目现在长什么样：管线全貌 + 模块地图。
 - **`pre_scan.py`** — CLI: pre-scan a work's canon artifacts to build locked terminology dictionary.
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
@@ -119,4 +118,4 @@
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
 
 ---
-*本文件由 find_code.py 自动生成，请勿手动编辑。*
+*本文件由 peek.py 自动生成，请勿手动编辑。*

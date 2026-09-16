@@ -225,6 +225,9 @@
   - DSH 上每轮必达的是 **agent-instructions 对 `CLAUDE.md` / `AGENTS.md` / `CLAUDE.local.md` 的注入**（不靠模型自觉）；
   - 所以 push 的正确做法是**喂饱那个注入面**（即 `memory.py inject` 的产出内容与预算），而不是挂 CC hook；
   - 2026-09-10 实测：MCP 已在 DSH 接通（cordis 插件行 + `scripts/install_dsh_mcp.ps1`，工具名 `mcp__amta-memory__memory_search`），但 **pull 层依旧靠自觉**——该轮改造中我一次都没主动调 `memory_search`，本条描述的失效模式原样复发。**结论：只把 MCP 接通 ≠ 记忆会被用到。**
+  - **2026-09-16 收尾（MCP 路线正式作废）**：820def6（09-14 17:30）归档 `scripts/mcp_memory.py` 时，DSH 侧注册块没跟着改 → 连接此后必然失败，**死了两天无人察觉**；而存活窗口（09-12→09-14）的轨迹里调用数为 **0**。处置：删注册块 + `install_dsh_mcp.ps1` + `.mcp.json`，检索回退 CLI（详见 ADR-027 后记）。
+  - **教训升级**：不只「接通 ≠ 会被用到」，而是**接通之后还会静默死掉，而你没有探针测得出**——harness 契约 H2 只覆盖 hook 加载，不覆盖 MCP 连接性。若再引入 MCP，**声明生效前必须先有连接性探针**。
+  - **同批发现（尚未处置）**：本条的 Prevention `scripts/memory_autoinject.py` **从未被任何 settings.json 挂载**——项目 `.claude/` 于 09-12 清空，真配置 `E:\claude\.claude\settings.json`（`CLAUDE_CONFIG_DIR`，见 L35）也**没有 `hooks` 键**。它从写出来那天起就没上桌。注：本轮会话（Claude Code）实测 UserPromptSubmit / SessionStart 通道**是活的**——但那来自 `remember` 插件自带 hook，不是我们的。所以 L34「CC 上 push 通道可挂」这半句**在当前 harness 仍然成立**，只是从没接上过。
 - **Regression**：暂无自动化（hook 效果肉眼验证）；规则见本条 + memory_autoinject.py 契约头注释。
 
 ## L35 — CLAUDE_CONFIG_DIR 改配置位置：查 MCP 授权先看 env 再动 ~/.claude.json

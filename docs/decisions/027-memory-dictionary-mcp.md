@@ -1,6 +1,6 @@
 # 027 — 记忆层 v2：注入瘦身 + loop_state 接续 + MCP 字典
 
-日期：2026-09-01　状态：已采纳
+日期：2026-09-01　状态：已采纳（§3 检索层经 2026-09-16 后记推翻）
 
 ## 决策
 
@@ -26,3 +26,30 @@
 - remember 插件维持**纯写者**角色（`.remember/` 档案），其 SessionStart 直注与包去重后，会话摘要不再进包（`memory_recent` 可查）。
 - 下一步里程碑：检测调优试点闭环（改配置 → eval → loop_state → commit），复用本 ADR 的 loop_state + 字典 + writeback。
 - 相关：ADR-025（四层闭环思路仍有效，实现层按本 ADR 演进）、ADR-026（选型定案见其「定案」节）。
+
+## 后记（2026-09-16）：§3「检索 = MCP 字典工具」已否定，工具层回退为 CLI
+
+本 ADR 的核心赌注是「MCP 工具常驻工具面 = 看见即用，胜过 CLI 靠记得跑」。实测否定：
+
+- **事实链**：`scripts/mcp_memory.py` 于 820def6（09-14 17:30）随「大规模归档过时脚本」
+  被移入 `scripts/archive/`；而 DSH 侧注册块（`~/.dsh/profiles/web/cordis.patch.yml`，
+  由 `scripts/install_dsh_mcp.ps1` 写入，指向 `args: ['scripts/mcp_memory.py']`）没跟着改
+  → 此后 MCP 客户端 spawn 一个不存在的文件，连接必然失败。
+- **观测**：09-12→09-15 的 DSH 轨迹里，mcp 工具调用 = 0（`mcp__` 字样 50 次全是工具清单
+  /系统提醒里的文本提及，不是调用）。即**存活窗口内也没有一次调用**。
+- **致病机制**：死了两天无人察觉，因为没有任何探针能判「声明的 MCP 服务器连不上」——
+  harness 契约 H2 只覆盖 hook 加载，不覆盖 MCP 连接。这正是 CLAUDE.md「一个坏了 N 天
+  没人发现的机制，等于没人用，该删」的判据。
+
+**处置**：删除 cordis patch 的 `mcp-amta-memory` 注册块、`scripts/install_dsh_mcp.ps1`、
+`.mcp.json`。检索回退为 CLI 原语 `scripts/memory.py grep/read`（ADR-025 的拉取层）。
+
+**同时否定的错误记录**：本 ADR §3 写「注册于 `.mcp.json`」——不准确。2026-09-10 的实测
+结论是 DSH **不读**项目根 `.mcp.json`（那是 CC 方言），真实注册点在 DSH profile 的
+cordis patch。CLAUDE.md 一度把 `.mcp.json` 说成 install 脚本的「输入源（有用）」，
+而该脚本从不读它——该文件自始至终是空的 `{}`，是纯粹的死配置。
+
+**未解决**：① `scripts/memory_autoinject.py`（UserPromptSubmit push 实现，L34 的
+Prevention）从未被任何 settings.json 挂载，同样处于「写好了没上桌」状态——它的去留见
+L34 与后续决策。② harness 契约缺「MCP 连接性」条款；若将来再引入 MCP，必须同时
+补一条能跑的探针，否则不得声明其已生效。

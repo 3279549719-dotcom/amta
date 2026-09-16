@@ -144,7 +144,7 @@ class TestH2_DeclaredHooksAreLoadedByTheRuntime:
     而正是这种配置让 ADR-032 做出了错误的保留决策（见其 2026-09-12 后记）。
 
     现实承担记忆注入的是 DSH 的 agent-instructions 直接读 `CLAUDE.local.md`，
-    **不需要触发点**；状态展示由 `state.py bootstrap` 负责。
+    **不需要触发点**；状态展示由 `run_pipeline.py` 启动时自动打印（Embedded）。
     """
 
     SETTINGS = ROOT / ".claude" / "settings.json"
@@ -321,7 +321,7 @@ class TestH6_EditsCarryNoLineEndingNoise:
     第一次是 `CLAUDE.md`（6 行改动膨胀成 224 行 diff）。
 
     这条不写进散文的理由与 H1 相同：**散文拦不住工具**，只有断言能。
-    修法见 `scripts/probes/eol_restore.py`（从 HEAD blob 还原行尾）。
+    修法：从 HEAD blob 还原该文件行尾（`git show HEAD:<路径>` 覆写后重放改动）。
     """
 
     #: 只在文本类文件上比对，避免把二进制产物拖进来。
@@ -375,7 +375,7 @@ class TestH6_EditsCarryNoLineEndingNoise:
         assert not drifted, (
             "有文件的行尾被整体翻转（diff 里全是噪声，真实改动被淹没）：\n  "
             + "\n  ".join(drifted)
-            + "\n修法：python scripts/probes/eol_restore.py <路径>"
+            + "\n修法：git show HEAD:<路径> 还原行尾后重放改动"
         )
 
     def test_h6_detector_can_actually_fail(self):
@@ -472,7 +472,11 @@ class TestH7_FinishProcedureHasASingleSourceOfTruth:
                     continue
                 for token in self._FORBIDDEN:
                     if token in line:
-                        bad.append(f"{path.relative_to(ROOT)}:{i} 出现第二套收尾步骤 {token!r}")
+                        try:
+                            where = path.relative_to(ROOT)
+                        except ValueError:
+                            where = path  # 仓库外合成样本(反向验证用),直接展示绝对路径
+                        bad.append(f"{where}:{i} 出现第二套收尾步骤 {token!r}")
                         break
         return bad
 

@@ -18,7 +18,7 @@ DSH 会话（我）= 单 LLM Agent（导演）
 - **产物结构**：per-work workspace（`workspace/<work_id>/`，ADR-013）
 - **环境自检门卫**：`scripts/run_pipeline.py` 启动时自动检查代理 / 模型 / `.env` / ROOT 路径，不通过直接报错，不需要人工检查环境
 - **模型推理设备自动检测**（`cuda if available else cpu`），不硬编码设备
-- **唯一入口三个**：跑管线 `scripts/run_pipeline.py`、找代码 `scripts/find_code.py`、找产物 `scripts/artifact.py`
+- **唯一入口三个**：跑管线 `scripts/run_pipeline.py`、看现状 `scripts/peek.py`、找产物 `scripts/artifact.py`
 - 细节（接口、流程、坑全表）→ `AGENTS.md`、`CLAUDE.md`；决策索引 → `docs/decisions/README.md`
 
 ## 管线阶段
@@ -35,7 +35,7 @@ detect → ocr → translate → inpaint → typeset
 ```
 amta/                        # 本仓库根
 ├── src/amta/                # 纯库包（可被 import，脚本的上游）
-│                            #   模块地图见 docs/module-map.md —— 由 `scripts/find_code.py --index`
+│                            #   模块地图见 docs/module-map.md —— 由 `scripts/peek.py --index`
 │                            #   自动生成、永远与代码同步；README 不再手抄模块清单
 ├── scripts/                 # 可执行入口（薄 CLI，只做参数解析与落盘，逻辑在 src/amta）
 │   ├── archive/             # 退役脚本
