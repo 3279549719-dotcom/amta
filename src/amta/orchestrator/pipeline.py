@@ -219,7 +219,7 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
             src_dir=Path("D:/.../单翼停留之地"),
             start_page=11, end_page=20,
             stages=["detect", "ocr", "translate"],
-            stage_configs={"ocr": {"engine": "hayai", "rule_filter": True}},
+            stage_configs={"ocr": {"engine": "hayai"}},
         ))
 
     增量构建：每个阶段产物旁边存 .fingerprint，输入/代码/配置没变就跳过。

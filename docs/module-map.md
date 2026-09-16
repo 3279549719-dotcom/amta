@@ -6,10 +6,7 @@
 ## `backends/` — amta.backends — 引擎/传输后端（本地或远程确定性执行面）。
 
 - **`chat_client.py`** — OpenAI 兼容 chat/completions 的深模块：统一所有「POST /chat/completions + 解析 message」调用。（函数: _headers, chat, chat_text）
-- **`koharu_blocks.py`** — koharu scene 节点 → 文字块 的纯结果整形（从 koharu_client 拆出的深模块）。（函数: collect_blocks, sort_by_reading_order）
-- **`koharu_client.py`** — Koharu v0.59.1 REST API client — AMTA 执行器的确定性封装。（类: KoharuError, KoharuClient；函数: ensure_no_proxy）
 - **`ocr_engines.py`** — OCR 引擎分发器 — baberu（默认，ONNX）/ hayai（HayaiOCR-v2.1，PyTorch）。（函数: _baberu_batch, _get_hayai, _hayai_greedy_decode_with_conf, _hayai_batch, ocr_batch）
-- **`runner.py`** — koharu 流水线执行器 — 统一「建项目→传图→跑流水线→等待→回读→关项目」模式。（函数: run_pipeline_once, compact_blocks, page_key, run_all_pages）
 - **`vlm_verify.py`** — VLM contact sheet 批量校验模块。（函数: make_contact_sheet, parse_vlm_output, vlm_verify_batch, vlm_verify_ocr_single）
 
 ## `common/` — amta.common — 跨阶段共享叶子库（纯通用，不依赖其他域）。
@@ -17,7 +14,6 @@
 - **`config.py`** — 密钥与模型配置 — env → .env 回退唯一归属（深接口改造，修 F4 三处重复解析）。（函数: _read_key, _resolve, get_chat_config, get_vlm_api_key, get_dashscope_key）
 - **`encoding.py`** — encoding — Windows 编码收口：跨边界文本只在这里处理一次。（类: TextResult；函数: _decode, run_text, run_text_or, force_utf8_stdio）
 - **`environment.py`** — 环境自检门卫 — 管线启动前自动检查并修复环境问题。（函数: _check_proxy, _check_root, _check_models, _check_env, run_environment_check）
-- **`evalkit.py`** — (无 docstring)
 - **`geometry.py`** — 共享几何库：bbox 解析、IoU、并集聚合、嵌套标记、category 映射。（函数: bbox_from_block, iou, union_boxes, union_blocks, _area）
 - **`images.py`** — 图片工具：带 padding 的裁剪（benchmark / recall_crop / ocr_run 共用）。（函数: crop_with_pad）
 - **`metrics.py`** — 共享指标库：OCR/recall 评分用的归一化、编辑距离、CER/EM 与匹配函数。（函数: contains_japanese, norm, levenshtein, cer, best_match）
@@ -33,7 +29,6 @@
 - **`glossary.py`** — Knowledge guardrail（ADR-016）：confirmed 术语译名一致性校验。（函数: check_glossary）
 - **`guardrails.py`** — 翻译机械护栏 — 从 translate.py 拆出的深模块。（函数: mechanical_guardrails, japanese_residue_check, _run_guardrails_for_test）
 - **`pre_scan.py`** — Pre-scan: build per-work locked terminology dictionary from all OCR text.（函数: run_pre_scan）
-- **`rule_filter.py`** — 规则过滤 — OCR 后假框过滤（已废弃，保留接口兼容）。（函数: rule_filter）
 - **`suggestions.py`** — suggestions 机制唯一归属（修 F5）：片假名术语提取 → 追加落盘 → 跨页合并。（类: SuggestionsExtractor；函数: append_suggestions, merge_into_state）
 - **`term_dict.py`** — Term dictionary: load THBWiki master dictionary and match terms in text.（函数: load_master_dict, match_terms）
 - **`term_replace.py`** — Direct term replacement: replace locked terms in source text with Chinese translations.（函数: replace_terms, replace_in_canon）
@@ -61,18 +56,14 @@
 - **`context.py`** — 编排器统一数据契约 — StationContext / StationResult / PipelineConfig / PipelineResult。（类: StationContext, StationResult, PipelineConfig）
 - **`pipeline.py`** — 管线编排器 — run_pipeline() 唯一入口。（函数: _resolve_page_list, _build_context, _stage_code_paths, _stage_input_files, _fail_result）
 - **`quality_audit.py`** — quality_audit — 跑后质量体检聚合（红榜）。（类: PageFlags；函数: audit_page, audit_run, format_redlist, _load_json）
-- **`registry.py`** — (无 docstring)
+- **`registry.py`** — 阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。（类: StageSpec；函数: _build_registry, _not_implemented, get_registry, get_stage, available_stages）
 
 ## `report/` — amta.report — 深接口 HTML 报告工具（ADR-024）。
 
-- **`ab_report.py`** — ab_report — Stage4 框外字去除 A/B 对比实验报告（深接口模块）。（函数: _img_to_base64, _compute_averages, _build_table_rows, render_ab_report）
 - **`align.py`** — 跨阶段区域对齐 — 优先 region_id 精确匹配，回退 bbox IoU 物理匹配。（函数: iou, match_region）
 - **`assembler.py`** — 数据组装器 — 从 artifacts JSON 读取各阶段产物，组装成 PageReport。（函数: _load_json, _resolve_image, load_page_report, load_from_workspace）
 - **`engine.py`** — 报告引擎 — 深接口渲染原语 + 薄封装入口。（函数: _load_image, _composite_overlays, _img_to_base64, _align_regions, _compute_stats）
-- **`final_report.py`** — final_report — 三阶段流水线最终报告（自包含 HTML，内嵌原图 base64）。（函数: img_to_base64, _load_json, render_final_report）
-- **`inpaint_ab_report.py`** — inpaint_ab_report — Inpainting 速度 A/B 对比报告（深接口模块）。（函数: _img_to_base64, load_summary, build_speed_table, build_speed_chart, _build_page_comparison）
 - **`model.py`** — 报告工具数据模型 — PageReport / StageOutput / ReportResult + 构造校验。（类: StageOutput, PageReport, ReportResult）
-- **`stage4_report.py`** — stage4_report — Stage4 mask+inpaint 逐页验证报告（深接口模块）。（函数: _img_to_b64, extract_inpaint_boxes, _render_page_section, _render_no_free_section, render_stage4_report）
 
 ## `stations/` — amta.stations — 各 Stage 顶层薄工位（脚本 CLI 对接的确定性入口）。
 

@@ -1,6 +1,6 @@
 ﻿"""Stage 2 OCR 工位 — detection + raw 页 → CanonArtifact（深模块）。
 
-流程: 裁框 → OCR(engine可插拔: baberu/hayai) → [OCR confidence 过滤] → [规则过滤] → [VLM校验] → canon。
+流程: 裁框 → OCR(engine可插拔: baberu/hayai) → [OCR confidence 过滤] → [VLM校验] → canon。
 藏匿：裁框（region_id 与 detect 输出顺序一一对应）、ocr_batch 分发、VLM contact sheet 批量校验、trace、save_canon。
 接缝：ocr_fn / vlm_fn 函数注入（内部接缝，测试用 fake）。
 
@@ -19,7 +19,6 @@ Q3 (2026-09-09): 新增 OCR confidence 过滤。hayai 引擎通过自定义 gree
 
 baberu 引擎不支持 confidence，返回 first_token_conf=1.0（不过滤）。
 
-rule_filter 已退役（Q3）：pure_punct/pure_number 被 OCR confidence 替代，规则清空保留空壳接口。
 """
 from __future__ import annotations
 
@@ -30,7 +29,6 @@ from PIL import Image
 
 from amta.common.config import get_vlm_api_key
 from amta.common.paths import write_json
-from amta.guards.rule_filter import rule_filter
 from amta.stores import artifacts
 
 # Q3 OCR confidence 过滤阈值
@@ -78,13 +76,11 @@ def _should_filter_by_conf(row: dict, b: dict) -> tuple[bool, str]:
 
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              page_idx: int, engine: str = "hayai", vlm_enabled: bool = False,
-             rule_filter_enabled: bool = False,
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
              crop_dir: Path | str | None = None) -> dict:
     """Stage 2 OCR 工位。裁框 → OCR → [OCR confidence 过滤] → [规则过滤] → [VLM校验] → CanonArtifact。
 
     engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快)。
-    rule_filter_enabled=False 时跳过硬规则过滤，全部检测框直接保留。
     Q3: 副引擎纯新增框用 first_token_conf < 0.4 过滤假框（见模块文档）。
     """
     from amta.backends.ocr_engines import ocr_batch as _default_ocr
@@ -129,8 +125,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
         else:
             kept_after_conf.append((rid, b, crop, _pil))
 
-    # ---- 规则过滤（已退役，保留空壳接口兼容）----
-    img_w, img_h = Image.open(raw_page).size
+    # ---- 组装 OCR 结果块 ----
     ocr_blocks = []
     for rid, b, crop, _pil in kept_after_conf:
         ob = dict(b)
@@ -138,19 +133,7 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
         ob["text"] = (ocr_by_crop.get(str(crop), {}).get("ocr") or "").strip()
         ocr_blocks.append(ob)
 
-    if rule_filter_enabled:
-        kept_blocks, rule_removed = rule_filter(ocr_blocks, img_w, img_h)
-    else:
-        kept_blocks, rule_removed = ocr_blocks, []
-
-    # 按 reason 统计被过滤框
-    rule_removed_summary: dict[str, int] = {}
-    for b in rule_removed:
-        reason = b.get("filter_reason", "unknown")
-        rule_removed_summary[reason] = rule_removed_summary.get(reason, 0) + 1
-
-    kept_rids = {b["region_id"] for b in kept_blocks}
-    kept_pairs = [p for p in kept_after_conf if p[0] in kept_rids]
+    kept_pairs = kept_after_conf
 
     # ---- VLM 校验（仅对保留的框）----
     vlm_result = {"texts": None, "status": "skipped", "raw_output": "", "elapsed": 0.0, "retries": 0}
@@ -197,7 +180,6 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
         "n_blocks_raw": len(pairs),
         "n_blocks_kept": len(kept_pairs),
         "n_blocks_conf_removed": len(conf_removed),
-        "n_blocks_rule_removed": len(rule_removed),
         "ocr_conf_threshold": OCR_CONF_THRESHOLD,
         "conf_removed_details": [
             {"region_id": cr["region_id"], "text": cr["text"][:30],
@@ -207,13 +189,6 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              "filter_reason": cr["filter_reason"],
              "source_engines": cr.get("source_engines", [])}
             for cr in conf_removed
-        ],
-        "rule_filter_enabled": rule_filter_enabled,
-        "rule_removed_by_reason": rule_removed_summary,
-        "rule_removed_details": [
-            {"region_id": b.get("region_id"), "text": b.get("text", "")[:30],
-             "reason": b.get("filter_reason")}
-            for b in rule_removed
         ],
         "ocr_engine": engine,
         "ocr_elapsed": round(ocr_elapsed, 2),
@@ -226,14 +201,6 @@ def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
                            "ocr_engine": engine,
                            "ocr_conf_threshold": OCR_CONF_THRESHOLD,
                            "n_conf_removed": len(conf_removed),
-                           "rule_filter_enabled": rule_filter_enabled,
-                           "rule_filter": {
-                               "enabled": rule_filter_enabled,
-                               "raw": len(pairs), "kept": len(kept_pairs),
-                               "conf_removed": len(conf_removed),
-                               "rule_removed": len(rule_removed),
-                               "removed_by_reason": rule_removed_summary,
-                           },
                            "vlm_status": vlm_result["status"]}, work_id, page)
     write_json(artifacts.artifact_paths(artifacts_dir, page)["canon"], doc)
     return doc

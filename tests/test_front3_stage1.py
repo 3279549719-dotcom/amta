@@ -4,7 +4,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.backends.runner import compact_blocks
 from amta.common.geometry import mark_contained, union_blocks
 
 
@@ -124,40 +123,18 @@ def test_union_blocks_without_source_engines_unchanged():
     assert "source_engines" not in out[0]
 
 
-def test_compact_blocks_injects_source_engine():
-    """compact 阶段把引擎名注入 block（source_engines 先置 [eng]）。"""
-    blocks = [{"node_id": "n1", "bubble_type": "dialogue", "text": None,
-               "transform": {"x": 0, "y": 0, "w": 10, "h": 10}}]
-    out = compact_blocks(blocks, ("node_id", "bubble_type", "text"), source_engine="pp-doclayout-v3")
-    assert out[0]["source_engines"] == ["pp-doclayout-v3"]
-    assert out[0]["node_id"] == "n1"
-    assert out[0]["bbox"] == [0.0, 0.0, 10.0, 10.0]
-
-
-def test_compact_blocks_default_no_source_engine():
-    """向后兼容：不传 source_engine 时输出与旧版完全一致。"""
-    blocks = [{"node_id": "n1", "transform": {"x": 0, "y": 0, "w": 10, "h": 10}}]
-    out = compact_blocks(blocks, ("node_id",))
-    assert set(out[0]) == {"node_id", "bbox"}
-
-
 def test_detect_flow_source_engines_are_engine_names():
     """模拟 01_detect 全流程（假数据）：source_engines 是引擎名列表，不是 node_id。"""
     per_engine = {
         "pp-doclayout-v3": [
-            {"node_id": "det-n1", "bubble_type": "dialogue", "text": None,
-             "transform": {"x": 0, "y": 0, "w": 10, "h": 10}},
+            {"node_id": "det-n1", "bbox": [0.0, 0.0, 10.0, 10.0], "source_engines": ["pp-doclayout-v3"]},
         ],
         "comic-text-detector": [
-            {"node_id": "det-n2", "bubble_type": "dialogue", "text": None,
-             "transform": {"x": 0, "y": 0, "w": 10, "h": 10}},  # 与 det-n1 重复
-            {"node_id": "det-n3", "bubble_type": "sfx", "text": None,
-             "transform": {"x": 50, "y": 50, "w": 5, "h": 5}},
+            {"node_id": "det-n2", "bbox": [0.0, 0.0, 10.0, 10.0], "source_engines": ["comic-text-detector"]},
+            {"node_id": "det-n3", "bbox": [50.0, 50.0, 55.0, 55.0], "source_engines": ["comic-text-detector"]},
         ],
     }
-    comp = {eng: compact_blocks(blks, ("node_id", "bubble_type", "text"), source_engine=eng)
-            for eng, blks in per_engine.items()}
-    blocks = union_blocks(comp)
+    blocks = union_blocks(per_engine)
     by_id = {b["node_id"]: b for b in blocks}
     assert by_id["det-n1"]["source_engines"] == ["pp-doclayout-v3", "comic-text-detector"]
     assert by_id["det-n3"]["source_engines"] == ["comic-text-detector"]

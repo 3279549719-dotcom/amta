@@ -524,10 +524,10 @@ class TestDocPathReferencesResolve:
 amta/
 ├── src/amta/
 │   ├── gt_alignment.py     # GT→detector 框对齐（仓库里已无此文件）
-│   ├── koharu_client.py    # 真实存在于 backends/ 下
+│   ├── geometry.py         # 真实存在于 common/ 下
 ```"""
         known = _repo_py_basenames()
-        assert "koharu_client.py" in known, "样本前提失效：koharu_client.py 应当存在"
+        assert "geometry.py" in known, "样本前提失效：geometry.py 应当存在"
 
         ghosts = _fenced_bare_py_ghosts("SAMPLE.md", sample, known)
         assert any("gt_alignment.py" in g for g in ghosts), (
@@ -669,7 +669,7 @@ class TestNoHalfPathsShadowingLiveFiles:
         """S6 的扫描面不能是空的，否则断言恒真。"""
         known = _first_party_basenames()
         assert len(known) > 100, f"一方目录只扫到 {len(known)} 个文件名，执法面可能失效"
-        assert "koharu_client.py" in known, "样本前提失效：koharu_client.py 应当在一方目录里"
+        assert "chat_client.py" in known, "样本前提失效：chat_client.py 应当在一方目录里"
 
     def test_s6_scanner_is_not_vacuous(self):
         """反向验证：拿一段**已知错误**的样本喂进去，扫描器必须能红。
@@ -678,15 +678,15 @@ class TestNoHalfPathsShadowingLiveFiles:
         整行因为含 legacy 曾获得豁免。没有这条，上面的断言可能因为正则写错而恒真。
         """
         sample = (
-            "koharu v0.59.1 已退出主链路，仅存 legacy 客户端"
-            "（`backends/koharu_client.py`、`scripts/start_koharu.ps1`），不要依赖它；"
+            "旧文档里写过 `backends/chat_client.py`，"
+            "实际文件在 `src/amta/backends/chat_client.py`；"
             "旧的 `scripts/hook_sessionstart.py` 已删除。\n"
         )
         known = _first_party_basenames()
         ghosts = _half_path_references("SAMPLE.md", sample, known)
 
-        assert any("backends/koharu_client.py" in g for g in ghosts), (
-            "扫描器对错误路径是盲的（这正是 AGENTS.md 半截路径漏网的原因）：\n" + repr(ghosts)
+        assert any("backends/chat_client.py" in g for g in ghosts), (
+            "扫描器对错误路径是盲的（这正是半截路径漏网的原因）：\n" + repr(ghosts)
         )
         assert not any("hook_sessionstart.py" in g for g in ghosts), (
             "扫描器把真墓碑也误报了——真墓碑（全仓无同名活文件）不该报：\n" + repr(ghosts)

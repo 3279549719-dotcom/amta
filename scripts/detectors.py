@@ -8,7 +8,6 @@ import sys
 import time
 from pathlib import Path
 
-import cv2
 import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -74,42 +73,6 @@ class RTDetrDetector(Detector):
     def _detect(self, img_bgr: np.ndarray) -> list[list[float]]:
         blocks = self._impl.detect(img_bgr)
         return [b["bbox"] for b in blocks]
-
-
-class KoharuSingleDetector(Detector):
-    """koharu 单引擎检测器（方案 A）。通过 koharu REST API 调用指定引擎。"""
-    name = "koharu-single"
-
-    def __init__(self, engine: str = "comic-text-detector", host: str = "127.0.0.1", port: int = 4000):
-        from amta.backends.koharu_client import KoharuClient
-        from amta.backends.runner import compact_blocks, run_all_pages
-        self.engine = engine
-        self.name = f"koharu-{engine}"
-        self.client = KoharuClient(host=host, port=port)
-        self.client.wait_server(timeout=60)
-        self._run_all_pages = run_all_pages
-        self._compact = compact_blocks
-        self._steps = {engine: [engine]}
-        self._FIELDS = ("node_id", "bbox", "bubble_type", "text")
-
-    def _detect(self, img_bgr: np.ndarray) -> list[list[float]]:
-        # koharu 需要文件路径，写临时文件
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            tmp_path = f.name
-        cv2.imwrite(tmp_path, img_bgr)
-        try:
-            results = self._run_all_pages(
-                self.client, [Path(tmp_path)], self._steps,
-                prefix="ab-test", timeout=300, label="ab-detect",
-            )
-            page_key = next(iter(results))
-            per_engine = results[page_key]["engines"]
-            blks = per_engine.get(self.engine, [])
-            comp = self._compact(blks, self._FIELDS, source_engine=self.engine)
-            return [b["bbox"] for b in comp]
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
 
 
 class CtdDetector(Detector):

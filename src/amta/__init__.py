@@ -15,12 +15,10 @@
 - translate_station.* — 翻译工位薄封装
 - ocr_engines.* — OCR 引擎（baberu ONNX / hayai PyTorch，可插拔）
 - ocr_station.* — OCR 工位（裁框 → OCR → confidence 过滤 → canon）
-- rule_filter.* — 规则过滤（已退役，OCR confidence 替代，保留接口兼容）
 - guardrails.* — 翻译机械护栏（结构错/日文残留）
 - metrics.* — CER/EM/归一化/匹配/日文残留判据
 - geometry.* — bbox/iou/并集
 - images.* — 图片裁剪工具
-- evalkit.* — CER/EM 评测聚合
 - workstate.* — per-work workspace + work_state（ADR-013 产物结构）
 - paths.* — 项目路径与 JSON/UTF-8 IO 工具
 - artifacts.* — 产物读写（detection/canon/translation）
@@ -28,9 +26,9 @@
 - pipeline_log.* — 流水线 step tracing
 """
 from amta.backends import chat_client, ocr_engines
-from amta.common import config, evalkit, geometry, images, metrics, paths, pipeline_log, workstate
+from amta.common import config, geometry, images, metrics, paths, pipeline_log, workstate
 from amta.common.encoding import force_utf8_stdio
-from amta.guards import guardrails, rule_filter, vlm_filter
+from amta.guards import guardrails, vlm_filter
 from amta.stations import ocr_station
 from amta.stores import artifacts
 from amta.translation import stage3_minimal, translate, translate_station
@@ -39,7 +37,6 @@ __all__ = [
     "artifacts",
     "chat_client",
     "config",
-    "evalkit",
     "geometry",
     "guardrails",
     "images",
@@ -48,7 +45,6 @@ __all__ = [
     "ocr_station",
     "paths",
     "pipeline_log",
-    "rule_filter",
     "stage3_minimal",
     "translate",
     "translate_station",

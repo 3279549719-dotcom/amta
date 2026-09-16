@@ -78,7 +78,6 @@ def _build_registry() -> dict[str, StageSpec]:
                 "ocr_station.py",
                 "ocr_engines.py",
                 "canon_schema.py",
-                "rule_filter.py",
                 "artifacts.py",
                 "geometry.py",
                 "paths.py",

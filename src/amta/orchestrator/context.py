@@ -35,7 +35,7 @@ class StationContext:
     inputs: dict[str, Path] = field(default_factory=dict)
     # 上游产物路径，按阶段名索引，如 {"detect": Path("...page_11_detection.json")}
     config: dict[str, Any] = field(default_factory=dict)
-    # 本阶段配置，如 {"engine": "hayai", "vlm_enabled": False, "rule_filter": False}
+    # 本阶段配置，如 {"engine": "hayai", "vlm_enabled": False}
 
 
 @dataclass
@@ -75,7 +75,7 @@ class PipelineConfig:
     stages: list[str] = field(default_factory=lambda: ["detect", "ocr", "translate"])
     # 要执行的阶段，按顺序。后续加 inpaint/typeset 只需在这里加名字。
     stage_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    # 各阶段的覆盖配置，如 {"ocr": {"engine": "hayai", "rule_filter": True}}
+    # 各阶段的覆盖配置，如 {"ocr": {"engine": "hayai"}}
     force_rerun: bool = False           # True = 忽略断点，所有阶段强制重跑
     continue_on_error: bool = False     # True = 单页失败后继续下一页；False = 停止
 

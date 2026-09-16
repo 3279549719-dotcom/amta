@@ -8,7 +8,7 @@
       [--force-rerun] [--continue-on-error]
 
 阶段配置通过 --config 参数传入 JSON，例如：
-  --config '{"ocr": {"engine": "hayai", "rule_filter": true}}'
+  --config '{"ocr": {"engine": "hayai"}}'
 
 后续加 inpaint/typeset：只需在 --stages 里加名字，不需要改这个脚本。
 """
