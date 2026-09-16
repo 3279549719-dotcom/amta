@@ -22,7 +22,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from amta.common.environment import run_environment_check
+from amta.common.workstate import ensure_workspace
 from amta.orchestrator import PipelineConfig, available_stages, run_pipeline
+from amta.orchestrator.quality_audit import audit_run, format_redlist
 
 
 def main() -> int:
@@ -86,6 +88,15 @@ def main() -> int:
     if result.failed_step:
         print(f"first failure: page={result.failed_step['page']} "
               f"stage={result.failed_step['stage']} reason={result.failed_step['reason']}")
+
+    # 质量体检红榜（friction 2026-09-16：质量信号不再静默埋在 JSON 里）
+    artifacts_dir = ensure_workspace(a.work_id) / "artifacts"
+    redlist = audit_run(artifacts_dir, result.pages)
+    if redlist:
+        print("quality flags (内容异常非执行失败,下钻: gen_report --granularity region):")
+        print(format_redlist(redlist))
+    else:
+        print("quality audit: all clean")
     print("=" * 60)
 
     return 1 if result.failed_pages else 0
