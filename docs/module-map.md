@@ -23,7 +23,6 @@
 - **`metrics.py`** — 共享指标库：OCR/recall 评分用的归一化、编辑距离、CER/EM 与匹配函数。（函数: contains_japanese, norm, levenshtein, cer, best_match）
 - **`paths.py`** — 项目路径与公共 IO 工具 — 消除各脚本重复的 ROOT/OUTPUT/DATA 样板。（函数: ensure_output, ensure_utf8_stdio, read_json, write_json）
 - **`pipeline_log.py`** — pipeline_log — 流水线 step-level tracing(借鉴 OTel span 思想,零依赖,ADR-018)。（类: PipelineLog；函数: _now, git_head）
-- **`punctuation_align.py`** — 机械标点对齐（P2）：原文可删除标点数量是译文上限。（函数: _count_removable, align_punctuation）
 - **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, StateManager, QualityGateFailed；函数: quality_gate_command, _run_quality_gate, finish_verified）
 - **`tickets.py`** — tickets — needs_review 工单机制（ADR-017，借鉴 CMMS 工单状态机 + 维修手册归档）。（类: TicketStore；函数: _now, classify_kind）
 - **`workstate.py`** — per-work workspace + work_state — 产物结构 rebaseline（ADR-013）。（函数: work_dir, ensure_workspace, empty_state, init_workspace, load_state）
@@ -61,7 +60,8 @@
 
 - **`context.py`** — 编排器统一数据契约 — StationContext / StationResult / PipelineConfig / PipelineResult。（类: StationContext, StationResult, PipelineConfig）
 - **`pipeline.py`** — 管线编排器 — run_pipeline() 唯一入口。（函数: _resolve_page_list, _build_context, _stage_code_paths, _stage_input_files, _fail_result）
-- **`registry.py`** — 阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。（类: StageSpec；函数: _build_registry, _not_implemented, get_registry, get_stage, available_stages）
+- **`quality_audit.py`** — quality_audit — 跑后质量体检聚合（红榜）。（类: PageFlags；函数: audit_page, audit_run, format_redlist, _load_json）
+- **`registry.py`** — (无 docstring)
 
 ## `report/` — amta.report — 深接口 HTML 报告工具（ADR-024）。
 
@@ -72,9 +72,7 @@
 - **`final_report.py`** — final_report — 三阶段流水线最终报告（自包含 HTML，内嵌原图 base64）。（函数: img_to_base64, _load_json, render_final_report）
 - **`inpaint_ab_report.py`** — inpaint_ab_report — Inpainting 速度 A/B 对比报告（深接口模块）。（函数: _img_to_base64, load_summary, build_speed_table, build_speed_chart, _build_page_comparison）
 - **`model.py`** — 报告工具数据模型 — PageReport / StageOutput / ReportResult + 构造校验。（类: StageOutput, PageReport, ReportResult）
-- **`pipeline_report.py`** — pipeline_report — 通用管线报告的文档外壳（深接口模块）。（函数: render_pipeline_report）
 - **`stage4_report.py`** — stage4_report — Stage4 mask+inpaint 逐页验证报告（深接口模块）。（函数: _img_to_b64, extract_inpaint_boxes, _render_page_section, _render_no_free_section, render_stage4_report）
-- **`typeset_review.py`** — typeset_review — typeset 成品图看图报告（深接口模块）。（函数: img_to_base64, render_typeset_review）
 
 ## `stations/` — amta.stations — 各 Stage 顶层薄工位（脚本 CLI 对接的确定性入口）。
 

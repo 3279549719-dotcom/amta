@@ -99,7 +99,6 @@ def _build_registry() -> dict[str, StageSpec]:
                 "term_dict.py",
                 "term_replace.py",
                 "pre_scan.py",
-                "punctuation_align.py",
                 "chat_client.py",
                 "artifacts.py",
                 "paths.py",
