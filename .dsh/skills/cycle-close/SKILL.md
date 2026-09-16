@@ -35,8 +35,7 @@ description: 'Use when a task/loop reaches its boundary — goal achieved (updat
 它自己会做三件事：跑**全量**质检（compile+ruff+pyright+pytest+depguard+memory+audit+module-map 刷新）
 → 通过则由它自己暂存并提交（**不要手工暂存**）→ 红了拒绝落盘、改动原样留在工作区。
 
-- 改到一半想快检（秒级、只读、不提交）：`uv run python scripts/state.py check`
-- 改动涉及 koharu_client / 引擎通路时，另外跑一次 `npm run smoke`（需先 `npm start`）
+- 改到一半想快检（秒级、只读、不提交）：`uv run python scripts/fastcheck.py --quick`
 - **不要发明等价的第三套工具**；本技能只准出现上面这两条命令名
 
 ### Step 4 — 修复
@@ -56,14 +55,14 @@ Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs
   全局规则/事实 → CLAUDE.md（精简一行，保持 <120 行）
   流程/程序   → .dsh/skills/<name>/SKILL.md（新增或修订技能）
   架构/方向   → docs/decisions/ADR-N（为什么这样选）
-  瞬时状态   → git 与分支本身（`state.py bootstrap` 读；loop_state.json 已随 ralph 层删除）
+  瞬时状态   → git 与分支本身（loop_state.json 已随 ralph 层删除）
   机械可校验 → tests / lint / git-hook（唯一真强制层；规则/lesson 都是 prompt 级）
 ```
 
 ### Step 7 — 只更新真正变化的工件
 | 工件 | 何时更新 |
 |---|---|
-| git（分支 + commit） | 当前状态 / 里程碑（`state.py bootstrap` 读；`loop_state.json` 已随 ralph 层删除） |
+| git（分支 + commit） | 当前状态 / 里程碑（loop_state.json 已随 ralph 层删除） |
 | `docs/lessons.md` | 可复用 lesson |
 | `docs/decisions/` | 架构决策（为什么这样选） |
 | `CLAUDE.md` | 稳定操作规则（保持精简，别膨胀） |

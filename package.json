@@ -7,9 +7,8 @@
   "scripts": {
     "start": "powershell -ExecutionPolicy Bypass -File scripts/start_koharu.ps1",
     "koharu:check": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
-    "smoke": "uv run python scripts/smoke_test.py",
-    "check": "uv run python scripts/state.py check",
-    "finish": "uv run python scripts/fastcheck.py",
+    "check": "uv run python scripts/fastcheck.py --quick",
+    "finish": "uv run python scripts/state.py finish",
     "hooks:install": "powershell -ExecutionPolicy Bypass -File scripts/install_hooks.ps1"
   },
   "dependencies": {}

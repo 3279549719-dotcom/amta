@@ -137,10 +137,10 @@ def _memory_inject() -> int:
 
 
 def _module_map() -> int:
-    """生成物就地刷新：重跑 `find_code.py --index` 重写 docs/module-map.md。
+    """生成物就地刷新：重跑 `peek.py --index` 重写 docs/module-map.md。
 
     **为什么是"写"而不是"查"**（2026-09-10 决定）：
-    module-map 是 `find_code.py --index` 的产物，CLAUDE.md 要求 agent「找代码先看它」。
+    module-map 是 `peek.py --index` 的产物，CLAUDE.md 要求 agent「找代码先看它」。
     此前刷新是**手动**的，于是它腐化成 6/99 条指向几个月前删掉的文件；当时的修法是
     加一条守卫测试（test_reference_integrity.TestGeneratedDocsAreFresh）——
     但那只是**事后检查**：陈旧地图仍然躺在磁盘上被 agent 读到，守卫只在收尾喊一声。
@@ -150,7 +150,7 @@ def _module_map() -> int:
     磁盘上的地图必然与代码一致，守卫测试随之恒真——它从"拦截器"退化为"冗余保险"，
     这正是它该有的位置。--quick 不跑本步（不写文件，保持 pre-commit 只读）。
     """
-    return _run([sys.executable, str(ROOT / "scripts" / "find_code.py"), "--index"], "module-map (生成物刷新)")
+    return _run([sys.executable, str(ROOT / "scripts" / "peek.py"), "--index"], "module-map (生成物刷新)")
 
 
 

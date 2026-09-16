@@ -271,7 +271,7 @@ class TestDocLinksResolve:
 
 
 class TestGeneratedDocsAreFresh:
-    """生成物守卫：`docs/module-map.md` 是 `find_code.py --index` 的产物。
+    """生成物守卫：`docs/module-map.md` 是 `peek.py --index` 的产物。
 
     CLAUDE.md 明确要求 agent「找代码先看 module-map」。但它是**生成物**：
     代码一删，地图就开始撒谎（体检实测：6/99 条指向几个月前删掉的文件），
@@ -309,7 +309,7 @@ class TestGeneratedDocsAreFresh:
 
         assert not missing, (
             "module-map.md 指向不存在的模块（生成物已腐坏，需重新生成："
-            "`uv run python scripts/find_code.py --index`）：\n  " + "\n  ".join(missing)
+            "`uv run python scripts/peek.py --index`）：\n  " + "\n  ".join(missing)
         )
 
     def test_module_map_is_regenerable_and_current(self):
@@ -319,7 +319,7 @@ class TestGeneratedDocsAreFresh:
 
         before = self.MODULE_MAP.read_text(encoding="utf-8")
         r = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "find_code.py"), "--index"],
+            [sys.executable, str(ROOT / "scripts" / "peek.py"), "--index"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             cwd=str(ROOT), timeout=120,
         )
@@ -329,7 +329,7 @@ class TestGeneratedDocsAreFresh:
         assert before == after, (
             "module-map.md 已过期（重新生成后内容不同）。\n"
             "它不是手写文档，是生成物——代码改动后必须重跑：\n"
-            "  uv run python scripts/find_code.py --index"
+            "  uv run python scripts/peek.py --index"
         )
 
 
@@ -363,7 +363,7 @@ class TestGeneratedDocsAreFresh:
 #
 # 因此：**S4 变绿 ≠ 文档干净**，它只是把"路径字面量腐烂"这一类钉死了。
 # 治本的做法是**不写会腐烂的东西**——README 的目录树已被删除、改为指向生成物
-# `docs/module-map.md`（`find_code.py --index` 的产物，永远新鲜）。
+# `docs/module-map.md`（`peek.py --index` 的产物，永远新鲜）。
 # 这比"修好那 17 条路径"正确：修好了它还会再烂一次。
 #
 # ## 为什么 lessons/decisions **不在**执法面内
