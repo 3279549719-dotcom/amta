@@ -104,6 +104,39 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
             "rendered_stroke": stroke}
 
 
+# --- 竖排标点规则（唯一真源）---------------------------------------------
+# 竖排里这些字符原本是"横着躺"的（波浪/破折号/省略号），要旋转 90° 立起来。
+# 以后再冒出横躺符号，只往这里加一个字符即可，不要在别处另写逻辑。
+VERTICAL_ROTATE = set("～~—–―…")
+# 竖排里连续出现时应左右并排、而不是一个叠一个的成对标点。
+VERTICAL_COMBINE = set("！？!?")
+
+
+def _paste_glyph_centered(img: Image.Image, font, ch: str,
+                          cell_x: float, cell_y: float,
+                          cell_w: float, cell_h: float,
+                          stroke: int, color, rotate: bool = False) -> None:
+    """原子原语：把单个字符字形贴到字格 (cell_x,cell_y,cell_w,cell_h) 的正中心。
+
+    所有竖排字符（汉字 + 标点）都走这里，所以标点不再贴格子角。
+    rotate=True 时先把字形旋转 90° 再贴（用于横躺符号立起）。
+    """
+    b = font.getbbox(ch)
+    gw, gh = b[2] - b[0], b[3] - b[1]
+    pad = max(gw, gh) + int(stroke) * 2 + 4
+    cimg = Image.new("RGBA", (pad, pad), (0, 0, 0, 0))
+    ImageDraw.Draw(cimg).text(
+        ((pad - gw) / 2 - b[0], (pad - gh) / 2 - b[1]), ch,
+        font=font, fill=color, stroke_width=int(stroke), stroke_fill="white")
+    if rotate:
+        cimg = cimg.rotate(90, expand=True)
+    tight = cimg.getbbox()
+    if tight:
+        cimg = cimg.crop(tight)
+    img.paste(cimg, (int(cell_x + (cell_w - cimg.width) / 2),
+                     int(cell_y + (cell_h - cimg.height) / 2)), cimg)
+
+
 def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                      col_width, stroke, color):
     """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。"""
@@ -111,10 +144,6 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
     total_w = n_cols * col_width
     # 最右列的 x 坐标（列左边缘）
     x_start = cx + total_w / 2 - col_width
-    # 需要旋转的横向标点（在竖排中应垂直显示）
-    ROTATE_CHARS = set("……—–")
-    # 连续标点应左右并排（！？！？等），而非上下排列
-    COMBINE_PUNCT = set("！？!?")
 
     for col_idx, col_text in enumerate(lines):
         x = x_start - col_idx * col_width
@@ -125,52 +154,26 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
         i = 0
         while i < len(col_text):
             ch = col_text[i]
-            if ch in COMBINE_PUNCT:
-                # 连续标点组：左右并排在同一行
+            if ch in VERTICAL_COMBINE:
+                # 连续标点组：左右并排在同一行，整体在格内均分居中
                 j = i
-                while j < len(col_text) and col_text[j] in COMBINE_PUNCT:
+                while j < len(col_text) and col_text[j] in VERTICAL_COMBINE:
                     j += 1
                 punct_group = col_text[i:j]
                 n_punct = len(punct_group)
                 punct_w = col_width / n_punct
                 group_x = x + (col_width - n_punct * punct_w) / 2
                 for k, pch in enumerate(punct_group):
-                    draw.text((group_x + k * punct_w, y), pch, font=font,
-                              fill=color, stroke_width=int(stroke),
-                              stroke_fill="white")
+                    _paste_glyph_centered(
+                        img, font, pch,
+                        group_x + k * punct_w, y, punct_w, lh,
+                        stroke, color)
                 y += lh
                 i = j
-            elif ch in ROTATE_CHARS:
-                # 横向标点旋转90度：字符在临时画布中居中，旋转后粘贴到列中心
-                _draw_rotated_char(img, font, ch, x, y, col_width, lh,
-                                   stroke, color)
-                y += lh
-                i += 1
             else:
-                draw.text((x, y), ch, font=font, fill=color,
-                          stroke_width=int(stroke), stroke_fill="white")
+                # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
+                _paste_glyph_centered(
+                    img, font, ch, x, y, col_width, lh,
+                    stroke, color, rotate=(ch in VERTICAL_ROTATE))
                 y += lh
                 i += 1
-
-
-def _draw_rotated_char(img, font, ch, x, y, col_width, lh, stroke, color):
-    """绘制旋转90度的字符，确保在列中心位置。"""
-    bbox_ch = font.getbbox(ch)
-    ch_w = bbox_ch[2] - bbox_ch[0]
-    ch_h = bbox_ch[3] - bbox_ch[1]
-    pad = max(ch_w, ch_h) + 4
-    char_img = Image.new("RGBA", (pad, pad), (0, 0, 0, 0))
-    char_draw = ImageDraw.Draw(char_img)
-    char_draw.text(((pad - ch_w) / 2 - bbox_ch[0],
-                    (pad - ch_h) / 2 - bbox_ch[1]), ch,
-                   font=font, fill=color,
-                   stroke_width=int(stroke), stroke_fill="white")
-    rotated = char_img.rotate(90, expand=True)
-    # 裁剪掉旋转后的空白区域，得到紧凑的字符图
-    bbox_rot = rotated.getbbox()
-    if bbox_rot:
-        rotated = rotated.crop(bbox_rot)
-    # 粘贴到列中心位置
-    paste_x = int(x + (col_width - rotated.width) / 2)
-    paste_y = int(y + (lh - rotated.height) / 2)
-    img.paste(rotated, (paste_x, paste_y), rotated)

@@ -85,7 +85,7 @@
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
 - **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, wrap_text, wrap_vertical, _font_metrics）
-- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _render_vertical, _draw_rotated_char）
+- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _paste_glyph_centered, _render_vertical）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
 
 ## `scripts/` — CLI 工具入口

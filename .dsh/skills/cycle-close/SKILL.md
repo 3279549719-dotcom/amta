@@ -1,116 +1,58 @@
 ---
 name: cycle-close
-description: 'Use when a task/loop reaches its boundary — goal achieved (update_goal complete), task done, or explicitly aborted (blocked/cancelled) — to run the full /finish protocol: re-read task, inspect diff, run deterministic validation, repair, reflect, promote knowledge, persist, and produce a structured Finish Report. Triggers: "/finish", "收尾", "落盘", "循环结束", "任务完成", goal complete/blocked moment.'
+description: 'Close a work cycle. Reviews the diff for stray/dead/ignored-file changes, reflects on what this session actually taught, routes each reusable observation to its one home (CLAUDE.md / .dsh/skills/ / ADR / lessons / tests·hook / discard), then lands everything through the single finish entry point — `state.py finish`, which runs the full quality gate and refuses to commit when red. Use when a task reaches its boundary: done, blocked, or cancelled; or when the user says "/finish", "收尾", "落盘", "循环结束", "任务完成". Do NOT use mid-task — one close per boundary.'
 ---
 
-# Finish / Cycle Close（任务收尾 + 学习落盘）
+# cycle-close — 收尾
 
-> 这不是"任务完成了"的口头声明，而是一条**可复现的收尾协议**。核心哲学：把重复犯错编译成更强的系统约束（lesson → 五路分流：CLAUDE.md 规则 / skill 流程 / ADR / test·lint·hook），而不是让记忆文件无限膨胀。
+> 收尾只解决一个问题：**这次会话学到的东西，回到它该去的地方了吗？**
+> 其余全是机械动作，而机械动作已经全部沉到一条命令里。
 
-## 触发条件（满足其一）
+## 三个动作，按此顺序（顺序本身是协议的一部分）
 
-- 任务达成 / `update_goal complete`
-- 明确中止（blocked / cancelled）
-- 用户说 "/finish" / "收尾" / "落盘"
+### 1. 审 diff —— 有没有夹带
 
-**不触发**：轮次中途、未达目标继续推进时（只在边界落一次，避免半成品噪音）。
+`git status` + `git diff --stat`。查三样：死代码 / 临时调试代码 / 误改的被忽略产物（`output/`、`models/`、`testsets/pages/`）。
+发现就**当场删掉**，不要留给 commit。"代码能跑"不是收尾判据——判据在动作 3。
 
-## 完整协议（按序执行）
+### 2. 反思 —— 这次会话教会了什么
 
-### Step 1 — 复读任务
-重读原始目标、验收标准、约束、受影响文件。**不要因为"代码能跑"就宣布成功**。
+对着 diff 和会话过程问一遍：**有没有一条观察，下次还会用到？**
+没有就跳过——**大多数会话都该跳过，这是正常结果，不是偷懒。**
 
-### Step 2 — 审查 diff
-- 改了什么、是否夹带无关文件改动
-- 死代码 / 临时调试代码 / 生成文件 / 架构越界（如 src 直接依赖不该依赖的模块）
-- 确认没有误改 `output/`、`models/`、`testsets/pages/` 等被忽略产物
+有就分流，每条观察只去**一个**地方：
 
-### Step 3 — 确定性验证
+| 观察的性质 | 去哪 |
+|---|---|
+| 全局规则 / 事实 | `CLAUDE.md`（一行，保持精简） |
+| 流程 / 程序 | `.dsh/skills/<name>/SKILL.md` |
+| 架构 / 方向（为什么这样选） | `docs/decisions/ADR-N` |
+| 可复用的坑（不会复发） | `docs/lessons.md` |
+| 机械可校验的不变量 | `tests/` · `.githooks/`（唯一真强制层） |
+| 瞬时状态 | git 与分支本身 |
+| 拿不准 / 一次性的 | **丢弃** |
 
-**只有一个收尾入口，就是它**（2026-09-12 收敛；此前 check/test/fastcheck/finish 四个 npm 别名
-+ 手工 git 是四套说法，已被删除）：
+判不准就用「丢弃」。预防性机制一律不建，宁缺毋滥——**不要每条观察都写进记忆**。
+
+### 3. 落盘 —— 一条命令，一次提交
 
     uv run python scripts/state.py finish "type: 摘要"
 
-它自己会做三件事：跑**全量**质检（compile+ruff+pyright+pytest+depguard+memory+audit+module-map 刷新）
-→ 通过则由它自己暂存并提交（**不要手工暂存**）→ 红了拒绝落盘、改动原样留在工作区。
+- 它跑**全量**质检（compile+ruff+pyright+pytest+depguard+memory lint/gc+module-map 刷新），**红了就拒绝提交，改动原样留在工作区**。
+- 暂存与提交由它一手包办（**不要手工暂存**）。你写的那条摘要就是本次的会话摘要——不需要另写一份报告。
+- 因为动作 1、2 都发生在它之前，**反思产出的知识改动和代码改动进的是同一个 commit**，不会留下"反思完了但没提交"的悬空状态。
+- 改到一半想秒级只读快检：`uv run python scripts/fastcheck.py --quick`（pre-commit 跑的就是它，两条路同一扇门）。
+- **本技能只出现这两条项目工具命令名。**不要发明等价的第三套工具。
 
-- 改到一半想快检（秒级、只读、不提交）：`uv run python scripts/fastcheck.py --quick`
-- **不要发明等价的第三套工具**；本技能只准出现上面这两条命令名
+推送不属于本技能，但收尾时记得：`git fetch origin` → 评估分叉 → rebase → push → 确认 `git status -sb` 为 ahead=0 behind=0。
 
-### Step 4 — 修复
-失败 → 诊断 → 修复 → 重跑验证。**能修就修，不停在报错。**
+## 两条铁律
 
-### Step 5 — 反思与知识归类（主 agent 直接做，不再委派子代理）
-1. 组装**会话摘要**（3-8 行：做了什么 / 决策 / 学到什么 / 验证结果）。
-2. 主 agent 按 Step 6 的五路分流，把本会话真正可复用的观察归类，产出待落盘清单（lesson / CLAUDE.md / skill / ADR / test-hook / 丢弃）。
-3. **去重、保持精简**：只改真正变化的工件；拿不准可复用性的一律丢弃，不阻塞收尾。
-
-**不要每条观察都写进记忆**（防记忆污染）。晋升管线见下方。
-
-### Step 6 — 知识晋升（五路分流）
-```
-Observation → 可复用? → No 丢弃 / Yes → 会复发? → No lesson(docs/lessons.md)
-                                                    / Yes → 五路分流 ↓
-  全局规则/事实 → CLAUDE.md（精简一行，保持 <120 行）
-  流程/程序   → .dsh/skills/<name>/SKILL.md（新增或修订技能）
-  架构/方向   → docs/decisions/ADR-N（为什么这样选）
-  瞬时状态   → git 与分支本身（loop_state.json 已随 ralph 层删除）
-  机械可校验 → tests / lint / git-hook（唯一真强制层；规则/lesson 都是 prompt 级）
-```
-
-### Step 7 — 只更新真正变化的工件
-| 工件 | 何时更新 |
-|---|---|
-| git（分支 + commit） | 当前状态 / 里程碑（loop_state.json 已随 ralph 层删除） |
-| `docs/lessons.md` | 可复用 lesson |
-| `docs/decisions/` | 架构决策（为什么这样选） |
-| `CLAUDE.md` | 稳定操作规则（保持精简，别膨胀） |
-| `tests/` · `.githooks/` · `scripts/` | 机械可校验不变量 |
-
-**不要每个任务都改全部文件。**
-
-### Step 8 — git 落盘
-- **就是 Step 3 的那条命令**：`state.py finish "type: 摘要"` —— 它负责 add + commit，不要再手工 add。
-- 推送前 `git fetch origin` 评估分叉 → rebase 后 push；确认 `git status -sb` ahead=0 behind=0
-- Windows 下 stderr 报错但看到 `main -> main` 即成功
-
-## 数据真实性校验（先于任何落盘，最致命）
-
-每条要落盘的数据必须是**本会话实测/真实产出**，有证据文件可查（`output/*.json`、脚本输出）。**禁止把"假设/虚构/规划中"的结果当真数据落盘**。拿不出证据 → 只写"待验证/规划"。审计：`uv run python scripts/audit.py`。
-- **派生指标口径一致性**：入库数据里缓存的派生指标（cer/em 等）必须与当前代码口径一致——有一致性测试的由测试兜底；无测试的落盘前用现行 metrics 重算一遍（L14）。
-
-## Finish Report（收尾输出，给下一个 Agent 读）
-
-```
-## Finish Report
-Status: PASS / PASS WITH NOTES / FAIL
-Validation:
-- lint:      （本仓无独立 lint；语法门 = check）
-- typecheck: （无类型检查器；结构由单测覆盖）
-- tests:     n passed / n failed
-- build:     n/a
-- other:     smoke / precheck
-Files changed:
-- ...
-Knowledge updated:
-- progress:  是/否
-- lessons:   L#（标题）
-- rules:     是/否（CLAUDE.md）
-- skills:    是/否（新增/修改 .dsh/skills/）
-- decisions: ADR-#（标题）
-New constraints created:
-- tests/xxx.py 校验 ...
-Remaining risks:
-- ...
-```
-
-不要写成长篇流水账。
+1. **数据真实性**：要落盘的数据必须是本会话实测产出，有证据文件可查（`output/*.json`、脚本输出）。禁止把假设 / 规划中 / 虚构的结果当真数据落盘——曾把虚构的 "PaddleOCR-VL CER 0.11" 当真落盘推送，需回滚。拿不出证据就写"待验证"。**本仓已无自动审计器（`scripts/audit.py` 已归档），这条是 prompt 级规则，靠自律。**
+2. **派生指标口径一致**：入库数据里缓存的派生指标（cer/em 等）必须与当前代码口径一致。有一致性测试的由测试兜底；无测试的，落盘前用现行 metrics 重算一遍（L14）。
 
 ## 常见坑
 
-- **假数据落盘（最致命）**：见上方数据真实性校验。实测教训：曾把虚构 "PaddleOCR-VL CER 0.11" 当真落盘推送需回滚。
-- **职责重复**：坑/经验只进 `docs/lessons.md`（唯一归属），CLAUDE.md 只留一行指针 + 稳定规则，瞬时状态由 git 与分支本身承载（`loop_state.json` 已随 ralph 层删除，`docs/progress.md` 已废弃，由 `state.py` 替代），不重复。
-- **不要手工暂存**：收尾由 `state.py finish` 统一暂存提交（它跑完质检才动 git）。
-- **Windows stderr 误报**：push 成功但标 exit 1 → 看 `main -> main` 与 `git status -sb`。
-- **记忆膨胀**：lesson 已自动化（有测试/hook）后，在 lessons.md 标注 `[已自动化]`，不要把重复规则再堆进 CLAUDE.md。
+- **Windows push stderr 误报**：看到 `main -> main` 且 `git status -sb` ahead=0 即成功，exit 1 可忽略。
+- **记忆膨胀**：lesson 已有测试/hook 兜底后，在 `docs/lessons.md` 标 `[已自动化]`，不要把同一条规则再堆进 CLAUDE.md。
+- **收尾规程只有一处**：就是本文件；执行入口只有 `state.py finish`。在别处写第二套等价步骤会被 `tests/test_harness_covenant.py` 的 H7 拦下。

@@ -16,14 +16,13 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 | 搞懂代码现状 | `uv run python scripts/peek.py` | 打印当前 stage/engine/上下游/占位与孤儿阶段（读当前源码，非文档）。**它只干这件事**：找模块/函数/类用 grep，模块总览读 `docs/module-map.md` |
 | 批量改导入路径 | `uv run python scripts/refactor_module.py --old <旧点路径> --new <新点路径> [--dry-run] [--test]` | 重命名模块时用，禁止手改 imports（深接口工具，`--dry-run` 先预览） |
 | 找产物 | `uv run python scripts/artifact.py {query\|find\|invalidate} ...` | **一个 `query` 原语覆盖所有查询场景**：`--work-id <id>` 或 `--all`，可选 `--stage`/`--page`/`--format {json,table}`。`find` 是兼容层（要 `--stage`+`--page`+`--artifacts-dir`）。`invalidate` 失效单页缓存（要 `--work-id`+`--page`）。**拿不准先 `--help`，别照抄本行** |
-| 对话状态 | `uv run python scripts/state.py finish "summary"` | **唯一收尾入口**：先跑全量质检，红了拒绝提交（急用 `--skip-check`）。替代 progress.md，不需要手动 git log。改到一半的秒级快检直接跑 `fastcheck.py --quick`，不经过 state.py |
 | 生成报告 | `uv run python scripts/gen_report.py --work-id <id> --src-dir <dir> --pages N-M` | 验收唯一视觉载体（前三个参数**必填**）；深接口：再叠加 `--granularity page\|region` + `--stages raw,detect,ocr,translate,inpaint,typeset` 自由组合 |
 | 分享文件 | `uv run python scripts/share_file.py --file <路径>` | 一键上传到飞书云空间并生成公网链接（互联网任何人可阅读）；手机端查看产物时必用，禁止给本地路径 |
 | 质检 | `uv run python scripts/fastcheck.py` | 收尾必跑 |
 | 记忆检索 | `uv run python scripts/memory.py {read|grep|index|recent|status|lint|gc|inject}` | 先查记忆再动手，别重踩坑。`grep` 全库检索 / `read` 按 ID 深读（L<n> / ADR-n）/ `inject` 刷新 DSH 注入包 |
 
 ## 必执行 Checklist（chained，AI 自主触发）
-- **对话结束**：用 `state.py finish "summary"` 落盘（**唯一**收尾命令；npm 别名：`check`=fastcheck --quick、`finish`=state.py finish，其余已删）——**它内置完整质检，红了拒绝提交**，所以"全量门槛没跑"在机制上不可能再发生；不需要手动 git add/commit
+- **对话结束**：走 **cycle-close** 协议收尾。落盘唯一入口 `state.py finish "summary"`——**它内置全量质检，红了拒绝提交**（急用 `--skip-check`），不需要手动 git add/commit。npm 别名见 `package.json`，不在此处复述
 - **改到一半**：`fastcheck.py --quick` 秒级只读快检，不用等收尾（pre-commit 跑的就是它，两条路同一扇门）
 - 搞懂代码现状：**先 `peek` 看管线全貌，再用 grep / `docs/module-map.md` 定位模块**，然后才读目标文件；不要先翻 workspace/ 旧产物
 - 找产物/查缓存/列某阶段文件：**用 `artifact.py`**，禁止翻目录
@@ -32,7 +31,6 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - 需要外部信息/调研：**委派 research skill 后台 subagent**
 - 跑管线：**用 `run_pipeline.py`**，启动时自动环境自检，不需要手动检查代理/.env/模型
 - 管线完成后：**自动调用 `gen_report.py` 生成报告**
-- 会话结束/收尾：**走 cycle-close 收尾协议做反思与知识归类（质检/提交唯一入口 state.py finish）**
 
 ## 渐进式加载（遇到 X → 先做 Y）
 | 症状 / 场景 | 先做 |
@@ -44,8 +42,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 | 想新增守卫 / hook / 工具 | `docs/friction.md`（不顺账；没有对应账目的机制不建） |
 
 ## 工作协议
-- **任务收尾走 /finish**（cycle-close）：复读任务→审查 diff→确定性验证→修复→反思→知识晋升→只更新真正变化的工件→Finish Report→git 落盘。
-  **规程单一真相源**：收尾命令只有 `state.py finish`；任何人（含 AI）不得在 skill/文档里写第二套等价步骤——`tests/test_harness_covenant.py` 的 H7 会拦。
+- **收尾规程单一真相源**：收尾怎么做，只有一处定义——`cycle-close` skill（正文）；收尾的**执行入口**只有 `state.py finish`。任何人（含 AI）不得在别处写第二套等价步骤——`tests/test_harness_covenant.py` 的 H7 会拦。
 - **知识晋升五路分流**：全局规则(CLAUDE.md)·流程(.dsh/skills/)·架构(docs/decisions/ADR-N)·机械(test/lint/hook)；test/lint/hook 是唯一真强制层
 - **机械护栏分层**：pre-commit `fastcheck --quick`（秒级，**不含 pytest**，只读不写文件）→ `state.py finish` 强制跑完整（含 pytest/depguard/memory/**module-map 刷新**）→ pre-push 无强制检查。安装：`scripts/install_hooks.ps1`。
   ⚠️ **--quick 不是门槛，是门槛的一半**：2026-09-10 事故——脚本清理后 12 条测试永久变红、无人察觉约两天，因为唯一的 commit 拦截层只跑 --quick。**"通过了"必须说明跑的是哪一层。**

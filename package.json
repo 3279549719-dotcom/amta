@@ -5,7 +5,6 @@
   "private": true,
   "engines": { "node": ">=18" },
   "scripts": {
-    "start": "powershell -ExecutionPolicy Bypass -File scripts/start_koharu.ps1",
     "koharu:check": "powershell -ExecutionPolicy Bypass -File scripts/precheck.ps1",
     "check": "uv run python scripts/fastcheck.py --quick",
     "finish": "uv run python scripts/state.py finish",
