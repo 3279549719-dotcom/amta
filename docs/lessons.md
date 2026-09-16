@@ -37,6 +37,8 @@
 - L41 — depguard 补声明已传递安装的依赖时，版本读 uv.lock 的公共版本，别抄 `__version__` 的本地构建标签（+cpu）
 - L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
 - L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
+- L46 — VLM 逐框字体风格分类：contact sheet 可行但不精准，整页带框因分辨率不够全错
+- L47 — 行为变更必同步测试断言；烂 venv 的门是纸糊的（6 红静默溜进 main 实证）；方向选择由几何推断决定，不由 1px 字号噪声决定
 
 ---
 
@@ -288,6 +290,15 @@
 - **Durable lesson**：VLM 逐框视觉分类有 trade-off——contact sheet 看得清但孤立，整页有全局但字糊。两者结合成本翻倍不值得。v2（contact sheet + 纯物理标签）技术上可行（~66%），生产级需调 max_cell_h 和 prompt。不要让 VLM 从语气类标签选。
 - **Prevention**：脚本在 scripts/probes/probe_vlm_font_style.py，分支 experiment/vlm-font-style。重启时先调 v2 参数，不要回 v3 整页方案。
 - **Regression**：3页实验（touhou-p17-20-e2e p14/17/18），对比图 workspace/touhou-p17-20-e2e/vlm_font_probe/comparison_v2.png。
+
+## L47 — 行为变更必同步测试断言；烂 venv 的门是纸糊的
+
+- **Problem**：main 侧 6 测试红 + 3 静态错静默存活多日。ce08bb8 删方向阈值改了 `infer_direction_from_bbox` 行为但测试断言未跟；且 main-inpaint worktree 的 venv 是化石（比 lockfile 多 26 旧包、缺 onnxruntime），在那边做的历次 merge/finish 的"全量质检"从未真正跑过 pytest——门是纸糊的，红就这么溜进 main。
+- **Root cause**：①行为变更与测试断言脱节（commit 改了语义，测试还断言旧世界）；②环境腐坏是静默的：venv 过期不报错，pytest 收集即炸才暴露，而 finish 门在烂环境里跑出的"通过"是假绿。
+- **Durable lesson**：①任何改行为的 commit 必须同 commit 更新受影响断言，`--skip-check` 留痕的债必须在下个会话首要还清，且当时已知 1 红实则 6 红——债务规模会静默膨胀；②worktree 的 venv 是目录级快照，不随 lockfile 更新，长命 worktree 必须用前 `uv sync` 或直接弃用；③窄长框纯字号选优实测横排 43 vs 竖排 42——1px 噪声级差距就翻转排版方向，方向选择必须由几何推断（bbox 长宽比）锚定，不能交给字号噪声。
+- **Prevention**：行为变更的 PR 模板含"受影响测试清单"；worktree 长期不用即删（2026-09-16 main-inpaint 已删）。
+- **Regression**：tests/test_typeset_engine.py::test_narrow_tall_box_prefers_vertical_with_large_font（改走真实管线契约：推断→传入）；fastcheck 457 passed / 0 failed。
+
 
 ## 模板（新增时复制）
 

@@ -48,10 +48,30 @@ def _cmd_read(a: argparse.Namespace) -> int:
     return 1
 
 
+def _count_entries(kind: str) -> int:
+    """数知识地产条目数：lessons 的 `## L` 标题 / decisions 的 ADR-*.md 文件。"""
+    root = estate_root()
+    if kind == "lessons":
+        f = root / "docs" / "lessons.md"
+        if not f.is_file():
+            return 0
+        return sum(1 for line in f.read_text(encoding="utf-8").splitlines()
+                   if line.startswith("## L"))
+    d = root / "docs" / "decisions"
+    if not d.is_dir():
+        return 0
+    return sum(1 for p in d.glob("[0-9][0-9][0-9]-*.md"))
+
+
 def _cmd_grep(a: argparse.Namespace) -> int:
     hits = memory_tools.do_grep(estate_root(), query=a.query, scope=a.scope, limit=a.limit)
     if not hits:
-        print(f"[memory] 无命中：{a.query!r}（scope={a.scope}）——换个关键词，或 memory.py index 看清单")
+        # 语料统计：让调用方能区分「库里没记」vs「关键词不对」
+        n_lessons = _count_entries("lessons") if a.scope in ("all", "lessons") else 0
+        n_adr = _count_entries("decisions") if a.scope in ("all", "decisions") else 0
+        print(f"[memory] 无命中：{a.query!r}（scope={a.scope}）")
+        print(f"[memory] 语料规模：lessons {n_lessons} 条 / ADR {n_adr} 份"
+              "（0 命中 = 库里没记这条经验；想看清单：memory.py index）")
         return 0
     for h in hits:
         print(memory_tools._fmt(h))
