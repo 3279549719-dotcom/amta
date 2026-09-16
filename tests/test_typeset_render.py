@@ -41,7 +41,8 @@ def test_vertical_render_multi_column():
 def test_render_returns_meta_shape():
     img = Image.new("RGB", (100, 100), "white")
     meta = render_item(img, "短", FONT, [10, 10, 90, 90], stroke=0)
-    assert set(meta) == {"layout_direction", "font_size", "lines", "anchor_pos", "preferred_direction"}
+    assert set(meta) == {"layout_direction", "font_size", "lines", "anchor_pos",
+                         "preferred_direction", "rendered_color", "rendered_stroke"}
     assert meta["preferred_direction"] is None  # 接近方形的框推断为 None
 
 

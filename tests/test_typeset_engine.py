@@ -12,12 +12,22 @@ FONT_PATH = Path("C:/Windows/Fonts/msyh.ttc")
 
 
 def test_narrow_tall_box_prefers_vertical_with_large_font():
-    """探针：窄长框（宽207高954，47字）应选竖排，字号应>=30（旧实现横排仅19px）。"""
-    from amta.typeset.typeset_engine import fit_font_size
+    """探针：窄长框（宽207高954，47字）经几何推断首选竖排，字号应>=30。
+
+    历史背景：本测试诞生时旧实现横排仅19px（二分漏解）。9bcc04c 补扫修复后
+    横排可达43px，纯字号选优会以 1px 之差（43 vs 42）选横排——方向翻转在
+    噪声级差距上发生，故方向由几何推断决定（render 层契约），不由字号选优
+    决定。本测试镜像真实管线调用方式：infer_direction_from_bbox -> 传入。
+    """
+    from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
     bbox = [0, 0, 207, 954]
     text = "在那之后我的研究可能是因为八意大人开始插嘴的缘故进展得很顺利虽然很烦人但我忍耐了"
-    font_size, direction, lines = fit_font_size(text, FONT_PATH, bbox)
-    assert direction == "vertical", f"窄长框应选竖排，实际选了{direction}"
+    preferred = infer_direction_from_bbox(bbox)
+    assert preferred == "vertical"  # 高宽比 4.61，几何上就是竖排框
+    font_size, direction, lines = fit_font_size(
+        text, FONT_PATH, bbox, preferred_direction=preferred
+    )
+    assert direction == "vertical", f"窄长框首选竖排，实际选了{direction}"
     assert font_size >= 30, f"竖排字号应>=30，实际{font_size}（旧实现横排仅19px）"
     assert isinstance(lines, list) and len(lines) >= 1
     # 竖排多列：每列是子串，总字数等于原文

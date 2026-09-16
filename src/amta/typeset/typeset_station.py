@@ -20,7 +20,7 @@ from PIL import Image
 from amta.common.paths import read_json, write_json
 from amta.stores.artifacts import load_canon
 from amta.typeset.fonts import resolve_font
-from amta.typeset.typeset_engine import fit_font_size
+from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
 from amta.typeset.typeset_render import render_item
 
 
@@ -110,10 +110,12 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         stroke = ctx["stroke"]
         bbox = ctx["bbox"]
         target_size = ctx["target_size"]
-        # 用目标字号渲染（fit_font_size 从 target_size 往下找能放下的最大字号）
-        # 方向不强制：由 render_item 从 bbox 长宽比自动推断（竖长框竖排，横长框横排）
+        # 用目标字号渲染（fit_font_size 从 target_size 征下找能放下的最大字号）
+        # 方向推断：从 bbox 长宽比推断原排版方向（日漫竖长框竖排），传给渲染层
+        preferred = infer_direction_from_bbox(bbox)
         meta = render_item(img, text, font_path, bbox, stroke=stroke,
-                           base_size=target_size)
+                           base_size=target_size,
+                           preferred_direction=preferred)
         meta["region_id"] = rid
         meta["font_family"] = Path(font_path).name
         meta["stroke_width"] = stroke

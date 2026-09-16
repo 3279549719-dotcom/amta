@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageStat
 
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
 
@@ -28,14 +28,13 @@ def _decide_color_and_stroke(img: Image.Image, bbox: list,
     """
     x1, y1, x2, y2 = [int(v) for v in bbox]
     region = img.crop((x1, y1, x2, y2)).convert("L")
-    pixels = list(region.getdata())
-    if not pixels:
+    if region.width == 0 or region.height == 0:
         return suggested_color, suggested_stroke
-    n = len(pixels)
-    brightness = sum(pixels) / n
+    # 灰度统计用 ImageStat（C 实现）：替代手工像素循环，修复 pyright ImagingCore 协议违规
+    stat = ImageStat.Stat(region)
+    brightness = stat.mean[0]
     # 方差：衡量背景纹理复杂度
-    mean = brightness
-    variance = sum((p - mean) ** 2 for p in pixels) / n
+    variance = stat.stddev[0] ** 2
 
     if brightness > 140 and variance < 800:
         # 亮底平背景：黑字不描边
@@ -68,8 +67,9 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     """
     x1, y1, x2, y2 = [int(v) for v in bbox]
     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-    # 方向不预筛选：纯字号选优（横长框横排自然字号大，竖长框竖排自然字号大）
-    preferred_direction = None
+    # 方向推断：尊重调用方显式指定；None 时从 bbox 长宽比几何推断（9-16 债务修复）
+    if preferred_direction is None:
+        preferred_direction = infer_direction_from_bbox(bbox)
     font_size, direction, lines = fit_font_size(
         text, Path(font_path), bbox, preferred_direction=preferred_direction,
         base_size=base_size
@@ -100,7 +100,7 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     return {"layout_direction": direction, "font_size": font_size,
             "lines": lines, "anchor_pos": [cx, cy],
             "preferred_direction": preferred_direction,
-            "rendered_color": "#%02x%02x%02x" % color,
+            "rendered_color": f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}",
             "rendered_stroke": stroke}
 
 
