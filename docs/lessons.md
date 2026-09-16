@@ -281,6 +281,14 @@
 - **Prevention**：hook_pretooluse.py 已改 `hookSpecificOutput` 包装（allow/deny + permissionDecisionReason），settings 加 `matcher: "Bash"` 收窄触发面（Read/Grep/Edit 不再触发）。新写 hook 一律用 hookSpecificOutput + matcher。
 - **Regression**：`claude -p` 冒烟 Bash 命令无 hook error（allow 路径，2026-09-05）；deny 真拦 + ralph 无头下 deny 是否 end turn，待一次故意 fastcheck FAIL 的 commit 实测。
 
+## L46 — VLM 逐框字体风格分类：contact sheet 可行但不精准，整页带框因分辨率不够全错
+
+- **Problem**：实验"给不同文字配不同字体"时，让 VLM 判断每个 crop 的字形风格。v1（contact sheet + 6类语气标签）受文字内容干扰；v2（contact sheet + 4类物理标签）3页对2页（14✅ 18✅ 17全判手写❌）；v3（整页带框+自由描述）整页缩到2000px后字太小，三页全错。
+- **Root cause**：(1) contact sheet 看得清笔画但 VLM 逐格孤立判断，失去全局上下文；(2) 整页带框有全局但缩图后小字糊；(3) prompt 混入语气类标签会让 VLM 去读文字内容而非看字形。
+- **Durable lesson**：VLM 逐框视觉分类有 trade-off——contact sheet 看得清但孤立，整页有全局但字糊。两者结合成本翻倍不值得。v2（contact sheet + 纯物理标签）技术上可行（~66%），生产级需调 max_cell_h 和 prompt。不要让 VLM 从语气类标签选。
+- **Prevention**：脚本在 scripts/probes/probe_vlm_font_style.py，分支 experiment/vlm-font-style。重启时先调 v2 参数，不要回 v3 整页方案。
+- **Regression**：3页实验（touhou-p17-20-e2e p14/17/18），对比图 workspace/touhou-p17-20-e2e/vlm_font_probe/comparison_v2.png。
+
 ## 模板（新增时复制）
 
 ```
