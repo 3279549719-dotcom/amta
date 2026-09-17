@@ -83,7 +83,8 @@ def _pixel_diff_ratio(a: Image.Image, b: Image.Image) -> float:
 
 def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
         clean_dir: Path | None = None, dry_run: bool = False,
-        inpaint_engine: str = "lama-manga") -> dict:
+        inpaint_engine: str = "lama-manga",
+        trans_path: Path | None = None) -> dict:
     """单页 inpaint：detection.json + raw → clean.png + inpaint.json。
 
     Args:
@@ -99,6 +100,14 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
     raw_img = Image.open(raw_page).convert("RGB")
     img = raw_img.copy()
     regions = det.get("blocks") or det.get("regions") or []
+
+    # 契约：只擦有译文的框——上游 translate 已经判断过哪些需要翻
+    if trans_path and trans_path.exists():
+        trans = read_json(trans_path)
+        translations = trans.get("translations", {})
+        keep_rids = {rid for rid, dst in translations.items() if dst and dst.strip()}
+        regions = [r for r in regions if r.get("region_id") in keep_rids]
+
     plan = plan_inpaint(regions, det.get("image_meta"))
 
     filled = [p for p in plan if p["action"] == FILL_WHITE]

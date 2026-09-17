@@ -15,7 +15,7 @@ from ..context import StationContext, StationResult
 def run(ctx: StationContext) -> StationResult:
     """执行 inpaint 工位。
 
-    上游依赖：ctx.inputs["detect"] → detection.json
+    上游依赖：ctx.inputs["detect"] → detection.json, ctx.inputs["translate"] → translation.json
     从 ctx.config 读取：inpaint_engine（默认 "lama-manga"）
     产出：{artifacts_dir}/{page}_inpaint.json + {artifacts_dir}/clean/{page}_clean.png
     """
@@ -24,6 +24,8 @@ def run(ctx: StationContext) -> StationResult:
         det_path = ctx.inputs.get("detect")
         if det_path is None:
             raise ValueError("上游 detect 产物路径缺失，检查阶段依赖配置")
+
+        trans_path = ctx.inputs.get("translate")
 
         out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["inpaint"]
         clean_dir = ctx.artifacts_dir / "clean"
@@ -35,6 +37,7 @@ def run(ctx: StationContext) -> StationResult:
             out_path=out_path,
             clean_dir=clean_dir,
             inpaint_engine=ctx.config["inpaint_engine"],
+            trans_path=trans_path,
         )
 
         duration = time.perf_counter() - t0
@@ -61,4 +64,3 @@ def run(ctx: StationContext) -> StationResult:
             duration_s=round(duration, 2),
             error=f"{type(e).__name__}: {str(e)[:200]}",
         )
-
