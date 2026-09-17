@@ -106,7 +106,7 @@ def _build_registry() -> dict[str, StageSpec]:
         "inpaint": StageSpec(
             name="inpaint",
             station=inpaint_run,
-            consumes=["detect"],
+            consumes=["detect", "translate"],
             produces="inpaint",
             default_config={
                 "inpaint_engine": "lama-manga",
