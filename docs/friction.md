@@ -17,8 +17,8 @@
 
 - [2026-09-12] 交接清单被做成 dsh-ui 表格，对方没渲染出来 → 说了等于没说 | 未还
 - [2026-09-12] 每次开对话，注入包都写「idle — ralph v4 待命，更新 09-07」，而实际在改 typeset | 已还：包 A（注入包不再带接续状态）
-- [2026-09-12] 同一件收尾（finish）有三套说法，其中一套写着假事实（「本仓无 lint／无 typecheck」）| 未还（包 B）
-- [2026-09-12] `audit.py --strict` 报「未发现 Harness 熵」，而 `workspace/` 躺着 34 个目录 629MB（判据 glob `ws-*`，实际 0 个）| 未还（包 C）
+- [2026-09-12] 同一件收尾（finish）有三套说法，其中一套写着假事实（「本仓无 lint／无 typecheck」）| 已还：2026-09-12 收敛到 `state.py finish` 单一执行入口 + `tests/test_harness_covenant.py` H7 探针持续拦截；2026-09-17 清掉 cycle-close 与 CLAUDE.md 里残留的旧说法与 9 步枚举（AI 代记）
+- [2026-09-12] `audit.py --strict` 报「未发现 Harness 熵」，而 `workspace/` 躺着 34 个目录 629MB（判据 glob `ws-*`，实际 0 个）| 否决：工具已归档到 `scripts/archive/`——判据 glob 写错且无消费者，"坏了 N 天没人发现 = 没人用 = 该删"（AI 代记）
 
 - [2026-09-16] 跑完管线只报 failed=0，39 页真台词被 conf 过滤误删系统一声不吭，质量信号全埋 JSON 里靠人眼捞（豆包手写 PowerShell 三轮才拼出体检表）→ run_pipeline 收尾直接吐质量红榜 | 已还：feat/quality-audit（AI 代记：豆包 18:19 自报告）
 - [2026-09-16] 看小泡三态对比要手写 PIL 裁图拼画布（错一次）→ 期望给个 region_id 自动拼三态裁片 | 未还（AI 代记：豆包 18:19 自报告；等第二次真实卡壳——红榜+gen_report --granularity region 可能已覆盖）
