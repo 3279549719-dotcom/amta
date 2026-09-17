@@ -38,6 +38,7 @@
 - L43 — Windows 下 claude CLI 是 claude.cmd/.ps1：Python subprocess 不能直接执行，必须经 cmd /c 走 PATHEXT
 - L45 — Claude Code ≥2.1.210 收紧 PreToolUse hook 输出 schema：legacy {"decision":...} 被拒 + guard 静默假死
 - L46 — VLM 逐框字体风格分类：contact sheet 可行但不精准，整页带框因分辨率不够全错
+- L48 — residue 正则把片假名中点「・」/长音符「ー」误判为日文残留
 - L47 — 行为变更必同步测试断言；烂 venv 的门是纸糊的（6 红静默溜进 main 实证）；方向选择由几何推断决定，不由 1px 字号噪声决定
 
 ---
@@ -298,6 +299,15 @@
 - **Durable lesson**：①任何改行为的 commit 必须同 commit 更新受影响断言，`--skip-check` 留痕的债必须在下个会话首要还清，且当时已知 1 红实则 6 红——债务规模会静默膨胀；②worktree 的 venv 是目录级快照，不随 lockfile 更新，长命 worktree 必须用前 `uv sync` 或直接弃用；③窄长框纯字号选优实测横排 43 vs 竖排 42——1px 噪声级差距就翻转排版方向，方向选择必须由几何推断（bbox 长宽比）锚定，不能交给字号噪声。
 - **Prevention**：行为变更的 PR 模板含"受影响测试清单"；worktree 长期不用即删（2026-09-16 main-inpaint 已删）。
 - **Regression**：tests/test_typeset_engine.py::test_narrow_tall_box_prefers_vertical_with_large_font（改走真实管线契约：推断→传入）；fastcheck 457 passed / 0 failed。
+
+
+## L48 — residue 正则把片假名中点「・」/长音符「ー」误判为日文残留
+
+- **Problem**：跑红榜时 page_1 报「残留原文 1 条」，但译文其实干净——是扉页那行「…合同祭事参**・**月之宴8」里的间隔号「・」触发的。用户误以为是感叹号被检查。
+- **Root cause**：`contains_japanese` 的正则是 `[\u3040-\u30ff]`，本意只抓平/片假名残留；但片假名区里还混着**中点 U+30FB「・」**和**长音符 U+30FC「ー」**——这两个在中文译文里是正常标点（间隔号、破折号），却被一起兜进残留判据。全角「！」(U+FF01)/「？」(U+FF1F) 在 FFF0 段，**不**误判，别冤枉感叹号。
+- **Durable lesson**：见红榜「残留原文 N 条」先别慌——把那条 residue 字符串拉出来逐字符看码位，多半是「・」/「ー」假阳性。真残留是假名（の、な、ン…），不是标点。
+- **Prevention**：未修。真要修就把 `_JAPANESE_RE` 改成在片假名段里挖掉 U+30FB，或在 residue 判定前 strip 掉「・」「ー」；修时补一个含「・」的中文译文不报警的单测。
+- **Regression**：page_1 残留字符串实测 `'2015.2.21 东方合同祭事参・月之宴8'`；实测 `contains_japanese('合同祭事参・月')==True`、`contains_japanese('太可爱了！')==False`。
 
 
 ## 模板（新增时复制）
