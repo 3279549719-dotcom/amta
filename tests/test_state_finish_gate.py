@@ -16,6 +16,7 @@ import pytest
 
 from amta.common.encoding import run_text
 from amta.common.state_manager import (
+    GitCommandFailed,
     QualityGateFailed,
     StateManager,
     finish_verified,
@@ -158,3 +159,49 @@ class TestRealGateShape:
         (repo / "new.txt").write_text("dirty\n", encoding="utf-8")
         StateManager(repo_root=repo).finish("feat: 裸 finish")
         assert "feat: 裸 finish" in _git(repo, "log", "--oneline", "-1")
+
+
+class TestWriteFailureIsNotSilent:
+    """写操作失败必须炸出来——2026-09-17 实测：唯一收尾入口假报 OK。
+
+    当时的真实路径：`git commit` 触发 pre-commit hook（hook 自己再跑一遍
+    `fastcheck --quick`，pyright 冷启动常超 10s）→ 超过 `_run_git` 的
+    `timeout=10` → `run_text_or` 按设计把超时吞成空串 → `finish_verified`
+    若无其事返回 → CLI 打印 "finish OK"，**而提交根本没落地**，改动静静
+    躺在暂存区。
+
+    根因不是超时本身，而是**只读探针的降级助手被复用到了写路径上**：
+    「读不到就返回空串」对状态查询是对的，对落盘是灾难。下面用「commit
+    非零退出」复现同一个失败形状（超时与非零退出在旧代码里都走同一条
+    静默返回路径）。
+    """
+
+    def _break_commits(self, repo) -> None:
+        """让 `git commit` 确定性地失败：签名程序不存在。"""
+        _git(repo, "config", "commit.gpgsign", "true")
+        _git(repo, "config", "gpg.program", "/nonexistent-gpg-binary")
+
+    def test_commit_failure_raises_instead_of_reporting_success(self, repo):
+        self._break_commits(repo)
+        (repo / "a.txt").write_text("changed\n", encoding="utf-8")
+        before = _head(repo)
+
+        with pytest.raises(GitCommandFailed):
+            finish_verified("probe: 落盘失败", gate=_gate_passes, repo_root=repo)
+
+        assert _head(repo) == before, "提交没落地，HEAD 不该动"
+        assert _git(repo, "status", "--short").strip(), "改动应原样留在工作区"
+
+    def test_write_path_actually_uses_strict_variant(self, repo):
+        """直接锁住机制：写方法失败必须抛，读方法失败必须降级。"""
+        self._break_commits(repo)
+        (repo / "a.txt").write_text("changed\n", encoding="utf-8")
+        m = StateManager(repo_root=repo)
+
+        with pytest.raises(GitCommandFailed):
+            m._run_git_write("commit", "-m", "x")
+
+    def test_read_probes_still_degrade_silently(self, repo):
+        """修复不得误伤读取路径：探针失败仍返回空串，不让 CLI 崩。"""
+        m = StateManager(repo_root=repo)
+        assert m._run_git("log", "--definitely-not-a-real-flag") == ""

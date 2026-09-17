@@ -93,13 +93,38 @@ class StateManager:
             self.repo_root = Path(repo_root)
 
     def _run_git(self, *args: str) -> str:
-        """跑 git 命令，返回 stdout。失败/超时返回空串。
+        """**只读** git 命令，返回 stdout。失败/超时返回空串。
 
         返回类型**永远是 str**：曾经用 `subprocess.run(text=True)` 时，中文 commit
         message 会让解码在 reader thread 内失败并静默产出 `stdout=None`，
         一路传到 `StateSnapshot.__str__` 炸成 AttributeError。
+
+        仅用于状态探针（log/diff/status/branch）——读不到就降级成空串，不让 CLI 崩。
+        **写操作（add/commit/tag）必须用 `_run_git_write`**：见那里的 2026-09-17 事故。
         """
         return run_text_or(["git", *args], cwd=self.repo_root, timeout=10)
+
+    def _run_git_write(self, *args: str, timeout: float = 600) -> str:
+        """**写** git 命令（add/commit/tag）：失败必须炸出来，绝不静默。
+
+        ## 为什么不能让读写共用 `_run_git`（2026-09-17 实测）
+
+        `_run_git` 走 `run_text_or`，而它的契约是"失败返回 default 空串"
+        （只读探针降级用）。`git commit` 会触发 pre-commit hook，而那个 hook
+        自己还要跑一遍 `fastcheck --quick`——pyright 冷启动常超 10 秒。
+        于是：commit 超时 → 被吞成空串 → `finish_verified` 正常返回 →
+        CLI 打印 "finish OK"，**而提交根本没落地**，改动静默停在暂存区。
+
+        唯一收尾入口报成功、而什么都没发生——正是本项目最怕的那类
+        "看起来已生效"。所以写操作改用宽超时 + 非零退出码即抛。
+        """
+        result = run_text(["git", *args], cwd=self.repo_root, timeout=timeout)
+        if result.returncode != 0:
+            raise GitCommandFailed(
+                f"git {' '.join(args)} 失败（exit {result.returncode}）："
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        return result.stdout
 
     def bootstrap(self, env_check: bool = True) -> StateSnapshot:
         """对话开始：读取 git + env 状态，返回 StateSnapshot。
@@ -167,13 +192,20 @@ class StateManager:
             # 没有改动，不 commit（避免空 commit）
             return
 
-        # git add + commit
-        self._run_git("add", "-A")
-        self._run_git("commit", "-m", summary.strip())
+        # git add + commit（写操作走 strict 版：失败必须炸，不能报 OK 却没提交）
+        self._run_git_write("add", "-A")
+        self._run_git_write("commit", "-m", summary.strip())
 
         # 打 tag（如果是里程碑）
         if tag:
-            self._run_git("tag", tag)
+            self._run_git_write("tag", tag)
+
+
+class GitCommandFailed(RuntimeError):
+    """写型 git 命令失败（add/commit/tag）→ 落盘没发生，必须让调用方知道。"""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
 
 
 class QualityGateFailed(RuntimeError):

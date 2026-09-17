@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from amta.common.state_manager import QualityGateFailed, finish_verified
+from amta.common.state_manager import GitCommandFailed, QualityGateFailed, finish_verified
 
 
 def main() -> int:
@@ -74,6 +74,10 @@ def _cmd_finish(args: argparse.Namespace) -> int:
         return 1
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    except GitCommandFailed as e:
+        # 质检过了但 git 写失败 → 绝不能说 OK（2026-09-17：曾静默超时假报成功）
+        print(f"ERROR: 质检已过，但落盘失败：{e}", file=sys.stderr)
         return 1
     print(f"[state] finish OK: {summary.strip().splitlines()[0]}")
     return 0
