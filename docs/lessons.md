@@ -326,6 +326,14 @@
   - inpaint consumes 从 ["detect"] 改成 ["detect", "translate"]，只擦有译文的框。
 - **Regression**：月天新地单页版 p5/p10 实测：r13/r02 纯省略号框输出空译文，inpaint 不擦，typeset 不写。
 
+## L50 — 结构性“排字成功”不等于译文可读：竖排页必须有语义视觉验收
+
+- **Problem**：`touhou-getten-shinchi` 第 21–30 页全流程 50/50 步骤成功；typeset 产物都报 `coverage_complete=true`，报告除 p29 的一个边缘误检外无内容警告，但人工抽查 p21/p24/p26/p29/p30 的最终图发现多处竖排中文出现阅读顺序错乱、语义不通或窄框多列难以阅读，不能作为成品交付。
+- **Root cause**：现有质量信号只验证产物存在、区域覆盖、溢出和日文残留；它没有把原图、OCR 文本、译文和最终排字放在同一个语义视觉判据下。因此无法判断问题源自竖排 OCR 顺序、翻译输入或渲染布局，也无法在“文件完整”但“阅读失败”时报警。
+- **Durable lesson**：整本生产不能把 `failed=0` 或 `coverage_complete=true` 当作质量完成。对竖排漫画，至少抽检有多列长文本的最终页；若出现一次跨多页的可读性失败，应先定位 OCR→翻译→排字哪一环破坏了阅读顺序，再继续扩大批量。
+- **Prevention**：未修。先以本批 21–30 页为回归样本设计一个最小的视觉/语义验收信号；不要先造 GUI，也不要仅靠扩大 `gen_report` 的静态展示掩盖问题。
+- **Regression**：实测报告 `output/touhou-getten-shinchi-batch-21-30.html`；运行记录 `workspace/touhou-getten-shinchi/state/pipeline_log.json` 中 run `3d9160d831d6`；代表性最终图为 `artifacts/final/page_21_final.png`、`page_24_final.png`、`page_26_final.png`、`page_29_final.png`、`page_30_final.png`。[已自动化：否]
+
 ## 模板（新增时复制）
 
 ```
