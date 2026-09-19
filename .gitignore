@@ -76,6 +76,10 @@ research/mb-research/
 # ---- temp debug / research notes ----
 workspace/dbg/
 research_tmp_*.md
+/.dsh_tmp_shot/
+
+# ---- pre-flattening local output retained outside the active workspace ----
+/amta/output/
 
 
 # workspace 运行时数据（全量不入库）
