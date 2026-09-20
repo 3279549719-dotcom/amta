@@ -40,6 +40,9 @@
 - L46 — VLM 逐框字体风格分类：contact sheet 可行但不精准，整页带框因分辨率不够全错
 - L48 — residue 正则把片假名中点「・」/长音符「ー」误判为日文残留
 - L47 — 行为变更必同步测试断言；烂 venv 的门是纸糊的（6 红静默溜进 main 实证）；方向选择由几何推断决定，不由 1px 字号噪声决定
+- L49 — 假阳性治理：translate纯标点条款 + inpaint契约理顺（省略号类假阳性闭环）
+- L50 — 散文铁律无断言 = 一周被违反 4 次：HTML 报告规则只有牙齿才叫规则
+- L51 — 判"没人用就删"必须横跨全部 harness：只统计一两份轨迹 = 不成立的证据
 
 ---
 
@@ -325,6 +328,28 @@
   - translate system prompt 已加"纯标点输出空"条款（2026-09-17）。
   - inpaint consumes 从 ["detect"] 改成 ["detect", "translate"]，只擦有译文的框。
 - **Regression**：月天新地单页版 p5/p10 实测：r13/r02 纯省略号框输出空译文，inpaint 不擦，typeset 不写。
+
+## L50 — 散文铁律无断言 = 一周被违反 4 次：HTML 报告规则只有牙齿才叫规则
+
+- **Problem**：CLAUDE.md 第 53 行写着「HTML 报告铁律：必须用 `src/amta/report/` 深接口，禁止 scripts/ 下新建独立 HTML 生成脚本」。2026-09-20 单日 commit `5f99f10` 在 `scripts/probes/` 新写 4 个手写 HTML 生成器（~170 行 base64 拼 `<figure>`），同日另归档 3 个；`grep -rl "DOCTYPE\|<html" scripts/` 命中 14 个文件、共 1516 行。**全程没有任何测试或 hook 会失败。**
+- **Root cause**：这条铁律写在「工作协议」里，属于**声明层**，但没有配探针——违反 `tests/test_harness_covenant.py` 的「新增声明 = 新增条款 + 新增探针」。声明没有探针 = 只靠散文存活，而散文拦不住任何人，正是 friction.md 说的"坏了 N 天没人发现"。
+- **Durable lesson**：
+  - 铁律级的「必须/禁止」，只要判据能写成一次 grep，就必须落成断言。只写在 CLAUDE.md 里的"禁止"，真实约束力等于 0——它约束的是**记得它的人**，而人恰恰是靠不住的变量。
+  - 判据的**扫描范围必须是活文件**（`src/` `scripts/` `tests/`），不能 rglob 全仓：`reference/`（第三方克隆）与 `research/`（历史记录）里的 HTML 是当时的事实，对它们报错等于伪造历史、并让守卫永久变红 → 被人关掉。同 `test_reference_integrity` 的「只扫活文件」原则。
+  - 草稿区要**显式声明**，不能靠默认放过：`scripts/probes/` 与 `scripts/archive/` 是草稿区，允许手写 HTML；生产路径（`src/` 除 `report/`、`scripts/*.py` 顶层、`tests/`）一律不许。
+- **Prevention**：`tests/test_lessons_guard.py::test_L50_no_ad_hoc_html_report` —— 活文件出现 `<!DOCTYPE`/`<html` 即 fail；允许区仅 `src/amta/report/`（深接口本体）+ `scripts/probes/`、`scripts/archive/`（草稿区）。
+- **Regression**：test_L50 本身；干跑基线 = 0 违规（生的就绿，不靠白名单回填）。
+
+## L51 — 判"没人用就删"必须横跨全部 harness：只统计一两份轨迹 = 不成立的证据
+
+- **Problem**：2026-09-15 按 DSH + Claude Code 两份轨迹统计，得出「`find_code.py` 关键词搜索 0 次调用」，据此删除。用户一句「你不是能查到对话记录吗」逼出第三份轨迹——豆包实际用了 4+ 次（后复核为 81 次调用）。删除判定作废。
+- **Root cause**：把"我手上有的两份证据"当成了"用户行为的全集"。用户在同一个项目上**同时跑三个 harness**，各自把轨迹写在不同的地方，任何单份都不构成完整样本。
+- **Durable lesson**：
+  - 三份轨迹的位置：DSH `~/.dsh/sessions/<proj>/session-*.jsonl.zstd`（zstd 压缩）；Claude Code `E:\claude\.claude\projects\<proj>\*.jsonl`；豆包 `...\Doubao\User Data\Default\.doubao\agent_mode\workspace\.sessions\<id>\agents\<id>\system\trajectory.jsonl`。
+  - "没人用"是**全称否定**，全称否定需要穷尽枚举。只查了一部分就下的结论，证据不成立。
+  - 反面同样适用：判"某机制已生效"也不能只看一个 harness。
+- **Prevention**：`docs/friction.md` 顶部判据已补一行（删/生判定必须横跨全部 harness）。**不建计数脚本**——三种轨迹格式各不相同且会漂移，写死的解析器会静默误计，比不查更糟。
+- **Regression**：暂无自动化，规则见本条与 `friction.md` 头部判据。
 
 ## 模板（新增时复制）
 
