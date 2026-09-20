@@ -85,8 +85,8 @@ def test_vertical_brackets_use_vertical_glyph():
 
 def test_wave_dash_rotates():
     """竖排：日文波浪号 〜(U+301C) 必须被旋转，不能横躺。"""
-    from amta.typeset.typeset_render import VERTICAL_ROTATE
-    assert "〜" in VERTICAL_ROTATE, "〜(U+301C) 应在竖排旋转集里"
+    from amta.typeset.vertical_punct import should_rotate
+    assert should_rotate("〜"), "〜(U+301C) 应被判定为需旋转"
     img = Image.new("RGB", (300, 500), "white")
     result = render_item(img, "成了宠物啊〜", FONT, [60, 40, 240, 460],
                          stroke=0, preferred_direction="vertical")

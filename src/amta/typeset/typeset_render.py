@@ -14,6 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageStat
 
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
+from amta.typeset.vertical_punct import VERTICAL_COMBINE, should_rotate, verticalize_text
 
 
 def _decide_color_and_stroke(img: Image.Image, bbox: list,
@@ -88,10 +89,9 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
 
     if direction == "vertical":
-        # 竖排：横排省略号 … 换成字体自带的竖排省略号 ︙；
-        # 横排全角括号换成字体自带的竖排括号 ︵︶。
-        lines = [ln.replace("…", _VERTICAL_ELLIPSIS) for ln in lines]
-        lines = [ln.replace("（", "︵").replace("）", "︶") for ln in lines]
+        # 竖排：把有竖排 Unicode 形式的横排标点（括号/省略号）换成竖排形式。
+        # 哪些符号要旋转，由 vertical_punct.should_rotate 按 Unicode 自动判断。
+        lines = [verticalize_text(ln) for ln in lines]
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
                          stroke=stroke, color=color,
@@ -122,8 +122,6 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
 # 连续 ASCII 点（≥2）是 LLM 吐出的横排省略号，归一化为全角横排省略号。
 # 必须在断行前做：否则三个独立的 "." 会被 DP 拆到不同行/列。
 _ASCII_DOTS = re.compile(r"\.{2,}")
-# 竖排省略号：字体里唯一有真竖三点字形的字符（U+FE19）。
-_VERTICAL_ELLIPSIS = "\uFE19"
 
 
 def _normalize_text_for_render(text: str) -> str:
@@ -157,13 +155,9 @@ def _font_for_char(main_font_path: str, size: int, ch: str) -> ImageFont.FreeTyp
     return hit
 
 
-# --- 竖排标点规则（唯一真源）---------------------------------------------
-# 竖排里这些字符原本是"横着躺"的（波浪/破折号/省略号），要旋转 90° 立起来。
-# 注意收齐波浪号的所有码位：〜(U+301C 日文 wave dash) 和 ～(U+FF5E 全角波浪) 是两个字。
-# 以后再冒出横躺符号，只往这里加一个字符即可，不要在别处另写逻辑。
-VERTICAL_ROTATE = set("～~—–―…〜")
-# 竖排里连续出现时应左右并排、而不是一个叠一个的成对标点。
-VERTICAL_COMBINE = set("！？!?")
+# --- 竖排标点规则已抽到 vertical_punct.py（接口层）-------------------------
+# 哪些符号旋转、横排↔竖排形式换算，全部由 vertical_punct 按 Unicode 自动推导，
+# typeset_render 只负责调用，不再维护字符名单。
 
 
 def _paste_glyph_centered(img: Image.Image, font, ch: str,
@@ -234,6 +228,6 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
                 _paste_glyph_centered(
                     img, _choose(ch), ch, x, y, col_width, lh,
-                    stroke, color, rotate=(ch in VERTICAL_ROTATE))
+                    stroke, color, rotate=should_rotate(ch))
                 y += lh
                 i += 1
