@@ -70,6 +70,57 @@ def _build_mask(img: Image.Image, bboxes: list[list], pad: int = 4) -> bytes:
     mask_img.save(buf, format="PNG")
     return buf.getvalue()
 
+def _route_by_uniformity(img: Image.Image, bboxes: list[list],
+                         uniform_std: float = 25.0,
+                         bg_ksize: int = 15, thr: int = 10) -> tuple[Image.Image, list[list]]:
+    """按背景均匀性分流：均匀背景直接填色，复杂背景送 LaMa。
+
+    判据：局部 median 背景的标准差。std < uniform_std 说明背景接近纯色
+    （白泡、纯色气泡），直接用 median 色覆盖文字像素，不需要 LaMa 重建。
+    std >= uniform_std 说明背景有纹理（网点、渐变、画稿），送 LaMa。
+
+    返回 (处理后的图, 复杂框列表)。
+    """
+    import cv2
+
+    arr = np.array(img.convert("RGB")).copy()
+    gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+    h, w = gray.shape
+    complex_boxes = []
+
+    kc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
+    for bb in bboxes:
+        x1, y1, x2, y2 = [int(v) for v in bb]
+        x1 = max(0, x1); y1 = max(0, y1)
+        x2 = min(w, x2); y2 = min(h, y2)
+        crop_gray = gray[y1:y2, x1:x2]
+        crop_rgb = arr[y1:y2, x1:x2]
+        if crop_gray.size == 0:
+            continue
+
+        # 局部背景估计 + 复杂度判断
+        bg_gray = cv2.medianBlur(crop_gray, bg_ksize)
+        # 复杂度：原始 crop 的标准差（median blur 后的会被磨平，用原始的）
+        complexity = float(crop_gray.std())
+
+        if complexity < uniform_std:
+            # 均匀背景：直接填色
+            diff = np.abs(crop_gray.astype(np.int16) - bg_gray.astype(np.int16))
+            ink = (diff > thr).astype(np.uint8)
+            ink = cv2.morphologyEx(ink, cv2.MORPH_CLOSE, kc, iterations=2)
+            ink = cv2.dilate(ink, np.ones((3, 3), np.uint8), iterations=1)
+            # 用 median 背景色填文字像素（按通道）
+            bg_rgb = cv2.medianBlur(crop_rgb, bg_ksize)
+            mask_bool = ink > 0
+            crop_rgb[mask_bool] = bg_rgb[mask_bool]
+        else:
+            # 复杂背景：送 LaMa
+            complex_boxes.append(bb)
+
+    return Image.fromarray(arr), complex_boxes
+
+
 def _pixel_diff_ratio(a: Image.Image, b: Image.Image) -> float:
     """clean vs raw 像素差异比例（>0 证明有擦除发生）。"""
     if a.size != b.size:
@@ -118,11 +169,14 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
 
     if not dry_run and (filled or inpaint_boxes):
         if inpaint_boxes:
-            mask_img = _build_mask_image(img, inpaint_boxes)
-            inpainter = _get_inpainter()
-            inpainted = inpainter.inpaint(img, mask_img)
-            if inpainted.size == img.size:
-                img = inpainted  # 整页替换为 inpaint 结果
+            # 分流：均匀背景直接填色，复杂背景送 LaMa
+            img, complex_boxes = _route_by_uniformity(img, inpaint_boxes)
+            if complex_boxes:
+                mask_img = _build_mask_image(img, complex_boxes)
+                inpainter = _get_inpainter()
+                inpainted = inpainter.inpaint(img, mask_img)
+                if inpainted.size == img.size:
+                    img = inpainted
 
         for p in filled:  # inpaint 后重放涂白（保险）
             _apply_fill_white(img, p["bbox"])
