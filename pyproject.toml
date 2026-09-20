@@ -26,6 +26,7 @@ dependencies = [
 ]
 
 [tool.uv]
+cache-dir = ".uv-cache"
 
 [[tool.uv.index]]
 url = "https://mirrors.aliyun.com/pypi/simple/"
@@ -64,6 +65,8 @@ exclude = ["models/**", "output/**", "scripts/archive/**", "scripts/probes/**", 
 [tool.pytest.ini_options]
 # memory_* 测试的 import 通路：amta 包 + tests 跨文件 fixture 复用（ADR-025 前置）
 pythonpath = ["src", "."]
+# Windows 全局临时目录可能残留无权限 pytest-current 链接；测试临时文件固定留在项目同盘目录。
+addopts = "--basetemp=.pytest_tmp"
 # 只收集 tests/：仓库里散落着 output/archive_86era、reference/_vendor 等历史/外部测试，
 # 全仓扫描会拖慢收集并产生 import 报错（2026-09-07 第二波清理时暴露）
 testpaths = ["tests"]

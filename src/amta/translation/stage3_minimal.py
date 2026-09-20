@@ -311,7 +311,9 @@ def translate_page_minimal(work_id: str, canon, *,
 
         def _default_text(messages, tools=None):
             return text_chat(cfg["base_url"], cfg["model"], messages,
-                             api_key=cfg["api_key"], temperature=0.3)
+                             api_key=cfg["api_key"], temperature=0.3,
+                             response_format={"type": "json_object"},
+                             thinking={"type": "disabled"})
         llm_text = _default_text
 
     ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None)

@@ -13,7 +13,7 @@ CANON = [
 
 
 def _llm_ok(messages):
-    return '["你好"]'
+    return '{"translations": ["你好"]}'
 
 
 def _state(tmp_path):
