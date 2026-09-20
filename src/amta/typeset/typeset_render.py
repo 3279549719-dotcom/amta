@@ -8,6 +8,7 @@ ADR-033 决策C：render_item 不再接收 direction，由 fit_font_size 双方�
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageStat
@@ -67,6 +68,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     """
     x1, y1, x2, y2 = [int(v) for v in bbox]
     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+    # 渲染前字符规范化（ASCII 省略号、缺字形降级），必须在断行之前。
+    text = _normalize_text_for_render(text)
     # 方向推断：尊重调用方显式指定；None 时从 bbox 长宽比几何推断（9-16 债务修复）
     if preferred_direction is None:
         preferred_direction = infer_direction_from_bbox(bbox)
@@ -85,6 +88,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
 
     if direction == "vertical":
+        # 竖排：横排省略号 … 换成字体自带的竖排省略号 ︙（不再旋转横躺点）。
+        lines = [ln.replace("…", _VERTICAL_ELLIPSIS) for ln in lines]
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
                          stroke=stroke, color=color)
@@ -102,6 +107,30 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
             "preferred_direction": preferred_direction,
             "rendered_color": f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}",
             "rendered_stroke": stroke}
+
+
+# --- 渲染前字符规范化（唯一真源）-------------------------------------------
+# 连续 ASCII 点（≥2）是 LLM 吐出的横排省略号，归一化为全角横排省略号。
+# 必须在断行前做：否则三个独立的 "." 会被 DP 拆到不同行/列。
+_ASCII_DOTS = re.compile(r"\.{2,}")
+# 字体缺字形降级表：键在当前字体里画成 .notdef 空方框，值是可渲染替代。
+# 已实测 msyh.ttc 对 ♡(U+2661)、❤(U+2665) 均为 .notdef（getbbox 会骗人，
+# 必须实际渲染像素确认）。以后再冒出画成方框的符号，往这里加一行即可。
+_GLYPH_FALLBACK = {"\u2661": "心", "\u2665": "心"}
+# 竖排省略号：字体里唯一有真竖三点字形的字符（U+FE19）。
+_VERTICAL_ELLIPSIS = "\uFE19"
+
+
+def _normalize_text_for_render(text: str) -> str:
+    """渲染前的字符规范化（与排版方向无关）。
+
+    1. 连续 ASCII 点 `...` → 全角横排省略号 `…`。
+    2. 字体缺字形字符降级（♡/❤ → "心"）。
+    """
+    text = _ASCII_DOTS.sub("…", text)
+    for bad, good in _GLYPH_FALLBACK.items():
+        text = text.replace(bad, good)
+    return text
 
 
 # --- 竖排标点规则（唯一真源）---------------------------------------------
