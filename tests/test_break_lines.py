@@ -63,3 +63,18 @@ def test_vertical_same_logic():
     lines = break_lines(text, max_chars=4)
     # 总字数守恒
     assert sum(len(ln) for ln in lines) == len(text)
+
+
+def test_no_punct_only_line_including_ellipsis():
+    """感叹号对/省略号都不能独占一行（旧测试标点集合漏了 …）。"""
+    lines = break_lines("太长了太长了！！", max_chars=4)
+    for line in lines:
+        assert line not in ("！！", "！", "…"), f"标点独占一行：{lines}"
+
+
+def test_ellipsis_stays_with_prev_chars():
+    """结尾省略号不能单独成行，必须跟前面的字同列。"""
+    lines = break_lines("前面话说完了…", max_chars=4)
+    assert "…" not in lines, f"省略号被拆到单独一行：{lines}"
+    joined = "".join(lines)
+    assert joined == "前面话说完了…"

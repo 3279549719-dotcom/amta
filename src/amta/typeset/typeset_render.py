@@ -8,11 +8,13 @@ ADR-033 决策C：render_item 不再接收 direction，由 fit_font_size 双方�
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageStat
 
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
+from amta.typeset.vertical_punct import VERTICAL_COMBINE, should_rotate, verticalize_text
 
 
 def _decide_color_and_stroke(img: Image.Image, bbox: list,
@@ -67,6 +69,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     """
     x1, y1, x2, y2 = [int(v) for v in bbox]
     cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+    # 渲染前字符规范化（ASCII 省略号、缺字形降级），必须在断行之前。
+    text = _normalize_text_for_render(text)
     # 方向推断：尊重调用方显式指定；None 时从 bbox 长宽比几何推断（9-16 债务修复）
     if preferred_direction is None:
         preferred_direction = infer_direction_from_bbox(bbox)
@@ -85,16 +89,26 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
 
     if direction == "vertical":
+        # 竖排：把有竖排 Unicode 形式的横排标点（括号/省略号）换成竖排形式。
+        # 哪些符号要旋转，由 vertical_punct.should_rotate 按 Unicode 自动判断。
+        lines = [verticalize_text(ln) for ln in lines]
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
-                         stroke=stroke, color=color)
+                         stroke=stroke, color=color,
+                         main_font_path=font_path)
     else:
         total_h = len(lines) * lh
         y = cy - total_h // 2
         for line in lines:
-            w = font.getlength(line)
-            draw.text((cx - w / 2, y), line, font=font, fill=color,
-                      stroke_width=int(stroke), stroke_fill="white")
+            # 逐字符画：遇到主字体缺字形的字符（如 ♡）用 fallback 字体单独画。
+            chars = list(line)
+            fonts = [_font_for_char(font_path, font_size, ch) for ch in chars]
+            widths = [f.getlength(ch) for f, ch in zip(fonts, chars)]
+            x = cx - sum(widths) / 2
+            for ch, f, cw in zip(chars, fonts, widths):
+                draw.text((x, y), ch, font=f, fill=color,
+                          stroke_width=int(stroke), stroke_fill="white")
+                x += cw
             y += lh
 
     return {"layout_direction": direction, "font_size": font_size,
@@ -104,12 +118,46 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
             "rendered_stroke": stroke}
 
 
-# --- 竖排标点规则（唯一真源）---------------------------------------------
-# 竖排里这些字符原本是"横着躺"的（波浪/破折号/省略号），要旋转 90° 立起来。
-# 以后再冒出横躺符号，只往这里加一个字符即可，不要在别处另写逻辑。
-VERTICAL_ROTATE = set("～~—–―…")
-# 竖排里连续出现时应左右并排、而不是一个叠一个的成对标点。
-VERTICAL_COMBINE = set("！？!?")
+# --- 渲染前字符规范化（唯一真源）-------------------------------------------
+# 连续 ASCII 点（≥2）是 LLM 吐出的横排省略号，归一化为全角横排省略号。
+# 必须在断行前做：否则三个独立的 "." 会被 DP 拆到不同行/列。
+_ASCII_DOTS = re.compile(r"\.{2,}")
+
+
+def _normalize_text_for_render(text: str) -> str:
+    """渲染前的字符规范化（与排版方向无关）：连续 ASCII 点 → 全角省略号。"""
+    return _ASCII_DOTS.sub("…", text)
+
+
+# --- 字符级字体 fallback ---------------------------------------------------
+# 主字体（微软雅黑）对某些符号是 .notdef 空框（♡/❤ 实测），但整句对白仍要保持雅黑风格。
+# 做法：不改字符、不换整句字体，只把"主字体画不出来的那一个字"借一个有真字形的字体画。
+# 已像素实测（渲染 vs 私用区 .notdef 对比）：msyh.ttc 缺 ♡(U+2661)/❤(U+2665)；
+# NotoSansSC-VF.ttf（思源黑体，同为中文黑体，笔画粗细与雅黑协调）有真爱心。
+# 以后再冒出画成方框的符号，往这里加一行 字符→字体文件 即可。
+_FALLBACK_DIR = Path("C:/Windows/Fonts")
+_GLYPH_FONT_FALLBACK = {
+    "\u2661": "NotoSansSC-VF.ttf",
+    "\u2665": "NotoSansSC-VF.ttf",
+}
+_font_cache: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
+
+
+def _font_for_char(main_font_path: str, size: int, ch: str) -> ImageFont.FreeTypeFont:
+    """渲染 ch 该用哪个字体：主字体缺字形的字符，返回有真字形的 fallback 字体。"""
+    fb = _GLYPH_FONT_FALLBACK.get(ch)
+    path = str(_FALLBACK_DIR / fb) if fb else main_font_path
+    key = (path, size)
+    hit = _font_cache.get(key)
+    if hit is None:
+        hit = ImageFont.truetype(path, size)
+        _font_cache[key] = hit
+    return hit
+
+
+# --- 竖排标点规则已抽到 vertical_punct.py（接口层）-------------------------
+# 哪些符号旋转、横排↔竖排形式换算，全部由 vertical_punct 按 Unicode 自动推导，
+# typeset_render 只负责调用，不再维护字符名单。
 
 
 def _paste_glyph_centered(img: Image.Image, font, ch: str,
@@ -138,12 +186,18 @@ def _paste_glyph_centered(img: Image.Image, font, ch: str,
 
 
 def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
-                     col_width, stroke, color):
+                     col_width, stroke, color, main_font_path=None):
     """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。"""
     n_cols = len(lines)
     total_w = n_cols * col_width
     # 最右列的 x 坐标（列左边缘）
     x_start = cx + total_w / 2 - col_width
+
+    def _choose(ch: str):
+        # 主字体缺字形的字符（如 ♡）用 fallback 字体；否则用主字体。
+        if main_font_path is None:
+            return font
+        return _font_for_char(main_font_path, font_size, ch)
 
     for col_idx, col_text in enumerate(lines):
         x = x_start - col_idx * col_width
@@ -165,7 +219,7 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 group_x = x + (col_width - n_punct * punct_w) / 2
                 for k, pch in enumerate(punct_group):
                     _paste_glyph_centered(
-                        img, font, pch,
+                        img, _choose(pch), pch,
                         group_x + k * punct_w, y, punct_w, lh,
                         stroke, color)
                 y += lh
@@ -173,7 +227,7 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
             else:
                 # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
                 _paste_glyph_centered(
-                    img, font, ch, x, y, col_width, lh,
-                    stroke, color, rotate=(ch in VERTICAL_ROTATE))
+                    img, _choose(ch), ch, x, y, col_width, lh,
+                    stroke, color, rotate=should_rotate(ch))
                 y += lh
                 i += 1
