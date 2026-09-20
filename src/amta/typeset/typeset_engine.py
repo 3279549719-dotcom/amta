@@ -71,101 +71,95 @@ def infer_direction_from_bbox(bbox: list) -> str | None:
     return None
 
 
-def wrap_text(text: str, font, max_width: float) -> list[str]:
-    """贪心按字折行（横排）; 溢出字符为禁行首标点且当前行非空 → 并入当前行(避头尾)。"""
-    lines: list[str] = []
-    cur = ""
-    for ch in text:
-        if font.getlength(cur + ch) <= max_width:
-            cur += ch
-        elif ch in NO_START_PUNCT and cur:
-            cur += ch  # 禁则标点不落行首,容忍轻微溢出
-        else:
-            if cur:
-                lines.append(cur)
-            cur = ch
-    if cur:
-        lines.append(cur)
-    return lines
+def break_lines(text: str, max_chars: int) -> list[str]:
+    """统一断行：给定每行/列最大字数，DP 找最优断点，遵守硬禁则。
 
+    横竖排共用：max_chars 对横排是每行字数，对竖排是每列字数。
+    硬禁则：
+    - 标点不出现在行首（行頭禁則）
+    - 开括号不出现在行尾（行末禁則）
+    - 短文本不断行
 
-def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
-    """竖排按列分割，返回列列表（每列是一个字符串）。
-
-    动态规划最优断点：在所有可能断点中找列数最少、列长最均衡、优先在标点后断的方案。
-    替代纯机械按字符数切刀，避免单字占列和词语腰斩。
-
-    成本优先级（从高到低）：
-    1. 列数最少
-    2. 最大列长最小（列长均衡）
-    3. 最后一列长度最大（避免短尾）
-    4. 强断点（标点后）断列有奖励
-
-    避头尾：禁则标点（，。！？、）》】……—）不出现在列首。
-    强断点容忍：在标点后断列时，当前列可超过 chars_per_col 最多 2 字（与 _fits 的 vertical_tolerance 对称）。
+    成本函数：列数最少 → 列长均衡 → 避免短尾 → 标点后断列有奖励。
     """
-    if chars_per_col <= 0:
+    if max_chars <= 0:
         return [text] if text else []
-
     n = len(text)
     if n == 0:
         return []
-    if n <= chars_per_col:
+    if n <= max_chars:
         return [text]
 
     no_start = set(NO_START_PUNCT)
+    no_end = set("「（【《〈")
     strong_break = set("，。！？、；：")
-    overflow_tolerance = 2  # 强断点后可超过的字数
+    overflow_tolerance = 2
 
-    # dp[i] = (成本, 列数, 最后一列长度, 最大列长, 前驱断点j)
     INF = float("inf")
-    dp: list[tuple[float, int, int, int, int]] = [(INF, 0, 0, 0, -1)] * (n + 1)
-    dp[0] = (0.0, 0, 0, 0, -1)
+    # dp[i] = (cost, prev_break)
+    dp: list[tuple[float, int]] = [(INF, -1)] * (n + 1)
+    dp[0] = (0.0, -1)
 
     for i in range(1, n + 1):
-        # j 是当前列起始位置，遍历所有可能的断点
-        j_min = max(0, i - chars_per_col - overflow_tolerance)
+        j_min = max(0, i - max_chars - overflow_tolerance)
         for j in range(j_min, i):
             col_len = i - j
-            # 避头尾：列首不能是禁则标点
+            # 行首禁则
             if j > 0 and text[j] in no_start:
                 continue
-            # 超过 chars_per_col 时，最后一列或强断点后才允许
-            if col_len > chars_per_col:
-                is_last_col = (i == n)
+            # 行末禁则：行尾不能是开括号
+            if j > 0 and text[i - 1] in no_end:
+                continue
+            # 超长容忍
+            if col_len > max_chars:
+                is_last = (i == n)
                 is_after_strong = (j > 0 and text[j - 1] in strong_break)
-                if not (is_last_col or is_after_strong):
+                if not (is_last or is_after_strong):
                     continue
 
-            prev_cost, prev_cols, _, prev_max, _ = dp[j]
+            prev_cost, _ = dp[j]
             if prev_cost == INF:
                 continue
-
-            new_cols = prev_cols + 1
-            new_max = max(prev_max, col_len)
-            # 成本：列数优先(1000) → 最大列长(10) → 最后一列短尾惩罚
-            tail_penalty = (chars_per_col - col_len) if i == n else 0
-            cost = new_cols * 1000 + new_max * 10 + tail_penalty
-            # 强断点奖励
+            # 成本：行数最少（主目标）→ 行长均衡（次目标）
+            cost = prev_cost + 10000  # 每多一行 +10000（主目标）
+            # 行长均衡：当前行越接近 max_chars 越好
+            cost += abs(col_len - max_chars) * 10
+            # 短尾惩罚：最后一行太短不好
+            if i == n and col_len < max_chars // 2:
+                cost += 500
+            # 强断点奖励：标点后断行
             if j > 0 and text[j - 1] in strong_break:
-                cost -= 5
+                cost -= 50
 
             if cost < dp[i][0]:
-                dp[i] = (cost, new_cols, col_len, new_max, j)
+                dp[i] = (cost, j)
 
-    # 回溯重建列
-    cols: list[str] = []
+    # 回溯
+    lines: list[str] = []
     i = n
     while i > 0:
-        _, _, _, _, j = dp[i]
+        _, j = dp[i]
         if j < 0:
-            # 兜底：不应发生，但防止无限循环
-            cols.append(text[:i])
+            lines.append(text[:i])
             break
-        cols.append(text[j:i])
+        lines.append(text[j:i])
         i = j
-    cols.reverse()
-    return cols
+    lines.reverse()
+    return lines
+
+
+def wrap_text(text: str, font, max_width: float) -> list[str]:
+    """横排折行：用统一 break_lines，按字宽算 max_chars。"""
+    char_w = font.getlength("字")
+    if char_w == 0:
+        return [text]
+    max_chars = max(1, int(max_width / char_w))
+    return break_lines(text, max_chars)
+
+
+def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
+    """竖排按列分割：复用统一 break_lines。"""
+    return break_lines(text, chars_per_col)
 
 
 def _font_metrics(font: ImageFont.FreeTypeFont) -> tuple[float, float]:
