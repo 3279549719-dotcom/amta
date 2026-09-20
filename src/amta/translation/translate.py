@@ -25,7 +25,7 @@ _ENV_PATH = ROOT / ".env"  # 测试会 monkeypatch 它；默认指向项目根�
 # 否则模型遇到一个乱码框可能整批返回 []，反而触发长度不符全批作废。
 _SYSTEM_PROMPT = (
     "你是日文→中文漫画翻译，本作为《东方Project》同人漫画，你了解其角色与世界观。\n"
-    "输出严格JSON数组，不要输出额外文字。\n"
+    '输出严格JSON对象，格式为{"translations":["译文1","译文2"]}，不要输出额外文字。\n'
     "- 人名、专有名词前后保持一致。\n"
     "- OCR可能把日文读错或读乱（如人名错字、结巴、省略），"
     "请结合剧情常识与角色知识理解原意，不要照抄错别字。\n"
@@ -49,11 +49,17 @@ def text_chat(
     api_key: str | None = None,
     timeout: int = 120,
     temperature: float | None = None,
+    response_format: dict[str, str] | None = None,
+    thinking: dict[str, str] | None = None,
 ) -> str:
     """发一次 OpenAI 兼容纯文本 chat 请求，返回回复文本；解析失败返回空串。"""
     kwargs: dict[str, Any] = {}
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    if thinking is not None:
+        kwargs["thinking"] = thinking
     return chat_text(base_url, model, messages, api_key=api_key, timeout=timeout, **kwargs)
 
 
@@ -92,9 +98,10 @@ def parse_translation_response(raw: str, region_ids: list[str]) -> dict[str, str
 
 
 def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
-    """解析 LLM 输出为按输入顺序排列的译文数组。
+    """解析 LLM JSON object 中按输入顺序排列的 translations 数组。
 
-    数组契约（ADR-014 加固）：LLM 必须返回 JSON 数组，长度严格等于输入条数。
+    对象契约（ADR-014 加固）：LLM 必须返回 {"translations": [...]}，
+    且数组长度严格等于输入条数。
     长度不符 → 返回 None（该批返回空，不重试、不二分），从契约层面防止 LLM 拆条挤占 region_id。
     """
     text = (raw or "").strip()
@@ -103,11 +110,14 @@ def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
         data = json.loads(text)
     except json.JSONDecodeError:
         return None
-    if not isinstance(data, list):
+    if not isinstance(data, dict):
         return None
-    if len(data) != expected_count:
+    translations = data.get("translations")
+    if not isinstance(translations, list):
         return None
-    return [str(v).strip() for v in data]
+    if len(translations) != expected_count:
+        return None
+    return [str(v).strip() for v in translations]
 
 
 def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
@@ -115,11 +125,11 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
                     context_enabled: bool = True) -> dict[str, str]:
     """Plain-text batch translate — one call per batch, no retry, no split.
 
-    输出契约：LLM 返回 JSON 数组 ["译文1", "译文2", ...]，按输入顺序、同长度。
+    输出契约：LLM 返回 {"translations": ["译文1", "译文2", ...]}，按输入顺序、同长度。
     代码侧按位置绑定 region_id，长度不符或解析失败 → 该批返回空（不重试、不二分）。
 
     prompt-slim 实验（2026-09-07）：删掉所有内容约束（标点/断句/口语化/保留原文标点），
-    只保留格式约束（JSON数组、长度一致、顺序一致）+ "漫画"领域提示。
+    只保留格式约束（JSON object、长度一致、顺序一致）+ "漫画"领域提示。
     context_enabled=False 时不注入前页上下文。
 
     重试/二分/无句末标点重试已移除（2026-09-08）：
@@ -136,7 +146,7 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     """
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
-                 '输出JSON数组，长度和顺序与输入一致。'
+                 '输出JSON对象，唯一键为translations；其值为数组，长度和顺序与输入一致。'
                  '漫画口语化表达，句末尽量不要句号。\n')
         # 不写 region_id 前缀（r01|）：数组契约按位置绑定，前缀是多余标签，
         # 反而可能被 LLM 抄进译文（Q6 实验：移除前缀 + 移除前缀剥离补丁）

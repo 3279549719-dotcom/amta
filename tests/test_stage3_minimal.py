@@ -10,6 +10,48 @@ Covers:
 import json
 
 
+def test_parse_translation_array_requires_json_object_contract():
+    from amta.translation.translate import parse_translation_array
+
+    assert parse_translation_array(
+        json.dumps({"translations": ["你好", "谢谢"]}), 2
+    ) == ["你好", "谢谢"]
+    assert parse_translation_array(json.dumps(["你好", "谢谢"]), 2) is None
+    assert parse_translation_array(json.dumps({"items": ["你好", "谢谢"]}), 2) is None
+    assert parse_translation_array(json.dumps({"translations": "你好"}), 1) is None
+    assert parse_translation_array(json.dumps({"translations": ["你好"]}), 2) is None
+
+
+def test_default_translation_requests_json_without_thinking(monkeypatch):
+    from amta.translation import stage3_minimal
+
+    captured = {}
+
+    monkeypatch.setattr(
+        stage3_minimal,
+        "get_chat_config",
+        lambda: {
+            "base_url": "https://api.deepseek.com",
+            "model": "deepseek-flash",
+            "api_key": "test-key",
+        },
+    )
+
+    def fake_text_chat(base_url, model, messages, **kwargs):
+        captured.update(kwargs)
+        return json.dumps({"translations": ["你好"]})
+
+    monkeypatch.setattr(stage3_minimal, "text_chat", fake_text_chat)
+    stage3_minimal.translate_page_minimal(
+        "",
+        {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 1}]},
+    )
+
+    assert captured["response_format"] == {"type": "json_object"}
+    assert captured["thinking"] == {"type": "disabled"}
+    assert captured["temperature"] == 0.3
+
+
 def test_translate_plain_batch():
     """translate_plain sends all regions in ONE call, no tools, parses by position."""
     from amta.translation.translate import translate_plain
@@ -20,7 +62,7 @@ def test_translate_plain_batch():
     calls = []
     def fake_llm(messages, tools=None):
         calls.append(messages)
-        return json.dumps(["你好", "谢谢"])
+        return json.dumps({"translations": ["你好", "谢谢"]})
     result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
     assert result == {"r01": "你好", "r02": "谢谢"}
     assert len(calls) == 1, "should make exactly one LLM call"
@@ -76,7 +118,7 @@ def test_translate_page_minimal_contract():
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
 
     def fake_text(messages, tools=None):
-        return json.dumps(["你好"])
+        return json.dumps({"translations": ["你好"]})
 
     result = translate_page_minimal("test-work", canon, llm_text=fake_text)
     assert "translations" in result
@@ -120,8 +162,12 @@ def test_text_chat_temperature_forwarding(monkeypatch):
 
     monkeypatch.setattr(chat_client.requests, "post", fake_post)
     text_chat("http://fake", "fake-model", [{"role": "user", "content": "hi"}],
-              temperature=0.3)
+              temperature=0.3,
+              response_format={"type": "json_object"},
+              thinking={"type": "disabled"})
     assert payloads[0]["temperature"] == 0.3
+    assert payloads[0]["response_format"] == {"type": "json_object"}
+    assert payloads[0]["thinking"] == {"type": "disabled"}
 
     text_chat("http://fake", "fake-model", [{"role": "user", "content": "hi"}])
     assert "temperature" not in payloads[1], \
@@ -133,7 +179,7 @@ def test_translate_station_minimal_mode():
     from amta.translation.translate_station import translate_page
     canon = {"items": [{"region_id": "r01", "baberu_text": "こんにちは", "page": 11}]}
     def fake_text(messages, tools=None):
-        return json.dumps(["你好"])
+        return json.dumps({"translations": ["你好"]})
     result = translate_page("test", canon, llm_text=fake_text)
     assert result["translations"] == {"r01": "你好"}
 
@@ -146,7 +192,7 @@ def test_translate_plain_length_mismatch_returns_empty_no_retry():
     def fake_llm(messages, tools=None):
         call_count[0] += 1
         # 始终返回长度 2 的数组 → 与 4 条输入不符
-        return json.dumps(["訳0", "訳1"])
+        return json.dumps({"translations": ["訳0", "訳1"]})
     result = translate_plain(canon, fake_llm, system_extra="", context_prefix="")
     assert call_count[0] == 1  # 无重试、无二分
     assert len(result) == 4
@@ -156,5 +202,7 @@ def test_translate_plain_length_mismatch_returns_empty_no_retry():
 def test_translate_plain_empty_canon():
     """translate_plain with empty canon returns empty dict."""
     from amta.translation.translate import translate_plain
-    result = translate_plain([], lambda m: "[]", system_extra="", context_prefix="")
+    result = translate_plain(
+        [], lambda m: '{"translations": []}', system_extra="", context_prefix=""
+    )
     assert result == {}
