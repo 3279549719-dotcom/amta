@@ -39,7 +39,7 @@
 - **`_lama_ffc.py`** — FFC (Fast Fourier Convolution) ResNet Generator — 从 BallonsTranslator 复制。（类: FourierUnit, SpectralTransform, FFC；函数: get_activation）
 - **`_lama_model.py`** — (无 docstring)（类: SimpleLama）
 - **`_lama_util.py`** — (无 docstring)（函数: get_image, ceil_modulo, scale_image, pad_img_to_modulo, prepare_img_and_mask）
-- **`inpaint_station.py`** — inpaint 工位库函数 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。（函数: _get_inpainter, _apply_fill_white, _build_mask_image, _build_mask, _pixel_diff_ratio）
+- **`inpaint_station.py`** — inpaint 工位库函数 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。（函数: _get_inpainter, _apply_fill_white, _build_mask_image, _build_mask, _route_by_uniformity）
 - **`inpaint_strategy.py`** — Stage 4 擦除策略(纯函数,零依赖): 所有框统一走 mask+inpaint(本地 lama-manga)。（函数: plan_inpaint）
 - **`local_lama_inpainter.py`** — 本地 LaMa inpainting 封装 — 支持 big-lama (TorchScript) 和 lama-manga (FFC ResNet)。（类: _LamaMangaModel, LocalLamaInpainter；函数: _find_lama_manga_path）
 
@@ -84,9 +84,10 @@
 ## `typeset/` — amta.typeset — Stage 5/6 排版（自研 Pillow 引擎，ADR-019/020/021）。
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
-- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, wrap_text, wrap_vertical, _font_metrics）
-- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _paste_glyph_centered, _render_vertical）
+- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, break_lines, wrap_text, wrap_vertical）
+- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _paste_glyph_centered）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
+- **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, should_rotate）
 
 ## `scripts/` — CLI 工具入口
 

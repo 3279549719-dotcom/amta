@@ -1,0 +1,54 @@
+{
+  "work_id": "w",
+  "page": "page_1",
+  "base_font_size": null,
+  "base_font_size_strategy": "mit_source_based_length_scaled",
+  "rendered_items": [
+    {
+      "layout_direction": "vertical",
+      "font_size": 34,
+      "lines": [
+        "月都"
+      ],
+      "anchor_pos": [
+        320,
+        150
+      ],
+      "preferred_direction": "vertical",
+      "rendered_color": "#000000",
+      "rendered_stroke": 0,
+      "region_id": "page_0_u01",
+      "font_family": "simkai.ttf",
+      "stroke_width": 2.5,
+      "stroke_color": "#FFFFFF",
+      "text_color": "#000000",
+      "src_base_size": 34,
+      "length_scale": 1.0
+    }
+  ],
+  "layout": {
+    "page_0_u01": {
+      "layout_direction": "vertical",
+      "font_size": 34,
+      "lines": [
+        "月都"
+      ],
+      "anchor_pos": [
+        320,
+        150
+      ]
+    }
+  },
+  "final_image": "final/page_1_final.png",
+  "checks": {
+    "rendered": 1,
+    "translated": 2,
+    "coverage_complete": false,
+    "overflow": [],
+    "skipped_no_bbox": [
+      "page_0_u00"
+    ],
+    "shrunk_bubbles": []
+  },
+  "generated_at": "2026-09-20T15:09:37"
+}
