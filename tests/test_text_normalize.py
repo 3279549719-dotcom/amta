@@ -71,3 +71,24 @@ def test_horizontal_ellipsis_stays_horizontal():
     joined = "".join(result["lines"])
     assert "…" in joined, f"横排应保留横排省略号 …：{result['lines']}"
     assert "︙" not in joined, f"横排不应出现竖排省略号：{result['lines']}"
+
+
+def test_vertical_brackets_use_vertical_glyph():
+    """竖排：全角括号（）换成竖排括号 ︵︶。"""
+    img = Image.new("RGB", (300, 500), "white")
+    result = render_item(img, "别为这种事（无聊）吵架", FONT, [60, 40, 240, 460],
+                         stroke=0, preferred_direction="vertical")
+    joined = "".join(result["lines"])
+    assert "︵" in joined and "︶" in joined, f"竖排应使用竖排括号：{result['lines']}"
+    assert "（" not in joined and "）" not in joined, f"不应残留横排括号：{result['lines']}"
+
+
+def test_wave_dash_rotates():
+    """竖排：日文波浪号 〜(U+301C) 必须被旋转，不能横躺。"""
+    from amta.typeset.typeset_render import VERTICAL_ROTATE
+    assert "〜" in VERTICAL_ROTATE, "〜(U+301C) 应在竖排旋转集里"
+    img = Image.new("RGB", (300, 500), "white")
+    result = render_item(img, "成了宠物啊〜", FONT, [60, 40, 240, 460],
+                         stroke=0, preferred_direction="vertical")
+    joined = "".join(result["lines"])
+    assert "〜" in joined, f"波浪号应保留：{result['lines']}"

@@ -88,8 +88,10 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
 
     if direction == "vertical":
-        # 竖排：横排省略号 … 换成字体自带的竖排省略号 ︙（不再旋转横躺点）。
+        # 竖排：横排省略号 … 换成字体自带的竖排省略号 ︙；
+        # 横排全角括号换成字体自带的竖排括号 ︵︶。
         lines = [ln.replace("…", _VERTICAL_ELLIPSIS) for ln in lines]
+        lines = [ln.replace("（", "︵").replace("）", "︶") for ln in lines]
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
                          stroke=stroke, color=color,
@@ -157,8 +159,9 @@ def _font_for_char(main_font_path: str, size: int, ch: str) -> ImageFont.FreeTyp
 
 # --- 竖排标点规则（唯一真源）---------------------------------------------
 # 竖排里这些字符原本是"横着躺"的（波浪/破折号/省略号），要旋转 90° 立起来。
+# 注意收齐波浪号的所有码位：〜(U+301C 日文 wave dash) 和 ～(U+FF5E 全角波浪) 是两个字。
 # 以后再冒出横躺符号，只往这里加一个字符即可，不要在别处另写逻辑。
-VERTICAL_ROTATE = set("～~—–―…")
+VERTICAL_ROTATE = set("～~—–―…〜")
 # 竖排里连续出现时应左右并排、而不是一个叠一个的成对标点。
 VERTICAL_COMBINE = set("！？!?")
 
