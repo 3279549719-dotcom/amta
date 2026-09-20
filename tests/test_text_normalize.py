@@ -1,9 +1,12 @@
-"""文本规范化测试（Stage 5 渲染前）：
+"""文本规范化 + 字符级字体 fallback 测试（Stage 5 渲染前/渲染时）。
 
-两条与方向无关、一条与方向相关：
-1. ASCII 连续点 `...` 归一化为全角横排省略号 `…`（断行前做，避免三点被拆开）。
-2. 字体缺字形字符降级：♡(U+2661) 在微软雅黑里是 .notdef 方框，规范化为"心"。
-3. 竖排渲染时 `…` 替换为竖排省略号 `︙`(U+FE19)（字体里唯一有真竖三点字形的）。
+方向无关：
+1. ASCII 连续点 `...` → 全角横排省略号 `…`（断行前做，避免被拆开）。
+方向相关：
+2. 竖排渲染时 `…` → 竖排省略号 `︙`(U+FE19)。
+字体 fallback：
+3. ♡ 在微软雅黑里是 .notdef 空框，但**字符本身不替换**（仍是 ♡），
+   而是渲染时借一个有真字形的字体单独画这一个字。
 """
 import sys
 from pathlib import Path
@@ -13,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from PIL import Image
 
 from amta.typeset.typeset_render import (
+    _font_for_char,
     _normalize_text_for_render,
     render_item,
 )
@@ -31,9 +35,21 @@ def test_single_ascii_dot_untouched():
     assert _normalize_text_for_render("2017.3.26 东方祭") == "2017.3.26 东方祭"
 
 
-def test_heart_glyph_falls_back():
-    """♡ 在微软雅黑里画成方框，规范化为可渲染的"心"。"""
-    assert _normalize_text_for_render("请让我留在您身边♡") == "请让我留在您身边心"
+def test_heart_not_replaced_by_hanzi():
+    """♡ 不被替换成汉字"心"：字符原样保留，靠字体 fallback 渲染。"""
+    out = _normalize_text_for_render("请让我留在您身边♡")
+    assert "♡" in out
+    assert "心" not in out
+
+
+def test_heart_uses_fallback_font():
+    """♡ 在主字体里是 .notdef，_font_for_char 应返回思源黑体。"""
+    fb = _font_for_char(FONT, 40, "♡")
+    assert "NotoSansSC" in getattr(fb, "path", "") or "NotoSans" in str(fb), \
+        f"♡ 应走 fallback 字体：{getattr(fb,'path','?')}"
+    # 普通汉字仍用主字体
+    main = _font_for_char(FONT, 40, "字")
+    assert "NotoSans" not in str(getattr(main, "path", ""))
 
 
 def test_vertical_ellipsis_uses_vertical_glyph():

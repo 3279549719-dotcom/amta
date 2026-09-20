@@ -93,6 +93,8 @@ def break_lines(text: str, max_chars: int) -> list[str]:
     no_start = set(NO_START_PUNCT)
     no_end = set("「（【《〈")
     strong_break = set("，。！？、；：")
+    # 整行纯标点判定用的字符集：NO_START_PUNCT 已含全角 ！？…，补半角
+    punct_only = no_start | set("!?")
     overflow_tolerance = 2
 
     INF = float("inf")
@@ -110,6 +112,9 @@ def break_lines(text: str, max_chars: int) -> list[str]:
             # 行末禁则：行尾不能是开括号
             if j > 0 and text[i - 1] in no_end:
                 continue
+            # 整行纯标点（标点独占一行/一列）：禁止
+            if all(c in punct_only for c in text[j:i]):
+                continue
             # 超长容忍
             if col_len > max_chars:
                 is_last = (i == n)
@@ -124,9 +129,10 @@ def break_lines(text: str, max_chars: int) -> list[str]:
             cost = prev_cost + 10000  # 每多一行 +10000（主目标）
             # 行长均衡：当前行越接近 max_chars 越好
             cost += abs(col_len - max_chars) * 10
-            # 短尾惩罚：最后一行太短不好
-            if i == n and col_len < max_chars // 2:
-                cost += 500
+            # 短行惩罚：任何行太短都罚（不只最后一行），末行罚更重。
+            # 防止为了"少一行"把中间行压成只剩个标点的小尾巴。
+            if col_len < max_chars // 2:
+                cost += 500 if i == n else 200
             # 强断点奖励：标点后断行
             if j > 0 and text[j - 1] in strong_break:
                 cost -= 50
