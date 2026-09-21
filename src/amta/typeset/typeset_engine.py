@@ -21,8 +21,6 @@ NO_START_PUNCT = "，。！？、）》】……—"
 MIN_SIZE = 12
 MAX_SIZE = 52
 SAFE_RATIO = 0.85
-LINE_HEIGHT_RATIO = 1.2   # 行高 = 字号 * 1.2
-CHAR_WIDTH_RATIO = 1.15   # 字宽 = 字号 * 1.15（中文等宽近似）
 
 # 基准字号参数（2026-09-11）：
 # 基准字号 = 图片长边 / BASE_SIZE_DIVISOR（如 3258px 图 → 36px）
@@ -95,7 +93,9 @@ def break_lines(text: str, max_chars: int) -> list[str]:
     strong_break = set("，。！？、；：")
     # 整行纯标点判定用的字符集：NO_START_PUNCT 已含全角 ！？…，补半角
     punct_only = no_start | set("!?")
-    overflow_tolerance = 2
+    overflow_tolerance = 0  # 严格不超 max_chars：原先=2 允许中间列超字，
+    # 导致最长列变长、_fits 高度检查不通过，二分被迫降字号。
+    # 竖排宽度本有余量，应靠多分列而不是超列来排满。
 
     INF = float("inf")
     # dp[i] = (cost, prev_break)
