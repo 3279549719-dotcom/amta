@@ -63,6 +63,7 @@
 - **`align.py`** — 跨阶段区域对齐 — 优先 region_id 精确匹配，回退 bbox IoU 物理匹配。（函数: iou, match_region）
 - **`assembler.py`** — 数据组装器 — 从 artifacts JSON 读取各阶段产物，组装成 PageReport。（函数: _load_json, _resolve_image, load_page_report, load_from_workspace）
 - **`engine.py`** — 报告引擎 — 深接口渲染原语 + 薄封装入口。（函数: _load_image, _composite_overlays, _img_to_base64, _align_regions, _compute_stats）
+- **`ledger.py`** — report ledger — 页头四数对账：detect / ocr / translate / rendered。（函数: _find_stage, compute_ledger）
 - **`model.py`** — 报告工具数据模型 — PageReport / StageOutput / ReportResult + 构造校验。（类: StageOutput, PageReport, ReportResult）
 
 ## `stations/` — amta.stations — 各 Stage 顶层薄工位（脚本 CLI 对接的确定性入口）。
