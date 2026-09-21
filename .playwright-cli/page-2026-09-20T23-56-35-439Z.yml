@@ -1,0 +1,53 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading [level=1] [ref=e3]:
+      - link "Superpowers Brainstorming" [ref=e4] [cursor=pointer]:
+        - /url: https://github.com/obra/superpowers
+    - generic [ref=e5]: Connected
+  - generic [ref=e7]:
+    - heading "41–64 页：问题归因与推进策略" [level=2] [ref=e8]
+    - paragraph [ref=e9]: 从最终坏结果倒推“第一次出错的阶段”。图片是当前成品；结论来自 detection / canon / translation / clean / typeset 产物交叉核对。
+    - generic [ref=e10]:
+      - heading "不是 8 个孤立问题，而是 6 类系统失效" [level=3] [ref=e11]
+      - generic [ref=e12]:
+        - generic [ref=e16] [cursor=pointer]:
+          - heading "41｜OCR 语义错误" [level=3] [ref=e17]
+          - paragraph [ref=e18]: 检测框正确；hayai 把右上框外字识别成大量重复错字，平均置信度仍有 0.794，因此现有“低置信度才兜底”无法发现。首次失效：OCR 质量判定。
+        - generic [ref=e22] [cursor=pointer]:
+          - heading "43｜透明气泡漏检" [level=3] [ref=e23]
+          - paragraph [ref=e24]: 「え〜りん♡」没有检测框。整页检测仅给 0.152；3×4 瓦片复测升到 0.726，证明不是 OCR 问题，现有关闭瓦片的默认策略丢失了它。
+        - generic [ref=e28] [cursor=pointer]:
+          - heading "44｜语境消歧失败" [level=3] [ref=e29]
+          - paragraph [ref=e30]: 词表中没有「コマ→小町」映射；是纯文本模型把“漫画格/分镜”误解成东方角色“小町”。首次失效：翻译缺少局部画面与元叙事语境。
+        - generic [ref=e34] [cursor=pointer]:
+          - heading "42 / 52｜字号可读性失效" [level=3] [ref=e35]
+          - paragraph [ref=e36]: 52 中央框所有候选字号都被判不适配，模块却静默返回最低 23px；42 的小框又被“不得超过原文字号”限制。首次失效：排版接口没有 fit/readability 状态。
+        - generic [ref=e40] [cursor=pointer]:
+          - heading "59｜混合文字方向" [level=3] [ref=e41]
+          - paragraph [ref=e42]: 框是竖长形，方向模块便把整句判为竖排；渲染器逐字符处理 ASCII，于是 cosplay 被拆成 c-o-s-p-l-a-y。首次失效：方向接口只看框，不看文字脚本。
+        - generic [ref=e46] [cursor=pointer]:
+          - heading "62｜矩形修复破坏纹理" [level=3] [ref=e47]
+          - paragraph [ref=e48]: 右下黑底气泡在 clean 阶段已经崩坏。复杂区域被整块矩形交给 LaMa 重建，模型凭空生成灰色纹理。首次失效：mask 路由粒度过粗。
+        - generic [ref=e52] [cursor=pointer]:
+          - heading "64｜语气词被翻译层主动丢弃" [level=3] [ref=e53]
+          - paragraph [ref=e54]: 「うっ…！」检测成功、OCR 平均置信度 0.908；翻译提示却规定“拟声词或无实际语义内容输出空串”。首次失效：Translate 的内容保留策略。
+    - generic [ref=e55]:
+      - heading "选择推进层级" [level=3] [ref=e56]
+      - paragraph [ref=e57]: 这不是让你替我做技术判断，而是确认本轮愿意承担的范围。推荐 B。
+      - generic [ref=e58]:
+        - generic [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]: B
+          - generic [ref=e61]:
+            - heading "分层修复 + 选择性视觉兜底（推荐）" [level=3] [ref=e62]
+            - paragraph [ref=e63]: 修正检测、OCR 质量判定、翻译保留策略、排版可读性状态和精细 mask；仅把不确定区域交给 VLM。覆盖当前 8 条，同时控制成本。
+        - generic [ref=e64] [cursor=pointer]:
+          - generic [ref=e65]: A
+          - generic [ref=e66]:
+            - heading "只修本批页面" [level=3] [ref=e67]
+            - paragraph [ref=e68]: 人工覆盖文本、字号和框。最快得到成品，但相同问题会在后续漫画再次出现。
+        - generic [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]: C
+          - generic [ref=e71]:
+            - heading "全页 VLM 复审" [level=3] [ref=e72]
+            - paragraph [ref=e73]: 每页最终都交给视觉模型检查并建议修复。召回强，但成本、延迟和不可重复性最高，工程范围也最大。
+  - generic [ref=e74]: Click an option above, then return to the terminal
