@@ -1,10 +1,14 @@
-# 行尾策略：不做任何转换（字节原样进出）。
+# 行尾策略：仓库内统一 LF（2026-09-21 从 `-text` 切换到此方案）。
 #
-# 背景（2026-09-10）：仓库里几乎所有文本文件都是 LF，而 Windows 上
-# core.autocrlf=true 会在 checkout 时换成 CRLF —— 于是每次 git add 都刷一屏
-# "LF will be replaced by CRLF the next time Git touches it" 警告。
-# 声明 `-text` = 关掉该文件的文本属性推断，git 不再改行尾，警告消失、内容不变。
+# 历史：之前用 `* -text` 是为了关掉 core.autocrlf=true 的
+# "LF will be replaced by CRLF" 警告。副作用是 git 完全不管行尾，
+# AI 编辑工具在 Windows 上默认写 CRLF，H6 岗哨（test_no_modified_file_flipped_its_line_endings）
+# 反复报警，来回折腾。
 #
-# 将来若要把仓库统一成 LF-in-repo，改成 `* text=auto eol=lf`，
-# 并做一次 `git add --renormalize .`（会有一轮大 diff，属预期）。
-* -text
+# 现在 `text=auto eol=lf`：
+#   - 入库时 git 自动把文本文件行尾归一化成 LF；
+#   - 检出时工作区也用 LF（不再转成 CRLF）；
+#   - 二进制文件 git 自动识别，不动。
+# 这样不管哪个 agent / 哪个工具写成 CRLF，git 入库都收成 LF，H6 从此只是烟雾报警器。
+# 切换时跑过一次 `git add --renormalize .`（见本次 commit）。
+* text=auto eol=lf
