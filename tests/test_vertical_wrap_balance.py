@@ -37,9 +37,9 @@ class TestAvoidSingleCharLastColumn:
         assert len(cols) >= 2, f"长文本应分列: {cols}"
         for col in cols:
             assert len(col) > 1, f"不应出现单字列: {cols}"
-        # 列长差不超过2
+        # 列长差不超过3（overflow_tolerance=0 后严格不超 max_chars）
         lengths = [len(c) for c in cols]
-        assert max(lengths) - min(lengths) <= 2, f"列长不均衡: {cols}"
+        assert max(lengths) - min(lengths) <= 3, f"列长不均衡: {cols}"
 
 
 class TestPreferBreakAfterPunct:
@@ -72,9 +72,9 @@ class TestKeepExistingBehavior:
     def test_punct_not_at_col_start(self):
         """避头尾：标点不出现在列首。"""
         cols = wrap_vertical("一二三四五六七八九十，", 10)
-        # 标点应挤到第一列，不单独成列
-        assert len(cols) == 1, f"标点不应单独成列: {cols}"
-        assert cols[0] == "一二三四五六七八九十，"
+        # overflow_tolerance=0：11字严格不超10字分两列，标点随第二列末尾
+        assert len(cols) == 2, f"11字应分两列: {cols}"
+        assert cols[1] == "六七八九十，"
 
     def test_short_text_single_column(self):
         """短文本不拆列。"""

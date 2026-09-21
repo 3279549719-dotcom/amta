@@ -73,16 +73,14 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         src_text = item.get("baberu_text") or item.get("text") or text
         src_base_size, _, _ = fit_font_size(src_text, Path(font_path), bbox)
 
-        # 2. 译文长度缩放：译文比原文长时缩小，短时不放大
-        src_len = max(1, len(src_text.strip()))
-        dst_len = len(text.strip())
-        length_increase = max(0.0, (dst_len - src_len) / src_len)
-        scale = 1.0 / (1.0 + length_increase * 0.5)
-        scale = max(0.6, min(1.0, scale))
+        # 2. 实验：拿掉 length_scale 预压缩。
+        #    fit_font_size 本身会根据译文长度二分找最大可放字号，
+        #    外层再按 length_increase 砍一刀是双重压缩，导致字偏小。
+        scale = 1.0
 
-        # 3. 目标字号 = 原文基准 * 缩放，不低于最小字号
+        # 3. 目标字号 = 原文基准，不低于最小字号
         min_font_size = max(12, img_long_side / 200)
-        target_size = max(min_font_size, src_base_size * scale)
+        target_size = max(min_font_size, src_base_size)
 
         item_contexts.append({
             "rid": rid,

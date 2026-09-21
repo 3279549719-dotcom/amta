@@ -166,8 +166,8 @@ def test_wrap_vertical_avoid_punctuation_at_col_start():
     text = "一二三四五六七八九十，"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
-    assert len(lines) == 1
-    assert lines[0] == "一二三四五六七八九十，"
+    assert len(lines) == 2
+    assert lines[1] == "六七八九十，"
 
 
 def test_wrap_vertical_avoid_multiple_punctuation():
@@ -176,8 +176,8 @@ def test_wrap_vertical_avoid_multiple_punctuation():
     text = "一二三四五六七八九十……"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
-    assert len(lines) == 1
-    assert lines[0] == "一二三四五六七八九十……"
+    assert len(lines) == 2
+    assert lines[1] == "六七八九十……"
 
 
 def test_wrap_vertical_no_punctuation_normal_split():
@@ -197,7 +197,8 @@ def test_wrap_vertical_punctuation_in_middle_unchanged():
     text = "一二三四五，六七八九十一二三四五六七八九十"
     chars_per_col = 10
     lines = wrap_vertical(text, chars_per_col)
-    assert len(lines) == 2, f"应避免单字尾列: {lines}"
-    assert lines[0] == "一二三四五，六七八九"
-    assert lines[1] == "十一二三四五六七八九十"
+    assert len(lines) == 3, f"严格不超 max_chars: {lines}"
+    assert lines[0] == "一二三四五，"
+    assert lines[1] == "六七八九十"
+    assert lines[2] == "一二三四五六七八九十"
     assert sum(len(col) for col in lines) == len(text)
