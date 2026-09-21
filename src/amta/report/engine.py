@@ -21,6 +21,7 @@ from typing import Any
 from PIL import Image, ImageDraw
 
 from .align import match_region
+from .ledger import compute_ledger
 from .model import PageReport, ReportResult, StageOutput
 
 _CSS = """
@@ -38,6 +39,10 @@ h1 { font-size:22px; margin-bottom:4px; }
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid #f0f0f0; }
 .page-title { font-size:16px; font-weight:700; color:#1e40af; }
 .page-warnings { font-size:11px; color:#d97706; }
+.page-ledger { font-size:12px; color:#666; margin-left:16px; font-weight:400; }
+.page-ledger .led-n b { color:#1a1a2e; font-weight:700; }
+.page-ledger .led-down b { color:#dc2626; }
+.page-ledger .led-sep { margin:0 5px; color:#ccc; }
 .layout { display:flex; gap:20px; align-items:flex-start; }
 .img-panel { flex:0 0 45%; }
 .img-panel img { width:100%; border-radius:8px; border:1px solid #e5e7eb; }
@@ -133,6 +138,24 @@ def _compute_stats(page: PageReport, rows: list[dict]) -> list[dict]:
     return stats
 
 
+def render_ledger_html(ledger: dict[str, int | None]) -> str:
+    """把四数对账渲染成一行 HTML，下一个数比上一个小就标红。"""
+    order = [("detect", "detect"), ("ocr", "ocr"), ("translate", "trans"), ("rendered", "rendered")]
+    parts: list[str] = []
+    prev: int | None = None
+    for key, label in order:
+        val = ledger.get(key)
+        if val is None:
+            continue
+        cls = "led-down" if prev is not None and val < prev else ""
+        parts.append(f'<span class="led-n {cls}">{label} <b>{val}</b></span>')
+        prev = val
+    if not parts:
+        return ""
+    sep = '<span class="led-sep">·</span>'
+    return f'<div class="page-ledger">{sep.join(parts)}</div>'
+
+
 # ---- 渲染原语（公开，可自由组合）----
 
 def render_image_panel(img: Image.Image, label: str = "") -> str:
@@ -171,6 +194,8 @@ def render_page_section(page: PageReport, granularity: str = "region") -> tuple[
     img = _load_image(page.raw_image)
     img = _composite_overlays(img, page.stages)
 
+    ledger_html = render_ledger_html(compute_ledger(page))
+
     stats_info: dict[str, Any] = {"stages_rendered": [s.key for s in page.stages]}
 
     if granularity == "page":
@@ -180,6 +205,7 @@ def render_page_section(page: PageReport, granularity: str = "region") -> tuple[
     <div class="page-section">
       <div class="page-header">
         <div class="page-title">page_{page.page_idx} — {page.page_idx}.jpg</div>
+        {ledger_html}
       </div>
       <div class="layout">
         <div class="img-panel"><img src="data:image/jpeg;base64,{img_b64}" alt="page {page.page_idx}"></div>
@@ -210,6 +236,7 @@ def render_page_section(page: PageReport, granularity: str = "region") -> tuple[
     <div class="page-section">
       <div class="page-header">
         <div class="page-title">page_{page.page_idx} — {page.page_idx}.jpg</div>
+        {ledger_html}
         {warn_html}
       </div>
       <div class="stats">{stats_html}</div>
