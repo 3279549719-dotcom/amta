@@ -151,7 +151,8 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
         # 不写 region_id 前缀（r01|）：数组契约按位置绑定，前缀是多余标签，
         # 反而可能被 LLM 抄进译文（Q6 实验：移除前缀 + 移除前缀剥离补丁）
         blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]
-        cur = instr + "\n".join(blocks)
+        # JSON 数组明确条目边界；字符串内的换行不会被误认成下一个文本框。
+        cur = instr + json.dumps(blocks, ensure_ascii=False)
         if context_enabled and context_prefix:
             return f"{context_prefix}\n\n{cur}"
         return cur
