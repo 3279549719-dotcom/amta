@@ -77,6 +77,7 @@ def _build_registry() -> dict[str, StageSpec]:
             code_files=[
                 "ocr_station.py",
                 "ocr_engines.py",
+                "vlm_layout.py",
                 "canon_schema.py",
                 "artifacts.py",
                 "geometry.py",

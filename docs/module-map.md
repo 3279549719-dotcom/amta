@@ -70,6 +70,7 @@
 
 - **`detect_station.py`** — (无 docstring)
 - **`ocr_station.py`** — (无 docstring)
+- **`vlm_layout.py`** — VLM 视觉读取 — 转写 + 排版风格观察（正式 station 模块）。（函数: validate_regions, image_part, exclusive_crop, parse_json, _validate_observed）
 
 ## `stores/` — amta.stores — 产物/工件存储层。
 

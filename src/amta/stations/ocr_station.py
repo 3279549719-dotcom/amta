@@ -28,7 +28,8 @@ from pathlib import Path
 from PIL import Image
 
 from amta.common.config import get_vlm_api_key
-from amta.common.paths import write_json
+from amta.common.paths import read_json, write_json
+from amta.stations.vlm_layout import read_layout as _default_vlm_layout
 from amta.stores import artifacts
 
 # Q3 OCR confidence 过滤阈值
@@ -77,12 +78,53 @@ def _should_filter_by_conf(row: dict, b: dict) -> tuple[bool, str]:
 def ocr_page(work_id: str, det: dict, raw_page: Path, artifacts_dir: Path, *,
              page_idx: int, engine: str = "hayai", vlm_enabled: bool = False,
              ocr_fn=None, vlm_fn=None, vlm_api_key: str | None = None,
-             crop_dir: Path | str | None = None) -> dict:
+             crop_dir: Path | str | None = None,
+             vlm_layout_fn=None) -> dict:
     """Stage 2 OCR 工位。裁框 → OCR → [OCR confidence 过滤] → [规则过滤] → [VLM校验] → CanonArtifact。
 
-    engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快)。
+    engine: hayai(默认,HayaiOCR-v2.1) / baberu(ONNX,免费快) / vlm-paratext(VLM 视觉读取)。
     Q3: 副引擎纯新增框用 first_token_conf < 0.4 过滤假框（见模块文档）。
     """
+    # ---- VLM paratext 引擎：一次调用完成转写 + 排版风格观察 ----
+    if engine == "vlm-paratext":
+        vlm_layout_fn = vlm_layout_fn or _default_vlm_layout
+        page = artifacts.page_key(page_idx)
+        artifacts_dir = Path(artifacts_dir)
+        out_path = artifacts.artifact_paths(artifacts_dir, page)["canon"]
+
+        # 缓存：已有 canon 且 layout_observation 的 request_sha256 匹配 → 复用
+        cached = None
+        if out_path.exists():
+            try:
+                existing = read_json(out_path)
+                cached = existing.get("layout_observation")
+            except Exception:
+                pass
+
+        observed = vlm_layout_fn(raw_page, det.get("blocks", []), cached)
+
+        items = []
+        for r in observed["regions"]:
+            if not r["text"].strip():
+                continue
+            items.append({
+                **r,
+                "baberu_text": r["text"],
+                "page": page_idx,
+                "ocr_engine": "vlm-paratext",
+                "vlm_status": "vlm-paratext",
+                "contained_in": None,
+            })
+
+        doc = artifacts.stamp({
+            "items": items,
+            "n_regions": len(items),
+            "ocr_engine": "vlm-paratext",
+            "layout_observation": observed,
+        }, work_id, page)
+        write_json(out_path, doc)
+        return doc
+
     from amta.backends.ocr_engines import ocr_batch as _default_ocr
     from amta.backends.vlm_verify import vlm_verify_batch as _default_vlm
     ocr_fn = ocr_fn or _default_ocr

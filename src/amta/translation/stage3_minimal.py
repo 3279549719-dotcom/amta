@@ -318,11 +318,23 @@ def translate_page_minimal(work_id: str, canon, *,
 
     ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None)
 
+    # VLM paratext 模式：使用专用提示词，保留段落边界（由 canon item 的 ocr_engine 判定）。
+    # load_canon 会剥离顶层 ocr_engine，但 item 级 ocr_engine 原样透传，故从 items 判定。
+    is_vlm = any(item.get("ocr_engine") == "vlm-paratext" for item in canon_items)
+    cache_salt = "paratext-translation-v1" if is_vlm else "translation-v1"
+    system_extra = ctx["system_extra"]
+    if is_vlm:
+        paratext_extra = (
+            "忠实、自然、完整地翻译页面中的全部文字，不删句、不概括。保留原文中有语义的段落边界。"
+            "邮箱、网址、账号和不可翻译的标识符原样保留；专名按上下文选择通行译名或保留原文。"
+        )
+        system_extra = f"{system_extra}\n\n{paratext_extra}" if system_extra else paratext_extra
+
     translations: dict[str, str] = {}
     if ctx["refined_canon"]:
         translations = translate_plain(
             ctx["refined_canon"], llm_text,
-            system_extra=ctx["system_extra"],
+            system_extra=system_extra,
             context_prefix=ctx["context_prefix"],
             context_enabled=context_enabled,
         )
@@ -346,5 +358,6 @@ def translate_page_minimal(work_id: str, canon, *,
         "translations": result,
         "residue": residue,
         "glossary_violations": violations,
+        "translation_mode": cache_salt,
     }, work_id or "", env_page)
     return out
