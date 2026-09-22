@@ -30,7 +30,7 @@ def run(ctx: StationContext) -> StationResult:
             raw_page=ctx.raw_image,
             artifacts_dir=ctx.artifacts_dir,
             page_idx=ctx.page_idx,
-            engine=ctx.config["engine"],
+            engine="vlm-paratext" if ctx.config.get("vlm_mode") else ctx.config["engine"],
             vlm_enabled=ctx.config["vlm_enabled"],
         )
         duration = time.perf_counter() - t0

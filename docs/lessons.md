@@ -44,6 +44,7 @@
 - L50 — 散文铁律无断言 = 一周被违反 4 次：HTML 报告规则只有牙齿才叫规则
 - L51 — 判"没人用就删"必须横跨全部 harness：只统计一两份轨迹 = 不成立的证据
 - L52 — VLM 做视觉决策，本地代码做机械执行：别让通用模型数手指
+- L53 — probe 正式化进 station：load_canon 会剥掉顶层 ocr_engine，模式判断必须读原始信封
 
 ---
 
@@ -365,6 +366,17 @@
   - **独立评审步骤不改变输出**：VLM 评审（review）只打分不修改，还会幻觉误报（把正确的"上海爱丽丝幻乐团"标为错误）。质量问题靠人眼看成品或自动化测试，不靠另一个 VLM 打分。
 - **Prevention**：渲染子系统从 ~464 行（plan + render）降到 ~130 行（render alone），减了 72%。19 个测试全过。9 页实验页验证质量合格。
 - **Regression**：	ests/test_paratext_experiment.py（19 个测试，含 wrap_horizontal kinsoku、贪婪换行、VLM 风格渲染）；scripts/probes/paratext_render.py（贪婪换行 + 按风格画字）。
+
+## L53 — probe 正式化进 station 时：load_canon 会剥掉顶层 ocr_engine，模式判断必须读原始信封
+
+- **Problem**：VLM 渲染分支接进正式 typeset_station.run 时，想按 `canon["ocr_engine"] == "vlm-paratext"` 决定走哪条渲染路径。但 station 一贯用 `load_canon(canon_path)` 读 canon，而 `load_canon` 只回白名单字段（work_id/page/schema_version/items/n_regions/vlm_status），顶层的 `ocr_engine` 和 `layout_observation` 被静默丢弃——判断永远是 False，VLM 页悄悄掉进普通 MITS 渲染。另外既有单测传的是旧裸 list 信封，`read_json` 直接 `.get(...)` 会 `AttributeError: 'list' object has no attribute 'get'`。
+- **Root cause**：schema 信封加载器（load_canon）的职责是「规范化+校验+只暴露契约字段」，它和「按非契约元数据做分支路由」是两件事。拿规范化后的对象去读它刻意不暴露的字段，等于读空气。
+- **Durable lesson**：
+  - **路由判断读原始信封，规范化读 load_canon**：需要 `ocr_engine`/`layout_observation` 这类引擎自描述元数据做分支时，先用 `read_json` 读原始 dict 判断；确认命中后再决定是否需要 `load_canon`。VLM 分支里 items 自带全部排版字段（direction/align/font/font_size_ratio/color/stroke），直接用 raw items 即可，不必再过 load_canon。
+  - **信封兼容要 isinstance**：`read_json` 可能返回旧裸 list（1.x 产物）。任何 `raw.get(...)` 前先 `isinstance(raw, dict)`，否则老产物直接 AttributeError。
+  - **probe → 正式模块的迁移 = 复制 + 改 docstring，不改逻辑**：`scripts/probes/paratext_render.py` → `src/amta/typeset/vlm_render.py`，FONTS/换行/kinsoku/画字全部原样保留；probe 脚本保留并标 DEPRECATED，不删（历史实验还引用它）。
+- **Prevention**：VLM 分支作为早期 return 放在 `load_canon` 之前；lazy import `render_text`/`validate_regions`，普通 hayai 路径不拉入 VLM 依赖。typeset StageSpec 的 code_files 加 `vlm_render.py`，改了渲染逻辑能触发 fingerprint 重跑。
+- **Regression**：tests/typeset/test_vlm_render.py（layout/render 像素断言 + `test_station_vlm_branch_renders` 锁 VLM 早期 return 路径）。
 
 ## 模板（新增时复制）
 

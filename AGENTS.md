@@ -10,6 +10,7 @@ The production flow is `detect -> ocr -> translate -> inpaint -> typeset`. All s
 
 - `uv run python scripts/peek.py` — inspect the live stage registry and dependencies.
 - `uv run python scripts/run_pipeline.py --work-id demo --src-dir D:\pages --start-page 1 --end-page 10 --stages detect,ocr,translate,inpaint,typeset` — run or resume a work.
+  - Add `--vlm-pages 60,63,67` to route those pages through the VLM paratext engine (OCR does visual transcription + typography observation; typeset uses the formal `src/amta/typeset/vlm_render.py` greedy-wrap renderer). Pages not listed stay on the normal hayai + MITS render path. Routing is decided inside typeset from the canon's `ocr_engine == "vlm-paratext"`.
 - `uv run python scripts/artifact.py query --work-id demo` — locate generated artifacts.
 - `uv run python scripts/gen_report.py --work-id demo --src-dir D:\pages --pages 1-10` — generate the visual review report.
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from amta.common.paths import read_json
 from amta.stores import artifacts
@@ -19,6 +20,7 @@ def run(ctx: StationContext) -> StationResult:
     - ctx.inputs["translate"] → translation.json
     - ctx.inputs["inpaint"] → inpaint.json（从中读 clean_image 字段获取 clean 图路径）
     产出：{artifacts_dir}/{page}_typeset.json + {artifacts_dir}/final/{page}_final.png
+    可选产出（config.export_psd=True）：{artifacts_dir}/psd/{page}.psd
     """
     t0 = time.perf_counter()
     try:
@@ -59,21 +61,32 @@ def run(ctx: StationContext) -> StationResult:
             final_path=final_path,
         )
 
+        # 可选：生成分层 PSD（人工兜底用，底图层 + 每区域文字层）
+        psd_path: Path | None = None
+        if ctx.config.get("export_psd", False):
+            from amta.typeset.psd_export import export_page_psd
+            psd_dir = ctx.artifacts_dir / "psd"
+            psd_path = psd_dir / f"{ctx.page}.psd"
+            export_page_psd(ctx.artifacts_dir, ctx.page, psd_path)
+
         duration = time.perf_counter() - t0
         checks = doc.get("checks", {})
+        stats = {
+            "rendered": checks.get("rendered", 0),
+            "translated": checks.get("translated", 0),
+            "coverage_complete": checks.get("coverage_complete", False),
+            "n_overflow": len(checks.get("overflow", [])),
+            "n_skipped_no_bbox": len(checks.get("skipped_no_bbox", [])),
+        }
+        if psd_path is not None:
+            stats["psd"] = str(psd_path.relative_to(ctx.artifacts_dir.parent))
         return StationResult(
             page=ctx.page,
             stage="typeset",
             status="ok",
             output_artifact=out_path,
             duration_s=round(duration, 2),
-            stats={
-                "rendered": checks.get("rendered", 0),
-                "translated": checks.get("translated", 0),
-                "coverage_complete": checks.get("coverage_complete", False),
-                "n_overflow": len(checks.get("overflow", [])),
-                "n_skipped_no_bbox": len(checks.get("skipped_no_bbox", [])),
-            },
+            stats=stats,
         )
     except Exception as e:
         duration = time.perf_counter() - t0

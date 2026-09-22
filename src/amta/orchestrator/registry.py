@@ -77,6 +77,7 @@ def _build_registry() -> dict[str, StageSpec]:
             code_files=[
                 "ocr_station.py",
                 "ocr_engines.py",
+                "vlm_layout.py",
                 "canon_schema.py",
                 "artifacts.py",
                 "geometry.py",
@@ -129,11 +130,14 @@ def _build_registry() -> dict[str, StageSpec]:
             station=typeset_run,
             consumes=["detect", "ocr", "translate", "inpaint"],
             produces="typeset",
-            default_config={},
+            default_config={
+                "export_psd": False,
+            },
             code_files=[
                 "typeset_station.py",
                 "typeset_engine.py",
                 "typeset_render.py",
+                "vlm_render.py",
                 "fonts.py",
                 "geometry.py",
                 "artifacts.py",

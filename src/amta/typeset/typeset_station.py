@@ -33,6 +33,52 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     2. 取所有框的最小值作为整页基准字号
     3. 第二遍：所有框统一用基准字号渲染
     """
+    # ===== VLM paratext 渲染分支（早期 return）=====
+    # VLM 已在 OCR 阶段观察好排版风格（方向/对齐/字体/字号/颜色/描边），
+    # 这里只做机械执行：贪婪换行 + 按观察值画字，不走 MITS 基准字号双遍算法。
+    # 注意：load_canon 会剥掉顶层 ocr_engine/layout_observation，故先用 read_json 读原始信封。
+    raw_canon = read_json(canon_path)
+    if isinstance(raw_canon, dict) and raw_canon.get("ocr_engine") == "vlm-paratext":
+        from amta.stations.vlm_layout import validate_regions
+        from amta.typeset.vlm_render import render_text
+
+        canon_items = raw_canon["items"]
+        trans = read_json(trans_path).get("translations") or {}
+        img = Image.open(clean_path).convert("RGB")
+        validate_regions(canon_items, img.size)
+
+        rendered = []
+        for item in canon_items:
+            text = trans.get(item.get("region_id", ""), "")
+            if not text or not text.strip():
+                continue
+            meta = render_text(img, text, item)
+            rendered.append({**meta, "region_id": item["region_id"]})
+
+        if final_path:
+            final_path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(final_path)
+
+        page_key = out_path.stem.removesuffix("_typeset")
+        doc = {
+            "work_id": work_id,
+            "page": page_key,
+            "renderer": "vlm-greedy-wrap",
+            "rendered_items": rendered,
+            "layout": {r["region_id"]: r for r in rendered},
+            "final_image": f"final/{final_path.name}" if final_path else "",
+            "checks": {
+                "rendered": len(rendered),
+                "translated": len(trans),
+                "coverage_complete": len(rendered) == len(trans),
+                "overflow": [],
+                "skipped_no_bbox": [],
+            },
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        write_json(out_path, doc)
+        return doc
+
     canon_doc = load_canon(canon_path)
     canon_items = canon_doc["items"]
     trans = read_json(trans_path).get("translations") or {}

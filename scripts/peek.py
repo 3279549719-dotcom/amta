@@ -236,7 +236,7 @@ def main() -> int:
         content = generate_module_map()
         out = ROOT / "docs" / "module-map.md"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(content, encoding="utf-8")
+        out.write_text(content, encoding="utf-8", newline="\n")
         print(f"[peek] 模块索引已生成: {out} ({len(content)} 字节)")
         return 0
 
