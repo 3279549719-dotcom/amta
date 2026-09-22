@@ -146,12 +146,14 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     """
     def _build_content(batch: list[dict]) -> str:
         instr = ('将以下日文漫画内容翻译成中文。'
+                 '输入为JSON数组，每个元素是一条待翻译文本；数组字符串内的\\n是块内换行，不是条目分隔。'
                  '输出JSON对象，唯一键为translations；其值为数组，长度和顺序与输入一致。'
                  '漫画口语化表达，句末尽量不要句号。\n')
         # 不写 region_id 前缀（r01|）：数组契约按位置绑定，前缀是多余标签，
         # 反而可能被 LLM 抄进译文（Q6 实验：移除前缀 + 移除前缀剥离补丁）
         blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]
-        # JSON 数组明确条目边界；字符串内的换行不会被误认成下一个文本框。
+        # JSON 数组而非裸 \\n 拼接：块内换行在字符串里是转义的 \\n，
+        # 条目边界由数据结构定死，LLM 没东西可猜（VLM 直读多换行文本暴露的契约漏洞）。
         cur = instr + json.dumps(blocks, ensure_ascii=False)
         if context_enabled and context_prefix:
             return f"{context_prefix}\n\n{cur}"

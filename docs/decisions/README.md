@@ -42,3 +42,4 @@
 - [032 — Hook 体系审计收敛（停用 pre-commit + PreToolUse，保留 pre-push + SessionStart）](./032-hook-guard-convergence.md)
 - [033 — 移除 bubble_type (text_bubble/text_free) 标签](./033-remove-bubble-type-label.md)
 - [034 — 从 rule_filter 移除几何规则（edge_box / extreme_aspect）](./034-remove-geometric-rules-from-rule-filter.md)
+- [2026-09-21 — 管线现状与下一步方向（口述整理）](./2026-09-21-pipeline-shape-and-roadmap.md)
