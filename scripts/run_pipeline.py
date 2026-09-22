@@ -31,8 +31,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="amta 管线编排器（统一入口）")
     ap.add_argument("--work-id", required=True, help="工作区 ID，如 touhou-single-wing")
     ap.add_argument("--src-dir", required=True, type=Path, help="原始图片目录（N.jpg）")
-    ap.add_argument("--start-page", type=int, required=True, help="起始页（1 基，对应文件名）")
-    ap.add_argument("--end-page", type=int, required=True, help="结束页（1 基，包含）")
+    ap.add_argument("--start-page", type=int, default=1, help="起始页（1 基，对应文件名）")
+    ap.add_argument("--end-page", type=int, default=9999, help="结束页（1 基，包含）")
+    ap.add_argument("--pages", default=None,
+                    help="离散页选择，逗号分隔（如 5,40,60）。指定后覆盖 --start-page/--end-page")
+    ap.add_argument("--vlm-pages", default="",
+                    help="走 VLM 模式的页面，逗号分隔（如 60,63,67）。不在此列表的页走普通模式")
     ap.add_argument("--stages", default="detect,ocr,translate",
                     help=f"要执行的阶段，逗号分隔。可用阶段: {','.join(available_stages())}")
     ap.add_argument("--config", default="{}", help="阶段配置覆盖（JSON 字符串）")
@@ -47,11 +51,20 @@ def main() -> int:
         print(f"[ERROR] --config 不是合法 JSON: {e}")
         return 1
 
+    pages = None
+    if a.pages:
+        pages = [int(p.strip()) for p in a.pages.split(",") if p.strip()]
+    vlm_pages = []
+    if a.vlm_pages:
+        vlm_pages = [int(p.strip()) for p in a.vlm_pages.split(",") if p.strip()]
+
     config = PipelineConfig(
         work_id=a.work_id,
         src_dir=a.src_dir,
         start_page=a.start_page,
         end_page=a.end_page,
+        pages=pages,
+        vlm_pages=vlm_pages,
         stages=stages,
         stage_configs=stage_configs,
         force_rerun=a.force_rerun,

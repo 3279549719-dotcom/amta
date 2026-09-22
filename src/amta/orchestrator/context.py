@@ -72,6 +72,10 @@ class PipelineConfig:
     src_dir: Path                       # 原始图片目录（N.jpg，1 基文件名）
     start_page: int                     # 起始页（1 基，对应文件名）
     end_page: int                       # 结束页（1 基，包含）
+    pages: list[int] | None = None
+    # 离散页选择（如 [5, 40, 60]）。为 None 时用 start_page/end_page 连续区间。
+    vlm_pages: list[int] = field(default_factory=list)
+    # 走 VLM 模式的页面列表（如 [60, 63, 67]）。不在此列表的页走普通 hayai 模式。
     stages: list[str] = field(default_factory=lambda: ["detect", "ocr", "translate"])
     # 要执行的阶段，按顺序。后续加 inpaint/typeset 只需在这里加名字。
     stage_configs: dict[str, dict[str, Any]] = field(default_factory=dict)

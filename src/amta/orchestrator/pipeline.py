@@ -34,13 +34,19 @@ _SRC_DIR = ROOT / "src" / "amta"
 
 
 def _resolve_page_list(config: PipelineConfig) -> list[tuple[int, str, Path]]:
-    """把 start_page/end_page（原图序号）展开成 [(page_idx, page_key, raw_path)]。
+    """把页面配置展开成 [(page_idx, page_key, raw_path)]。
 
+    优先级：config.pages（离散页）> start_page/end_page（连续区间）。
     page_idx = 文件名 N（1 基，page_N ↔ N.jpg，与原图序号一致）
     不存在的图片跳过并打印警告。
     """
+    if config.pages is not None:
+        page_numbers = config.pages
+    else:
+        page_numbers = list(range(config.start_page, config.end_page + 1))
+
     pages = []
-    for n in range(config.start_page, config.end_page + 1):
+    for n in page_numbers:
         raw_path = config.src_dir / f"{n}.jpg"
         if not raw_path.exists():
             print(f"[pipeline] WARN {raw_path} not found, skip page {n}")
@@ -92,6 +98,10 @@ def _build_context(
     merged_config = dict(stage.default_config)
     if stage.name in config.stage_configs:
         merged_config.update(config.stage_configs[stage.name])
+
+    # VLM 页面路由：当前页在 vlm_pages 中 → 给 ocr/translate/typeset 注入 vlm_mode=True
+    if page_idx in config.vlm_pages and stage.name in ("ocr", "translate", "typeset"):
+        merged_config["vlm_mode"] = True
 
     return StationContext(
         work_id=config.work_id,
