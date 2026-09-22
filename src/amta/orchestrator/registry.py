@@ -129,7 +129,9 @@ def _build_registry() -> dict[str, StageSpec]:
             station=typeset_run,
             consumes=["detect", "ocr", "translate", "inpaint"],
             produces="typeset",
-            default_config={},
+            default_config={
+                "export_psd": False,
+            },
             code_files=[
                 "typeset_station.py",
                 "typeset_engine.py",
