@@ -1,4 +1,6 @@
-"""Opt-in experiment: replace stations in this process, then use the supported CLI.
+"""DEPRECATED: 已由正式管线 --vlm-pages 取代（见 AGENTS.md / src/amta/typeset/vlm_render.py）。
+
+Opt-in experiment: replace stations in this process, then use the supported CLI.
 
 uv run python scripts/probes/probe_paratext.py --work-id exp-paratext-getten
   --src-dir <source> --start-page 1 --end-page 1 --stages detect,ocr,translate,inpaint,typeset

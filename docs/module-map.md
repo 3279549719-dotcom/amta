@@ -92,6 +92,7 @@
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _paste_glyph_centered）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
 - **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, should_rotate）
+- **`vlm_render.py`** — VLM 贪婪换行本地渲染（正式 typeset 模块）。（函数: _rgb, ink_width, wrap_horizontal, _vertical_columns, layout_text）
 
 ## `scripts/` — CLI 工具入口
 

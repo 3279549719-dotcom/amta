@@ -137,6 +137,7 @@ def _build_registry() -> dict[str, StageSpec]:
                 "typeset_station.py",
                 "typeset_engine.py",
                 "typeset_render.py",
+                "vlm_render.py",
                 "fonts.py",
                 "geometry.py",
                 "artifacts.py",
