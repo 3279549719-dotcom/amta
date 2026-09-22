@@ -6,10 +6,10 @@ The production registry and CLI remain unchanged on disk.
 """
 from __future__ import annotations
 
-import sys
-import time
 import hashlib
 import json
+import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,45 +33,41 @@ def ocr(ctx: StationContext) -> StationResult:
     out = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["canon"]
     cached = read_json(out).get("layout_observation") if out.exists() else None
     observed = read_layout(ctx.raw_image, det["blocks"], cached)
-    if observed is cached:
-        return StationResult(ctx.page, "ocr", "ok", out, time.perf_counter()-start)
     items = []
     for r in observed["regions"]:
         if not r["text"].strip():
             continue
         items.append({**r, "baberu_text": r["text"], "page": ctx.page_idx,
-                      "ocr_engine": "vlm-direct-layout", "vlm_status": "vlm-direct-layout",
+                      "ocr_engine": "vlm-paratext", "vlm_status": "vlm-paratext",
                       "contained_in": None})
-    doc = artifacts.stamp({"items": items, "n_regions": len(items), "ocr_engine": "vlm-direct-layout",
+    doc = artifacts.stamp({"items": items, "n_regions": len(items), "ocr_engine": "vlm-paratext",
                            "layout_observation": observed}, ctx.work_id, ctx.page)
-    out = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["canon"]
     write_json(out, doc)
-    return StationResult(ctx.page, "ocr", "ok", out, time.perf_counter()-start)
+    return StationResult(ctx.page, "ocr", "ok", out, time.perf_counter() - start)
 
 
 def translate(ctx: StationContext) -> StationResult:
     start = time.perf_counter()
     canon = read_json(ctx.inputs["ocr"])
+    out = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["translation"]
     cfg = get_chat_config()
     signature = hashlib.sha256(json.dumps([canon["items"], cfg["model"], cfg["base_url"], "paratext-translation-v1"],
                                           sort_keys=True).encode()).hexdigest()
-    out = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["translation"]
     if out.exists() and read_json(out).get("request_sha256") == signature:
-        return StationResult(ctx.page, "translate", "ok", out, time.perf_counter()-start)
+        return StationResult(ctx.page, "translate", "ok", out, time.perf_counter() - start)
 
     def llm(messages):
         return text_chat(cfg["base_url"], cfg["model"], messages, api_key=cfg["api_key"],
                          timeout=240, temperature=0.1)
 
     translations = translate_plain(canon["items"], llm, context_enabled=False, system_extra=(
-        "本页含书籍副文本。忠实、自然、完整翻译，不删句。保留输入每条中的换行与段落，尤其日期、活动名和版权字段。"
-        "日期、邮箱、网址、账号原样保留，社团名、笔名可保留日文。保留段落正常标点。"
-        "东方角色使用常用名：八意永琳、绵月依姬、绵月丰姬、蓬莱山辉夜、稀神探女、铃仙。"))
+        "忠实、自然、完整地翻译页面中的全部文字，不删句、不概括。保留原文中有语义的段落边界。"
+        "邮箱、网址、账号和不可翻译的标识符原样保留；专名按上下文选择通行译名或保留原文。"))
     if any(not translations.get(item["region_id"], "").strip() for item in canon["items"]):
         raise ValueError("translation missing; do not erase or typeset incomplete output")
-    out = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["translation"]
-    write_json(out, artifacts.stamp({"translations": translations, "request_sha256": signature}, ctx.work_id, ctx.page))
-    return StationResult(ctx.page, "translate", "ok", out, time.perf_counter()-start)
+    write_json(out, artifacts.stamp({"translations": translations, "request_sha256": signature},
+                                     ctx.work_id, ctx.page))
+    return StationResult(ctx.page, "translate", "ok", out, time.perf_counter() - start)
 
 
 def typeset(ctx: StationContext) -> StationResult:
@@ -89,11 +85,13 @@ def typeset(ctx: StationContext) -> StationResult:
     final.parent.mkdir(parents=True, exist_ok=True)
     img.save(final)
     out = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["typeset"]
-    write_json(out, artifacts.stamp({"rendered_items": rendered, "layout": {r["region_id"]: r for r in rendered},
+    write_json(out, artifacts.stamp({
+        "rendered_items": rendered, "layout": {r["region_id"]: r for r in rendered},
         "final_image": f"final/{final.name}",
-        "checks": {"rendered": len(rendered), "translated": len(trans), "coverage_complete": len(rendered)==len(trans),
+        "checks": {"rendered": len(rendered), "translated": len(trans),
+                   "coverage_complete": len(rendered) == len(trans),
                    "overflow": [], "skipped_no_bbox": []}}, ctx.work_id, ctx.page))
-    return StationResult(ctx.page, "typeset", "ok", out, time.perf_counter()-start)
+    return StationResult(ctx.page, "typeset", "ok", out, time.perf_counter() - start)
 
 
 def install_experiment() -> None:
@@ -104,8 +102,9 @@ def install_experiment() -> None:
         ("typeset", typeset, ["paratext_render.py"]),
     ]:
         reg[name].station = fn
-        reg[name].code_files += [str(Path(__file__).resolve()), *[str(Path(__file__).with_name(f).resolve()) for f in files]]
-        reg[name].default_config["experiment"] = "paratext-v1"
+        reg[name].code_files += [str(Path(__file__).resolve()),
+                                  *[str(Path(__file__).with_name(f).resolve()) for f in files]]
+        reg[name].default_config["experiment"] = "paratext-v2"
 
 
 if __name__ == "__main__":
