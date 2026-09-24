@@ -9,6 +9,7 @@ ADR-033 决策C：render_item 不再接收 direction，由 fit_font_size 双方�
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageStat
@@ -160,6 +161,55 @@ def _font_for_char(main_font_path: str, size: int, ch: str) -> ImageFont.FreeTyp
 # typeset_render 只负责调用，不再维护字符名单。
 
 
+def _is_horizontal_char(ch: str) -> bool:
+    """判断字符是否应在竖排中横向排列（縦中横 / tate-chuu-yoko）。
+
+    通用规则：拉丁字母、数字等非 CJK 文字在竖排中横向排列为一个整体，
+    不逐字符竖排。用 Unicode 类别判断，不硬编码具体字符表。
+    CJK 统一表意文字、假名、谚文保持逐字竖排。
+    """
+    cat = unicodedata.category(ch)
+    # 拉丁字母 (Ll/Lu/Lt/Lm)、数字 (Nd) 直接横向
+    if cat in ("Ll", "Lu", "Lt", "Lm", "Nd"):
+        return True
+    # Lo (其他字母)：排除 CJK 表意文字和假名，其余横向
+    if cat == "Lo":
+        cp = ord(ch)
+        # CJK 统一表意、假名、谚文保持逐字竖排，其余横向
+        return not (
+            0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF
+            or 0x3040 <= cp <= 0x30FF or 0xAC00 <= cp <= 0xD7AF
+        )
+    return False
+
+
+def _count_vertical_lines(col_text: str) -> int:
+    """计算竖排一列的实际渲染行数。
+
+    连续横向字符（縦中横）和连续标点组合各占一行，
+    不能按 len(col_text) 字符数算——否则 cosplay(9字符) 会被当成 9 行，
+    导致垂直居中偏移、内容被挤出框外。
+    """
+    count = 0
+    i = 0
+    while i < len(col_text):
+        ch = col_text[i]
+        if ch in VERTICAL_COMBINE:
+            while i < len(col_text) and col_text[i] in VERTICAL_COMBINE:
+                i += 1
+            count += 1
+        elif _is_horizontal_char(ch):
+            while i < len(col_text) and (
+                _is_horizontal_char(col_text[i]) or col_text[i] == " "
+            ):
+                i += 1
+            count += 1
+        else:
+            i += 1
+            count += 1
+    return count
+
+
 def _paste_glyph_centered(img: Image.Image, font, ch: str,
                           cell_x: float, cell_y: float,
                           cell_w: float, cell_h: float,
@@ -203,7 +253,8 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
         x = x_start - col_idx * col_width
         # 竖排列顶对齐：所有列顶部对齐到同一水平线（整组列垂直居中），
         # 不再每列各自居中导致短列漂浮。
-        max_col_h = max(len(c) for c in lines) * lh
+        # 用实际渲染行数（縦中横/标点组合各占一行），不用字符数。
+        max_col_h = max(_count_vertical_lines(c) for c in lines) * lh
         y = cy - max_col_h // 2
         i = 0
         while i < len(col_text):
@@ -222,6 +273,28 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                         img, _choose(pch), pch,
                         group_x + k * punct_w, y, punct_w, lh,
                         stroke, color)
+                y += lh
+                i = j
+            elif _is_horizontal_char(ch):
+                # 縦中横：连续拉丁/数字字符作为一组，在当前行内横向排列。
+                # 前后的半角空格跟随词组一起横向排，避免空格被单独竖排。
+                j = i
+                while j < len(col_text) and (
+                    _is_horizontal_char(col_text[j]) or col_text[j] == " "
+                ):
+                    j += 1
+                group = col_text[i:j]
+                group_fonts = [_choose(c) for c in group]
+                group_widths = [f.getlength(c) for f, c in zip(group_fonts, group)]
+                total_w = sum(group_widths)
+                # 组在当前字格内水平居中，超出则向两侧扩展（长单词自然占多列宽）
+                gx = x + (col_width - total_w) / 2
+                ascent, descent = group_fonts[0].getmetrics()
+                gy = y + (lh - (ascent + descent)) / 2
+                for c, f, cw in zip(group, group_fonts, group_widths):
+                    draw.text((gx, gy), c, font=f, fill=color,
+                              stroke_width=int(stroke), stroke_fill="white")
+                    gx += cw
                 y += lh
                 i = j
             else:

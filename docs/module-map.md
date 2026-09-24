@@ -88,8 +88,8 @@
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
 - **`psd_export.py`** — PSD 导出 — 从 clean 底图 + typeset 排版数据生成分层 PSD（可编辑文字层）。（函数: _hex_to_rgba01, _resolve_ps_font_name, _pil_to_numpy_chw, export_page_psd）
 - **`psd_writer.py`** — 最小 PSD 写入器 — 零依赖，仅支持 RGB 像素图层。（函数: _pascal_string, _channel_raw_data, _build_layer_record, write_psd）
-- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: compute_base_font_size, infer_direction_from_bbox, break_lines, wrap_text, wrap_vertical）
-- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _paste_glyph_centered）
+- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, break_lines）
+- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
 - **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, should_rotate）
 - **`vlm_render.py`** — VLM 贪婪换行本地渲染（正式 typeset 模块）。（函数: _rgb, ink_width, wrap_horizontal, _vertical_columns, layout_text）

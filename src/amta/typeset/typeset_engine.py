@@ -13,6 +13,7 @@ ADR-033 决策C：删除 decide_direction，fit_font_size 同时计算横/竖排
 """
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
 from PIL import ImageFont
@@ -30,6 +31,25 @@ MIN_SIZE_RATIO = 0.7  # 相对下限 = 基准字号 * 0.7（如 38px → 27px）
 
 # 方向推断阈值：高宽比 >= 1.5 视为竖排框，宽高比 >= 1.5 视为横排框
 DIRECTION_RATIO_THRESHOLD = 1.5
+
+
+def _is_latin_token_char(ch: str) -> bool:
+    """判断字符是否属于不可分割的横向 token（拉丁字母、数字、常见连接符）。
+
+    断行时拉丁 token 内部不允许断开，避免 cosplay 被拆成 c-osplay。
+    用 Unicode 类别 + 常见符号判断，不硬编码单词表。
+    """
+    cat = unicodedata.category(ch)
+    if cat in ("Ll", "Lu", "Lt", "Lm", "Nd"):
+        return True
+    return ch in " _@./=+%-"
+
+
+def _inside_latin_token(text: str, pos: int) -> bool:
+    """判断断行点 pos 是否落在拉丁 token 内部（前后都是 token 字符 → 不允许断）。"""
+    if pos <= 0 or pos >= len(text):
+        return False
+    return _is_latin_token_char(text[pos - 1]) and _is_latin_token_char(text[pos])
 
 
 def compute_base_font_size(img_long_side: int) -> int:
@@ -109,6 +129,9 @@ def break_lines(text: str, max_chars: int) -> list[str]:
             # 行首禁则
             if j > 0 and text[j] in no_start:
                 continue
+            # 拉丁 token 保护：不允许在英文单词/数字内部断行
+            if j > 0 and _inside_latin_token(text, j):
+                continue
             # 行末禁则：行尾不能是开括号
             if j > 0 and text[i - 1] in no_end:
                 continue
@@ -151,7 +174,7 @@ def break_lines(text: str, max_chars: int) -> list[str]:
         lines.append(text[j:i])
         i = j
     lines.reverse()
-    return lines
+    return [ln.lstrip() for ln in lines]
 
 
 def wrap_text(text: str, font, max_width: float) -> list[str]:
@@ -176,6 +199,31 @@ def _font_metrics(font: ImageFont.FreeTypeFont) -> tuple[float, float]:
     return char_w, line_h
 
 
+def _vertical_col_width(col_text: str, font, char_w: float) -> float:
+    """竖排一列的实际宽度。
+
+    普通字符占 char_w；连续拉丁字母/数字按横向排列的实际像素宽度算
+    （縦中横），不再假设每个字母占一个字宽。
+    """
+    max_w = char_w
+    i = 0
+    while i < len(col_text):
+        ch = col_text[i]
+        if _is_latin_token_char(ch):
+            j = i
+            while j < len(col_text) and (
+                _is_latin_token_char(col_text[j]) or col_text[j] == " "
+            ):
+                j += 1
+            group = col_text[i:j].strip()
+            if group:
+                max_w = max(max_w, font.getlength(group))
+            i = j
+        else:
+            i += 1
+    return max_w
+
+
 def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
           direction: str) -> bool:
     """检查折行/分列结果是否放入框内（精确测量，无溢出容忍）。"""
@@ -183,9 +231,9 @@ def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
     w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
     _char_w, line_h = _font_metrics(font)
     if direction == "vertical":
-        # 竖排：列数 * 字宽 <= 框宽；最长列字数 * 行高 <= 框高
+        # 竖排：各列实际宽度之和 <= 框宽；最长列字数 * 行高 <= 框高
         max_col_chars = max(len(col) for col in lines) if lines else 0
-        total_w = len(lines) * _char_w
+        total_w = sum(_vertical_col_width(col, font, _char_w) for col in lines)
         return total_w <= w and (max_col_chars * line_h) <= h
     # 横排：最长行像素宽 <= 框宽；行数 * 行高 <= 框高
     max_line = max(font.getlength(ln) for ln in lines) if lines else 0
