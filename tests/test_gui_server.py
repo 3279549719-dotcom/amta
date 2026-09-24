@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from amta.gui.server import app
+from amta.gui.server import _jobs, app
 
 client = TestClient(app)
 
@@ -39,3 +39,29 @@ def test_submit_translation_job_default(tmp_path: Path) -> None:
     assert body["mode"] == "default"
     assert body["work_id"] == "test-submit-default"
     assert body["error"] is None
+
+
+def test_job_status_not_found() -> None:
+    resp = client.get("/api/jobs/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_job_status_queued() -> None:
+    _jobs["fake-job-123"] = {
+        "job_id": "fake-job-123",
+        "status": "queued",
+        "mode": "default",
+        "work_id": "fake-work",
+        "error": None,
+    }
+    try:
+        resp = client.get("/api/jobs/fake-job-123")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["job_id"] == "fake-job-123"
+        assert body["status"] == "queued"
+        assert body["mode"] == "default"
+        assert body["work_id"] == "fake-work"
+        assert body["error"] is None
+    finally:
+        del _jobs["fake-job-123"]

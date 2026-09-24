@@ -112,3 +112,12 @@ def submit_translation_job(req: TranslateRequest) -> JobResponse:
     return JobResponse(
         job_id=job_id, status="queued", mode=req.mode, work_id=req.work_id
     )
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job_status(job_id: str) -> JobResponse:
+    """轮询任务状态；未知 job_id 返回 404。"""
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"job {job_id!r} not found")
+    return JobResponse(**job)  # type: ignore[arg-type]
