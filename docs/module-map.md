@@ -34,6 +34,10 @@
 - **`term_replace.py`** — Direct term replacement: replace locked terms in source text with Chinese translations.（函数: replace_terms, replace_in_canon）
 - **`vlm_filter.py`** — VLM 三态过滤 — keep(保留) / fix(修正) / drop(丢弃)。（函数: _parse_json_safe, vlm_filter_v2）
 
+## `gui/` — (无 docstring)
+
+- **`server.py`** — Touhou Manga Translator — 本地 FastAPI 后端。（类: TranslateRequest, JobResponse；函数: _run_pipeline_background, health_check, submit_translation_job, get_job_status, _workspace_dir）
+
 ## `inpaint/` — amta.inpaint — Stage 4 去文字/重绘（lama 家族落地）。
 
 - **`_lama_ffc.py`** — FFC (Fast Fourier Convolution) ResNet Generator — 从 BallonsTranslator 复制。（类: FourierUnit, SpectralTransform, FFC；函数: get_activation）
@@ -107,6 +111,7 @@
 - **`peek.py`** — peek — 看一眼这个项目现在长什么样：管线全貌 + 模块地图。
 - **`pre_scan.py`** — CLI: pre-scan a work's canon artifacts to build locked terminology dictionary.
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
+- **`run_gui.py`** — Touhou Manga Translator GUI — 本地 Web 服务器启动脚本。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
 - **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
