@@ -20,6 +20,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel
 
@@ -243,3 +244,11 @@ def export_psd(work_id: str, page: str) -> FileResponse:
         media_type="image/vnd.adobe.photoshop",
         filename=f"{work_id}_{page}.psd",
     )
+
+
+# ---------------------------------------------------------------------------
+# 静态前端 —— 必须挂在所有 API 路由之后（兜底 catch-all）。
+# ---------------------------------------------------------------------------
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

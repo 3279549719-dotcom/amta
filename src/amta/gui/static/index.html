@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touhou Manga Translator</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%232563eb'/><text x='50' y='70' font-size='52' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>T</text></svg>">
+<style>
+  :root {
+    --blue-600: #2563eb;
+    --blue-500: #3b82f6;
+    --blue-100: #dbeafe;
+    --blue-50: #eff6ff;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+    --white: #ffffff;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-800);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ===== Top Bar ===== */
+  .topbar {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+    background: var(--blue-600);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .brand-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--gray-900);
+    letter-spacing: -0.01em;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    background: var(--gray-100);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 1px;
+  }
+
+  .mode-toggle button {
+    padding: 5px 14px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .mode-toggle button:hover { color: var(--gray-700); }
+  .mode-toggle button.active {
+    background: var(--white);
+    color: var(--blue-600);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 7px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--blue-600);
+    color: white;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--blue-500); }
+  .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
+
+  .btn-secondary {
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-300);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--gray-50);
+    border-color: var(--gray-400);
+  }
+  .btn-secondary:disabled {
+    color: var(--gray-300);
+    border-color: var(--gray-200);
+    cursor: not-allowed;
+  }
+
+  .btn svg { width: 14px; height: 14px; }
+
+  /* ===== Main Layout ===== */
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Sidebar - thumbnails */
+  .sidebar {
+    width: 72px;
+    background: var(--white);
+    border-right: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 8px;
+    gap: 8px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--gray-200);
+    overflow: hidden;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    background: var(--gray-100);
+    transition: border-color 0.15s ease;
+  }
+
+  .thumb.active {
+    border-color: var(--blue-600);
+    box-shadow: 0 0 0 2px var(--blue-100);
+  }
+
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .thumb .page-num {
+    position: absolute;
+    bottom: 1px;
+    right: 3px;
+    font-size: 9px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  .thumb-add {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-sm);
+    border: 2px dashed var(--gray-300);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    color: var(--gray-400);
+    transition: all 0.15s ease;
+  }
+
+  .thumb-add:hover {
+    border-color: var(--blue-400);
+    color: var(--blue-500);
+  }
+
+  .thumb-add svg { width: 20px; height: 20px; }
+
+  /* Canvas area - side by side images */
+  .canvas {
+    flex: 1;
+    display: flex;
+    gap: 1px;
+    background: var(--gray-200);
+    overflow: hidden;
+  }
+
+  .pane {
+    flex: 1;
+    background: var(--gray-50);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .pane-label {
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .pane-label .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gray-300);
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .pane-label .dot.loaded { background: var(--blue-500); }
+  .pane-label .dot.done { background: #10b981; }
+
+  .pane-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    padding: 16px;
+  }
+
+  .pane-body img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  /* Drop zone (only in input pane when empty) */
+  .drop-zone {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    cursor: pointer;
+    border: 2px dashed transparent;
+    transition: all 0.15s ease;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    background: var(--blue-50);
+    border-color: var(--blue-300);
+  }
+
+  .drop-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--blue-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .drop-icon svg { width: 22px; height: 22px; stroke: var(--blue-600); }
+
+  .drop-text {
+    font-size: 14px;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+
+  .drop-hint {
+    font-size: 11px;
+    color: var(--gray-400);
+  }
+
+  /* Empty output */
+  .empty-output {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--gray-300);
+  }
+
+  .empty-output svg { width: 36px; height: 36px; stroke: var(--gray-300); }
+  .empty-output span { font-size: 12px; color: var(--gray-400); }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.88);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    backdrop-filter: blur(2px);
+  }
+
+  .loading-overlay.show { display: flex; }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--blue-100);
+    border-top-color: var(--blue-600);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text { font-size: 13px; color: var(--gray-600); font-weight: 500; }
+  .loading-step { font-size: 11px; color: var(--gray-400); }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    background: var(--gray-800);
+    color: white;
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.2s ease;
+  }
+
+  .toast.success { background: #059669; }
+  .toast.info { background: var(--blue-600); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Hidden file input */
+  #fileInput { display: none; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .sidebar { width: 56px; }
+    .thumb, .thumb-add { width: 40px; height: 40px; }
+    .canvas { flex-direction: column; }
+    .mode-toggle button { padding: 5px 8px; font-size: 11px; }
+    .btn { padding: 7px 12px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ===== Top Bar ===== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-logo">T</div>
+    <span class="brand-name">Touhou Translator</span>
+  </div>
+  <div class="actions">
+    <div class="mode-toggle" role="tablist">
+      <button class="active" data-mode="default" role="tab">Default</button>
+      <button data-mode="vlm" role="tab">VLM</button>
+    </div>
+    <button class="btn btn-primary" id="translateBtn" disabled>
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+      </svg>
+      Translate
+    </button>
+    <button class="btn btn-secondary" id="exportBtn" disabled>
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+      </svg>
+      Export
+    </button>
+  </div>
+</header>
+
+<!-- ===== Main ===== -->
+<div class="main">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="thumb-add" id="thumbAdd" title="Add images">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+      </svg>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <div class="canvas">
+    <!-- Input pane -->
+    <div class="pane">
+      <div class="pane-label">
+        <span><span class="dot" id="inputDot"></span>Original</span>
+        <span id="inputName" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gray-400);"></span>
+      </div>
+      <div class="pane-body" id="inputBody">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+            </svg>
+          </div>
+          <div class="drop-text">Drop images here</div>
+          <div class="drop-hint">or click to browse — PNG / JPG / WebP</div>
+        </div>
+        <img id="inputImg" style="display:none;" alt="Original">
+      </div>
+    </div>
+
+    <!-- Output pane -->
+    <div class="pane">
+      <div class="pane-label">
+        <span><span class="dot" id="outputDot"></span>Translated</span>
+        <span id="outputBadge" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--gray-400);"></span>
+      </div>
+      <div class="pane-body" id="outputBody">
+        <div class="empty-output" id="emptyOutput">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/>
+          </svg>
+          <span>Result appears here</span>
+        </div>
+        <img id="outputImg" style="display:none;" alt="Translated">
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="spinner"></div>
+          <div class="loading-text" id="loadingText">Translating…</div>
+          <div class="loading-step" id="loadingStep"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" multiple>
+
+<script>
+(function() {
+  // State
+  var images = [];
+  var currentIndex = -1;
+  var currentMode = 'default';
+  var idCounter = 0;
+
+  // DOM
+  var dropZone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var inputImg = document.getElementById('inputImg');
+  var outputImg = document.getElementById('outputImg');
+  var emptyOutput = document.getElementById('emptyOutput');
+  var inputDot = document.getElementById('inputDot');
+  var outputDot = document.getElementById('outputDot');
+  var inputName = document.getElementById('inputName');
+  var outputBadge = document.getElementById('outputBadge');
+  var translateBtn = document.getElementById('translateBtn');
+  var exportBtn = document.getElementById('exportBtn');
+  var loadingOverlay = document.getElementById('loadingOverlay');
+  var loadingText = document.getElementById('loadingText');
+  var loadingStep = document.getElementById('loadingStep');
+  var sidebar = document.getElementById('sidebar');
+  var thumbAdd = document.getElementById('thumbAdd');
+  var toastContainer = document.getElementById('toastContainer');
+
+  function toast(msg, type) {
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    toastContainer.appendChild(t);
+    setTimeout(function() {
+      t.style.opacity = '0';
+      t.style.transition = 'opacity 0.3s';
+      setTimeout(function() { t.remove(); }, 300);
+    }, 2200);
+  }
+
+  // Mode toggle
+  document.querySelectorAll('.mode-toggle button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.mode-toggle button').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+      toast('Mode: ' + (currentMode === 'vlm' ? 'VLM Paratext' : 'Default'), 'info');
+    });
+  });
+
+  // File handling
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  thumbAdd.addEventListener('click', function() { fileInput.click(); });
+
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  // Also allow dropping anywhere on the page
+  document.body.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.body.addEventListener('drop', function(e) {
+    e.preventDefault();
+    if (e.target.closest('.drop-zone')) return; // already handled
+    handleFiles(e.dataTransfer.files);
+  });
+
+  fileInput.addEventListener('change', function(e) {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  function handleFiles(fileList) {
+    var files = Array.from(fileList).filter(function(f) { return f.type.startsWith('image/'); });
+    if (files.length === 0) { toast('No image files', 'info'); return; }
+
+    files.forEach(function(file) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var img = {
+          id: ++idCounter,
+          name: file.name,
+          file: file,
+          src: e.target.result,
+          outputSrc: null,
+          translated: false
+        };
+        images.push(img);
+        addThumb(img);
+        if (currentIndex === -1) selectImage(0);
+      };
+      reader.readAsDataURL(file);
+    });
+    toast('Added ' + files.length + ' image' + (files.length > 1 ? 's' : ''), 'success');
+  }
+
+  function addThumb(img) {
+    var thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    thumb.dataset.id = img.id;
+    thumb.innerHTML = '<img src="' + img.src + '" alt=""><span class="page-num">' + images.length + '</span>';
+    thumb.addEventListener('click', function() {
+      var idx = images.findIndex(function(i) { return i.id === img.id; });
+      if (idx !== -1) selectImage(idx);
+    });
+    sidebar.insertBefore(thumb, thumbAdd);
+  }
+
+  function selectImage(index) {
+    if (index < 0 || index >= images.length) return;
+    currentIndex = index;
+    var img = images[index];
+
+    document.querySelectorAll('.thumb').forEach(function(t) {
+      t.classList.toggle('active', parseInt(t.dataset.id) === img.id);
+    });
+
+    inputImg.src = img.src;
+    inputImg.style.display = 'block';
+    dropZone.style.display = 'none';
+    inputDot.classList.add('loaded');
+    inputName.textContent = img.name.length > 24 ? img.name.substring(0, 21) + '...' : img.name;
+
+    if (img.translated && img.outputSrc) {
+      outputImg.src = img.outputSrc;
+      outputImg.style.display = 'block';
+      emptyOutput.style.display = 'none';
+      outputDot.classList.add('done');
+      outputBadge.textContent = 'Done';
+      exportBtn.disabled = false;
+    } else {
+      outputImg.style.display = 'none';
+      emptyOutput.style.display = 'flex';
+      outputDot.classList.remove('done');
+      outputBadge.textContent = '';
+      exportBtn.disabled = true;
+    }
+
+    translateBtn.disabled = false;
+  }
+
+  // Translate — 真实 API：上传全部图片 -> 提交任务 -> 轮询 -> 拉取产物
+  translateBtn.addEventListener('click', function() {
+    if (currentIndex === -1) return;
+
+    translateBtn.disabled = true;
+    loadingOverlay.classList.add('show');
+    loadingText.textContent = 'Uploading…';
+    loadingStep.textContent = '';
+    outputDot.classList.remove('done');
+    outputBadge.textContent = 'Processing…';
+
+    var formData = new FormData();
+    images.forEach(function(im) {
+      formData.append('files', im.file, im.name);
+    });
+    var workId = 'gui-' + Date.now();
+
+    fetch('/api/upload', { method: 'POST', body: formData })
+      .then(function(r) {
+        if (!r.ok) throw new Error('upload failed: ' + r.status);
+        return r.json();
+      })
+      .then(function(upload) {
+        loadingText.textContent = 'Translating…';
+        return fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            work_id: workId,
+            src_dir: upload.src_dir,
+            mode: currentMode,
+            pages: upload.pages
+          })
+        }).then(function(r) {
+          if (!r.ok) throw new Error('translate submit failed: ' + r.status);
+          return r.json();
+        });
+      })
+      .then(function(job) {
+        pollJob(job.job_id, workId);
+      })
+      .catch(function(err) {
+        loadingOverlay.classList.remove('show');
+        translateBtn.disabled = false;
+        toast('Error: ' + err.message, 'error');
+      });
+  });
+
+  // 轮询任务状态；done 后拉取 artifacts 并按页号回填到对应 image
+  var pollTimer = null;
+  function pollJob(jobId, workId) {
+    var steps = currentMode === 'vlm'
+      ? ['VLM reading layout…', 'Translating…', 'Rendering…']
+      : ['Detecting…', 'OCR…', 'Translating…', 'Inpainting…', 'Typesetting…'];
+    var stepIdx = 0;
+    loadingStep.textContent = steps[0];
+
+    pollTimer = setInterval(function() {
+      fetch('/api/jobs/' + jobId)
+        .then(function(r) {
+          if (!r.ok) throw new Error('job status ' + r.status);
+          return r.json();
+        })
+        .then(function(job) {
+          if (job.status === 'done') {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            return fetch('/api/artifacts/' + workId)
+              .then(function(r) { return r.json(); })
+              .then(function(res) {
+                // image 索引+1 = 页号，按页号匹配产物
+                res.artifacts.forEach(function(a) {
+                  var idx = parseInt(a.page, 10) - 1;
+                  if (idx >= 0 && idx < images.length) {
+                    images[idx].translated = true;
+                    images[idx].outputSrc = a.url;
+                    images[idx].workId = workId;
+                  }
+                });
+                if (currentIndex !== -1) selectImage(currentIndex);
+                toast('Done (' + currentMode + ')', 'success');
+              });
+          } else if (job.status === 'failed') {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            loadingOverlay.classList.remove('show');
+            translateBtn.disabled = false;
+            toast('Failed: ' + (job.error || 'unknown error'), 'error');
+          } else {
+            // queued / running —— 阶段文字推进
+            stepIdx = Math.min(stepIdx + 1, steps.length - 1);
+            loadingStep.textContent = steps[stepIdx];
+          }
+        })
+        .catch(function(err) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          loadingOverlay.classList.remove('show');
+          translateBtn.disabled = false;
+          toast('Error: ' + err.message, 'error');
+        });
+    }, 2000);
+  }
+
+  // Export — 打开导出端点下载 PNG
+  exportBtn.addEventListener('click', function() {
+    if (currentIndex === -1 || !images[currentIndex].translated) return;
+    var img = images[currentIndex];
+    var page = String(currentIndex + 1);
+    window.open('/api/export/' + img.workId + '/' + page + '/png', '_blank');
+    toast('PNG download started', 'success');
+  });
+
+  // Keyboard: Delete removes current
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Delete' && currentIndex !== -1) {
+      var removed = images.splice(currentIndex, 1)[0];
+      var thumb = sidebar.querySelector('.thumb[data-id="' + removed.id + '"]');
+      if (thumb) thumb.remove();
+      if (images.length > 0) {
+        selectImage(Math.min(currentIndex, images.length - 1));
+      } else {
+        currentIndex = -1;
+        inputImg.style.display = 'none';
+        dropZone.style.display = 'flex';
+        outputImg.style.display = 'none';
+        emptyOutput.style.display = 'flex';
+        inputDot.classList.remove('loaded');
+        outputDot.classList.remove('done');
+        inputName.textContent = '';
+        outputBadge.textContent = '';
+        translateBtn.disabled = true;
+        exportBtn.disabled = true;
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
