@@ -69,16 +69,28 @@ def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
 
     try:
         _jobs[job_id]["status"] = "running"  # type: ignore[index]
+        # VLM 模式：把用户指定的离散页作为 vlm_pages，编排器会给这些页的
+        # ocr/translate/typeset 注入 vlm_mode=True。pages 为 None（整本跑）时
+        # 不做 VLM 路由，传空列表即可（VLM 路由不生效但不报错）。
+        vlm_pages = list(req.pages) if (req.mode == "vlm" and req.pages) else []
         config = PipelineConfig(
             work_id=req.work_id,
             src_dir=Path(req.src_dir),
             start_page=1,
             end_page=9999,
             pages=req.pages,
+            vlm_pages=vlm_pages,
             stages=["detect", "ocr", "translate", "inpaint", "typeset"],
+            continue_on_error=True,
         )
-        run_pipeline(config)
-        _jobs[job_id]["status"] = "done"  # type: ignore[index]
+        result = run_pipeline(config)
+        if result.failed_pages:
+            _jobs[job_id]["status"] = "failed"  # type: ignore[index]
+            _jobs[job_id]["error"] = (  # type: ignore[index]
+                f"{len(result.failed_pages)} page(s) failed"
+            )
+        else:
+            _jobs[job_id]["status"] = "done"  # type: ignore[index]
     except Exception as exc:  # noqa: BLE001 — 后台容错：错误存进 job，不炸线程
         _jobs[job_id]["status"] = "failed"  # type: ignore[index]
         _jobs[job_id]["error"] = str(exc)  # type: ignore[index]
