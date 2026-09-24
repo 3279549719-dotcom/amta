@@ -91,6 +91,7 @@ def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
             pages=pages,
             vlm_pages=vlm_pages,
             stages=["detect", "ocr", "translate", "inpaint", "typeset"],
+            stage_configs={"typeset": {"export_psd": True}},
             continue_on_error=True,
         )
         result = run_pipeline(config)

@@ -99,7 +99,8 @@ def export_page_psd(
 
     # 5. 添加底图层
     bg_data = _pil_to_numpy_chw(clean_img)
-    bg_layer = psapi.ImageLayer_8bit(bg_data, "clean_bg", width=width, height=height)
+    page_num = page_key.replace("page_", "")
+    bg_layer = psapi.ImageLayer_8bit(bg_data, f"clean page {page_num}", width=width, height=height)
     doc.add_layer(bg_layer)
 
     # 6. 每个文字区域一个可编辑文字层

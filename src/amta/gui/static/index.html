@@ -411,6 +411,20 @@
     .mode-toggle button { padding: 5px 8px; font-size: 11px; }
     .btn { padding: 7px 12px; font-size: 12px; }
   }
+
+  .export-wrap { position: relative; display: inline-block; }
+  .export-menu {
+    display: none; position: absolute; top: calc(100% + 4px); right: 0;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 140px; z-index: 100;
+    overflow: hidden;
+  }
+  .export-menu.show { display: block; }
+  .export-item {
+    padding: 10px 16px; cursor: pointer; font-size: 13px; color: #334155;
+    transition: background 0.15s;
+  }
+  .export-item:hover { background: #f1f5f9; }
 </style>
 </head>
 <body>
@@ -434,12 +448,18 @@
       </svg>
       Translate
     </button>
-    <button class="btn btn-secondary" id="exportBtn" disabled>
-      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-      </svg>
-      Export
-    </button>
+    <div class="export-wrap">
+      <button class="btn btn-secondary" id="exportBtn" disabled>
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+        </svg>
+        Export
+      </button>
+      <div class="export-menu" id="exportMenu">
+        <div class="export-item" data-format="png">PNG 图片</div>
+        <div class="export-item" data-format="psd">PSD 分层文件</div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -755,14 +775,24 @@
     }, 2000);
   }
 
-  // Export — 打开导出端点下载 PNG
-  exportBtn.addEventListener('click', function() {
+  // Export — 下拉菜单选 PNG / PSD
+  var exportMenu = document.getElementById('exportMenu');
+  exportBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
     if (currentIndex === -1 || !images[currentIndex].translated) return;
-    var img = images[currentIndex];
-    var page = String(currentIndex + 1);
-    window.open('/api/export/' + img.workId + '/' + page + '/png', '_blank');
-    toast('PNG download started', 'success');
+    exportMenu.classList.toggle('show');
   });
+  document.querySelectorAll('.export-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      var format = this.dataset.format;
+      var img = images[currentIndex];
+      var page = String(currentIndex + 1);
+      window.open('/api/export/' + img.workId + '/' + page + '/' + format, '_blank');
+      toast(format.toUpperCase() + ' download started', 'success');
+      exportMenu.classList.remove('show');
+    });
+  });
+  document.addEventListener('click', function() { exportMenu.classList.remove('show'); });
 
   // Keyboard: Delete removes current
   document.addEventListener('keydown', function(e) {
