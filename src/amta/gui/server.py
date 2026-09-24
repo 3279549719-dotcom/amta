@@ -73,16 +73,22 @@ def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
 
     try:
         _jobs[job_id]["status"] = "running"  # type: ignore[index]
-        # VLM 模式：把用户指定的离散页作为 vlm_pages，编排器会给这些页的
-        # ocr/translate/typeset 注入 vlm_mode=True。pages 为 None（整本跑）时
-        # 不做 VLM 路由，传空列表即可（VLM 路由不生效但不报错）。
-        vlm_pages = list(req.pages) if (req.mode == "vlm" and req.pages) else []
+        # pages 为 None（整本跑）时，从 src_dir 实际扫描 .jpg 文件名数字得到页号，
+        # 避免 end_page=9999 让管线遍历近万页、刷大量 "not found" WARN。
+        # 扫描结果为空列表时，管线会走 "no valid pages found" 正常返回。
+        pages = req.pages
+        if pages is None:
+            src = Path(req.src_dir)
+            pages = sorted(int(p.stem) for p in src.glob("*.jpg") if p.stem.isdigit())
+        # VLM 模式：把离散页作为 vlm_pages，编排器会给这些页的 ocr/translate/typeset
+        # 注入 vlm_mode=True。pages 为空时不做 VLM 路由（不生效但不报错）。
+        vlm_pages = list(pages) if (req.mode == "vlm" and pages) else []
         config = PipelineConfig(
             work_id=req.work_id,
             src_dir=Path(req.src_dir),
             start_page=1,
             end_page=9999,
-            pages=req.pages,
+            pages=pages,
             vlm_pages=vlm_pages,
             stages=["detect", "ocr", "translate", "inpaint", "typeset"],
             continue_on_error=True,
