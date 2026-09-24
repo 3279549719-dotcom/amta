@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMTA — Manga Translation</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text x='50' y='68' font-size='52' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>A</text></svg>">
+<style>
+  :root {
+    --blue-600: #2563eb;
+    --blue-500: #3b82f6;
+    --blue-100: #dbeafe;
+    --blue-50: #eff6ff;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    --white: #ffffff;
+    --radius: 10px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-800);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ===== Top Bar ===== */
+  .topbar {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+    background: var(--blue-600);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .brand-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--gray-900);
+    letter-spacing: -0.01em;
+  }
+
+  .brand-sub {
+    font-size: 12px;
+    color: var(--gray-400);
+    margin-left: 2px;
+  }
+
+  /* Mode Switch */
+  .mode-switch {
+    display: flex;
+    background: var(--gray-100);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .mode-btn {
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .mode-btn:hover {
+    color: var(--gray-700);
+  }
+
+  .mode-btn.active {
+    background: var(--white);
+    color: var(--blue-600);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ===== Main Canvas ===== */
+  .canvas {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    padding: 16px 24px;
+    overflow: hidden;
+  }
+
+  .panel {
+    flex: 1;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .panel-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-600);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .panel-title .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gray-300);
+  }
+
+  .panel-title .dot.loaded { background: var(--blue-500); }
+  .panel-title .dot.done { background: #10b981; }
+
+  .panel-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--gray-100);
+    color: var(--gray-500);
+  }
+
+  .panel-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background: var(--gray-50);
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border: 2px dashed transparent;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    background: var(--blue-50);
+    border-color: var(--blue-300);
+  }
+
+  .drop-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--blue-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .drop-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--blue-600);
+  }
+
+  .drop-text {
+    font-size: 14px;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+
+  .drop-hint {
+    font-size: 12px;
+    color: var(--gray-400);
+  }
+
+  /* Image display */
+  .panel-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+
+  .panel-img.show { display: block; }
+
+  /* Empty state for output */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--gray-400);
+  }
+
+  .empty-state svg {
+    width: 40px;
+    height: 40px;
+    stroke: var(--gray-300);
+  }
+
+  .empty-text {
+    font-size: 13px;
+    color: var(--gray-400);
+  }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.85);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    backdrop-filter: blur(2px);
+  }
+
+  .loading-overlay.show { display: flex; }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--blue-100);
+    border-top-color: var(--blue-600);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-size: 13px;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+
+  .loading-step {
+    font-size: 11px;
+    color: var(--gray-400);
+  }
+
+  /* ===== Bottom Bar ===== */
+  .bottombar {
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 16px;
+  }
+
+  .thumb-strip {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    overflow-x: auto;
+    max-width: 50%;
+    padding: 2px 0;
+  }
+
+  .thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    border: 2px solid var(--gray-200);
+    overflow: hidden;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    background: var(--gray-100);
+  }
+
+  .thumb.active {
+    border-color: var(--blue-600);
+    box-shadow: 0 0 0 2px var(--blue-100);
+  }
+
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .thumb-add {
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    border: 2px dashed var(--gray-300);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    color: var(--gray-400);
+    transition: all 0.15s ease;
+  }
+
+  .thumb-add:hover {
+    border-color: var(--blue-400);
+    color: var(--blue-500);
+  }
+
+  .action-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--blue-600);
+    color: white;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--blue-500);
+    box-shadow: var(--shadow);
+  }
+
+  .btn-primary:disabled {
+    background: var(--gray-300);
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-300);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--gray-50);
+    border-color: var(--gray-400);
+  }
+
+  .btn-secondary:disabled {
+    color: var(--gray-300);
+    border-color: var(--gray-200);
+    cursor: not-allowed;
+  }
+
+  .btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    background: var(--gray-800);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: var(--shadow-md);
+    animation: slideIn 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toast.success { background: #059669; }
+  .toast.info { background: var(--blue-600); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .canvas {
+      flex-direction: column;
+      padding: 12px;
+    }
+    .topbar, .bottombar {
+      padding: 10px 16px;
+    }
+    .thumb-strip { max-width: 40%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ===== Top Bar ===== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-logo">A</div>
+    <div>
+      <span class="brand-name">AMTA</span>
+      <span class="brand-sub">Manga Translator</span>
+    </div>
+  </div>
+  <div class="mode-switch" role="tablist">
+    <button class="mode-btn active" data-mode="default" role="tab">Default</button>
+    <button class="mode-btn" data-mode="vlm" role="tab">VLM Paratext</button>
+  </div>
+</header>
+
+<!-- ===== Main Canvas ===== -->
+<main class="canvas">
+  <!-- Input Panel -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="dot" id="inputDot"></span>
+        Original
+      </div>
+      <span class="panel-badge" id="inputBadge">No image</span>
+    </div>
+    <div class="panel-body" id="inputBody">
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+          </svg>
+        </div>
+        <div class="drop-text">Drop image here or click to browse</div>
+        <div class="drop-hint">Supports PNG / JPG / WebP — one or many</div>
+      </div>
+      <img class="panel-img" id="inputImg" alt="Original page">
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+    </div>
+  </section>
+
+  <!-- Output Panel -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span class="dot" id="outputDot"></span>
+        Translated
+      </div>
+      <span class="panel-badge" id="outputBadge">Waiting</span>
+    </div>
+    <div class="panel-body" id="outputBody">
+      <div class="empty-state" id="emptyState">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/>
+        </svg>
+        <div class="empty-text">Translated page will appear here</div>
+      </div>
+      <img class="panel-img" id="outputImg" alt="Translated page">
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Translating…</div>
+        <div class="loading-step" id="loadingStep">Detecting text regions</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ===== Bottom Bar ===== -->
+<footer class="bottombar">
+  <div class="thumb-strip" id="thumbStrip">
+    <div class="thumb-add" id="thumbAdd" title="Add more images">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+      </svg>
+    </div>
+  </div>
+  <div class="action-group">
+    <button class="btn btn-primary" id="translateBtn" disabled>
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+      </svg>
+      Translate
+    </button>
+    <button class="btn btn-secondary" id="exportPngBtn" disabled>
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+      </svg>
+      PNG
+    </button>
+    <button class="btn btn-secondary" id="exportPsdBtn" disabled title="PSD export coming soon">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+      </svg>
+      PSD
+      <span style="font-size:10px;opacity:0.6;">soon</span>
+    </button>
+  </div>
+</footer>
+
+<script>
+(function() {
+  // State
+  var images = []; // { id, name, src, outputSrc, translated }
+  var currentIndex = -1;
+  var currentMode = 'default';
+  var imgIdCounter = 0;
+
+  // DOM
+  var dropZone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var inputImg = document.getElementById('inputImg');
+  var outputImg = document.getElementById('outputImg');
+  var emptyState = document.getElementById('emptyState');
+  var inputDot = document.getElementById('inputDot');
+  var outputDot = document.getElementById('outputDot');
+  var inputBadge = document.getElementById('inputBadge');
+  var outputBadge = document.getElementById('outputBadge');
+  var translateBtn = document.getElementById('translateBtn');
+  var exportPngBtn = document.getElementById('exportPngBtn');
+  var exportPsdBtn = document.getElementById('exportPsdBtn');
+  var loadingOverlay = document.getElementById('loadingOverlay');
+  var loadingText = document.getElementById('loadingText');
+  var loadingStep = document.getElementById('loadingStep');
+  var thumbStrip = document.getElementById('thumbStrip');
+  var thumbAdd = document.getElementById('thumbAdd');
+  var toastContainer = document.getElementById('toastContainer');
+
+  // Toast
+  function showToast(msg, type) {
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.textContent = msg;
+    toastContainer.appendChild(t);
+    setTimeout(function() {
+      t.style.opacity = '0';
+      t.style.transition = 'opacity 0.3s';
+      setTimeout(function() { t.remove(); }, 300);
+    }, 2500);
+  }
+
+  // Mode switch
+  document.querySelectorAll('.mode-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+      showToast('Mode: ' + (currentMode === 'vlm' ? 'VLM Paratext' : 'Default (OCR)'), 'info');
+    });
+  });
+
+  // File handling
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  thumbAdd.addEventListener('click', function() { fileInput.click(); });
+
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', function() {
+    dropZone.classList.remove('dragover');
+  });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  fileInput.addEventListener('change', function(e) {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  function handleFiles(fileList) {
+    var files = Array.from(fileList).filter(function(f) { return f.type.startsWith('image/'); });
+    if (files.length === 0) {
+      showToast('No image files found', 'info');
+      return;
+    }
+    files.forEach(function(file) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var img = { id: ++imgIdCounter, name: file.name, src: e.target.result, outputSrc: null, translated: false };
+        images.push(img);
+        addThumb(img);
+        if (currentIndex === -1) {
+          selectImage(0);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    showToast('Added ' + files.length + ' image' + (files.length > 1 ? 's' : ''), 'success');
+  }
+
+  function addThumb(img) {
+    var thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    thumb.dataset.id = img.id;
+    thumb.innerHTML = '<img src="' + img.src + '" alt="' + img.name + '">';
+    thumb.addEventListener('click', function() {
+      var idx = images.findIndex(function(i) { return i.id === img.id; });
+      if (idx !== -1) selectImage(idx);
+    });
+    thumbStrip.insertBefore(thumb, thumbAdd);
+  }
+
+  function selectImage(index) {
+    if (index < 0 || index >= images.length) return;
+    currentIndex = index;
+    var img = images[index];
+
+    // Update thumbs
+    document.querySelectorAll('.thumb').forEach(function(t) {
+      t.classList.toggle('active', parseInt(t.dataset.id) === img.id);
+    });
+
+    // Show input
+    inputImg.src = img.src;
+    inputImg.classList.add('show');
+    dropZone.style.display = 'none';
+    inputDot.classList.add('loaded');
+    inputBadge.textContent = img.name.length > 20 ? img.name.substring(0, 17) + '...' : img.name;
+
+    // Show output or empty
+    if (img.translated && img.outputSrc) {
+      outputImg.src = img.outputSrc;
+      outputImg.classList.add('show');
+      emptyState.style.display = 'none';
+      outputDot.classList.add('done');
+      outputBadge.textContent = 'Done';
+      exportPngBtn.disabled = false;
+    } else {
+      outputImg.classList.remove('show');
+      emptyState.style.display = 'flex';
+      outputDot.classList.remove('done');
+      outputBadge.textContent = 'Waiting';
+      exportPngBtn.disabled = true;
+    }
+
+    translateBtn.disabled = false;
+    exportPsdBtn.disabled = true; // PSD always disabled in prototype
+  }
+
+  // Translate (simulated)
+  translateBtn.addEventListener('click', function() {
+    if (currentIndex === -1) return;
+    var img = images[currentIndex];
+
+    translateBtn.disabled = true;
+    loadingOverlay.classList.add('show');
+    outputDot.classList.remove('done');
+    outputBadge.textContent = 'Processing…';
+
+    var steps = currentMode === 'vlm'
+      ? ['VLM: Reading layout & typography…', 'Translating…', 'Rendering with greedy wrap…']
+      : ['Detecting text regions…', 'OCR: Recognizing text…', 'Translating…', 'Inpainting…', 'Typesetting…'];
+
+    var stepIdx = 0;
+    loadingStep.textContent = steps[0];
+
+    var stepInterval = setInterval(function() {
+      stepIdx++;
+      if (stepIdx < steps.length) {
+        loadingStep.textContent = steps[stepIdx];
+      }
+    }, 700);
+
+    setTimeout(function() {
+      clearInterval(stepInterval);
+      loadingOverlay.classList.remove('show');
+
+      // Simulate output: apply a subtle filter to mimic translated page
+      // In real app this would be the actual pipeline output
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var sourceImg = new Image();
+      sourceImg.onload = function() {
+        canvas.width = sourceImg.width;
+        canvas.height = sourceImg.height;
+        ctx.drawImage(sourceImg, 0, 0);
+        // Slight brightness/contrast shift to visually distinguish "after"
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.04)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Add a small "TRANSLATED" watermark in corner for prototype clarity
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.7)';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText('TRANSLATED (prototype)', 12, 24);
+
+        img.outputSrc = canvas.toDataURL('image/png');
+        img.translated = true;
+
+        outputImg.src = img.outputSrc;
+        outputImg.classList.add('show');
+        emptyState.style.display = 'none';
+        outputDot.classList.add('done');
+        outputBadge.textContent = 'Done';
+        exportPngBtn.disabled = false;
+        translateBtn.disabled = false;
+
+        showToast('Translation complete (' + currentMode + ')', 'success');
+      };
+      sourceImg.src = img.src;
+    }, steps.length * 700 + 400);
+  });
+
+  // Export PNG
+  exportPngBtn.addEventListener('click', function() {
+    if (currentIndex === -1 || !images[currentIndex].translated) return;
+    var img = images[currentIndex];
+    var a = document.createElement('a');
+    a.href = img.outputSrc;
+    a.download = img.name.replace(/\.[^.]+$/, '') + '_translated.png';
+    a.click();
+    showToast('PNG exported', 'success');
+  });
+
+  // Export PSD (placeholder)
+  exportPsdBtn.addEventListener('click', function() {
+    showToast('PSD export — coming soon', 'info');
+  });
+
+  // Keyboard: Delete removes current image
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Delete' && currentIndex !== -1) {
+      var removed = images.splice(currentIndex, 1)[0];
+      var thumb = thumbStrip.querySelector('.thumb[data-id="' + removed.id + '"]');
+      if (thumb) thumb.remove();
+      if (images.length > 0) {
+        selectImage(Math.min(currentIndex, images.length - 1));
+      } else {
+        currentIndex = -1;
+        inputImg.classList.remove('show');
+        dropZone.style.display = 'flex';
+        outputImg.classList.remove('show');
+        emptyState.style.display = 'flex';
+        inputDot.classList.remove('loaded');
+        outputDot.classList.remove('done');
+        inputBadge.textContent = 'No image';
+        outputBadge.textContent = 'Waiting';
+        translateBtn.disabled = true;
+        exportPngBtn.disabled = true;
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
