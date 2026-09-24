@@ -65,12 +65,44 @@ def _baberu_batch(crops) -> list[dict]:
 _hayai_instance = None
 
 
+def _ensure_siglip2_processor_cache() -> None:
+    """hayai v2 内部硬编码 AutoProcessor.from_pretrained("google/siglip2-base-patch16-naflex")。
+    该 repo 的 processor 配置不在 hayai 模型目录里，离线环境下会因找不到缓存而 OSError。
+    这里用 transformers 本地类动态生成 config.json + preprocessor_config.json 写入 HF 缓存。
+    """
+    from huggingface_hub import constants as hf_constants
+
+    repo_id = "google/siglip2-base-patch16-naflex"
+    snapshot_dir = os.path.join(
+        hf_constants.HF_HUB_CACHE,
+        "models--" + repo_id.replace("/", "--"),
+        "snapshots",
+        "main",
+    )
+    config_path = os.path.join(snapshot_dir, "config.json")
+    preprocessor_path = os.path.join(snapshot_dir, "preprocessor_config.json")
+    if os.path.exists(config_path) and os.path.exists(preprocessor_path):
+        return
+
+    import warnings
+    warnings.filterwarnings("ignore")
+    os.makedirs(snapshot_dir, exist_ok=True)
+    from transformers import Siglip2Config, Siglip2ImageProcessor
+    Siglip2Config().save_pretrained(snapshot_dir)
+    Siglip2ImageProcessor().save_pretrained(snapshot_dir)
+    refs_dir = os.path.join(os.path.dirname(snapshot_dir), "..", "refs")
+    refs_dir = os.path.normpath(refs_dir)
+    os.makedirs(refs_dir, exist_ok=True)
+    with open(os.path.join(refs_dir, "main"), "w") as fh:
+        fh.write("main")
+
+
 def _get_hayai():
     global _hayai_instance
     if _hayai_instance is None:
         # 强制离线：hayai v2 内部硬编码 AutoProcessor.from_pretrained("google/siglip2-..."),
-        # 会联网拉 processor_config.json（hub 上不存在，429 重试浪费 3 分钟）。
-        # 本地缓存已有 preprocessor_config.json，离线模式下 AutoProcessor 会 fallback 到它。
+        # 会联网拉 processor_config.json。本地缓存生成后离线模式下 AutoProcessor 会 fallback 到它。
+        _ensure_siglip2_processor_cache()
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
         from hayai_ocr import HayaiOcr
