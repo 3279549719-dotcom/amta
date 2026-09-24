@@ -11,13 +11,16 @@
 """
 from __future__ import annotations
 
+import shutil
 import sys
 import threading
 import uuid
+from io import BytesIO
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from PIL import Image
 from pydantic import BaseModel
 
 from amta.common.paths import ROOT
@@ -176,3 +179,35 @@ def get_image(work_id: str, page: str) -> FileResponse:
     if not image_path.is_file():
         raise HTTPException(status_code=404, detail=f"page {page} image not found")
     return FileResponse(image_path, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# 文件上传
+# ---------------------------------------------------------------------------
+@app.post("/api/upload")
+async def upload_images(
+    files: list[UploadFile] = File(...), work_id: str = Form(...)
+) -> dict:
+    """接收用户上传的漫画页，统一转存为 workspace/<work_id>/input/<n>.jpg。
+
+    管线的 _resolve_page_list 只查找 {n}.jpg，因此 PNG/WebP 等一律用 Pillow
+    转成 RGB 再存为 JPEG，文件名用 1-based 序号，丢弃原文件名。
+    """
+    input_dir = _workspace_dir(work_id) / "input"
+    if input_dir.exists():
+        shutil.rmtree(input_dir)
+    input_dir.mkdir(parents=True, exist_ok=True)
+    saved = []
+    for i, f in enumerate(files, start=1):
+        content = await f.read()
+        # 统一转存为 .jpg（管线只认 .jpg）
+        pil_img = Image.open(BytesIO(content)).convert("RGB")
+        dest = input_dir / f"{i}.jpg"
+        pil_img.save(dest, "JPEG")
+        saved.append(str(dest))
+    return {
+        "work_id": work_id,
+        "src_dir": str(input_dir),
+        "page_count": len(saved),
+        "pages": list(range(1, len(saved) + 1)),
+    }

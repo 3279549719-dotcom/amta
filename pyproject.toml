@@ -24,6 +24,11 @@ dependencies = [
     "torch==2.14.0",
     "safetensors==0.8.0",
     # PhotoshopAPI: C++20 库 + Python 绑定，读写 PSD/PSB，支持可编辑文字层（TypeLayer）。`n    # 用于 typeset 阶段生成分层 PSD（底图层 + 每区域可编辑文字层），供人工精修兜底。`n    # 预编译 wheel，无额外传递依赖（numpy 已在依赖中）。`n    "PhotoshopAPI==0.9.1",
+    # GUI: FastAPI 本地 Web 服务 + Uvicorn ASGI 服务器 + httpx（TestClient 依赖）
+    "fastapi==0.115.6",
+    "uvicorn==0.34.0",
+    "httpx==0.28.1",
+    "python-multipart>=0.0.32",
 ]
 
 [tool.uv]

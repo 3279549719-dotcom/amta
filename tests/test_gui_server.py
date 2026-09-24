@@ -73,3 +73,24 @@ def test_artifacts_list_empty() -> None:
     body = resp.json()
     assert body["work_id"] == "nonexistent-work"
     assert body["artifacts"] == []
+
+
+def test_upload_images() -> None:
+    from io import BytesIO
+
+    img_bytes = BytesIO()
+    Image.new("RGB", (50, 50), "white").save(img_bytes, format="JPEG")
+    img_bytes.seek(0)
+    resp = client.post(
+        "/api/upload",
+        files={"files": ("1.jpg", img_bytes, "image/jpeg")},
+        data={"work_id": "test-upload"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["work_id"] == "test-upload"
+    assert data["page_count"] == 1
+    assert "src_dir" in data
+    assert data["pages"] == [1]
+    # 验证文件确实存为 1.jpg
+    assert Path(data["src_dir"], "1.jpg").exists()
