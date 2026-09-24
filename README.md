@@ -53,3 +53,20 @@ amta/                        # 本仓库根
 ├── models/                  # 本地模型权重（gitignored）
 └── .dsh/skills/             # 按需加载技能（DSH 原生技能根）
 ```
+
+## GUI
+
+启动本地 Web GUI：
+
+```bash
+uv run python scripts/run_gui.py
+```
+
+浏览器自动打开 `http://127.0.0.1:8000`。
+
+- 拖入一张或多张漫画页图片
+- 选择 **Default**（hayai OCR）或 **VLM**（Qwen VLM，适合文字密集页）
+- 点击 **Translate**
+- 翻译完成后点击 **Export** 下载 PNG
+
+需要 `.env` 配置 `CHAT_API_KEY`（DeepSeek 翻译），VLM 模式还需 `DASHSCOPE_API_KEY`（千问 VLM）。
