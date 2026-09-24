@@ -94,3 +94,8 @@ def test_upload_images() -> None:
     assert data["pages"] == [1]
     # 验证文件确实存为 1.jpg
     assert Path(data["src_dir"], "1.jpg").exists()
+
+
+def test_export_png_not_found() -> None:
+    resp = client.get("/api/export/nonexistent/1/png")
+    assert resp.status_code == 404

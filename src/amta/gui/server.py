@@ -211,3 +211,35 @@ async def upload_images(
         "page_count": len(saved),
         "pages": list(range(1, len(saved) + 1)),
     }
+
+
+# ---------------------------------------------------------------------------
+# 导出
+# ---------------------------------------------------------------------------
+@app.get("/api/export/{work_id}/{page}/png")
+def export_png(work_id: str, page: str) -> FileResponse:
+    """下载某页最终成图 PNG（artifacts/final/page_<page>_final.png）。"""
+    image_path = (
+        _workspace_dir(work_id) / "artifacts" / "final" / f"page_{page}_final.png"
+    )
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="image not found")
+    return FileResponse(
+        image_path, media_type="image/png", filename=f"{work_id}_{page}.png"
+    )
+
+
+@app.get("/api/export/{work_id}/{page}/psd")
+def export_psd(work_id: str, page: str) -> FileResponse:
+    """下载某页分层 PSD；未产出时 404 提示（UI 不暴露入口）。"""
+    psd_path = _workspace_dir(work_id) / "artifacts" / "psd" / f"page_{page}.psd"
+    if not psd_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="PSD not found — run typeset with PSD export enabled",
+        )
+    return FileResponse(
+        psd_path,
+        media_type="image/vnd.adobe.photoshop",
+        filename=f"{work_id}_{page}.psd",
+    )
