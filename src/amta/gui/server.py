@@ -1,22 +1,114 @@
 """Touhou Manga Translator — 本地 FastAPI 后端。
 
 为 Web GUI 提供的本地 API：
-  GET  /api/health           — 健康检查
-  POST /api/translate        — 提交翻译任务（后台跑管线）
-  GET  /api/jobs/{job_id}    — 轮询任务状态
-  GET  /api/artifacts/{work_id} — 列出最终成图
-  GET  /api/image/{work_id}/{page} — 取某页最终成图
+  GET  /api/health                — 健康检查
+  POST /api/translate             — 提交翻译任务（后台跑管线）
+  GET  /api/jobs/{job_id}         — 轮询任务状态
+  GET  /api/artifacts/{work_id}   — 列出最终成图
+  GET  /api/image/{work_id}/{page}— 取某页最终成图
 
 产品名：Touhou Manga Translator（本地漫画翻译器的 Web 壳）。
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+import sys
+import threading
+import uuid
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from amta.orchestrator import PipelineConfig, run_pipeline
 
 app = FastAPI(title="Touhou Manga Translator", version="0.1.0")
 
+# 内存任务表：job_id -> {job_id, status, mode, work_id, error}
+# 进程内状态，重启即失（MVP 不做持久化）。
+_jobs: dict[str, dict[str, object]] = {}
 
+
+# ---------------------------------------------------------------------------
+# 请求 / 响应模型
+# ---------------------------------------------------------------------------
+class TranslateRequest(BaseModel):
+    """提交翻译任务的请求体。"""
+
+    src_dir: str
+    work_id: str
+    mode: str = "default"          # "default" 或 "vlm"
+    pages: list[int] | None = None
+
+
+class JobResponse(BaseModel):
+    """任务提交 / 状态查询的统一响应。"""
+
+    job_id: str
+    status: str                    # "queued" / "running" / "done" / "failed"
+    mode: str
+    work_id: str
+    error: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# 后台管线运行
+# ---------------------------------------------------------------------------
+def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
+    """后台线程：构造 PipelineConfig 并跑完整管线，结果写回 _jobs。
+
+    作为 daemon 线程跑：服务退出时不阻塞进程。单页/单阶段失败由编排器内部
+    捕获并记为 failed；这里只兜底整个管线抛异常的情况。
+    """
+    # 直接 `uvicorn amta.gui.server:app` 启动时，src/ 可能不在 sys.path，
+    # server.py 在 src/amta/gui/ 下，上溯四级到项目根再加 src（与 common/paths 同源）。
+    project_root = Path(__file__).resolve().parents[3]
+    if str(project_root / "src") not in sys.path:
+        sys.path.insert(0, str(project_root / "src"))
+
+    try:
+        _jobs[job_id]["status"] = "running"  # type: ignore[index]
+        config = PipelineConfig(
+            work_id=req.work_id,
+            src_dir=Path(req.src_dir),
+            start_page=1,
+            end_page=9999,
+            pages=req.pages,
+            stages=["detect", "ocr", "translate", "inpaint", "typeset"],
+        )
+        run_pipeline(config)
+        _jobs[job_id]["status"] = "done"  # type: ignore[index]
+    except Exception as exc:  # noqa: BLE001 — 后台容错：错误存进 job，不炸线程
+        _jobs[job_id]["status"] = "failed"  # type: ignore[index]
+        _jobs[job_id]["error"] = str(exc)  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# 端点
+# ---------------------------------------------------------------------------
 @app.get("/api/health")
 def health_check() -> dict[str, str]:
     """健康检查 — 返回服务名与版本。"""
     return {"status": "ok", "version": "0.1.0"}
+
+
+@app.post("/api/translate", status_code=202)
+def submit_translation_job(req: TranslateRequest) -> JobResponse:
+    """提交一个翻译任务，立即返回 job_id；管线在后台线程跑。"""
+    if req.mode not in ("default", "vlm"):
+        raise HTTPException(status_code=400, detail="mode must be 'default' or 'vlm'")
+
+    job_id = uuid.uuid4().hex
+    _jobs[job_id] = {
+        "job_id": job_id,
+        "status": "queued",
+        "mode": req.mode,
+        "work_id": req.work_id,
+        "error": None,
+    }
+    thread = threading.Thread(
+        target=_run_pipeline_background, args=(job_id, req), daemon=True
+    )
+    thread.start()
+    return JobResponse(
+        job_id=job_id, status="queued", mode=req.mode, work_id=req.work_id
+    )
