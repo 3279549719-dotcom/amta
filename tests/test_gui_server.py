@@ -65,3 +65,11 @@ def test_job_status_queued() -> None:
         assert body["error"] is None
     finally:
         del _jobs["fake-job-123"]
+
+
+def test_artifacts_list_empty() -> None:
+    resp = client.get("/api/artifacts/nonexistent-work")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["work_id"] == "nonexistent-work"
+    assert body["artifacts"] == []

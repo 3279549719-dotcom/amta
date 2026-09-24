@@ -17,8 +17,10 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from amta.common.paths import ROOT
 from amta.orchestrator import PipelineConfig, run_pipeline
 
 app = FastAPI(title="Touhou Manga Translator", version="0.1.0")
@@ -121,3 +123,44 @@ def get_job_status(job_id: str) -> JobResponse:
     if job is None:
         raise HTTPException(status_code=404, detail=f"job {job_id!r} not found")
     return JobResponse(**job)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# 产物浏览
+# ---------------------------------------------------------------------------
+def _workspace_dir(work_id: str) -> Path:
+    """本子工作区根目录：workspace/<work_id>/。"""
+    return ROOT / "workspace" / work_id
+
+
+@app.get("/api/artifacts/{work_id}")
+def list_artifacts(work_id: str) -> dict[str, object]:
+    """列出某本子的最终成图页号。
+
+    扫描 artifacts/final/page_<N>_final.png，返回 [{page: "N", url: ...}]，
+    按页号数字升序排序。目录不存在或没有成图时返回空列表。
+    """
+    final_dir = _workspace_dir(work_id) / "artifacts" / "final"
+    artifacts: list[dict[str, str]] = []
+    if final_dir.is_dir():
+        pages = []
+        for p in final_dir.glob("page_*_final.png"):
+            page = p.stem.removeprefix("page_").removesuffix("_final")
+            pages.append((int(page), page))
+        for _, page in sorted(pages):
+            artifacts.append({
+                "page": page,
+                "url": f"/api/image/{work_id}/{page}",
+            })
+    return {"work_id": work_id, "artifacts": artifacts}
+
+
+@app.get("/api/image/{work_id}/{page}")
+def get_image(work_id: str, page: str) -> FileResponse:
+    """按纯数字页号返回最终成图 artifacts/final/page_<page>_final.png。"""
+    image_path = (
+        _workspace_dir(work_id) / "artifacts" / "final" / f"page_{page}_final.png"
+    )
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail=f"page {page} image not found")
+    return FileResponse(image_path, media_type="image/png")
