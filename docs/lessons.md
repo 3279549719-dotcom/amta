@@ -45,6 +45,7 @@
 - L51 — 判"没人用就删"必须横跨全部 harness：只统计一两份轨迹 = 不成立的证据
 - L52 — VLM 做视觉决策，本地代码做机械执行：别让通用模型数手指
 - L53 — probe 正式化进 station：load_canon 会剥掉顶层 ocr_engine，模式判断必须读原始信封
+- L54 — 度量层和渲染层必须共享同一套"字符占多宽"的认知
 
 ---
 
@@ -377,6 +378,18 @@
   - **probe → 正式模块的迁移 = 复制 + 改 docstring，不改逻辑**：`scripts/probes/paratext_render.py` → `src/amta/typeset/vlm_render.py`，FONTS/换行/kinsoku/画字全部原样保留；probe 脚本保留并标 DEPRECATED，不删（历史实验还引用它）。
 - **Prevention**：VLM 分支作为早期 return 放在 `load_canon` 之前；lazy import `render_text`/`validate_regions`，普通 hayai 路径不拉入 VLM 依赖。typeset StageSpec 的 code_files 加 `vlm_render.py`，改了渲染逻辑能触发 fingerprint 重跑。
 - **Regression**：tests/typeset/test_vlm_render.py（layout/render 像素断言 + `test_station_vlm_branch_renders` 锁 VLM 早期 return 路径）。
+
+## L54 — 度量层和渲染层必须共享同一套"字符占多宽"的认知
+
+- **Problem**：2026-09-24 p59 译文中 "cosplay" 在竖排气泡里被逐字母竖排（c-o-s-p-l-a-y），不好读。第一反应是加硬编码 `[A-Za-z]{3,}` 强制横排，被否（打地鼠式，下次冒出 dragon 怎么办）。第二版做了縦中横渲染但度量层仍按"每字母占一字宽"算列宽，导致 fit_font_size 选了竖排但渲染时英文溢出/居中偏移。
+- **Root cause**：度量层（`_fits` 算能不能放下、`fit_font_size` 选方向和字号）和渲染层（`_render_vertical` 实际画字）对"一个字符占多宽"的认知不一致。渲染层把连续拉丁字母横向排列（縦中横），度量层却还以为每个字母各占一个字宽、各占一行。结果度量层说"放得下"，渲染层实际溢出；度量层按字符数算行数，渲染层实际行数少一半，垂直居中偏移。
+- **Durable lesson**：
+  - **度量先行，渲染跟随**：先让度量层知道英文横向排列的实际宽度（`_vertical_col_width`），`fit_font_size` 基于真实度量自动选方向——短英文竖排放得下就保持竖排+縦中横，长英文竖排放不下就自动切横排。不需要硬编码"有英文就横排"。
+  - **渲染层只做纯渲染**：縦中横是渲染机制，不做方向决策。方向决策全在度量层。
+  - **行数计算也要用实际渲染行数**：縦中横把 n 个字母合并成 1 行，`_count_vertical_lines` 按实际渲染单元算行数，不能按 `len(text)` 字符数算。
+  - **断行层要保护拉丁 token**：`break_lines` 不在英文单词/数字内部断行，避免 cosplay 被拆成 c/osplay。
+- **Prevention**：`typeset_engine.py` 的 `_vertical_col_width` + `_is_latin_token_char` + `_inside_latin_token`；`typeset_render.py` 的 `_is_horizontal_char` + `_count_vertical_lines` + 縦中横渲染分支。
+- **Regression**：全量 pytest 466 passed（含 typeset 渲染测试）；p59 实测 cosplay 縦中横正常、垂直居中正确。
 
 ## 模板（新增时复制）
 
