@@ -55,9 +55,14 @@ def _resolve_ps_font_name(font_family: str) -> str:
 
 
 def _pil_to_numpy_chw(img: Image.Image) -> np.ndarray:
-    """PIL RGB Image → numpy (3, H, W) uint8，PhotoshopAPI ImageLayer 期望的格式。"""
-    arr = np.array(img.convert("RGB"), dtype=np.uint8)  # (H, W, 3)
-    return np.transpose(arr, (2, 0, 1))  # (3, H, W)
+    """PIL RGB Image → numpy (4, H, W) uint8 RGBA，PhotoshopAPI ImageLayer 期望的格式。
+
+    必须 4 通道（含 alpha=255）：3 通道图层的 channel_indices 是 [0,1,2]，
+    缺少 PSD 的 alpha 通道(-1)，Photoshop 打开时会显示为透明。
+    """
+    arr = np.array(img.convert("RGBA"), dtype=np.uint8)  # (H, W, 4)
+    arr[:, :, 3] = 255  # 确保完全不透明
+    return np.ascontiguousarray(np.transpose(arr, (2, 0, 1)))  # (4, H, W)
 
 
 def export_page_psd(
