@@ -47,6 +47,9 @@ ALLOWLIST = {
     # 消费方：src/amta/backends/ocr_engines.py + scripts/probes/ q3 系列探针。
     "modeling_hayai",
 }
+# 由已使用框架在运行时动态加载，业务代码不会直接 import，但缺少会在对应功能启动时失败。
+# httpx: Starlette/FastAPI TestClient；python-multipart: FastAPI File/Form 请求解析。
+INDIRECT_RUNTIME_DEPS = {"httpx", "python-multipart"}
 # 实验脚本排除（A/B 测试 / 调研用，等正式集成主流水线再补依赖声明）
 #
 # 2026-09-12 清理：原名单 11 条里有 8 条指向**早已删除**的文件——
@@ -111,7 +114,9 @@ def _scan_third_party() -> dict[str, set[str]]:
             if rel in EXCLUDE_FILES:
                 continue
             try:
-                tree = ast.parse(p.read_text(encoding="utf-8"))
+                # Windows 上的既有源码有一部分带 UTF-8 BOM；utf-8 会让 ast.parse
+                # 因 U+FEFF 报 SyntaxError，随后被下面的兼容分支静默跳过，造成漏扫。
+                tree = ast.parse(p.read_text(encoding="utf-8-sig"))
             except SyntaxError:
                 continue
             third = set()
@@ -143,7 +148,7 @@ def main() -> int:
     declared = _declared_deps()
     declared_keys = {_norm(d) for d in declared}
     found = _scan_third_party()
-    used: set[str] = set()
+    used: set[str] = {_norm(name) for name in INDIRECT_RUNTIME_DEPS}
     issues: list[str] = []
     for rel, mods in sorted(found.items()):
         for m in sorted(mods):

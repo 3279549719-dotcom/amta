@@ -6,7 +6,7 @@
 ## `backends/` — amta.backends — 引擎/传输后端（本地或远程确定性执行面）。
 
 - **`chat_client.py`** — OpenAI 兼容 chat/completions 的深模块：统一所有「POST /chat/completions + 解析 message」调用。（函数: _headers, chat, chat_text）
-- **`ocr_engines.py`** — OCR 引擎分发器 — baberu（默认，ONNX）/ hayai（HayaiOCR-v2.1，PyTorch）。（函数: _baberu_batch, _get_hayai, _hayai_greedy_decode_with_conf, _hayai_batch, ocr_batch）
+- **`ocr_engines.py`** — OCR 引擎分发器 — baberu（默认，ONNX）/ hayai（HayaiOCR-v2.1，PyTorch）。（函数: _baberu_batch, _ensure_siglip2_processor_cache, _get_hayai, _hayai_greedy_decode_with_conf, _hayai_batch）
 - **`vlm_verify.py`** — VLM contact sheet 批量校验模块。（函数: make_contact_sheet, parse_vlm_output, vlm_verify_batch, vlm_verify_ocr_single）
 
 ## `common/` — amta.common — 跨阶段共享叶子库（纯通用，不依赖其他域）。

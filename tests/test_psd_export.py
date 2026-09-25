@@ -101,12 +101,13 @@ def test_resolve_ps_font_name():
 
 
 def test_pil_to_numpy_chw():
-    """PIL Image → numpy (3,H,W) 格式。"""
+    """PIL Image → numpy RGBA (4,H,W) 格式。"""
     img = Image.new("RGB", (10, 20), (255, 0, 0))
     arr = _pil_to_numpy_chw(img)
-    assert arr.shape == (3, 20, 10)
+    assert arr.shape == (4, 20, 10)
     assert arr.dtype == np.uint8
-    # 红色通道全255，绿蓝全0
+    # 红色和 alpha 通道全255，绿蓝全0
     assert arr[0].min() == 255
     assert arr[1].max() == 0
     assert arr[2].max() == 0
+    assert arr[3].min() == 255
