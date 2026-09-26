@@ -71,6 +71,33 @@ def test_translate_plain_batch():
     assert "r01|" not in calls[0][1]["content"] and "r02|" not in calls[0][1]["content"]
 
 
+def test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empty():
+    """短促人声/叙事拟声必须翻译；纯标点和不可识别乱码仍可为空。"""
+    from amta.translation.translate import translate_plain
+
+    captured = {}
+    canon = [
+        {"region_id": "voice", "baberu_text": "短促な声"},
+        {"region_id": "punct", "baberu_text": "……"},
+        {"region_id": "noise", "baberu_text": "�※�"},
+    ]
+
+    def fake_llm(messages, tools=None):
+        captured["system"] = messages[0]["content"]
+        return json.dumps({"translations": ["短促发声", "", ""]})
+
+    result = translate_plain(canon, fake_llm, context_enabled=False)
+
+    assert result == {"voice": "短促发声", "punct": "", "noise": ""}
+    system = captured["system"]
+    assert "呻吟、喊叫、笑声、叹息、哼声、感叹词" in system
+    assert "承担人物表达或叙事作用的拟声" in system
+    assert "保留人物语气、情绪和强弱" in system
+    assert "拟声词、或没有实际语义" not in system
+    assert "完全是标点符号" in system
+    assert "乱码、无法识别的字符" in system
+
+
 def test_prompt_parts_terms_injected():
     """build_prefetch_context must inject relevant glossary terms into system_extra."""
     from amta.translation.stage3_minimal import build_prefetch_context
