@@ -40,11 +40,12 @@ def test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empt
     assert result == {"voice": "短促发声", "punct": "", "noise": ""}
     system = captured["system"]
     assert "呻吟、喊叫、笑声、叹息、哼声、感叹词" in system
-    assert "承担人物表达或叙事作用的拟声" in system
+    assert "可识别、可发音且承担人物表达或叙事作用的内容必须翻译" in system
+    assert "以及承担人物表达或叙事作用的拟声" in system
     assert "保留人物语气、情绪和强弱" in system
     assert "拟声词、或没有实际语义" not in system
-    assert "完全是标点符号" in system
-    assert "乱码、无法识别的字符" in system
+    assert "完全是标点符号（如一整串省略号、句点堆叠），对应位置输出空字符串" in system
+    assert "乱码、无法识别的字符或非日文常用文字，对应位置输出空字符串" in system
 ```
 
 - [ ] **Step 2: Add an inpaint preservation regression test**
