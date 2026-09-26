@@ -71,6 +71,33 @@ def test_translate_plain_batch():
     assert "r01|" not in calls[0][1]["content"] and "r02|" not in calls[0][1]["content"]
 
 
+def test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empty():
+    """Prompt sets the general boundary; fake output only checks positional empties."""
+    from amta.translation.translate import translate_plain
+
+    captured = {}
+    canon = [
+        {"region_id": "content", "baberu_text": "synthetic input"},
+        {"region_id": "punct", "baberu_text": "……"},
+        {"region_id": "noise", "baberu_text": "�※�"},
+    ]
+
+    def fake_llm(messages, tools=None):
+        captured["system"] = messages[0]["content"]
+        return json.dumps({"translations": ["SENTINEL", "", ""]})
+
+    result = translate_plain(canon, fake_llm, context_enabled=False)
+
+    assert result == {"content": "SENTINEL", "punct": "", "noise": ""}
+    system = captured["system"]
+    assert "其他可识别内容应结合上下文自然翻译" in system
+    assert "不因篇幅短、非词汇性或主要传达语气而省略" in system
+    assert "呻吟、喊叫、笑声、叹息、哼声、感叹词" not in system
+    assert "拟声词、或没有实际语义" not in system
+    assert "完全是标点符号（如一整串省略号、句点堆叠），对应位置输出空字符串" in system
+    assert "乱码、无法识别的字符或非日文常用文字，对应位置输出空字符串" in system
+
+
 def test_prompt_parts_terms_injected():
     """build_prefetch_context must inject relevant glossary terms into system_extra."""
     from amta.translation.stage3_minimal import build_prefetch_context

@@ -1,4 +1,5 @@
 """inpaint_station 测试：FILL_WHITE 只涂文字像素，不涂整个矩形。"""
+import json
 import sys
 from pathlib import Path
 
@@ -8,6 +9,31 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from amta.inpaint.inpaint_station import _apply_fill_white
+
+
+def test_empty_translation_is_not_inpainted(tmp_path):
+    """空译文对应的检测框必须保留原图，不进入擦除计划。"""
+    from amta.inpaint.inpaint_station import run
+
+    raw_path = tmp_path / "1.jpg"
+    Image.new("RGB", (32, 32), "white").save(raw_path)
+    det_path = tmp_path / "page_1_detection.json"
+    det_path.write_text(json.dumps({
+        "page": "page_1",
+        "image_meta": {"width": 32, "height": 32},
+        "blocks": [{"region_id": "r00", "bbox": [2, 2, 20, 20]}],
+    }), encoding="utf-8")
+    trans_path = tmp_path / "page_1_translation.json"
+    trans_path.write_text(json.dumps({
+        "translations": {"r00": "   "},
+    }), encoding="utf-8")
+
+    doc = run(
+        "test", det_path, raw_path, tmp_path / "page_1_inpaint.json",
+        dry_run=True, trans_path=trans_path,
+    )
+
+    assert doc["actions"] == []
 
 
 def test_fill_white_only_covers_text_pixels():

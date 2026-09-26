@@ -14,14 +14,18 @@ dependencies = [
     { name = "fastapi" },
     { name = "hayai-ocr" },
     { name = "httpx" },
+    { name = "huggingface-hub" },
     { name = "numpy" },
     { name = "onnxruntime" },
     { name = "opencv-python" },
+    { name = "photoshopapi" },
     { name = "pillow" },
+    { name = "pydantic" },
     { name = "python-multipart" },
     { name = "requests" },
     { name = "safetensors" },
     { name = "torch" },
+    { name = "transformers" },
     { name = "uvicorn" },
 ]
 
@@ -35,14 +39,18 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.115.6" },
     { name = "hayai-ocr", specifier = "==2.1.0" },
     { name = "httpx", specifier = "==0.28.1" },
+    { name = "huggingface-hub", specifier = "==1.30.0" },
     { name = "numpy", specifier = "==2.5.2" },
     { name = "onnxruntime", specifier = "==1.30.0" },
     { name = "opencv-python", specifier = "==5.0.0.93" },
+    { name = "photoshopapi", specifier = "==0.9.1" },
     { name = "pillow", specifier = "==12.3.0" },
+    { name = "pydantic", specifier = "==2.13.5" },
     { name = "python-multipart", specifier = ">=0.0.32" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "safetensors", specifier = "==0.8.0" },
     { name = "torch", specifier = "==2.14.0" },
+    { name = "transformers", specifier = "==5.16.1" },
     { name = "uvicorn", specifier = "==0.34.0" },
 ]
 
@@ -935,6 +943,25 @@ source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c" },
+]
+
+[[package]]
+name = "photoshopapi"
+version = "0.9.1"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/e6/08/a3ede7dd020686981c0c3b119a62ee787ad3dcb93b85763243b3762e7562/photoshopapi-0.9.1-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:3330db4bca6ac83ce7323ada310501b68e3a05f05b62df205895bf1210f06eae" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/c2/3e/b1a36eb4db79b47cb9498c1156cb888d3d1c07979f15a72b3e763e176ee2/photoshopapi-0.9.1-cp312-cp312-manylinux_2_34_x86_64.whl", hash = "sha256:dc6a503f5f22879380f46b8b772e2cec84a226a104cf2f3f8c205fafe32dad53" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/0b/07/6c85e1b96ee2a2a2ed2b26670e8983f076e0ac68e9f53c3e02ace89c5a9a/photoshopapi-0.9.1-cp312-cp312-win_amd64.whl", hash = "sha256:cad71451fc7ffd7515a1c82e97aa64bda533757717b57fc2bfad1a5cb644c091" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/70/3f/fd62d98ab20bd491e9527626f190bb01b573758b477e0522b064e8a65994/photoshopapi-0.9.1-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:5d1338086efed04c6acc7fcd9a086821d673b87ea0311134717516a206712f0a" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/98/2d/ee852c294745284ed0f58d68c0ebe653f0535853e1b07f1d3d69f7689ad7/photoshopapi-0.9.1-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:a586a0ff51c658d1fb1996d7dac979ba25ac9e091d480656fb55f60121abccda" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/81/f3/ead30d140cb2df0228a367f974a7de97106b8a64200379a6f29c7114c41f/photoshopapi-0.9.1-cp313-cp313-win_amd64.whl", hash = "sha256:f0158aed121fd630ce5cc88b37069e0a6a7963731dab0d18a6356f469db7aa38" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/4b/5e/a1bf1760cdefb8e0ca035509552815a5a02b2561b20cd316225bb2b7a939/photoshopapi-0.9.1-cp314-cp314-macosx_15_0_arm64.whl", hash = "sha256:17649a53d65e6f6d3d0ed805b48a6f8db8b4d89e879f5a38cc27a12ca5908d26" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/4c/93/7cd74645141c5382a7a97bac1642d382cc641b7bf68d5de6f01a12734056/photoshopapi-0.9.1-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:99364bad823ab0a9002d575d5b97af29ff1f282f907f663773304e5116263dd8" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/d8/78/e14a76ac634da0e0dcbd749e3c25ffc1457e5f73cfb05a2d4f150a8e8798/photoshopapi-0.9.1-cp314-cp314-win_amd64.whl", hash = "sha256:76699aac285c56c519e6f3e3f0ddd9772a69ed734386a01a25edb2e969971ea5" },
 ]
 
 [[package]]

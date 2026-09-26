@@ -16,6 +16,9 @@ dependencies = [
     # hayai_ocr: 02_ocr 默认 OCR 引擎（HayaiOCR-v2.1，SigLIP2+transformer，PyTorch）。
     # manga_ocr(kha-white) 曾接线但包未装、属半截集成，已摘除（2026-09-03）。
     "hayai-ocr==2.1.0",
+    # ocr_engines 直接使用二者生成/查询本地模型缓存；不能只依赖 hayai-ocr 的传递安装。
+    "huggingface-hub==1.30.0",
+    "transformers==5.16.1",
     # opencv-python(cv2): src/amta/text_mask_refiner.py 框内文字像素精修（04_inpaint 模块级 import），Stage4 Plan A 必需。
     "opencv-python==5.0.0.93",
     # onnxruntime: detect_station.py 加载 RT-DETR .onnx 检测模型（CPU inference）
@@ -25,9 +28,13 @@ dependencies = [
     # （本地 CPU-only i5，非新增重量运行时）；safetensors 无 stdlib 替代，加载 lama 权重必需（ADR-015 审视通过）。
     "torch==2.14.0",
     "safetensors==0.8.0",
-    # PhotoshopAPI: C++20 库 + Python 绑定，读写 PSD/PSB，支持可编辑文字层（TypeLayer）。`n    # 用于 typeset 阶段生成分层 PSD（底图层 + 每区域可编辑文字层），供人工精修兜底。`n    # 预编译 wheel，无额外传递依赖（numpy 已在依赖中）。`n    "PhotoshopAPI==0.9.1",
+    # PhotoshopAPI: C++20 库 + Python 绑定，读写 PSD/PSB，支持可编辑文字层（TypeLayer）。
+    # 用于 typeset 阶段生成分层 PSD（底图层 + 每区域可编辑文字层），供人工精修兜底。
+    # 预编译 wheel，无额外传递依赖（numpy 已在依赖中）。
+    "PhotoshopAPI==0.9.1",
     # GUI: FastAPI 本地 Web 服务 + Uvicorn ASGI 服务器 + httpx（TestClient 依赖）
     "fastapi==0.115.6",
+    "pydantic==2.13.5",
     "uvicorn==0.34.0",
     "httpx==0.28.1",
     "python-multipart>=0.0.32",
