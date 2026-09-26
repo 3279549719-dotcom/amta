@@ -46,6 +46,7 @@
 - L52 — VLM 做视觉决策，本地代码做机械执行：别让通用模型数手指
 - L53 — probe 正式化进 station：load_canon 会剥掉顶层 ocr_engine，模式判断必须读原始信封
 - L54 — 度量层和渲染层必须共享同一套"字符占多宽"的认知
+- L55 — 宽泛负面提示造成漏译时，收窄边界而非增长正面类别清单
 
 ---
 
@@ -390,6 +391,14 @@
   - **断行层要保护拉丁 token**：`break_lines` 不在英文单词/数字内部断行，避免 cosplay 被拆成 c/osplay。
 - **Prevention**：`typeset_engine.py` 的 `_vertical_col_width` + `_is_latin_token_char` + `_inside_latin_token`；`typeset_render.py` 的 `_is_horizontal_char` + `_count_vertical_lines` + 縦中横渲染分支。
 - **Regression**：全量 pytest 466 passed（含 typeset 渲染测试）；p59 实测 cosplay 縦中横正常、垂直居中正确。
+
+## L55 — 宽泛负面提示造成漏译时，收窄边界而非增长正面类别清单
+
+- **Problem**：把“拟声词、或没有实际语义”一概排除，使可识别的短促人声也可能输出空译文。
+- **Root cause**：提示词的宽泛负面先验混淆了无法翻译的噪声与需要语境判断的表达。
+- **Durable lesson**：先删除或收窄错误先验，再说明最小通用边界；不要用不断增长的正面类别清单补偿。已知样本全绿只证明这些样本通过，不证明泛化。
+- **Prevention**：保留纯标点与真实乱码可为空的边界，让其他可识别内容由模型结合上下文翻译；见 ADR-036。
+- **Regression**：`tests/test_stage3_minimal.py::test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empty` 锁提示词边界；实页证据与验证范围见 ADR-036。
 
 ## 模板（新增时复制）
 
