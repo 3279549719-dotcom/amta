@@ -64,7 +64,7 @@ def run(ctx: StationContext) -> StationResult:
         # 可选：生成分层 PSD（人工兜底用，底图层 + 每区域文字层）
         psd_path: Path | None = None
         if ctx.config.get("export_psd", False):
-            from amta.typeset.psd_export import export_page_psd
+            from amta.typeset.psd_jsx_export import export_page_psd
             psd_dir = ctx.artifacts_dir / "psd"
             psd_path = psd_dir / f"{ctx.page}.psd"
             export_page_psd(ctx.artifacts_dir, ctx.page, psd_path)
