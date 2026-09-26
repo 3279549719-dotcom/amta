@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Translate recognizable, narratively meaningful short vocalizations while preserving empty translations for pure punctuation and genuinely unreadable OCR.
+**Goal:** Translate other recognizable content naturally in context, without omitting it merely because it is short, non-lexical, or mainly conveys tone; preserve empty translations for pure punctuation and genuinely unreadable OCR.
 
-**Architecture:** Narrow the existing translation system prompt without changing the one-call array contract, artifact schema, retry policy, or downstream filtering. Prove the policy with mock-LLM contract tests, then use p64 as the sole live development page before unlocking p52 and p43 as hidden validation pages.
+**Architecture:** Narrow the existing translation system prompt without changing the one-call array contract, artifact schema, retry policy, or downstream filtering. Prove the policy with mock-LLM contract tests. The original live-validation sequence was p64 followed by p52 and p43.
 
 **Tech Stack:** Python 3.12, pytest, existing AMTA pipeline/artifact/report CLIs, DeepSeek-compatible chat API.
+
+**Round 2 scope:** Replace the first candidate's category enumeration with this general boundary. Tasks 3–5 below record the original live-validation plan; a separate fresh agent owns validation of the frozen revised candidate.
 
 ---
 
@@ -18,35 +20,7 @@
 
 - [ ] **Step 1: Add a prompt-policy regression test**
 
-Add this test to `tests/test_stage3_minimal.py`:
-
-```python
-def test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empty():
-    from amta.translation.translate import translate_plain
-
-    captured = {}
-    canon = [
-        {"region_id": "voice", "baberu_text": "短促な声"},
-        {"region_id": "punct", "baberu_text": "……"},
-        {"region_id": "noise", "baberu_text": "�※�"},
-    ]
-
-    def fake_llm(messages, tools=None):
-        captured["system"] = messages[0]["content"]
-        return json.dumps({"translations": ["短促发声", "", ""]})
-
-    result = translate_plain(canon, fake_llm, context_enabled=False)
-
-    assert result == {"voice": "短促发声", "punct": "", "noise": ""}
-    system = captured["system"]
-    assert "呻吟、喊叫、笑声、叹息、哼声、感叹词" in system
-    assert "可识别、可发音且承担人物表达或叙事作用的内容必须翻译" in system
-    assert "以及承担人物表达或叙事作用的拟声" in system
-    assert "保留人物语气、情绪和强弱" in system
-    assert "拟声词、或没有实际语义" not in system
-    assert "完全是标点符号（如一整串省略号、句点堆叠），对应位置输出空字符串" in system
-    assert "乱码、无法识别的字符或非日文常用文字，对应位置输出空字符串" in system
-```
+Revise the existing `test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empty` to assert the general system-prompt policy: pure punctuation and genuinely unreadable OCR may stay empty; other recognizable content is translated naturally in context and is not omitted merely for being short, non-lexical, or mainly tonal. Reject the first candidate's category enumeration and the old blanket exclusion. Use only synthetic input and a mock response to check that empty strings remain legal and positionally bound; the mock does not demonstrate model quality.
 
 - [ ] **Step 2: Add an inpaint preservation regression test**
 
@@ -85,7 +59,7 @@ Run:
 uv run python -m pytest tests/test_stage3_minimal.py::test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empty tests/test_inpaint_station.py::test_empty_translation_is_not_inpainted -q
 ```
 
-Expected: the prompt-policy test fails because the current system prompt still says all onomatopoeia may be empty; the inpaint test passes if the existing safety contract is intact.
+Expected for round 2: the prompt-policy test fails against the first candidate because it still enumerates categories and lacks the general instruction; the inpaint test passes if the existing safety contract is intact.
 
 ### Task 2: Make the minimal production change
 
@@ -96,14 +70,10 @@ Expected: the prompt-policy test fails because the current system prompt still s
 
 - [ ] **Step 1: Narrow `_SYSTEM_PROMPT`**
 
-Replace the blanket onomatopoeia exclusion with category-level guidance equivalent to:
+Replace the first candidate's category enumeration with one general instruction equivalent to:
 
 ```python
-"如果某条输入完全是标点符号（如一整串省略号、句点堆叠），"
-"对应位置输出空字符串。\n"
-"可识别、可发音且承担人物表达或叙事作用的内容必须翻译，"
-"包括人声、呻吟、喊叫、笑声、叹息、哼声、感叹词，"
-"以及承担人物表达或叙事作用的拟声；翻译时保留人物语气、情绪和强弱。"
+"其他可识别内容应结合上下文自然翻译，不因篇幅短、非词汇性或主要传达语气而省略。"
 ```
 
 Keep the existing unreadable-OCR clause unchanged. Do not add pages, region IDs, Japanese examples, dictionaries, retries, or post-processing.
