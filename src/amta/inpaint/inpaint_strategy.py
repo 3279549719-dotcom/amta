@@ -35,8 +35,11 @@ def plan_inpaint(regions: list[dict], image_meta: dict | None = None) -> list[di
                              "action": SKIP, "bbox": bb,
                              "reason": "bbox out of bounds"})
                 continue
-        # ADR-030: 所有框统一走 inpaint,不再区分 text_bubble/text_free
-        action = INPAINT
+        # 对白气泡统一涂白（收缩后矩形，不盖气泡外）。
+        # 历史教训：ADR-030/033 全走 LaMa 后白泡残影每页都在（矩形 bbox 四角
+        # 吃进气泡外背景导致 std 误判，14/15 白泡被送 LaMa）。黑底气泡是少数反例，
+        # 残影是每页都发生的事故，先回到涂白，再观察是否有反例需要回退到 LaMa。
+        action = FILL_WHITE
         plan.append({"region_id": r.get("region_id"), "category": r.get("category", "dialogue_bubble"),
                      "action": action, "bbox": bb})
     return plan
