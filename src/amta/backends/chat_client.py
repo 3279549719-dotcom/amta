@@ -12,6 +12,7 @@ Bearer 头拼装、URL 拼接、choices[0].message 解析、畸形响应容错�
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import requests
@@ -29,6 +30,7 @@ def chat(
     tools: list[dict] | None = None,
     api_key: str | None = None,
     timeout: int = 120,
+    retries: int = 2,
     **extra: Any,
 ) -> dict:
     """发一次 OpenAI 兼容 chat 请求（支持 tools/function calling），返回完整 message 结构。
@@ -36,22 +38,38 @@ def chat(
     base_url 为 API 根，自动拼 /chat/completions。extra 透传进请求体（如 cache_prompt）。
     响应 message 可能含 tool_calls（模型请求调用工具）或纯 content（最终回答）；
     解析失败返回 {"content": ""}。
+
+    网络抖动（代理/连接挂死）时自动重试 retries 次；连接超时 10s、读超时 60s，
+    避免在 CloseWait 状态下傻等。
     """
     payload: dict[str, Any] = {"model": model, "messages": messages}
     if tools:
         payload["tools"] = tools
     payload.update(extra)
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers=_headers(api_key),
-        json=payload,
-        timeout=timeout,
-    )
-    r.raise_for_status()
-    try:
-        return r.json()["choices"][0]["message"] or {}
-    except (KeyError, IndexError, TypeError):
-        return {"content": ""}
+    # (connect_timeout, read_timeout)：连接 10s 内必须建立，之后 60s 内必须有数据
+    to = (10, min(timeout, 60))
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            r = requests.post(
+                f"{base_url}/chat/completions",
+                headers=_headers(api_key),
+                json=payload,
+                timeout=to,
+            )
+            r.raise_for_status()
+            try:
+                return r.json()["choices"][0]["message"] or {}
+            except (KeyError, IndexError, TypeError):
+                return {"content": ""}
+        except (requests.ConnectionError, requests.Timeout) as e:
+            last_exc = e
+            if attempt < retries:
+                time.sleep(2 * (attempt + 1))
+                continue
+            raise
+    # 不会走到这里，但类型检查需要
+    raise last_exc  # type: ignore[misc]
 
 
 def chat_text(
