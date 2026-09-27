@@ -5,7 +5,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 > **设计原则**：本文档是"宪法"，只写不变的原则和指针。易变的事实（路径、配置、模型位置）不写在这里——它们由代码自动检查（环境自检门卫）或运行时参数指定。如果发现本文档有具体路径/配置，那就是腐化了，应该移走。
 
 ## 核心原则
-- **全管线纯本地执行**：只有 translate 阶段需要 LLM API，其他阶段（detect/ocr/inpaint/typeset）全本地，不需要任何外部服务（ADR-029）
+- **执行边界**：默认 detect/ocr/inpaint/typeset 在本地执行，translate 调用 LLM API；显式选择 VLM OCR 的页面会向视觉 API 发送整页与裁图。PSD 导出依赖本机 Photoshop。
 - **环境自检门卫（Embedded）**：`run_pipeline.py` 启动时自动检查环境（代理、模型、.env、ROOT 路径），不可达的代理自动关闭，有问题直接报错。**不需要 AI 手动检查环境**
 - **找产物用 artifact，跑管线用 run_pipeline，看管线现状用 `peek`**——这三个是唯一入口，禁止自己拼 01/02/03 脚本。找代码/找符号用原生 grep + `docs/module-map.md`
 

@@ -6,7 +6,7 @@ AMTA is a session-directed manga translation pipeline. Runtime code lives in `sr
 
 ## Architecture & Primary Workflows
 
-The production flow is `detect -> ocr -> translate -> inpaint -> typeset`. All stages are local except `translate`, which uses the configured LLM API. Use the supported entry points instead of assembling stage scripts manually:
+The production flow is `detect -> ocr -> translate -> inpaint -> typeset`. Default stages are local except `translate`; explicitly selected VLM OCR pages also send page/crop images to the configured vision API. PSD export uses local Photoshop. Use the supported entry points instead of assembling stage scripts manually:
 
 - `uv run python scripts/peek.py` — inspect the live stage registry and dependencies.
 - `uv run python scripts/run_pipeline.py --work-id demo --src-dir D:\pages --start-page 1 --end-page 10 --stages detect,ocr,translate,inpaint,typeset` — run or resume a work.

@@ -64,7 +64,7 @@
    会出现"同一条命令两个判定"（L26 的老账）。`package.json` 的脚本已全部对齐 `uv run python`。
 
 5. **koharu v0.59.1 已退出主链路**（ADR-029）。仅存 legacy 客户端（`src/amta/backends/koharu_client.py`）
-   与启动脚本，不要在主线路上依赖它。现管线全本地，只有 translate 阶段需要 LLM API（ADR-014）。
+   与启动脚本，不要在主线路上依赖它。默认图像阶段本地执行；translate 及显式选择的 VLM OCR 使用 API，PSD 导出依赖本机 Photoshop。
 
 ---
 

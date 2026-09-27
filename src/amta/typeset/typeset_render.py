@@ -14,6 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageStat
 
+from amta.stores.artifacts import normalize_rendered_item
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
 from amta.typeset.vertical_punct import VERTICAL_COMBINE, should_rotate, verticalize_text
 
@@ -112,11 +113,12 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
                 x += cw
             y += lh
 
-    return {"layout_direction": direction, "font_size": font_size,
+    return normalize_rendered_item({"layout_direction": direction, "font_size": font_size,
             "lines": lines, "anchor_pos": [cx, cy],
+            "font_path": font_path, "line_step": lh, "col_step": col_w, "align": "center",
             "preferred_direction": preferred_direction,
             "rendered_color": f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}",
-            "rendered_stroke": stroke}
+            "rendered_stroke": stroke, "stroke_color": "#FFFFFF"})
 
 
 # --- 渲染前字符规范化（唯一真源）-------------------------------------------

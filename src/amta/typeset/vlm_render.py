@@ -12,6 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from amta.stores.artifacts import normalize_rendered_item
 from amta.typeset.typeset_render import _render_vertical
 from amta.typeset.vertical_punct import verticalize_text
 
@@ -139,4 +140,4 @@ def render_text(img: Image.Image, text: str, block: dict) -> dict:
             draw.text((x - bounds[0], y - bounds[1]), line, font=font, fill=color,
                       stroke_width=stroke, stroke_fill=stroke_fill)
             y += meta["line_step"]
-    return meta
+    return normalize_rendered_item(meta)

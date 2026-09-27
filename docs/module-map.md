@@ -44,7 +44,7 @@
 - **`_lama_model.py`** — (无 docstring)（类: SimpleLama）
 - **`_lama_util.py`** — (无 docstring)（函数: get_image, ceil_modulo, scale_image, pad_img_to_modulo, prepare_img_and_mask）
 - **`inpaint_station.py`** — inpaint 工位库函数 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。（函数: _get_inpainter, _apply_fill_white, _build_mask_image, _build_mask, _route_by_uniformity）
-- **`inpaint_strategy.py`** — Stage 4 擦除策略(纯函数,零依赖): 所有框统一走 mask+inpaint(本地 lama-manga)。（函数: plan_inpaint）
+- **`inpaint_strategy.py`** — 擦除路由：气泡内字收缩涂白，框外字及未知类别保留背景分流。（函数: plan_inpaint）
 - **`local_lama_inpainter.py`** — 本地 LaMa inpainting 封装 — 支持 big-lama (TorchScript) 和 lama-manga (FFC ResNet)。（类: _LamaMangaModel, LocalLamaInpainter；函数: _find_lama_manga_path）
 
 ## `memory/` — amta.memory — agent 记忆机制包（ADR-025/027）。
@@ -58,7 +58,7 @@
 ## `orchestrator/` — amta.orchestrator — 管线编排器（深模块）。
 
 - **`context.py`** — 编排器统一数据契约 — StationContext / StationResult / PipelineConfig / PipelineResult。（类: StationContext, StationResult, PipelineConfig）
-- **`pipeline.py`** — 管线编排器 — run_pipeline() 唯一入口。（函数: _resolve_page_list, _build_context, _stage_code_paths, _stage_input_files, _fail_result）
+- **`pipeline.py`** — 管线编排器 — run_pipeline() 唯一入口。（函数: _resolve_page_list, _build_context, _stage_code_paths, _stage_input_files, _auxiliary_outputs_exist）
 - **`quality_audit.py`** — quality_audit — 跑后质量体检聚合（红榜）。（类: PageFlags；函数: audit_page, audit_run, format_redlist, _load_json）
 - **`registry.py`** — 阶段注册表 — 声明式定义每个阶段的工位函数、依赖关系、默认配置。（类: StageSpec；函数: _build_registry, _not_implemented, get_registry, get_stage, available_stages）
 

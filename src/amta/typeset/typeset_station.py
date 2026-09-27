@@ -1,14 +1,8 @@
 """typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。
 
 从 scripts/05_typeset.py 抽取，canon 用 load_canon 规范化（兼容信封格式）。
-bbox 关联: canon.node_id → detection.blocks[].node_id（零契约改动，ADR-019 不变）。
-ADR-033 决策C：删除 decide_direction，方向由 fit_font_size 双方向选优自动决定。
-气泡框收缩：ADR-033 后对所有框排版前调用 shrink_bubble_bbox，detect框比文字大时自动收缩到实际边界。
-
-2026-09-11 自适应基准字号（v3）：
-- 不硬编码任何阈值（不用图片长边/90，不用50%/70%相对下限）。
-- 两遍算法：第一遍计算每个框能放下的最大字号 → 取最小值作为整页基准 → 第二遍所有框统一用基准字号渲染。
-- 结果：所有字大小完全一致，都能放进框里，不会溢出，完全自适应。
+bbox 通过 region_id 关联 detection；普通页逐框按原文基准适配译文字号，
+VLM 页使用观察到的样式。两条路线输出共享的 rendered_items 契约。
 """
 from __future__ import annotations
 
@@ -28,10 +22,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         clean_path: Path, out_path: Path, final_path: Path) -> dict:
     """单页排版：clean 图 + canon + translation + detection → final.png + typeset.json。
 
-    自适应基准字号算法（两遍）：
-    1. 第一遍：对每个框计算能放下的最大字号（不渲染）
-    2. 取所有框的最小值作为整页基准字号
-    3. 第二遍：所有框统一用基准字号渲染
+    普通页按原文逐框测量目标字号，再对译文做适配；VLM 页按观察结果排版。
     """
     # ===== VLM paratext 渲染分支（早期 return）=====
     # VLM 已在 OCR 阶段观察好排版风格（方向/对齐/字体/字号/颜色/描边），
@@ -93,10 +84,10 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
     img = Image.open(clean_path).convert("RGB")
     img_long_side = max(img.size)
 
-    # ===== manga-image-translator 风格：原文基准字号 + 译文长度缩放 =====
+    # ===== 原文逐框基准字号 + 译文实际适配（无额外长度缩放） =====
     # 参考：zyddnys/manga-image-translator PR #1168
     # - 基准字号 = 原文在框内能放下的最大字号
-    # - 译文比原文长时缩放：scale = 1/(1+length_increase*0.5), clamp[0.6, 1.0]
+    # - 由 fit_font_size 按译文实际尺寸适配，避免双重压缩
     # - 最小字号 = 图片长边 / 200
     # - 每框独立，不统一整页基准
     canon_ids = {c.get("region_id") for c in canon_items}
@@ -193,7 +184,7 @@ def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         "work_id": work_id,
         "page": det.get("page", ""),
         "base_font_size": base_font_size,
-        "base_font_size_strategy": "mit_source_based_length_scaled",
+        "base_font_size_strategy": "source_based_fit",
         "rendered_items": rendered_items,
         "layout": layout,
         "final_image": final_image_rel,

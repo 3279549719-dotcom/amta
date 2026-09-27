@@ -20,7 +20,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from amta.common.paths import ROOT
+from amta.common.paths import ROOT, read_json
 from amta.common.pipeline_log import PipelineLog
 from amta.common.workstate import ensure_workspace
 from amta.stores import artifacts
@@ -131,6 +131,28 @@ def _stage_input_files(ctx: StationContext) -> dict[str, Path | str]:
     return input_files
 
 
+def _auxiliary_outputs_exist(stage_name: str, out_path: Path, ctx: StationContext) -> bool:
+    """A cached manifest is reusable only while its generated files exist."""
+    image_key = {"inpaint": "clean_image", "typeset": "final_image"}.get(stage_name)
+    if image_key is None:
+        return True
+    try:
+        doc = read_json(out_path)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(doc, dict):
+        return False
+    if image_key in doc:
+        image_path = doc[image_key]
+        if not isinstance(image_path, str) or not image_path:
+            return False
+        if not (ctx.artifacts_dir / image_path).is_file():
+            return False
+    if stage_name == "typeset" and ctx.config.get("export_psd", False):
+        return (ctx.artifacts_dir / "psd" / f"{ctx.page}.psd").is_file()
+    return True
+
+
 def _fail_result(
     page_key: str,
     stage_name: str,
@@ -186,7 +208,8 @@ def _run_stage(
 
     # 增量缓存判断：不强制重跑 + 产物存在 + 指纹匹配 → 跳过
     if not config.force_rerun and out_path is not None and out_path.exists() \
-            and is_fresh(out_path, input_files, code_files, ctx.config):
+            and is_fresh(out_path, input_files, code_files, ctx.config) \
+            and _auxiliary_outputs_exist(stage_name, out_path, ctx):
         result = StationResult(
             page=page_key, stage=stage_name, status="skipped",
             output_artifact=out_path, duration_s=0.0,

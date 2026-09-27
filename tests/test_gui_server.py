@@ -1,14 +1,128 @@
 """Touhou Manga Translator GUI server — FastAPI 端点单元测试。"""
+
 from __future__ import annotations
 
 from pathlib import Path
+import os
+import subprocess
+from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from amta.gui.server import _jobs, app
+from amta.gui import server
+from amta.orchestrator.context import PipelineResult
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_gui(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "ROOT", tmp_path)
+    monkeypatch.setattr(server, "threading", SimpleNamespace(Thread=lambda **kw: SimpleNamespace(start=lambda: None)))
+    monkeypatch.setattr(
+        server, "run_pipeline", lambda config: PipelineResult("test", config.work_id, ["1"], config.stages)
+    )
+    monkeypatch.setattr(server, "run_environment_check", lambda stages: True, raising=False)
+    monkeypatch.setattr(server, "audit_run", lambda path, pages: [], raising=False)
+    _jobs.clear()
+
+
+@pytest.mark.parametrize("work_id", ["../outside", "..\\outside", "", "absolute", ".", "..", "name:stream"])
+def test_upload_rejects_unsafe_work_id(work_id: str, tmp_path: Path) -> None:
+    from io import BytesIO
+
+    data = BytesIO()
+    Image.new("RGB", (2, 2)).save(data, "PNG")
+    if work_id == "absolute":
+        work_id = str(tmp_path / "outside")
+    response = client.post(
+        "/api/upload", data={"work_id": work_id}, files={"files": ("a.png", data.getvalue(), "image/png")}
+    )
+    assert response.status_code in (400, 422)
+    assert not (tmp_path / "workspace").exists()
+
+
+def test_submission_rejects_unsafe_work_id() -> None:
+    response = client.post("/api/translate", json={"work_id": "../outside", "src_dir": "."})
+    assert response.status_code == 400
+    assert not _jobs
+
+
+def test_upload_rejects_escaping_input_symlink(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "keep.txt"
+    sentinel.write_text("keep")
+    work = tmp_path / "workspace" / "safe"
+    work.mkdir(parents=True)
+    try:
+        (work / "input").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        if os.name != "nt":
+            raise
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(work / "input"), str(outside)], check=True, capture_output=True
+        )
+    response = client.post(
+        "/api/upload", data={"work_id": "safe"}, files={"files": ("bad.png", b"invalid", "image/png")}
+    )
+    assert response.status_code == 400
+    assert sentinel.read_text() == "keep"
+
+
+def test_artifact_directory_link_cannot_escape(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    work = tmp_path / "workspace" / "safe"
+    work.mkdir(parents=True)
+    link = work / "artifacts"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        if os.name != "nt":
+            raise
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)], check=True, capture_output=True)
+    assert client.get("/api/artifacts/safe").status_code == 400
+    assert client.get("/api/export/safe/1/png").status_code == 400
+    response = client.post("/api/translate", json={"work_id": "safe", "src_dir": "."})
+    assert response.status_code == 400
+
+
+def test_pipeline_level_failure_is_not_done(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = PipelineResult(
+        "test", "safe", [], [], failed_step={"page": "?", "stage": "pipeline", "reason": "no valid pages found"}
+    )
+    monkeypatch.setattr(server, "run_pipeline", lambda config: result)
+    _jobs["test"] = {}
+    server._run_pipeline_background("test", server.TranslateRequest(src_dir=".", work_id="safe", pages=[]))
+    assert _jobs["test"]["status"] == "failed"
+    assert "no valid pages found" in str(_jobs["test"]["error"])
+
+
+def test_environment_failure_stops_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "run_environment_check", lambda stages: False, raising=False)
+
+    def forbidden(config):
+        pytest.fail("pipeline must not run after failed environment check")
+
+    monkeypatch.setattr(server, "run_pipeline", forbidden)
+    _jobs["test"] = {}
+    server._run_pipeline_background("test", server.TranslateRequest(src_dir=".", work_id="safe", pages=[1]))
+    assert _jobs["test"]["status"] == "failed"
+
+
+def test_quality_audit_is_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+    from amta.orchestrator.quality_audit import PageFlags
+
+    monkeypatch.setattr(server, "audit_run", lambda path, pages: [PageFlags(page="1", overflow=["r1"])], raising=False)
+    _jobs["test"] = {"job_id": "test", "mode": "default", "work_id": "safe"}
+    server._run_pipeline_background("test", server.TranslateRequest(src_dir=".", work_id="safe", pages=[1]))
+    response = client.get("/api/jobs/test")
+    assert response.json()["status"] == "done"
+    assert "r1" in response.json()["quality_warning"]
 
 
 def test_health_check() -> None:

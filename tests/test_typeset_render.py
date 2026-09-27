@@ -41,8 +41,13 @@ def test_vertical_render_multi_column():
 def test_render_returns_meta_shape():
     img = Image.new("RGB", (100, 100), "white")
     meta = render_item(img, "短", FONT, [10, 10, 90, 90], stroke=0)
-    assert set(meta) == {"layout_direction", "font_size", "lines", "anchor_pos",
-                         "preferred_direction", "rendered_color", "rendered_stroke"}
+    # render_item 现在经过 normalize_rendered_item，附加共享 PSD 契约字段
+    # （font_path/font_family/anchor_pos/rendered_color/line_step/align 等）。
+    required = {"layout_direction", "font_size", "lines", "anchor_pos",
+                 "preferred_direction", "rendered_color", "rendered_stroke"}
+    assert required <= set(meta)
+    # 归一化层补齐的字段也必须存在，PSD 导出直接依赖它们
+    assert {"font_path", "font_family", "rendered_color", "line_step", "align"} <= set(meta)
     assert meta["preferred_direction"] is None  # 接近方形的框推断为 None
 
 

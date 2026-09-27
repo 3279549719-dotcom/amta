@@ -2,7 +2,7 @@
 
 自动化漫画翻译 Agent（会话驱动版）。
 
-## 架构（ADR-029：全本地管线）
+## 架构（本地执行器与可选远程模型）
 
 ```
 DSH 会话（我）= 单 LLM Agent（导演）
@@ -12,7 +12,7 @@ DSH 会话（我）= 单 LLM Agent（导演）
         └── 统一入口 scripts/run_pipeline.py（detect → ocr → translate → inpaint → typeset）
 ```
 
-- **全本地执行**（ADR-029）：detect = RT-DETR-v2，OCR = baberu/hayai，inpaint = 本地 lama-manga，typeset = 本地排版；除 translate 外不依赖任何外部服务
+- **执行边界**：默认 detect/OCR/inpaint/typeset 本地执行；translate 和显式选择的 VLM OCR 调用 API，后者会发送整页与裁图。PSD 导出使用本机 Photoshop。
 - **translate 阶段用 DeepSeek API**（`.env` 的 CHAT_* 配置，ADR-014）
 - **koharu v0.59.1 已退出主链路**——legacy 客户端（`src/amta/backends/koharu_client.py`、`scripts/start_koharu.ps1`）仅作历史保留，不要在主线路上依赖它
 - **产物结构**：per-work workspace（`workspace/<work_id>/`，ADR-013）

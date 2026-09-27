@@ -529,6 +529,8 @@
   var currentIndex = -1;
   var currentMode = 'default';
   var idCounter = 0;
+  var processing = false;
+  var loadingFiles = false;
 
   // DOM
   var dropZone = document.getElementById('dropZone');
@@ -603,22 +605,26 @@
     var files = Array.from(fileList).filter(function(f) { return f.type.startsWith('image/'); });
     if (files.length === 0) { toast('No image files', 'info'); return; }
 
-    files.forEach(function(file) {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var img = {
-          id: ++idCounter,
-          name: file.name,
-          file: file,
-          src: e.target.result,
-          outputSrc: null,
-          translated: false
+    if (processing || loadingFiles) { toast('Please wait for the current operation', 'info'); return; }
+    loadingFiles = true;
+    translateBtn.disabled = true;
+    Promise.all(files.map(function(file) {
+      return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          resolve({id: ++idCounter, name: file.name, file: file,
+            src: e.target.result, outputSrc: null, translated: false});
         };
-        images.push(img);
-        addThumb(img);
-        if (currentIndex === -1) selectImage(0);
-      };
-      reader.readAsDataURL(file);
+        reader.onerror = function() { reject(new Error('Could not read ' + file.name)); };
+        reader.readAsDataURL(file);
+      });
+    })).then(function(loaded) {
+      loaded.forEach(function(img) { images.push(img); addThumb(img); });
+    }).catch(function(err) {
+      toast(err.message, 'error');
+    }).finally(function() {
+      loadingFiles = false;
+      if (images.length) selectImage(currentIndex === -1 ? 0 : currentIndex);
     });
     toast('Added ' + files.length + ' image' + (files.length > 1 ? 's' : ''), 'success');
   }
@@ -665,13 +671,16 @@
       exportBtn.disabled = true;
     }
 
-    translateBtn.disabled = false;
+    translateBtn.disabled = processing || loadingFiles;
   }
 
   // Translate — 真实 API：上传全部图片 -> 提交任务 -> 轮询 -> 拉取产物
   translateBtn.addEventListener('click', function() {
-    if (currentIndex === -1) return;
+    if (currentIndex === -1 || processing || loadingFiles) return;
 
+    processing = true;
+    var submittedImages = images.slice();
+    var submittedMode = currentMode;
     translateBtn.disabled = true;
     loadingOverlay.classList.add('show');
     loadingText.textContent = 'Uploading…';
@@ -682,7 +691,7 @@
     var workId = 'gui-' + Date.now();
     var formData = new FormData();
     formData.append('work_id', workId);
-    images.forEach(function(im) {
+    submittedImages.forEach(function(im) {
       formData.append('files', im.file, im.name);
     });
 
@@ -699,7 +708,7 @@
           body: JSON.stringify({
             work_id: workId,
             src_dir: upload.src_dir,
-            mode: currentMode,
+            mode: submittedMode,
             pages: upload.pages
           })
         }).then(function(r) {
@@ -708,19 +717,20 @@
         });
       })
       .then(function(job) {
-        pollJob(job.job_id, workId);
+        pollJob(job.job_id, workId, submittedImages, submittedMode);
       })
       .catch(function(err) {
         loadingOverlay.classList.remove('show');
-        translateBtn.disabled = false;
+        processing = false;
+        translateBtn.disabled = images.length === 0 || loadingFiles;
         toast('Error: ' + err.message, 'error');
       });
   });
 
   // 轮询任务状态；done 后拉取 artifacts 并按页号回填到对应 image
   var pollTimer = null;
-  function pollJob(jobId, workId) {
-    var steps = currentMode === 'vlm'
+  function pollJob(jobId, workId, submittedImages, submittedMode) {
+    var steps = submittedMode === 'vlm'
       ? ['VLM reading layout…', 'Translating…', 'Rendering…']
       : ['Detecting…', 'OCR…', 'Translating…', 'Inpainting…', 'Typesetting…'];
     var stepIdx = 0;
@@ -739,25 +749,29 @@
             return fetch('/api/artifacts/' + workId)
               .then(function(r) { return r.json(); })
               .then(function(res) {
-                // image 索引+1 = 页号，按页号匹配产物
+                // Resolve against the immutable upload order, not the current sidebar.
                 res.artifacts.forEach(function(a) {
                   var idx = parseInt(a.page, 10) - 1;
-                  if (idx >= 0 && idx < images.length) {
-                    images[idx].translated = true;
-                    images[idx].outputSrc = a.url;
-                    images[idx].workId = workId;
+                  if (idx >= 0 && idx < submittedImages.length) {
+                    submittedImages[idx].translated = true;
+                    submittedImages[idx].outputSrc = a.url;
+                    submittedImages[idx].workId = workId;
+                    submittedImages[idx].page = String(a.page);
                   }
                 });
+                processing = false;
                 if (currentIndex !== -1) selectImage(currentIndex);
                 loadingOverlay.classList.remove('show');
-                translateBtn.disabled = false;
-                toast('Done (' + currentMode + ')', 'success');
+                translateBtn.disabled = images.length === 0 || loadingFiles;
+                toast('Done (' + submittedMode + ')', 'success');
+                if (job.quality_warning) toast(job.quality_warning, 'info');
               });
           } else if (job.status === 'failed') {
             clearInterval(pollTimer);
             pollTimer = null;
             loadingOverlay.classList.remove('show');
-            translateBtn.disabled = false;
+            processing = false;
+            translateBtn.disabled = images.length === 0 || loadingFiles;
             toast('Failed: ' + (job.error || 'unknown error'), 'error');
           } else {
             // queued / running —— 阶段文字推进
@@ -769,7 +783,8 @@
           clearInterval(pollTimer);
           pollTimer = null;
           loadingOverlay.classList.remove('show');
-          translateBtn.disabled = false;
+          processing = false;
+          translateBtn.disabled = images.length === 0 || loadingFiles;
           toast('Error: ' + err.message, 'error');
         });
     }, 2000);
@@ -786,7 +801,8 @@
     item.addEventListener('click', function() {
       var format = this.dataset.format;
       var img = images[currentIndex];
-      var page = String(currentIndex + 1);
+      if (!img || !img.translated || !img.page) return;
+      var page = img.page;
       window.open('/api/export/' + img.workId + '/' + page + '/' + format, '_blank');
       toast(format.toUpperCase() + ' download started', 'success');
       exportMenu.classList.remove('show');
@@ -796,7 +812,7 @@
 
   // Keyboard: Delete removes current
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Delete' && currentIndex !== -1) {
+    if (e.key === 'Delete' && currentIndex !== -1 && !processing && !loadingFiles) {
       var removed = images.splice(currentIndex, 1)[0];
       var thumb = sidebar.querySelector('.thumb[data-id="' + removed.id + '"]');
       if (thumb) thumb.remove();

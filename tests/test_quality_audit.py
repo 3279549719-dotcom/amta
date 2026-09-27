@@ -19,7 +19,7 @@ def _make(tmp_path: Path, page: str, *, translation=None, ocr=None, typeset=None
         d = art / "translation"; d.mkdir(parents=True, exist_ok=True)
         (d / f"{page}.json").write_text(json.dumps(translation, ensure_ascii=False), encoding="utf-8")
     if ocr is not None:
-        d = art / "ocr"; d.mkdir(parents=True, exist_ok=True)
+        d = art / "canon"; d.mkdir(parents=True, exist_ok=True)
         (d / f"{page}.json").write_text(json.dumps(ocr, ensure_ascii=False), encoding="utf-8")
     if typeset is not None:
         d = art / "typeset"; d.mkdir(parents=True, exist_ok=True)
@@ -84,3 +84,15 @@ def test_corrupt_json_is_silent(tmp_path):
     (d / "page_x.json").write_text("{broken", encoding="utf-8")
     f = audit_page(tmp_path / "artifacts", "page_x")
     assert not f.has_flags
+
+
+def test_legacy_artifacts_use_shared_resolution(tmp_path):
+    art = tmp_path / "artifacts"
+    art.mkdir()
+    (art / "page_1_canon.json").write_text('{"n_conf_removed": 2}', encoding="utf-8")
+    (art / "page_1_translation.json").write_text('{"translations": {"r1": ""}}', encoding="utf-8")
+    (art / "page_1_typeset.json").write_text('{"checks": {"overflow": ["r1"]}}', encoding="utf-8")
+    flags = audit_page(art, "page_1")
+    assert flags.conf_removed == 2
+    assert flags.empty_translations == ["r1"]
+    assert flags.overflow == ["r1"]

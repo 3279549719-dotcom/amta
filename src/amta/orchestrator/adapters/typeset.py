@@ -67,7 +67,9 @@ def run(ctx: StationContext) -> StationResult:
             from amta.typeset.psd_jsx_export import export_page_psd
             psd_dir = ctx.artifacts_dir / "psd"
             psd_path = psd_dir / f"{ctx.page}.psd"
-            export_page_psd(ctx.artifacts_dir, ctx.page, psd_path)
+            exported = export_page_psd(ctx.artifacts_dir, ctx.page, psd_path)
+            if not exported or not psd_path.is_file() or psd_path.stat().st_size == 0:
+                raise RuntimeError("PSD export failed; PNG remains available, check Photoshop export logs")
 
         duration = time.perf_counter() - t0
         checks = doc.get("checks", {})
@@ -97,5 +99,4 @@ def run(ctx: StationContext) -> StationResult:
             duration_s=round(duration, 2),
             error=f"{type(e).__name__}: {str(e)[:200]}",
         )
-
 

@@ -407,6 +407,44 @@ class InpaintArtifact(TypedDict, total=False):
     plan: list[dict]         # 擦除计划（来自 inpaint_strategy.plan_inpaint）
 
 
+class RenderedItem(TypedDict, total=False):
+    """Shared PNG/PSD text metadata; positions and spacing are image pixels."""
+    region_id: str
+    lines: list[str]
+    layout_direction: str
+    font_size: float
+    font_path: str
+    font_family: str
+    anchor_pos: list[float]
+    rendered_color: str
+    rendered_stroke: float
+    stroke_color: str | None
+    line_step: float
+    col_step: float
+    align: str
+
+
+def normalize_rendered_item(item: dict) -> dict:
+    """Normalize legacy VLM metadata at the shared artifact boundary.
+
+    Both renderers emit this contract. Old artifacts remain exportable, but a
+    missing position must never silently put text at the canvas origin.
+    """
+    out = dict(item)
+    if "anchor_pos" not in out:
+        bounds = out.get("ink_bbox")
+        if not bounds or len(bounds) != 4:
+            raise ValueError("rendered item missing anchor_pos/ink_bbox")
+        out["anchor_pos"] = [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2]
+    out.setdefault("font_family", Path(out.get("font_path", "msyh.ttc")).name)
+    out.setdefault("rendered_color", out.get("color", "#000000"))
+    out.setdefault("rendered_stroke", out.get("stroke_width", 0))
+    out.setdefault("align", "center")
+    vertical = out.get("layout_direction") == "vertical"
+    out.setdefault("line_step", out.get("font_size", 40) * (1.2 if vertical else 1.15))
+    return out
+
+
 class TypesetArtifact(TypedDict, total=False):
     """Stage 5 排版产物 — 译文排到气泡后的最终图 + 排版信息。"""
     work_id: str
@@ -415,6 +453,7 @@ class TypesetArtifact(TypedDict, total=False):
     generated_at: str
     final_image: str                # 最终图片路径
     layout: dict[str, dict]         # region_id -> 排版信息（font, size, direction, lines, position）
+    rendered_items: list[RenderedItem]
 
 
 class SegmentArtifact(TypedDict, total=False):

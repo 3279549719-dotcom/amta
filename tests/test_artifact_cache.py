@@ -1,5 +1,66 @@
 """artifact_cache 模块测试 — 基于内容哈希的增量构建。"""
 
+from pathlib import Path
+
+import pytest
+
+
+@pytest.mark.parametrize("stage_name", ["detect", "ocr", "translate", "inpaint", "typeset"])
+def test_registered_stage_code_files_exist(stage_name):
+    from amta.orchestrator.registry import _build_registry
+
+    source_root = Path(__file__).resolve().parents[1] / "src" / "amta"
+    files = _build_registry()[stage_name].code_files
+    assert files
+    assert all((source_root / name).is_file() for name in files)
+
+
+@pytest.mark.parametrize("stage_name,implementation", [
+    ("detect", "stations/detect_station.py"),
+    ("ocr", "stations/ocr_station.py"),
+    ("translate", "translation/translate_station.py"),
+    ("translate", "translation/translate.py"),
+    ("inpaint", "inpaint/inpaint_station.py"),
+    ("typeset", "typeset/typeset_station.py"),
+    *[(stage, f"orchestrator/adapters/{stage}.py")
+      for stage in ("detect", "ocr", "translate", "inpaint", "typeset")],
+    ("typeset", "typeset/psd_jsx_export.py"),
+    ("typeset", "typeset/vertical_punct.py"),
+    ("typeset", "stores/artifacts.py"),
+])
+def test_registered_implementation_change_invalidates_cache(tmp_path, stage_name, implementation):
+    import shutil
+
+    from amta.orchestrator.registry import _build_registry
+    from amta.stores.artifact_cache import compute_fingerprint, is_fresh, save_fingerprint
+
+    source_root = Path(__file__).resolve().parents[1] / "src" / "amta"
+    copied_root = tmp_path / "amta"
+    shutil.copytree(source_root, copied_root, ignore=shutil.ignore_patterns("__pycache__"))
+    code_files = [copied_root / name for name in _build_registry()[stage_name].code_files]
+    output = tmp_path / "result.json"
+    output.write_text("{}", encoding="utf-8")
+    save_fingerprint(output, stage_name, "page_1", compute_fingerprint({}, code_files, {}))
+    assert is_fresh(output, {}, code_files, {})
+    changed_file = copied_root / implementation
+    changed_file.write_text(changed_file.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+    assert not is_fresh(output, {}, code_files, {})
+
+
+def test_compute_code_hash_rejects_missing_declared_file(tmp_path):
+    from amta.stores.artifact_cache import compute_code_hash
+
+    present = tmp_path / "present.py"
+    present.write_text("pass", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="missing.py"):
+        compute_code_hash([present, tmp_path / "missing.py"])
+
+
+def test_compute_code_hash_allows_empty_placeholder():
+    from amta.stores.artifact_cache import compute_code_hash
+
+    assert compute_code_hash([]) == "0" * 64
+
 
 
 def test_compute_file_hash_deterministic(tmp_path):

@@ -1,18 +1,11 @@
-"""Stage 4 擦除策略(纯函数,零依赖): 所有框统一走 mask+inpaint(本地 lama-manga)。
+"""擦除路由：气泡内字收缩涂白，框外字及未知类别保留背景分流。
 
-ADR-030: 移除 text_bubble 白底直填分支。
-- 原策略: text_bubble → fill_white / text_free → inpaint
-- 假设: 气泡一定是白底
-- 反例: 黑底白字、气泡内网点、灰底气泡 → 涂白产生白色方块盖背景
-- 新策略: 所有框统一走 lama inpaint,由模型根据周围像素推断背景
-- bbox 越界/缺失防御性 skip。
-
-category(dialogue_bubble/overlay_text/sfx) 仅用于日志记录，不再影响 action 决策。
-bubble_type 标签已在 ADR-033 移除。
+优先使用显式 category；正式检测产物以 det_label=1/2 表示框内/框外字。
+不恢复已移除的 bubble_type 字段。空译文由调用方过滤。
 """
 from __future__ import annotations
 
-FILL_WHITE = "fill_white"  # 保留常量向后兼容,ADR-030 后不再使用
+FILL_WHITE = "fill_white"
 INPAINT = "inpaint"
 SKIP = "skip"
 
@@ -35,11 +28,9 @@ def plan_inpaint(regions: list[dict], image_meta: dict | None = None) -> list[di
                              "action": SKIP, "bbox": bb,
                              "reason": "bbox out of bounds"})
                 continue
-        # 对白气泡统一涂白（收缩后矩形，不盖气泡外）。
-        # 历史教训：ADR-030/033 全走 LaMa 后白泡残影每页都在（矩形 bbox 四角
-        # 吃进气泡外背景导致 std 误判，14/15 白泡被送 LaMa）。黑底气泡是少数反例，
-        # 残影是每页都发生的事故，先回到涂白，再观察是否有反例需要回退到 LaMa。
-        action = FILL_WHITE
+        category = r.get("category")
+        is_bubble = category == "dialogue_bubble" if category else r.get("det_label") == 1
+        action = FILL_WHITE if is_bubble else INPAINT
         plan.append({"region_id": r.get("region_id"), "category": r.get("category", "dialogue_bubble"),
                      "action": action, "bbox": bb})
     return plan

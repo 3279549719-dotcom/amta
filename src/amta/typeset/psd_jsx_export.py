@@ -16,11 +16,14 @@ import platform
 import re
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
 
+from amta.stores.artifacts import normalize_rendered_item
 logger = logging.getLogger(__name__)
+_PHOTOSHOP_LOCK = threading.Lock()
 
 # 字体文件名 → Photoshop 字体家族名
 # JSX 中 findFontPostScriptName() 会用 5 轮匹配找到 PostScript 名称
@@ -83,6 +86,7 @@ app.preferences.rulerUnits = Units.PIXELS;
 app.preferences.typeUnits = TypeUnits.PIXELS;
 
 var ERROR_FILE_PATH = '{error_file}';
+var COMPLETION_FILE_PATH = '{completion_file}';
 
 // 字体查找：5轮匹配 PostScript 名称
 function findFontPostScriptName(fontName) {{
@@ -141,6 +145,13 @@ try {{
     psdOptions.spotColors = true;
     doc.saveAs(psdFile, psdOptions, true);
     doc.close(SaveOptions.DONOTSAVECHANGES);
+    var doneFile = new File(COMPLETION_FILE_PATH + '.tmp');
+    if (!doneFile.open('w')) throw new Error('Cannot write completion marker');
+    doneFile.write('complete');
+    doneFile.close();
+    if (!doneFile.rename(new File(COMPLETION_FILE_PATH).name)) {{
+        throw new Error('Cannot publish completion marker');
+    }}
 
 }} catch (e) {{
     var errorMsg = 'ERROR: ' + e.message + '\\nLine: ' + e.line;
@@ -204,6 +215,7 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> str:
         logger.warning(f"文字层 {index} ({region_id}) 无文字内容，跳过")
         return ""
 
+    item = normalize_rendered_item(item)
     font_size = float(item.get("font_size", 40))
     anchor_pos = item.get("anchor_pos", [0, 0])
     anchor_x, anchor_y = float(anchor_pos[0]), float(anchor_pos[1])
@@ -218,7 +230,7 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> str:
 
     # 行间距系数
     leading_factor = 1.2 if is_vertical else 1.15
-    leading = font_size * leading_factor
+    leading = float(item.get("col_step" if is_vertical else "line_step", font_size * leading_factor))
 
     # 位置计算
     if is_vertical:
@@ -241,6 +253,15 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> str:
         y = anchor_y - (num_lines - 1) * leading / 2 + baseline_offset
         direction = "Direction.HORIZONTAL"
         justification = "Justification.CENTER"
+
+    # VLM layout records actual ink bounds and alignment, not only a center.
+    if not is_vertical and "ink_bbox" in item:
+        left, top, right, _bottom = item["ink_bbox"]
+        align = item["align"]
+        x = left if align == "left" else right if align == "right" else (left + right) / 2
+        y = top + font_size * 0.8
+        justification = {"left": "Justification.LEFT", "right": "Justification.RIGHT",
+                         "center": "Justification.CENTER"}[align]
 
     # 图层名：region_id + 文字前20字
     name_text = re.sub(r"[\r\n]", "", "".join(lines))[:20]
@@ -388,126 +409,82 @@ def export_psd_with_jsx(
     Returns:
         成功返回 PSD 路径；script_only 时返回 JSX 路径；失败返回 None
     """
-    temp_dir = tempfile.gettempdir()
-    jsx_file = os.path.join(temp_dir, ".amta_psd_script.jsx")
-    error_file = os.path.join(temp_dir, ".amta_psd_error.txt")
-
-    # 清理旧错误文件
-    if os.path.exists(error_file):
-        try:
-            os.unlink(error_file)
-        except OSError:
-            pass
-
-    # 检查底图
-    if not os.path.exists(clean_image_path):
-        logger.error(f"干净底图不存在: {clean_image_path}")
+    if not os.path.isfile(clean_image_path):
+        logger.error("Clean image does not exist: %s", clean_image_path)
         return None
 
-    # 生成文字层代码
-    text_layers_code = ""
-    rendered_items = typeset_data.get("rendered_items", [])
-    logger.info(f"PSD 导出：准备 {len(rendered_items)} 个文字层")
-    for i, item in enumerate(rendered_items):
-        layer_jsx = _generate_text_layer_jsx(i, item)
-        if layer_jsx:
-            text_layers_code += layer_jsx
-
-    if not text_layers_code:
-        logger.warning("没有可导出的文字层")
-        return None
-
-    # 生成完整 JSX
-    jsx_script = _JSX_TEMPLATE.format(
-        input_file=_escape_jsx_path(clean_image_path),
-        output_file=_escape_jsx_path(output_psd_path),
-        error_file=_escape_jsx_path(error_file),
-        text_layers_code=text_layers_code,
+    text_layers_code = "".join(
+        _generate_text_layer_jsx(i, item)
+        for i, item in enumerate(typeset_data.get("rendered_items", []))
     )
+    output = Path(output_psd_path).resolve()
 
-    # 确保输出目录存在
-    output_dir = os.path.dirname(output_psd_path)
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
-    # 保存 JSX（UTF-8 BOM，确保 Photoshop 正确读取中文）
-    with open(jsx_file, "w", encoding="utf-8-sig") as f:
-        f.write(jsx_script)
-    logger.info(f"JSX 脚本已生成: {jsx_file}")
-
-    # verbose / script_only 模式：复制 JSX 到输出目录旁
-    saved_script_path = None
-    if verbose or script_only:
-        debug_jsx = str(Path(output_psd_path).with_suffix(".jsx"))
-        with open(debug_jsx, "w", encoding="utf-8") as f:
-            f.write(jsx_script)
-        saved_script_path = debug_jsx
-        logger.info(f"JSX 脚本已保存: {debug_jsx}")
-
-    if script_only:
-        logger.info("仅脚本模式：跳过 Photoshop 执行")
-        return saved_script_path
-
-    # 查找并调用 Photoshop
-    ps_exe = _find_photoshop_executable()
-    if not ps_exe:
-        logger.error(
-            "未找到 Photoshop，无法生成 PSD。"
-            "可使用 script_only=True 只生成 JSX 脚本后手动在 Photoshop 中运行。"
+    def make_script(target: Path, error: Path, completion: Path) -> str:
+        return _JSX_TEMPLATE.format(
+            input_file=_escape_jsx_path(str(Path(clean_image_path).resolve())),
+            output_file=_escape_jsx_path(str(target)),
+            error_file=_escape_jsx_path(str(error)),
+            completion_file=_escape_jsx_path(str(completion)),
+            text_layers_code=text_layers_code,
         )
+
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if verbose or script_only:
+            # Keep the manual script usable after temporary runtime files disappear.
+            saved_script = Path(output_psd_path).with_suffix(".jsx")
+            saved_script.write_text(make_script(
+                output, output.with_suffix(".error.txt"), output.with_suffix(".complete")
+            ), encoding="utf-8-sig")
+            if script_only:
+                return str(saved_script)
+
+        if timeout <= 0:
+            logger.error("Photoshop execution timed out (%s seconds)", timeout)
+            return None
+        ps_exe = _find_photoshop_executable()
+        if not ps_exe:
+            logger.error("Photoshop not found; use script_only=True for manual export")
+            return None
+
+        # Photoshop has global document state. Serialize GUI calls within this process.
+        with _PHOTOSHOP_LOCK, tempfile.TemporaryDirectory(
+            prefix=".amta-psd-", dir=output.parent, ignore_cleanup_errors=True
+        ) as temp_dir:
+            runtime = Path(temp_dir)
+            jsx_file = runtime / "export.jsx"
+            error_file = runtime / "error.txt"
+            completion_file = runtime / "complete.txt"
+            staged_output = runtime / "output.psd"
+            jsx_file.write_text(make_script(staged_output, error_file, completion_file),
+                                encoding="utf-8-sig")
+            subprocess.Popen(
+                [ps_exe, "-r", str(jsx_file)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if error_file.exists():
+                    logger.error("Photoshop script error: %s", error_file.read_text(
+                        encoding="utf-8", errors="replace"))
+                    return None
+                if completion_file.exists():
+                    if (completion_file.read_text(encoding="utf-8") != "complete"
+                            or not staged_output.is_file() or staged_output.stat().st_size == 0):
+                        logger.error("Photoshop completed without a valid staged PSD")
+                        return None
+                    # Fresh per-invocation file; atomic publication preserves any old PSD on failure.
+                    os.replace(staged_output, output)
+                    logger.info("PSD generated: %s", output_psd_path)
+                    return output_psd_path
+                time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+            logger.error("Photoshop execution timed out (%s seconds)", timeout)
+            return None
+    except OSError:
+        logger.exception("PSD export failed: %s", output_psd_path)
         return None
 
-    logger.info(f"使用 Photoshop: {ps_exe}")
-
-    # 记录旧文件时间
-    old_mtime = os.path.getmtime(output_psd_path) if os.path.exists(output_psd_path) else 0
-
-    # 启动 Photoshop 执行脚本（不等待进程退出，只轮询 PSD 文件生成）
-    subprocess.Popen(
-        [ps_exe, "-r", jsx_file],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    # 轮询等待 PSD 生成
-    poll_interval = 0.5
-    elapsed = 0.0
-    while elapsed < timeout:
-        time.sleep(poll_interval)
-        elapsed += poll_interval
-        if os.path.exists(output_psd_path):
-            new_mtime = os.path.getmtime(output_psd_path)
-            if new_mtime > old_mtime and os.path.getsize(output_psd_path) > 0:
-                time.sleep(0.5)  # 确保写入完成
-                break
-
-    # 检查脚本错误
-    if os.path.exists(error_file):
-        try:
-            with open(error_file, "r", encoding="utf-8", errors="replace") as f:
-                error_msg = f.read()
-            logger.error(f"Photoshop 脚本错误: {error_msg}")
-        except OSError:
-            pass
-        return None
-
-    # 检查结果
-    if os.path.exists(output_psd_path) and os.path.getsize(output_psd_path) > 0:
-        file_size = os.path.getsize(output_psd_path) / 1024 / 1024
-        logger.info(f"PSD 已生成: {output_psd_path} ({file_size:.1f} MB)")
-        # 清理临时 JSX（非 verbose 模式）
-        if not verbose and os.path.exists(jsx_file):
-            try:
-                os.unlink(jsx_file)
-            except OSError:
-                pass
-        return output_psd_path
-
-    if elapsed >= timeout:
-        logger.error(f"Photoshop 执行超时（{timeout}秒），PSD 文件未生成")
-    else:
-        logger.error("PSD 文件生成失败")
-    return None
 
 
 def export_page_psd(

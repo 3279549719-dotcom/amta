@@ -14,7 +14,7 @@
         stage_name="typeset",
         page="page_11",
         input_files={"canon": canon_path, "translation": trans_path},
-        code_files=["typeset_engine.py", "typeset_render.py"],
+        code_files=["src/amta/typeset/typeset_engine.py", "src/amta/typeset/typeset_render.py"],
         config={"font_max": 52},
         output_path=typeset_path,
         generate_fn=lambda: run_typeset(...),
@@ -46,8 +46,8 @@ def compute_file_hash(path: Path | str) -> str:
 
 
 def compute_code_hash(code_files: list[Path | str]) -> str:
-    """计算多个代码文件的合并哈希（顺序无关）。"""
-    hashes = sorted(compute_file_hash(f) for f in code_files if Path(f).exists())
+    """计算多个代码文件的合并哈希（顺序无关）；声明的文件缺失时抛错。"""
+    hashes = sorted(compute_file_hash(f) for f in code_files)
     if not hashes:
         return "0" * 64
     combined = "|".join(hashes)

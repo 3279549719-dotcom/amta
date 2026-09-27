@@ -20,6 +20,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from amta.stores.artifacts import ArtifactStore
+
 
 @dataclass
 class PageFlags:
@@ -46,9 +48,10 @@ class PageFlags:
 def audit_page(artifacts_dir: Path, page: str) -> PageFlags:
     """聚合单页各阶段产物的质量信号。缺产物（该阶段未跑/被跳过）= 无信号，不算异常。"""
     flags = PageFlags(page=page)
+    store = ArtifactStore(artifacts_dir)
 
     # translation: 空译文 + residue
-    t = _load_json(artifacts_dir / "translation" / f"{page}.json")
+    t = _load_json(store.resolve("translation", page))
     if t:
         flags.empty_translations = [
             rid for rid, v in t.get("translations", {}).items()
@@ -57,12 +60,12 @@ def audit_page(artifacts_dir: Path, page: str) -> PageFlags:
         flags.residues = len([r for r in t.get("residue", []) if str(r).strip()])
 
     # ocr: 低置信度删框（误删风险）
-    o = _load_json(artifacts_dir / "ocr" / f"{page}.json")
+    o = _load_json(store.resolve("canon", page))
     if o:
         flags.conf_removed = int(o.get("n_conf_removed", 0) or 0)
 
     # typeset checks: 溢出/收缩/跳过/覆盖
-    tp = _load_json(artifacts_dir / "typeset" / f"{page}.json")
+    tp = _load_json(store.resolve("typeset", page))
     if tp:
         checks = tp.get("checks", {}) or {}
         flags.overflow = list(checks.get("overflow", []) or [])
@@ -104,8 +107,10 @@ def format_redlist(flags: list[PageFlags]) -> str:
     return "\n".join(lines)
 
 
-def _load_json(path: Path) -> dict | None:
+def _load_json(path: Path | None) -> dict | None:
     """读产物 JSON；不存在/损坏返回 None（未跑该阶段 ≠ 质量异常）。"""
+    if path is None:
+        return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

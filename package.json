@@ -1,7 +1,7 @@
 {
   "name": "amta",
   "version": "0.1.0",
-  "description": "AMTA — Automation Manga Translate Agent：全本地漫画翻译管线（detect/ocr/inpaint/typeset 纯本地，仅 translate 走 LLM API）",
+  "description": "AMTA — 漫画翻译管线：默认图像阶段本地执行，翻译及可选 VLM OCR 调用 API",
   "private": true,
   "engines": { "node": ">=18" },
   "scripts": {

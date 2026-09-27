@@ -4,7 +4,7 @@
 - Koharu HTTP inpaint → 本地 lama-manga 推理（LocalLamaInpainter）
 - 消除外部服务依赖，纯本地执行
 
-策略: ADR-030 后所有框统一走 Lama inpaint（矩形 mask）；ADR-033 移除 bubble_type 标签和 text_mask_refiner。
+策略：气泡内字收缩涂白；框外字按背景均匀度分流至填色或 LaMa。
 """
 from __future__ import annotations
 
@@ -39,12 +39,14 @@ def _apply_fill_white(img: Image.Image, bbox: list, shrink: int = 8) -> None:
     """涂白气泡内文字。先将 bbox 向内收缩 shrink 像素，避免 detection 框超出气泡
     时涂掉框外的作者标记等内容。气泡内文字通常不贴边，收缩后仍能覆盖。"""
     x1, y1, x2, y2 = [int(v) for v in bbox]
-    # 向内收缩，至少保留 10x10 的区域
-    sx1 = x1 + shrink
-    sy1 = y1 + shrink
-    sx2 = max(sx1 + 10, x2 - shrink)
-    sy2 = max(sy1 + 10, y2 - shrink)
-    ImageDraw.Draw(img).rectangle([sx1, sy1, sx2, sy2], fill=(255, 255, 255))
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(img.width, x2), min(img.height, y2)
+    if x2 <= x1 or y2 <= y1:
+        return
+    # 小框减少收缩量，不能为凑最小尺寸而涂到检测框外。
+    dx = min(shrink, max(0, (x2 - x1 - 10) // 2))
+    dy = min(shrink, max(0, (y2 - y1 - 10) // 2))
+    ImageDraw.Draw(img).rectangle([x1 + dx, y1 + dy, x2 - dx - 1, y2 - dy - 1], fill=(255, 255, 255))
 
 
 def _build_mask_image(img: Image.Image, bboxes: list[list], pad: int = 4) -> Image.Image:
@@ -75,7 +77,7 @@ def _route_by_uniformity(img: Image.Image, bboxes: list[list],
                          bg_ksize: int = 15, thr: int = 10) -> tuple[Image.Image, list[list]]:
     """按背景均匀性分流：均匀背景直接填色，复杂背景送 LaMa。
 
-    判据：局部 median 背景的标准差。std < uniform_std 说明背景接近纯色
+    判据：原始灰度区域的标准差。std < uniform_std 说明区域接近纯色
     （白泡、纯色气泡），直接用 median 色覆盖文字像素，不需要 LaMa 重建。
     std >= uniform_std 说明背景有纹理（网点、渐变、画稿），送 LaMa。
 

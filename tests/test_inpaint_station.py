@@ -1,4 +1,4 @@
-"""inpaint_station 测试：FILL_WHITE 只涂文字像素，不涂整个矩形。"""
+"""inpaint_station 测试：气泡收缩填白及空译文保护。"""
 import json
 import sys
 from pathlib import Path
@@ -36,8 +36,8 @@ def test_empty_translation_is_not_inpainted(tmp_path):
     assert doc["actions"] == []
 
 
-def test_fill_white_only_covers_text_pixels():
-    """FILL_WHITE 应只涂文字像素，不涂 bbox 内的非文字区域（如框外的作者标记）。
+def test_fill_white_preserves_marker_near_outer_edge():
+    """收缩后的矩形应避开靠近检测框外缘的作者标记。
 
     模拟场景：bbox 超出气泡范围，包含了气泡外的黑色像素（作者标记）。
     修复后：只有文字像素被涂白，作者标记保留。
@@ -67,3 +67,9 @@ def test_fill_white_only_covers_text_pixels():
     text_arr = np.array(text_region)
     brightness = text_arr.mean()
     assert brightness > 200, f"文字区域应被涂白，当前亮度{brightness:.1f}"
+
+
+def test_small_fill_never_extends_outside_detection_box():
+    img = Image.new("RGB", (50, 50), "black")
+    _apply_fill_white(img, [10, 10, 15, 15])
+    assert img.getpixel((20, 20)) == (0, 0, 0)
