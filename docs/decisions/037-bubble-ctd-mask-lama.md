@@ -49,6 +49,7 @@ ADR-035 在 p62 试 CTD 失败，是因为 p62 是文字压在人物画上的复
 - `_apply_fill_white()` 成为死代码，待决定删除或留作 fallback。
 - CTD provider 写死 CPU，待加 CUDA 自动选择。
 - `inpaint_strategy.py` docstring 和输出 JSON 的 `filled` 字段名语义待更新。
+- **冷启动 vs 稳态**：第一页 ~105s 含模型加载（CTD ONNX session 初始化 ~60s），后续页只跑推理预计 ~15-25s/页。批量跑时第一页慢是正常的，不要误判为每页都慢。
 
 ## 参考
 
