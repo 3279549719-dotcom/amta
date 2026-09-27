@@ -213,3 +213,26 @@ def test_upload_images() -> None:
 def test_export_png_not_found() -> None:
     resp = client.get("/api/export/nonexistent/1/png")
     assert resp.status_code == 404
+
+
+def test_upload_writes_input_manifest_with_original_names(tmp_path: Path) -> None:
+    from io import BytesIO
+
+    def _png() -> bytes:
+        buf = BytesIO()
+        Image.new("RGB", (5, 5), "white").save(buf, "PNG")
+        return buf.getvalue()
+
+    resp = client.post(
+        "/api/upload",
+        files=[
+            ("files", ("cover.png", _png(), "image/png")),
+            ("files", ("02.png", _png(), "image/png")),
+        ],
+        data={"work_id": "naming"},
+    )
+    assert resp.status_code == 200
+    manifest = tmp_path / "workspace" / "naming" / "input_manifest.json"
+    import json
+    doc = json.loads(manifest.read_text(encoding="utf-8"))
+    assert [p["stem"] for p in doc["pages"]] == ["cover", "02"]

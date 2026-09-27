@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from amta.common.environment import run_environment_check
 from amta.common.paths import ROOT
+from amta.common.deliverables import write_input_manifest
 from amta.orchestrator import PipelineConfig, run_pipeline
 from amta.orchestrator.quality_audit import audit_run, format_redlist
 
@@ -254,19 +255,20 @@ async def upload_images(
     if input_dir.exists():
         shutil.rmtree(input_dir)
     input_dir.mkdir(parents=True, exist_ok=True)
-    saved = []
+    source_names: list[str] = []
     for i, f in enumerate(files, start=1):
         content = await f.read()
-        # 统一转存为 .jpg（管线只认 .jpg）
+        # 统一转存为 .jpg（管线只认 .jpg）；同时记住原图名用于交付命名
         pil_img = Image.open(BytesIO(content)).convert("RGB")
         dest = input_dir / f"{i}.jpg"
         pil_img.save(dest, "JPEG")
-        saved.append(str(dest))
+        source_names.append(f.filename or f"{i}.jpg")
+    write_input_manifest(_workspace_dir(work_id), source_names)
     return {
         "work_id": work_id,
         "src_dir": str(input_dir),
-        "page_count": len(saved),
-        "pages": list(range(1, len(saved) + 1)),
+        "page_count": len(source_names),
+        "pages": list(range(1, len(source_names) + 1)),
     }
 
 
