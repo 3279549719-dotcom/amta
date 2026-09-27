@@ -44,6 +44,7 @@
 - **`_lama_ffc.py`** — FFC (Fast Fourier Convolution) ResNet Generator — 从 BallonsTranslator 复制。（类: FourierUnit, SpectralTransform, FFC；函数: get_activation）
 - **`_lama_model.py`** — (无 docstring)（类: SimpleLama）
 - **`_lama_util.py`** — (无 docstring)（函数: get_image, ceil_modulo, scale_image, pad_img_to_modulo, prepare_img_and_mask）
+- **`ctd_text_mask.py`** — CTD (Comic Text Detector) 像素级文字 mask 生成器。（类: CtdTextMaskGenerator）
 - **`inpaint_station.py`** — inpaint 工位库函数 — detection.json + raw 页 → clean 图 + inpaint 产物(Stage 4)。（函数: _get_inpainter, _apply_fill_white, _build_mask_image, _build_mask, _route_by_uniformity）
 - **`inpaint_strategy.py`** — 擦除路由：气泡内字收缩涂白，框外字及未知类别保留背景分流。（函数: plan_inpaint）
 - **`local_lama_inpainter.py`** — 本地 LaMa inpainting 封装 — 支持 big-lama (TorchScript) 和 lama-manga (FFC ResNet)。（类: _LamaMangaModel, LocalLamaInpainter；函数: _find_lama_manga_path）
