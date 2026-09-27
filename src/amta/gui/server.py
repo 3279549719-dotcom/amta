@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from amta.common.environment import run_environment_check
 from amta.common.paths import ROOT
-from amta.common.deliverables import write_input_manifest
+from amta.common.deliverables import deliverable_stem, write_input_manifest
 from amta.orchestrator import PipelineConfig, run_pipeline
 from amta.orchestrator.quality_audit import audit_run, format_redlist
 
@@ -281,8 +281,9 @@ def export_png(work_id: str, page: str) -> FileResponse:
     image_path = _page_path(work_id, page)
     if not image_path.is_file():
         raise HTTPException(status_code=404, detail="image not found")
+    stem = deliverable_stem(_workspace_dir(work_id), int(page))
     return FileResponse(
-        image_path, media_type="image/png", filename=f"{work_id}_{page}.png"
+        image_path, media_type="image/png", filename=f"{stem}.png"
     )
 
 
@@ -295,10 +296,11 @@ def export_psd(work_id: str, page: str) -> FileResponse:
             status_code=404,
             detail="PSD not found — run typeset with PSD export enabled",
         )
+    stem = deliverable_stem(_workspace_dir(work_id), int(page))
     return FileResponse(
         psd_path,
         media_type="image/vnd.adobe.photoshop",
-        filename=f"{work_id}_{page}.psd",
+        filename=f"{stem}.psd",
     )
 
 
