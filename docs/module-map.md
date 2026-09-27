@@ -12,6 +12,7 @@
 ## `common/` — amta.common — 跨阶段共享叶子库（纯通用，不依赖其他域）。
 
 - **`config.py`** — 密钥与模型配置 — env → .env 回退唯一归属（深接口改造，修 F4 三处重复解析）。（函数: _read_key, _resolve, get_chat_config, get_vlm_api_key, get_dashscope_key）
+- **`deliverables.py`** — 交付物命名：内部用 page_N 编号，对外下载时用原图文件名。（函数: sanitize_stem, write_input_manifest, load_stems, deliverable_stem）
 - **`encoding.py`** — encoding — Windows 编码收口：跨边界文本只在这里处理一次。（类: TextResult；函数: _decode, run_text, run_text_or, force_utf8_stdio）
 - **`environment.py`** — 环境自检门卫 — 管线启动前自动检查并修复环境问题。（函数: _check_proxy, _check_root, _check_models, _check_env, run_environment_check）
 - **`geometry.py`** — 共享几何库：bbox 解析、IoU、并集聚合、嵌套标记、category 映射。（函数: bbox_from_block, iou, union_boxes, union_blocks, _area）
