@@ -4,7 +4,8 @@
 - Koharu HTTP inpaint → 本地 lama-manga 推理（LocalLamaInpainter）
 - 消除外部服务依赖，纯本地执行
 
-策略：气泡内字收缩涂白；框外字按背景均匀度分流至填色或 LaMa。
+策略：气泡内字用 CTD 像素 mask + LaMa 重建（不再矩形涂白）；
+框外字按背景均匀度分流至填色或 LaMa。
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import torch
 from PIL import Image, ImageChops, ImageDraw
 
 from amta.common.paths import read_json, write_json
+from amta.inpaint.ctd_text_mask import CtdTextMaskGenerator
 from amta.inpaint.inpaint_strategy import FILL_WHITE, INPAINT, SKIP, plan_inpaint
 from amta.inpaint.local_lama_inpainter import LocalLamaInpainter
 
@@ -170,18 +172,43 @@ def run(work_id: str, det_path: Path, raw_page: Path, out_path: Path,
     clean_image_rel = ""
 
     if not dry_run and (filled or inpaint_boxes):
+        # 框外字：均匀背景直接 median 填色，复杂背景留矩形 mask 给 LaMa
+        complex_boxes: list[list] = []
         if inpaint_boxes:
-            # 分流：均匀背景直接填色，复杂背景送 LaMa
             img, complex_boxes = _route_by_uniformity(img, inpaint_boxes)
-            if complex_boxes:
-                mask_img = _build_mask_image(img, complex_boxes)
-                inpainter = _get_inpainter()
-                inpainted = inpainter.inpaint(img, mask_img)
-                if inpainted.size == img.size:
-                    img = inpainted
 
-        for p in filled:  # inpaint 后重放涂白（保险）
-            _apply_fill_white(img, p["bbox"])
+        # 气泡字：用 CTD 像素级文字 mask（不再矩形涂白）
+        bubble_mask_np: np.ndarray | None = None
+        if filled:
+            ctd_gen = CtdTextMaskGenerator.get()
+            ctd_mask = ctd_gen.generate(img)
+            ctd_arr = np.array(ctd_mask)
+            # 只保留气泡 bbox 内的文字像素
+            bubble_mask_np = np.zeros_like(ctd_arr)
+            for p in filled:
+                x1, y1, x2, y2 = [int(v) for v in p["bbox"]]
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(img.width, x2), min(img.height, y2)
+                if x2 > x1 and y2 > y1:
+                    bubble_mask_np[y1:y2, x1:x2] = ctd_arr[y1:y2, x1:x2]
+
+        # 合并所有需要 LaMa 的 mask：气泡文字像素 + 框外复杂矩形
+        laMa_boxes = list(complex_boxes)
+        if laMa_boxes or bubble_mask_np is not None and bubble_mask_np.any():
+            w, h = img.size
+            mask_np = np.zeros((h, w), dtype=np.uint8)
+            for bb in laMa_boxes:
+                x1, y1, x2, y2 = [int(v) for v in bb]
+                x1 = max(0, x1 - 4); y1 = max(0, y1 - 4)
+                x2 = min(w, x2 + 4); y2 = min(h, y2 + 4)
+                mask_np[y1:y2, x1:x2] = 255
+            if bubble_mask_np is not None and bubble_mask_np.any():
+                mask_np = np.maximum(mask_np, bubble_mask_np)
+            mask_img = Image.fromarray(mask_np)
+            inpainter = _get_inpainter()
+            inpainted = inpainter.inpaint(img, mask_img)
+            if inpainted.size == img.size:
+                img = inpainted
 
         if clean_dir:
             clean_dir.mkdir(parents=True, exist_ok=True)
