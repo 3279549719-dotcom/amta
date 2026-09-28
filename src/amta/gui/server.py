@@ -38,6 +38,11 @@ app = FastAPI(title="Touhou Manga Translator", version="0.1.0")
 # 进程内状态，重启即失（MVP 不做持久化）。
 _jobs: dict[str, dict[str, object]] = {}
 
+# 按需 PSD 生成表：key=f"{work_id}:{page}" -> {status, error}
+# Photoshop 冷启动慢（1~3 分钟），不放在流水线热路径上；用户点"导出 PSD"才触发。
+_psd_jobs: dict[str, dict[str, object]] = {}
+_psd_jobs_lock = threading.Lock()
+
 
 # ---------------------------------------------------------------------------
 # 请求 / 响应模型
@@ -98,7 +103,7 @@ def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
             pages=pages,
             vlm_pages=vlm_pages,
             stages=["detect", "ocr", "translate", "inpaint", "typeset"],
-            stage_configs={"typeset": {"export_psd": True}},
+            stage_configs={"typeset": {"export_psd": False}},
             continue_on_error=True,
         )
         if not run_environment_check(config.stages):
@@ -302,6 +307,66 @@ def export_psd(work_id: str, page: str) -> FileResponse:
         media_type="image/vnd.adobe.photoshop",
         filename=f"{stem}.psd",
     )
+
+
+# ---------------------------------------------------------------------------
+# 按需 PSD 生成（异步：点击导出 PSD 才拉起 Photoshop，不堵流水线）
+# ---------------------------------------------------------------------------
+def _psd_job_key(work_id: str, page: str) -> str:
+    return f"{work_id}:{page}"
+
+
+def _run_psd_export(work_id: str, page: str, psd_path: Path) -> None:
+    """后台线程：调 Photoshop 生成分层 PSD，结果写回 _psd_jobs。"""
+    key = _psd_job_key(work_id, page)
+    try:
+        from amta.typeset.psd_jsx_export import export_page_psd
+
+        artifacts_dir = _workspace_path(work_id, "artifacts")
+        exported = export_page_psd(artifacts_dir, f"page_{page}", psd_path)
+        if exported and psd_path.is_file() and psd_path.stat().st_size > 0:
+            with _psd_jobs_lock:
+                _psd_jobs[key] = {"status": "done", "error": None}
+        else:
+            with _psd_jobs_lock:
+                _psd_jobs[key] = {
+                    "status": "failed",
+                    "error": "Photoshop 未产出 PSD（可能被卡死，重试一次或手动关闭 Photoshop）",
+                }
+    except Exception as exc:  # noqa: BLE001
+        with _psd_jobs_lock:
+            _psd_jobs[key] = {"status": "failed", "error": str(exc)[:200]}
+
+
+@app.post("/api/psd/{work_id}/{page}")
+def request_psd(work_id: str, page: str) -> dict:
+    """按需触发某页 PSD 生成。幂等：已生成返回 ready，生成中返回 running。
+
+    前端轮询本接口直到 ready，再 window.open 下载。
+    """
+    if not re.fullmatch(r"[0-9]+", page):
+        raise HTTPException(status_code=400, detail="page must be numeric")
+    psd_path = _page_path(work_id, page, psd=True)
+
+    # 已经有成品文件 → 直接 ready（不重复跑）
+    if psd_path.is_file() and psd_path.stat().st_size > 0:
+        with _psd_jobs_lock:
+            _psd_jobs[_psd_job_key(work_id, page)] = {"status": "done", "error": None}
+        return {"status": "ready"}
+
+    key = _psd_job_key(work_id, page)
+    with _psd_jobs_lock:
+        existing = _psd_jobs.get(key)
+        if existing and existing.get("status") in ("running", "pending"):
+            return {"status": "running"}
+        # 标记 running，然后开后台线程
+        _psd_jobs[key] = {"status": "running", "error": None}
+
+    threading.Thread(
+        target=_run_psd_export, args=(work_id, page, psd_path),
+        name=f"psd-{work_id}-{page}", daemon=True,
+    ).start()
+    return {"status": "started"}
 
 
 # ---------------------------------------------------------------------------
