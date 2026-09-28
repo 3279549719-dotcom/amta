@@ -116,6 +116,56 @@ function findFontPostScriptName(fontName) {{
     return null;
 }}
 
+// 縦中横（Tate-chu-yoko）：让竖排里的组合标点连字（⁉⁈‼⁇）在格子内横过来并排，
+// 由 Photoshop 字体引擎自己负责居中与位置——不叠层、不手算像素。
+function applyTateChuYoko(textLayer, charStart, charEnd, fontSize) {{
+    try {{
+        app.activeDocument.activeLayer = textLayer;
+        var idsetd = charIDToTypeID("setd");
+        var desc1 = new ActionDescriptor();
+        var idnull = charIDToTypeID("null");
+        var ref1 = new ActionReference();
+        ref1.putEnumerated(charIDToTypeID("TxLr"), charIDToTypeID("Ordn"), charIDToTypeID("Trgt"));
+        desc1.putReference(idnull, ref1);
+        var idT = charIDToTypeID("T   ");
+        var desc2 = new ActionDescriptor();
+        var idTxtt = charIDToTypeID("Txtt");
+        var list1 = new ActionList();
+        var desc3 = new ActionDescriptor();
+        desc3.putInteger(charIDToTypeID("From"), charStart);
+        desc3.putInteger(charIDToTypeID("T   "), charEnd);
+        var idTxtS = charIDToTypeID("TxtS");
+        var desc4 = new ActionDescriptor();
+        desc4.putBoolean(stringIDToTypeID("styleSheetHasParent"), true);
+        var idPxl = charIDToTypeID("#Pxl");
+        desc4.putUnitDouble(charIDToTypeID("Sz  "), idPxl, fontSize);
+        desc4.putUnitDouble(stringIDToTypeID("impliedFontSize"), idPxl, fontSize);
+        var idbd = stringIDToTypeID("baselineDirection");
+        desc4.putEnumerated(idbd, idbd, charIDToTypeID("Crs "));
+        desc3.putObject(idTxtS, idTxtS, desc4);
+        list1.putObject(idTxtt, desc3);
+        desc2.putList(idTxtt, list1);
+        desc1.putObject(idT, charIDToTypeID("TxLr"), desc2);
+        executeAction(idsetd, desc1, DialogModes.NO);
+        return true;
+    }} catch (e) {{
+        $.writeln('WARNING: Failed to apply TateChuYoko: ' + e.message);
+        return false;
+    }}
+}}
+
+function findTateChuYokoPositions(text) {{
+    var positions = [];
+    var tcyChars = ['⁉', '⁈', '‼', '⁇'];
+    for (var i = 0; i < text.length; i++) {{
+        var ch = text.charAt(i);
+        for (var j = 0; j < tcyChars.length; j++) {{
+            if (ch === tcyChars[j]) {{ positions.push([i, i + 1]); break; }}
+        }}
+    }}
+    return positions;
+}}
+
 try {{
     // 打开干净底图
     var inputFile = new File('{input_file}');
@@ -198,74 +248,35 @@ _TEXT_LAYER_TEMPLATE = """
     var leadingVal{index} = {leading} * dpiScale{index};
     ti{index}.useAutoLeading = false;
     ti{index}.leading = new UnitValue(leadingVal{index}, 'pt');
+
+    {tcy_code}
 """
 
-# 竖排成对标点（！？）的并排叠层：Photoshop 竖排 Point Text 会把它们逐字上下堆叠，
-# 无法像 PNG 渲染那样并排。这里单独发一个横排小图层，贴回它该在的那一行格子；
-# 主竖排文字里已用全角空格占住该行，保证上下不错位。
-_PUNCT_OVERLAY_TEMPLATE = """
-    // 标点并排叠层 {index}: {name}
-    var tl{index} = doc.artLayers.add();
-    tl{index}.kind = LayerKind.TEXT;
-    tl{index}.name = '{name}';
-    var ti{index} = tl{index}.textItem;
-    var dpiScale{index} = 72 / doc.resolution;
-    var fontPS{index} = findFontPostScriptName('{font_family}');
-    if (fontPS{index}) {{
-        ti{index}.font = fontPS{index};
-    }}
-    ti{index}.direction = Direction.HORIZONTAL;
-    ti{index}.justification = Justification.CENTER;
-    ti{index}.position = [{x}, {y}];
-    ti{index}.contents = '{text}';
-    ti{index}.size = new UnitValue({font_size} * dpiScale{index}, 'pt');
-    var tc{index} = new SolidColor();
-    tc{index}.rgb.red = {color_r};
-    tc{index}.rgb.green = {color_g};
-    tc{index}.rgb.blue = {color_b};
-    ti{index}.color = tc{index};
-    ti{index}.useAutoLeading = true;
-"""
+# 竖排组合标点 → Unicode 连字（抄 manga-translator-ui 的成熟做法）。
+# PS 竖排会把 ！？ 逐字上下堆叠；把它们换成单个连字 ⁉ 后，再用縦中横让 PS
+# 自己在格子里横排居中——位置/对齐全交给字体引擎，不叠层、不手算像素。
+_VERTICAL_LIGATURE_MAP = (
+    ("！？", "⁉"),
+    ("？！", "⁈"),
+    ("！！", "‼"),
+    ("？？", "⁇"),
+    ("!?", "⁉"),
+    ("?!", "⁈"),
+    ("!!", "‼"),
+    ("??", "⁇"),
+)
+_TCY_CHARS = "⁉⁈‼⁇"
 
 
-def _split_vertical_punct_runs(col_text: str) -> tuple[str, list[tuple[int, str]]]:
-    """把一列竖排文字里需要并排的成组标点（！？！！？！…）拆出来。
+def _vertical_ligature(text: str) -> str:
+    """把竖排文本里的成对标点组合换成 Unicode 连字（⁉⁈‼⁇）。
 
-    行拆分直接复用 typeset_render.iter_vertical_rows —— PNG 怎么分行，
-    PSD 就怎么分行，不在此处另写一套规则。
-
-    Returns:
-        (主列文字, [(行号, 成组标点), ...])。主列文字里每组 ≥2 的标点被替换成一个
-        全角空格（PS 竖排里占一整行）；单个标点和普通字/縦中横原样留在主文字里。
+    与参考项目一致：先替换成对组合，再把单个半角 !/? 补全角。
     """
-    from amta.typeset.typeset_render import iter_vertical_rows
-
-    out: list[str] = []
-    runs: list[tuple[int, str]] = []
-    for row_index, vr in enumerate(iter_vertical_rows(col_text)):
-        if vr.kind == "punct" and len(vr.text) >= 2:
-            # 成组（！？等）才需要并排：PS 竖排会上下堆叠，拆成横排叠层贴回。
-            runs.append((row_index, vr.text))
-            out.append("　")  # 全角空格：在 PS 竖排里占住这一整行
-        else:
-            # 单个标点直立占一格、普通字、縦中横组，原样留给主竖排文字。
-            out.append(vr.text)
-    return "".join(out), runs
-
-
-def _font_baseline_offset(item: dict[str, Any], font_size: float) -> float:
-    """横排 Point Text 的基线相对 em 框中心的偏移 = (ascent - descent)/2。
-
-    用来把叠层文字在行格内垂直居中。从真实字体度量算，不写死系数；
-    字体加载失败时退回 font_size*0.13（≈雅黑实测值）。
-    """
-    try:
-        from PIL import ImageFont
-        font_path = item.get("font_path") or "C:/Windows/Fonts/msyh.ttc"
-        ascent, descent = ImageFont.truetype(font_path, int(font_size)).getmetrics()
-        return (ascent - descent) / 2
-    except Exception:
-        return font_size * 0.13
+    for src, dst in _VERTICAL_LIGATURE_MAP:
+        text = text.replace(src, dst)
+    text = text.replace("!", "！").replace("?", "？")
+    return text
 
 
 def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str], int]:
@@ -276,7 +287,7 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
     - 竖排：Point Text position = [第一列中心x, 顶部y]，左对齐(=顶部)
     anchor_pos 是整个文字块的中心点，需要根据行数偏移到第一行/列。
 
-    竖排成对标点（！？）Photoshop 无法自动并排，会额外拆出横排叠层。
+    # 竖排成对标点（！？）换成连字 ⁉ 后由 Photoshop 縦中横并排，位置自动对齐。
     Returns:
         (JSX 片段列表, 本区域消耗的图层数)。
     """
@@ -299,8 +310,7 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
     leading_factor = 1.2 if is_vertical else 1.15
     leading = float(item.get("line_step", font_size * leading_factor))
 
-    # ── 竖排：拆成组标点 + 按实际行数居中 ──
-    punct_overlays: list[tuple[int, int, str]] = []  # (列号, 行号, 标点组)
+    # ── 竖排 ──
     col_pitch = leading  # 横排不区分列/行间距
     row_pitch = leading
     if is_vertical:
@@ -309,19 +319,14 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
         # 竖排有两个不同的间距，绝不能混用：
         #   col_pitch = col_step = 字宽（x 方向列间距）
         #   row_pitch = line_step = ascent+descent（y 方向行间距）
-        # 之前错把 col_step(≈35) 同时当行高，每行少走约 13px，越往下标点越偏。
         col_pitch = float(item.get("col_step", leading))
         row_pitch = leading
 
-        spaced_lines: list[str] = []
-        for c, col in enumerate(lines):
-            spaced, runs = _split_vertical_punct_runs(col)
-            spaced_lines.append(spaced)
-            for row, punct in runs:
-                punct_overlays.append((c, row, punct))
-        lines_for_text = spaced_lines
-        # 列高按"实际渲染行数"算（！？组/縦中横各占一行），不能按 len(line) 数字符
-        max_rows = max((len(iter_vertical_rows(c)) for c in lines), default=1)
+        # 成对标点换成连字 ⁉⁈‼⁇，交给 PS 縦中横横排居中。
+        lines_for_text = [_vertical_ligature(col) for col in lines]
+        # 列高按"实际渲染行数"算（连字/縦中横各占一行），不能按 len(line) 数字符。
+        # 连字是单字符，iter_vertical_rows 自然算一行，与 PNG 一致。
+        max_rows = max((len(iter_vertical_rows(c)) for c in lines_for_text), default=1)
         col_height = max_rows * row_pitch
         # 列从右向左排，第一列在最右侧
         x = anchor_x + (num_lines - 1) * col_pitch / 2
@@ -353,11 +358,22 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
     name_text = re.sub(r"[\r\n]", "", "".join(lines))[:20]
     name = _escape_jsx_string(f"{region_id}: {name_text}")
 
+    # 縦中横：本层若含连字，让 PS 扫描自身 contents 并对这些字符横排。
+    if is_vertical and any(ch in raw_text for ch in _TCY_CHARS):
+        tcy_code = f"""
+    var tcyPos{index} = findTateChuYokoPositions(ti{index}.contents);
+    for (var ti_{index} = 0; ti_{index} < tcyPos{index}.length; ti_{index}++) {{
+        applyTateChuYoko(tl{index}, tcyPos{index}[ti_{index}][0], tcyPos{index}[ti_{index}][1], {font_size});
+    }}
+"""
+    else:
+        tcy_code = ""
+
     logger.debug(
         f"文字层 {index} ({region_id}): "
         f"{'竖排' if is_vertical else '横排'} "
         f"font={font_size} anchor=({anchor_x:.0f},{anchor_y:.0f}) "
-        f"pos=({x:.1f},{y:.1f}) lines={num_lines} overlays={len(punct_overlays)}"
+        f"pos=({x:.1f},{y:.1f}) lines={num_lines} tcy={'yes' if tcy_code else 'no'}"
     )
 
     parts: list[str] = [_TEXT_LAYER_TEMPLATE.format(
@@ -374,33 +390,10 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
         color_g=color_g,
         color_b=color_b,
         leading=round(leading, 2),
+        tcy_code=tcy_code,
     )]
 
-    # 成对标点并排叠层：横排小图层贴到对应列的对应行格子里。
-    # 基线偏移从真实字体度量算（让 em 框在行格内垂直居中），不再拍脑袋系数。
-    punct_baseline_from_center = _font_baseline_offset(item, font_size)
-    next_index = index + 1
-    for c, row, punct in punct_overlays:
-        ov_x = x - c * col_pitch                 # 该列中心 x
-        # 该行格子中心 y = 列顶 + row*行高 + 行高/2；横排 Point Text 的 y 是基线，
-        # 所以再加 (ascent-descent)/2 把 em 框中心对准格子中心。
-        ov_y = y + row * row_pitch + row_pitch / 2 + punct_baseline_from_center
-        ov_name = _escape_jsx_string(f"{region_id}: 标点{punct}")
-        parts.append(_PUNCT_OVERLAY_TEMPLATE.format(
-            index=next_index,
-            name=ov_name,
-            font_family=_escape_jsx_string(font_family),
-            x=round(ov_x, 2),
-            y=round(ov_y, 2),
-            text=_escape_jsx_string(punct),
-            font_size=round(font_size, 2),
-            color_r=color_r,
-            color_g=color_g,
-            color_b=color_b,
-        ))
-        next_index += 1
-
-    return parts, next_index - index
+    return parts, 1  # 每个区域一个文字层（縦中横不另开层）
 
 
 # ── Photoshop 查找 ────────────────────────────────────────────────────────

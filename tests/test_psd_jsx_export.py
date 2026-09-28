@@ -171,8 +171,8 @@ class TestTextLayerJsx:
         assert "59.8" in jsx
         assert "useAutoLeading = false" in jsx
 
-    def test_conjoined_punct_gets_overlay_layer(self):
-        """竖排里的 ！？ 应拆成横排并排叠层，主层用全角空格占位。"""
+    def test_conjoined_punct_becomes_ligature_with_tcy(self):
+        """竖排 ！？ 换成连字 ⁉，由 Photoshop 縦中横并排，不再另开叠层。"""
         parts, consumed = _generate_text_layer_jsx(
             0,
             self._make_item(
@@ -183,18 +183,16 @@ class TestTextLayerJsx:
             ),
         )
         joined = "".join(parts)
-        assert consumed == 2  # 主层 + 1 个并排叠层
-        # 主层里 ！？ 被全角空格占位
-        assert "按钮是什么　" in joined
-        # 叠层是横排、内容为 ！？、居中
-        assert "标点并排叠层" in joined
-        assert "ti1.contents = '！？'" in joined
-        # 主层竖排，叠层横排
+        assert consumed == 1  # 单个文字层，縦中横不另开层
+        # ！？ 被替换成连字 ⁉（contents 里）
+        assert "ti0.contents = '按钮是什么⁉'" in joined
+        # 生成縦中横代码，让 PS 把 ⁉ 在格子里横排居中
+        assert "applyTateChuYoko" in joined
+        assert "findTateChuYokoPositions" in joined
         assert "Direction.VERTICAL" in joined
-        assert "Direction.HORIZONTAL" in joined
 
     def test_lone_punct_stays_in_main_layer(self):
-        """单个 ！（后面没跟？）不拆叠层，留在主竖排文字里。"""
+        """单个 ！（后面没跟？）不触发縦中横，留在主竖排文字里。"""
         parts, consumed = _generate_text_layer_jsx(
             0,
             self._make_item(
@@ -205,7 +203,7 @@ class TestTextLayerJsx:
             ),
         )
         assert consumed == 1
-        assert "标点并排叠层" not in "".join(parts)
+        assert "applyTateChuYoko" not in "".join(parts)
 
     def test_vertical_row_pitch_uses_line_step_not_col_step(self):
         """回归：竖排行高必须用 line_step(ascent+descent)，不能把 col_step(字宽)当行高。
