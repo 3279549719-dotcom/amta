@@ -253,6 +253,21 @@ def _split_vertical_punct_runs(col_text: str) -> tuple[str, list[tuple[int, str]
     return "".join(out), runs
 
 
+def _font_baseline_offset(item: dict[str, Any], font_size: float) -> float:
+    """横排 Point Text 的基线相对 em 框中心的偏移 = (ascent - descent)/2。
+
+    用来把叠层文字在行格内垂直居中。从真实字体度量算，不写死系数；
+    字体加载失败时退回 font_size*0.13（≈雅黑实测值）。
+    """
+    try:
+        from PIL import ImageFont
+        font_path = item.get("font_path") or "C:/Windows/Fonts/msyh.ttc"
+        ascent, descent = ImageFont.truetype(font_path, int(font_size)).getmetrics()
+        return (ascent - descent) / 2
+    except Exception:
+        return font_size * 0.13
+
+
 def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str], int]:
     """从 typeset rendered_item 生成文字层 JSX。
 
@@ -280,14 +295,23 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
     color_r, color_g, color_b = _hex_to_rgb(item.get("rendered_color", "#000000"))
     num_lines = len(lines)
 
-    # 行间距系数
+    # 行间距（y 方向）= line_step = ascent+descent；横排时它同时就是行距。
     leading_factor = 1.2 if is_vertical else 1.15
-    leading = float(item.get("col_step" if is_vertical else "line_step", font_size * leading_factor))
+    leading = float(item.get("line_step", font_size * leading_factor))
 
     # ── 竖排：拆成组标点 + 按实际行数居中 ──
     punct_overlays: list[tuple[int, int, str]] = []  # (列号, 行号, 标点组)
+    col_pitch = leading  # 横排不区分列/行间距
+    row_pitch = leading
     if is_vertical:
-        from amta.typeset.typeset_render import _count_vertical_lines
+        from amta.typeset.typeset_render import iter_vertical_rows
+
+        # 竖排有两个不同的间距，绝不能混用：
+        #   col_pitch = col_step = 字宽（x 方向列间距）
+        #   row_pitch = line_step = ascent+descent（y 方向行间距）
+        # 之前错把 col_step(≈35) 同时当行高，每行少走约 13px，越往下标点越偏。
+        col_pitch = float(item.get("col_step", leading))
+        row_pitch = leading
 
         spaced_lines: list[str] = []
         for c, col in enumerate(lines):
@@ -297,10 +321,10 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
                 punct_overlays.append((c, row, punct))
         lines_for_text = spaced_lines
         # 列高按"实际渲染行数"算（！？组/縦中横各占一行），不能按 len(line) 数字符
-        max_rows = max((_count_vertical_lines(c) for c in lines), default=1)
-        col_height = max_rows * leading
+        max_rows = max((len(iter_vertical_rows(c)) for c in lines), default=1)
+        col_height = max_rows * row_pitch
         # 列从右向左排，第一列在最右侧
-        x = anchor_x + (num_lines - 1) * leading / 2
+        x = anchor_x + (num_lines - 1) * col_pitch / 2
         y = anchor_y - col_height / 2
         direction = "Direction.VERTICAL"
         justification = "Justification.LEFT"  # 竖排 LEFT = 顶部对齐
@@ -352,11 +376,15 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
         leading=round(leading, 2),
     )]
 
-    # 成对标点并排叠层：横排小图层贴到对应列的对应行格子里
+    # 成对标点并排叠层：横排小图层贴到对应列的对应行格子里。
+    # 基线偏移从真实字体度量算（让 em 框在行格内垂直居中），不再拍脑袋系数。
+    punct_baseline_from_center = _font_baseline_offset(item, font_size)
     next_index = index + 1
     for c, row, punct in punct_overlays:
-        ov_x = x - c * leading                 # 该列中心 x
-        ov_y = y + row * leading + font_size * 0.85  # 该行格子基线（经验值）
+        ov_x = x - c * col_pitch                 # 该列中心 x
+        # 该行格子中心 y = 列顶 + row*行高 + 行高/2；横排 Point Text 的 y 是基线，
+        # 所以再加 (ascent-descent)/2 把 em 框中心对准格子中心。
+        ov_y = y + row * row_pitch + row_pitch / 2 + punct_baseline_from_center
         ov_name = _escape_jsx_string(f"{region_id}: 标点{punct}")
         parts.append(_PUNCT_OVERLAY_TEMPLATE.format(
             index=next_index,

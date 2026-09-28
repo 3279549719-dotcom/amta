@@ -206,3 +206,26 @@ class TestTextLayerJsx:
         )
         assert consumed == 1
         assert "标点并排叠层" not in "".join(parts)
+
+    def test_vertical_row_pitch_uses_line_step_not_col_step(self):
+        """回归：竖排行高必须用 line_step(ascent+descent)，不能把 col_step(字宽)当行高。
+
+        旧 bug：col_step=30 被同时当行高，每行少走 20px，越往下标点越偏。
+        """
+        parts, _ = _generate_text_layer_jsx(
+            0,
+            self._make_item(
+                layout_direction="vertical",
+                lines=["按钮！？"],
+                anchor_pos=[923, 1356],
+                font_size=35,
+                col_step=30,   # 字宽（x 方向列距）
+                line_step=50,  # 行高（y 方向行距）
+            ),
+        )
+        joined = "".join(parts)
+        # 主竖排行距 = line_step=50，绝不是 col_step=30
+        assert "leadingVal0 = 50.0" in joined
+        assert "leadingVal0 = 30" not in joined
+        # 叠层 y 也按 50 行距推进：3 行*50 = 150，列顶 y = 1356-75 = 1281
+        assert "1281" in joined
