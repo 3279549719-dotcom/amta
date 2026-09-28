@@ -37,6 +37,7 @@
 
 ## `gui/` — (无 docstring)
 
+- **`console.py`** — GUI 启动时的控制台 / 日志加固（根因修复）。（类: _Tee；函数: _disable_windows_quick_edit, install_gui_console）
 - **`server.py`** — Touhou Manga Translator — 本地 FastAPI 后端。（类: TranslateRequest, JobResponse；函数: _run_pipeline_background, health_check, submit_translation_job, get_job_status, _workspace_dir）
 
 ## `inpaint/` — amta.inpaint — Stage 4 去文字/重绘（lama 家族落地）。
