@@ -15,6 +15,13 @@ from pathlib import Path
 # 把 src/ 加入 path（与 run_pipeline.py 一致）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+# 先加固控制台输出：把 print / uvicorn 日志导向日志文件，避免 Windows 控制台
+# 被点进"标记模式"时整条流水线阻塞在某个 print 上。必须在 uvicorn 之前装。
+from amta.gui.console import install_gui_console  # noqa: E402
+
+_log_path = install_gui_console()
+print(f"[Touhou Manga Translator] logs -> {_log_path}")
+
 import uvicorn
 
 
