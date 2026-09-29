@@ -13,7 +13,8 @@ def test_vlm_render_exports_its_position_font_color_and_alignment():
              "align": "left", "font": "serif", "font_size_ratio": 0.04,
              "color": "#FF0000", "stroke_color": None, "stroke_ratio": 0}
     meta = render_text(Image.new("RGB", (1000, 1000), "white"), "test", block)
-    jsx = _generate_text_layer_jsx(0, meta)
+    parts, _ = _generate_text_layer_jsx(0, meta)
+    jsx = "".join(parts)
     position = re.search(r"position = \[([\d.-]+), ([\d.-]+)\]", jsx)
     assert position is not None
     assert float(position[1]) >= 100

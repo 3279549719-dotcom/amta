@@ -116,6 +116,63 @@ function findFontPostScriptName(fontName) {{
     return null;
 }}
 
+// 縦中横（Tate-chu-yoko）：让竖排里的组合标点连字（⁉⁈‼⁇）在格子内横过来并排，
+// 由 Photoshop 字体引擎自己负责居中与位置——不叠层、不手算像素。
+function applyTateChuYoko(textLayer, charStart, charEnd, fontSize) {{
+    try {{
+        app.activeDocument.activeLayer = textLayer;
+        var idsetd = charIDToTypeID("setd");
+        var desc1 = new ActionDescriptor();
+        var idnull = charIDToTypeID("null");
+        var ref1 = new ActionReference();
+        ref1.putEnumerated(charIDToTypeID("TxLr"), charIDToTypeID("Ordn"), charIDToTypeID("Trgt"));
+        desc1.putReference(idnull, ref1);
+        var idT = charIDToTypeID("T   ");
+        var desc2 = new ActionDescriptor();
+        var idTxtt = charIDToTypeID("Txtt");
+        var list1 = new ActionList();
+        var desc3 = new ActionDescriptor();
+        desc3.putInteger(charIDToTypeID("From"), charStart);
+        desc3.putInteger(charIDToTypeID("T   "), charEnd);
+        var idTxtS = charIDToTypeID("TxtS");
+        var desc4 = new ActionDescriptor();
+        desc4.putBoolean(stringIDToTypeID("styleSheetHasParent"), true);
+        var idPxl = charIDToTypeID("#Pxl");
+        desc4.putUnitDouble(charIDToTypeID("Sz  "), idPxl, fontSize);
+        desc4.putUnitDouble(stringIDToTypeID("impliedFontSize"), idPxl, fontSize);
+        var idbd = stringIDToTypeID("baselineDirection");
+        desc4.putEnumerated(idbd, idbd, charIDToTypeID("Crs "));
+        desc3.putObject(idTxtS, idTxtS, desc4);
+        list1.putObject(idTxtt, desc3);
+        desc2.putList(idTxtt, list1);
+        desc1.putObject(idT, charIDToTypeID("TxLr"), desc2);
+        executeAction(idsetd, desc1, DialogModes.NO);
+        return true;
+    }} catch (e) {{
+        $.writeln('WARNING: Failed to apply TateChuYoko: ' + e.message);
+        return false;
+    }}
+}}
+
+function isPunctCharForTcy(ch) {{
+    return ch === '！' || ch === '？' || ch === '!' || ch === '?';
+}}
+
+function findTateChuYokoPositions(text) {{
+    var positions = [];
+    var i = 0;
+    while (i < text.length) {{
+        if (isPunctCharForTcy(text.charAt(i))) {{
+            var start = i;
+            while (i < text.length && isPunctCharForTcy(text.charAt(i))) i++;
+            if (i - start >= 2) positions.push([start, i]);
+        }} else {{
+            i++;
+        }}
+    }}
+    return positions;
+}}
+
 try {{
     // 打开干净底图
     var inputFile = new File('{input_file}');
@@ -198,57 +255,89 @@ _TEXT_LAYER_TEMPLATE = """
     var leadingVal{index} = {leading} * dpiScale{index};
     ti{index}.useAutoLeading = false;
     ti{index}.leading = new UnitValue(leadingVal{index}, 'pt');
+
+    {tcy_code}
 """
 
+# 竖排里连续 >=2 个标点（！？!?）需要并排：直接对真字符段縦中横，
+# 让 PS 在竖排格子里横排居中。不换成 ⁉ 连字——雅黑没有那个字形会变缺字框。
+_TCY_PUNCT = set("！？!?")
 
-def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> str:
-    """从 typeset rendered_item 生成单个文字层的 JSX 代码。
+
+def _has_conjoined_punct(text: str) -> bool:
+    """文本里是否出现连续 >=2 个 ！？!?（需要縦中横并排）。"""
+    run = 0
+    for ch in text:
+        if ch in _TCY_PUNCT:
+            run += 1
+            if run >= 2:
+                return True
+        else:
+            run = 0
+    return False
+
+
+def _normalize_vertical_punct(text: str) -> str:
+    """半角 !/? 补全角（竖排全角更自然），不做连字替换。"""
+    return text.replace("!", "！").replace("?", "？")
+
+
+def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str], int]:
+    """从 typeset rendered_item 生成文字层 JSX。
 
     位置计算参考 manga-translator-ui：
     - 横排：Point Text position = [中心x, 第一行基线y]，居中对齐
     - 竖排：Point Text position = [第一列中心x, 顶部y]，左对齐(=顶部)
     anchor_pos 是整个文字块的中心点，需要根据行数偏移到第一行/列。
+
+    # 竖排成对标点（！？）换成连字 ⁉ 后由 Photoshop 縦中横并排，位置自动对齐。
+    Returns:
+        (JSX 片段列表, 本区域消耗的图层数)。
     """
     region_id = item.get("region_id", f"r{index}")
     lines = item.get("lines", [])
     if not lines:
         logger.warning(f"文字层 {index} ({region_id}) 无文字内容，跳过")
-        return ""
+        return [], 0
 
     item = normalize_rendered_item(item)
     font_size = float(item.get("font_size", 40))
     anchor_pos = item.get("anchor_pos", [0, 0])
     anchor_x, anchor_y = float(anchor_pos[0]), float(anchor_pos[1])
-    is_vertical = item.get("layout_direction", "horizontal") == "vertical"
+    is_vertical = item.get("layout_direction", "vertical") == "vertical"
     font_family = _resolve_font_family(item.get("font_family", "msyh.ttc"))
     color_r, color_g, color_b = _hex_to_rgb(item.get("rendered_color", "#000000"))
-
-    # 文字内容：多行用 \r 连接（PS 换行符）
-    raw_text = "\r".join(lines)
-    text = _escape_jsx_string(raw_text)
     num_lines = len(lines)
 
-    # 行间距系数
+    # 行间距（y 方向）= line_step = ascent+descent；横排时它同时就是行距。
     leading_factor = 1.2 if is_vertical else 1.15
-    leading = float(item.get("col_step" if is_vertical else "line_step", font_size * leading_factor))
+    leading = float(item.get("line_step", font_size * leading_factor))
 
-    # 位置计算
+    # ── 竖排 ──
+    col_pitch = leading  # 横排不区分列/行间距
+    row_pitch = leading
     if is_vertical:
-        # 竖排：列从右向左排，第一列在最右侧
-        # x = 中心 + (列数-1)*行间距/2
-        x = anchor_x + (num_lines - 1) * leading / 2
-        # y = 第一列顶部 = 中心 - 单列高度/2
-        # 单列高度估算：最长行的字符数 * font_size
-        max_chars = max(len(line) for line in lines)
-        col_height = max_chars * font_size
+        from amta.typeset.typeset_render import iter_vertical_rows
+
+        # 竖排有两个不同的间距，绝不能混用：
+        #   col_pitch = col_step = 字宽（x 方向列间距）
+        #   row_pitch = line_step = ascent+descent（y 方向行间距）
+        col_pitch = float(item.get("col_step", leading))
+        row_pitch = leading
+
+        # 半角补全角即可；成对标点保留真字符，交给 PS 縦中横横排居中。
+        lines_for_text = [_normalize_vertical_punct(col) for col in lines]
+        # 列高按"实际渲染行数"算（縦中横段占一行），不能按 len(line) 数字符。
+        max_rows = max((len(iter_vertical_rows(c)) for c in lines_for_text), default=1)
+        col_height = max_rows * row_pitch
+        # 列从右向左排，第一列在最右侧
+        x = anchor_x + (num_lines - 1) * col_pitch / 2
         y = anchor_y - col_height / 2
         direction = "Direction.VERTICAL"
         justification = "Justification.LEFT"  # 竖排 LEFT = 顶部对齐
     else:
-        # 横排：居中对齐
-        # x = 中心
+        lines_for_text = lines
         x = anchor_x
-        # y = 第一行基线 = 中心 - (行数-1)*行间距/2 + 基线偏移
         baseline_offset = font_size * 0.35  # 经验值，manga-translator-ui 用 0.35
         y = anchor_y - (num_lines - 1) * leading / 2 + baseline_offset
         direction = "Direction.HORIZONTAL"
@@ -263,18 +352,33 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> str:
         justification = {"left": "Justification.LEFT", "right": "Justification.RIGHT",
                          "center": "Justification.CENTER"}[align]
 
+    # 文字内容：多行用 \r 连接（PS 换行符）
+    raw_text = "\r".join(lines_for_text)
+    text = _escape_jsx_string(raw_text)
+
     # 图层名：region_id + 文字前20字
     name_text = re.sub(r"[\r\n]", "", "".join(lines))[:20]
     name = _escape_jsx_string(f"{region_id}: {name_text}")
+
+    # 縦中横：本层若含连续 >=2 个标点，让 PS 扫描自身 contents 并对该段横排。
+    if is_vertical and _has_conjoined_punct(raw_text):
+        tcy_code = f"""
+    var tcyPos{index} = findTateChuYokoPositions(ti{index}.contents);
+    for (var ti_{index} = 0; ti_{index} < tcyPos{index}.length; ti_{index}++) {{
+        applyTateChuYoko(tl{index}, tcyPos{index}[ti_{index}][0], tcyPos{index}[ti_{index}][1], {font_size});
+    }}
+"""
+    else:
+        tcy_code = ""
 
     logger.debug(
         f"文字层 {index} ({region_id}): "
         f"{'竖排' if is_vertical else '横排'} "
         f"font={font_size} anchor=({anchor_x:.0f},{anchor_y:.0f}) "
-        f"pos=({x:.1f},{y:.1f}) lines={num_lines}"
+        f"pos=({x:.1f},{y:.1f}) lines={num_lines} tcy={'yes' if tcy_code else 'no'}"
     )
 
-    return _TEXT_LAYER_TEMPLATE.format(
+    parts: list[str] = [_TEXT_LAYER_TEMPLATE.format(
         index=index,
         name=name,
         font_family=_escape_jsx_string(font_family),
@@ -288,7 +392,10 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> str:
         color_g=color_g,
         color_b=color_b,
         leading=round(leading, 2),
-    )
+        tcy_code=tcy_code,
+    )]
+
+    return parts, 1  # 每个区域一个文字层（縦中横不另开层）
 
 
 # ── Photoshop 查找 ────────────────────────────────────────────────────────
@@ -413,10 +520,13 @@ def export_psd_with_jsx(
         logger.error("Clean image does not exist: %s", clean_image_path)
         return None
 
-    text_layers_code = "".join(
-        _generate_text_layer_jsx(i, item)
-        for i, item in enumerate(typeset_data.get("rendered_items", []))
-    )
+    layer_parts: list[str] = []
+    idx = 0
+    for item in typeset_data.get("rendered_items", []):
+        parts, consumed = _generate_text_layer_jsx(idx, item)
+        layer_parts.extend(parts)
+        idx += consumed
+    text_layers_code = "".join(layer_parts)
     output = Path(output_psd_path).resolve()
 
     def make_script(target: Path, error: Path, completion: Path) -> str:

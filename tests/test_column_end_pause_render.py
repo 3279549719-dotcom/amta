@@ -12,9 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest  # noqa: E402
-from PIL import Image  # noqa: E402
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
-from amta.typeset.typeset_render import render_item  # noqa: E402
+from amta.typeset.typeset_render import _render_vertical, render_item  # noqa: E402
 
 FONT = "C:/Windows/Fonts/msyh.ttc"
 
@@ -204,3 +204,32 @@ def test_horizontal_trailing_comma_is_still_drawn():
     n_without, _ = ink_stats(img_without, bbox)
     assert n_with > n_without, (
         f"横排行尾逗号未被绘制: 含逗号 {n_with}px 应 > 不含 {n_without}px")
+
+
+# === 空译文（lines == []）不得让竖排渲染炸掉 ===============================
+
+def test_render_vertical_with_no_columns_is_a_noop():
+    """`lines == []` 时 `_render_vertical` 必须是空操作，而不是 ValueError。
+
+    真实触发点：`artifacts/translation/page_5.json` 的 r13 是空串 `""`，
+    `fit_font_size("")` 返回 `lines == []`。旧实现把 `max(_count_vertical_lines(c)
+    for c in lines)` 写在列循环**内部**，空列表时循环体不执行所以侥幸不炸；
+    main 的重构把它提到循环外，`max()` 对空序列直接 `ValueError`。
+    这条测试把"空译文路径不许炸"钉死。
+    """
+    img = Image.new("RGB", (200, 200), "white")
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype(FONT, 24)
+    _render_vertical(img, draw, font, [], 100, 100, 24, 30,
+                     col_width=24.0, stroke=0, color=(0, 0, 0))
+    assert ink_stats(img, [0, 0, 200, 200])[0] == 0, "空列不应画出任何东西"
+
+
+def test_render_item_with_empty_text_returns_empty_lines():
+    """端到端：空译文渲染不抛异常，落盘 lines 仍是空列表（契约不变）。"""
+    img = Image.new("RGB", (400, 900), "white")
+    result = render_item(img, "", FONT, [100, 100, 240, 700], stroke=0,
+                         preferred_direction="vertical")
+    assert result["layout_direction"] == "vertical"
+    assert result["lines"] == []
+    assert ink_stats(img, [0, 0, 400, 900])[0] == 0

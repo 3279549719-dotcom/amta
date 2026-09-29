@@ -44,6 +44,7 @@
 
 ## `gui/` — (无 docstring)
 
+- **`console.py`** — GUI 启动时的控制台 / 日志加固（根因修复）。（类: _Tee；函数: _disable_windows_quick_edit, install_gui_console）
 - **`server.py`** — Touhou Manga Translator — 本地 FastAPI 后端。（类: TranslateRequest, JobResponse；函数: _run_pipeline_background, health_check, submit_translation_job, get_job_status, _workspace_dir）
 
 ## `inpaint/` — amta.inpaint — Stage 4 去文字/重绘（lama 家族落地）。
@@ -99,7 +100,7 @@
 ## `typeset/` — amta.typeset — Stage 5/6 排版（自研 Pillow 引擎，ADR-019/020/021）。
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
-- **`psd_jsx_export.py`** — PSD JSX 导出 — 生成 ExtendScript 脚本，调用 Photoshop 创建分层 PSD。（函数: _resolve_font_family, _hex_to_rgb, _escape_jsx_string, _escape_jsx_path, _generate_text_layer_jsx）
+- **`psd_jsx_export.py`** — PSD JSX 导出 — 生成 ExtendScript 脚本，调用 Photoshop 创建分层 PSD。（函数: _resolve_font_family, _hex_to_rgb, _escape_jsx_string, _escape_jsx_path, _split_vertical_punct_runs）
 - **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, break_lines）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）

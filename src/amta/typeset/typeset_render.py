@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageStat
@@ -195,31 +196,54 @@ def _is_horizontal_char(ch: str) -> bool:
     return False
 
 
-def _count_vertical_lines(col_text: str) -> int:
-    """计算竖排一列的实际渲染行数。
+@dataclass(frozen=True)
+class VerticalRow:
+    """竖排一列里拆出来的一行。PNG 画字和 PSD 导出共用的行拆分真源。
 
-    连续横向字符（縦中横）和连续标点组合各占一行，
+    kind:
+      - 'char'：单个直立字（汉字/假名/单个标点/需立起的横躺符号）。
+      - 'latin'：縦中横，连续拉丁/数字（含尾随半角空格）整组横排在一行内。
+      - 'punct'：成组标点（！？！！？！…）整组并排占一行。
+    """
+    kind: str
+    text: str
+
+
+def iter_vertical_rows(col_text: str) -> list[VerticalRow]:
+    """把一列竖排文字拆成一行行。PNG 渲染和 PSD 导出都消费同一份行序列，
+    这样"哪些字凑成一行、并排还是叠放"的规则只有这一处真源，两边永不漂移。
+    """
+    rows: list[VerticalRow] = []
+    i = 0
+    n = len(col_text)
+    while i < n:
+        ch = col_text[i]
+        if ch in VERTICAL_COMBINE:
+            j = i
+            while j < n and col_text[j] in VERTICAL_COMBINE:
+                j += 1
+            rows.append(VerticalRow("punct", col_text[i:j]))
+            i = j
+        elif _is_horizontal_char(ch):
+            # 前后的半角空格跟随词组一起横向排，避免空格被单独竖排。
+            j = i
+            while j < n and (_is_horizontal_char(col_text[j]) or col_text[j] == " "):
+                j += 1
+            rows.append(VerticalRow("latin", col_text[i:j]))
+            i = j
+        else:
+            rows.append(VerticalRow("char", ch))
+            i += 1
+    return rows
+
+
+def _count_vertical_lines(col_text: str) -> int:
+    """竖排一列的实际渲染行数 = 拆出来的行数（縦中横/标点组合各占一行）。
+
     不能按 len(col_text) 字符数算——否则 cosplay(9字符) 会被当成 9 行，
     导致垂直居中偏移、内容被挤出框外。
     """
-    count = 0
-    i = 0
-    while i < len(col_text):
-        ch = col_text[i]
-        if ch in VERTICAL_COMBINE:
-            while i < len(col_text) and col_text[i] in VERTICAL_COMBINE:
-                i += 1
-            count += 1
-        elif _is_horizontal_char(ch):
-            while i < len(col_text) and (
-                _is_horizontal_char(col_text[i]) or col_text[i] == " "
-            ):
-                i += 1
-            count += 1
-        else:
-            i += 1
-            count += 1
-    return count
+    return len(iter_vertical_rows(col_text))
 
 
 def _paste_glyph_centered(img: Image.Image, font, ch: str,
@@ -253,6 +277,10 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
 
     hide_mask: 与 lines 同形状的 bool 掩码，True = 该字形不画（仅跳过绘制，
         字格照常推进、列高照常计算 → 列布局与无掩码时逐像素一致）。
+
+    ⚠️ 掩码是**按字符下标**的，而行序列是按**行**迭代的（縦中横/标点组合会
+    把多个字符合并成一行）。所以这里用 char_i 维护"当前行首字符在该列中的
+    下标"，掩码一律查 `col_hide[char_i + k]`，绝不能拿行号当字符下标。
     """
     n_cols = len(lines)
     total_w = n_cols * col_width
@@ -265,65 +293,52 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
             return font
         return _font_for_char(main_font_path, font_size, ch)
 
+    # 所有列顶部对齐到同一水平线（整组列垂直居中），用实际行数算，不用字符数。
+    # default=0：空译文会得到 lines == []（translation 里是 ""），此时没有列要画；
+    # 少了这个 default，max() 会直接 ValueError（page_5 r13 就是这种空译文）。
+    max_col_h = max((len(iter_vertical_rows(c)) for c in lines), default=0) * lh
+    y0 = cy - max_col_h // 2
+
     for col_idx, col_text in enumerate(lines):
         x = x_start - col_idx * col_width
-        # 竖排列顶对齐：所有列顶部对齐到同一水平线（整组列垂直居中），
-        # 不再每列各自居中导致短列漂浮。
-        # 用实际渲染行数（縦中横/标点组合各占一行），不用字符数。
-        max_col_h = max(_count_vertical_lines(c) for c in lines) * lh
-        y = cy - max_col_h // 2
+        y = y0
         col_hide = hide_mask[col_idx] if hide_mask else None
-        i = 0
-        while i < len(col_text):
-            ch = col_text[i]
-            if ch in VERTICAL_COMBINE:
+        char_i = 0  # 当前行首字符在本列中的字符下标（掩码按下标查）
+        for row in iter_vertical_rows(col_text):
+            if row.kind == "punct":
                 # 连续标点组：左右并排在同一行，整体在格内均分居中
-                j = i
-                while j < len(col_text) and col_text[j] in VERTICAL_COMBINE:
-                    j += 1
-                punct_group = col_text[i:j]
-                n_punct = len(punct_group)
+                group = row.text
+                n_punct = len(group)
                 punct_w = col_width / n_punct
                 group_x = x + (col_width - n_punct * punct_w) / 2
-                for k, pch in enumerate(punct_group):
-                    if col_hide and col_hide[i + k]:
+                for k, pch in enumerate(group):
+                    if col_hide and col_hide[char_i + k]:
                         continue
                     _paste_glyph_centered(
                         img, _choose(pch), pch,
                         group_x + k * punct_w, y, punct_w, lh,
                         stroke, color)
-                y += lh
-                i = j
-            elif _is_horizontal_char(ch):
-                # 縦中横：连续拉丁/数字字符作为一组，在当前行内横向排列。
-                # 前后的半角空格跟随词组一起横向排，避免空格被单独竖排。
-                j = i
-                while j < len(col_text) and (
-                    _is_horizontal_char(col_text[j]) or col_text[j] == " "
-                ):
-                    j += 1
-                group = col_text[i:j]
+            elif row.kind == "latin":
+                # 縦中横：整组拉丁/数字在当前行内横向排列、水平居中。
+                group = row.text
                 group_fonts = [_choose(c) for c in group]
                 group_widths = [f.getlength(c) for f, c in zip(group_fonts, group)]
                 total_w = sum(group_widths)
-                # 组在当前字格内水平居中，超出则向两侧扩展（长单词自然占多列宽）
                 gx = x + (col_width - total_w) / 2
                 ascent, descent = group_fonts[0].getmetrics()
                 gy = y + (lh - (ascent + descent)) / 2
                 for k, (c, f, cw) in enumerate(zip(group, group_fonts, group_widths)):
-                    if col_hide and col_hide[i + k]:
+                    if col_hide and col_hide[char_i + k]:
                         gx += cw
                         continue
                     draw.text((gx, gy), c, font=f, fill=color,
                               stroke_width=int(stroke), stroke_fill="white")
                     gx += cw
-                y += lh
-                i = j
             else:
                 # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
-                if not (col_hide and col_hide[i]):
+                if not (col_hide and col_hide[char_i]):
                     _paste_glyph_centered(
-                        img, _choose(ch), ch, x, y, col_width, lh,
-                        stroke, color, rotate=should_rotate(ch))
-                y += lh
-                i += 1
+                        img, _choose(row.text), row.text, x, y, col_width, lh,
+                        stroke, color, rotate=should_rotate(row.text))
+            y += lh
+            char_i += len(row.text)

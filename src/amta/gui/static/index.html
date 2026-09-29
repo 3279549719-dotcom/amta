@@ -803,11 +803,50 @@
       var img = images[currentIndex];
       if (!img || !img.translated || !img.page) return;
       var page = img.page;
-      window.open('/api/export/' + img.workId + '/' + page + '/' + format, '_blank');
-      toast(format.toUpperCase() + ' download started', 'success');
       exportMenu.classList.remove('show');
+      if (format === 'psd') {
+        requestAndDownloadPsd(img.workId, page);
+      } else {
+        window.open('/api/export/' + img.workId + '/' + page + '/' + format, '_blank');
+        toast('PNG download started', 'success');
+      }
     });
   });
+
+  // PSD 按需异步：先 POST 触发生成，轮询直到 ready，再下载
+  function requestAndDownloadPsd(workId, page) {
+    var url = '/api/psd/' + workId + '/' + page;
+    function trigger() {
+      return fetch(url, { method: 'POST' }).then(function(r) { return r.json(); });
+    }
+    function poll() {
+      return trigger().then(function(s) {
+        if (s.status === 'ready') {
+          window.open('/api/export/' + workId + '/' + page + '/psd', '_blank');
+          toast('PSD ready, download started', 'success');
+          return;
+        }
+        if (s.status === 'failed') {
+          toast('PSD 生成失败: ' + (s.error || 'unknown'), 'error');
+          return;
+        }
+        // started / running
+        toast('PSD 生成中…（Photoshop 启动约 1~3 分钟）', 'info');
+        setTimeout(poll, 3000);
+      });
+    }
+    trigger().then(function(s) {
+      if (s.status === 'ready') {
+        window.open('/api/export/' + workId + '/' + page + '/psd', '_blank');
+        toast('PSD download started', 'success');
+      } else if (s.status === 'failed') {
+        toast('PSD 生成失败: ' + (s.error || 'unknown'), 'error');
+      } else {
+        toast('PSD 生成中…（Photoshop 启动约 1~3 分钟）', 'info');
+        setTimeout(poll, 3000);
+      }
+    }).catch(function(err) { toast('PSD 请求失败: ' + err.message, 'error'); });
+  }
   document.addEventListener('click', function() { exportMenu.classList.remove('show'); });
 
   // Keyboard: Delete removes current
