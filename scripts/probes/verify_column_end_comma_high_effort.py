@@ -50,11 +50,10 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_HERE.parents[1] / "src"))
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont  # noqa: E402
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageStat  # noqa: E402
 
 from render_page_before_after import (  # noqa: E402
     DEFAULT_SRC_ROOT,
-    _ink,
     _render_page,
 )
 from amta.typeset.typeset_render import (  # noqa: E402
@@ -238,10 +237,12 @@ def _horizontal_ink_rect(item: dict) -> tuple[float, float, float, float]:
 
 
 def _dominant_color(img: Image.Image, rect) -> tuple[int, int, int]:
-    """矩形内出现次数最多的颜色（= 背景色）。
+    """矩形内出现次数最多的颜色。
 
-    用 `Image.getcolors`（C 实现）而不是 Python 逐像素——整部作品 65 页
-    逐像素扫会慢到不可用。
+    注意：**不能**用它判断"背景是谁"——真实页背景是带噪点的暗色纹理，
+    每个像素颜色都略有不同，反而纯白的字形像素因为颜色完全一致而夺冠。
+    （page_8 r11 白字深底就是这样被误判成"白底"的。）
+    判断背景请用 `_bg_luma`（中位亮度）。
     """
     x1, y1, x2, y2 = (int(round(v)) for v in rect)
     x1, y1 = max(0, x1), max(0, y1)
@@ -252,6 +253,34 @@ def _dominant_color(img: Image.Image, rect) -> tuple[int, int, int]:
     if not colors:
         return (255, 255, 255)
     return max(colors, key=lambda t: t[0])[1]
+
+
+def _clip_rect(img: Image.Image, rect) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = (int(round(v)) for v in rect)
+    return (max(0, x1), max(0, y1), min(img.width, x2), min(img.height, y2))
+
+
+def _bg_luma(img: Image.Image, rect) -> float:
+    """矩形内的**中位亮度** = 背景亮度（与前景/背景谁亮谁暗无关）。
+
+    字格里背景像素必然占多数，用中位数比"取众数颜色"稳健得多。
+    """
+    x1, y1, x2, y2 = _clip_rect(img, rect)
+    if x2 <= x1 or y2 <= y1:
+        return 255.0
+    return float(ImageStat.Stat(img.crop((x1, y1, x2, y2)).convert("L")).median[0])
+
+
+def _ink_dev(img: Image.Image, rect, delta: int = 60) -> int:
+    """矩形内"与局部背景差异 > delta 亮度"的像素数（全 C 实现）。"""
+    x1, y1, x2, y2 = _clip_rect(img, rect)
+    if x2 <= x1 or y2 <= y1:
+        return 0
+    cell = img.crop((x1, y1, x2, y2)).convert("L")
+    ref = int(ImageStat.Stat(cell).median[0])
+    hist = cell.histogram()
+    lo, hi = ref - delta, ref + delta
+    return sum(hist[:max(0, lo)]) + sum(hist[min(256, hi + 1):])
 
 
 def _changed_mask(a: Image.Image, b: Image.Image) -> Image.Image:
@@ -359,22 +388,23 @@ def analyse(page: str, out_root: Path, want_bitmaps: bool = False) -> dict:
             # 空译文（translation 里是 ""）会得到 lines == []；没有列就没有列末逗号。
             continue
         ink_rect = _vertical_ink_rect(item)
-        bg = _dominant_color(img_after, ink_rect)
+        bg = _bg_luma(img_after, ink_rect)
         text_rgb = _hex_rgb(item.get("rendered_color", "#000000"))
-        white_on_dark = _luma(text_rgb) > 200 and _luma(bg) < 110
+        white_on_dark = _luma(text_rgb) > 200 and bg < 110
         for ci, col in enumerate(lines):
             if not col or col[-1] not in COMMA_FAMILY:
                 continue
             cell = _vertical_rect(item, ci, len(col) - 1, cx, cy, lh, col_width, lines)
             cells.append({
+                "page": page,
                 "region_id": rid, "line_idx": ci, "char_idx": len(col) - 1,
                 "char": col[-1], "column_text": col,
                 "cell": [round(v, 1) for v in cell],
                 "_cell": cell, "_item": item, "_lh": lh,
-                "ink_before": _ink(img_before, cell),
-                "ink_after": _ink(img_after, cell),
+                "ink_before": _ink_dev(img_before, cell),
+                "ink_after": _ink_dev(img_after, cell),
                 "rendered_color": item.get("rendered_color"),
-                "bg_color": list(bg),
+                "bg_luma": round(bg, 1),
                 "white_on_dark": white_on_dark,
                 "font_size": item.get("font_size"),
                 "font_family": item.get("font_family")
@@ -420,7 +450,7 @@ def analyse(page: str, out_root: Path, want_bitmaps: bool = False) -> dict:
                 if ch in (" ", "\u3000"):
                     continue
                 cell = _horizontal_char_rect(item, li, ki)
-                ink = _ink(img_before, cell)
+                ink = _ink_dev(img_before, cell)
                 glyph_cells += 1
                 glyph_inked += 1 if ink > 0 else 0
                 if ch in COMMA_FAMILY:
@@ -475,20 +505,19 @@ def analyse(page: str, out_root: Path, want_bitmaps: bool = False) -> dict:
 
 def _ascii_bitmap(img: Image.Image, x1: int, y1: int, x2: int, y2: int,
                   step: int = 2) -> list[str]:
-    """字格的 ASCII 位图：`#` = 与格内主色差异 > 60 的像素。"""
-    bg = _dominant_color(img, (x1, y1, x2, y2))
-    rows = []
-    for y in range(max(0, y1), min(img.height, y2), step):
-        rows.append("".join(
-            "#" if max(abs(img.getpixel((x, y))[i] - bg[i]) for i in range(3)) > 60 else "."
-            for x in range(max(0, x1), min(img.width, x2))))
-    return rows
+    """字格的 ASCII 位图：`#` = 与格内**中位亮度**（背景）差 > 60 的像素。"""
+    crop = img.crop(_clip_rect(img, (x1, y1, x2, y2))).convert("L")
+    ref = int(ImageStat.Stat(crop).median[0])
+    px = crop.load()
+    return ["".join("#" if abs(px[x, y] - ref) > 60 else "."
+                    for x in range(crop.width))
+            for y in range(0, crop.height, step)]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pages", nargs="+", required=True,
-                    help="页码列表，或 'all'（1..65）")
+                    help="页码列表，或 'all'（扫描 inpaint 产物里实际存在的全部页）")
     ap.add_argument("--src-root", type=Path, default=DEFAULT_SRC_ROOT)
     ap.add_argument("--out-root", type=Path, default=DEFAULT_OUT_ROOT)
     ap.add_argument("--report-name", default="verify_report.json")
@@ -501,8 +530,15 @@ def main() -> int:
     if not _SRC_ROOT.exists():
         raise SystemExit(f"上游产物根目录不存在: {_SRC_ROOT}")
 
-    pages = ([str(n) for n in range(1, 66)]
-             if len(args.pages) == 1 and args.pages[0] == "all" else args.pages)
+    if args.pages[0] == "all":
+        # 作品里并非每页都有 inpaint 产物（本作品缺 page_63），按实际存在的页扫。
+        inpaint_dir = args.src_root / "artifacts" / "inpaint"
+        pages = [str(n) for n in sorted(
+            int(p.stem.split("_")[1]) for p in inpaint_dir.glob("page_*.json"))]
+        if not pages:
+            raise SystemExit(f"没有找到任何 inpaint 产物: {inpaint_dir}")
+    else:
+        pages = args.pages
     args.out_root.mkdir(parents=True, exist_ok=True)
 
     results = []
@@ -541,6 +577,14 @@ def main() -> int:
           f"{sum(1 for c in wd_cells if c['removed_pixels_in_cell'] <= 0)} 处异常")
     print(f"全图改动像素合计   : {sum(r['total_changed_pixels'] for r in results)}")
     print(f"改动溢出掩码字格(位移): {orphans}" + ("  OK" if not orphans else "  !!"))
+    print(f"落盘元数据 before/after 完全一致: "
+          f"{sum(1 for r in results if r['lines_metadata_identical'])}/{len(results)}")
+    if wd_cells:
+        print("白字深底命中明细:")
+        for c in wd_cells:
+            print(f"  page_{c['page']} {c['region_id']} 列{c['line_idx']} "
+                  f"{c['column_text']!r} bg中位亮度={c['bg_luma']} "
+                  f"字色={c['rendered_color']} 移除像素={c['removed_pixels_in_cell']}")
     hn = [h for r in results for h in r["horizontal_items"]]
     hbad = [h for h in hn if h["rect_changed_pixels"]]
     print(f"横排区域           : {len(hn)}（墨迹矩形内 before/after 逐像素一致: "
