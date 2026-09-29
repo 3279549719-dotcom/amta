@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -28,7 +29,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from PIL import Image  # noqa: E402
 
 from amta.common.paths import read_json  # noqa: E402
-from amta.typeset import typeset_render  # noqa: E402
 from amta.typeset.typeset_render import _count_vertical_lines  # noqa: E402
 from amta.typeset.typeset_station import run as typeset_run  # noqa: E402
 
@@ -39,10 +39,33 @@ COMMA_FAMILY = set("，、,")
 # 与前景/背景谁亮谁暗无关 —— 白字深底的对白框同样适用。
 INK_DELTA = 60
 
+# `column_end_pause_mask` 被**两个**渲染模块各自 import 进了自己的命名空间：
+#   - typeset_render：MITS 竖排路径
+#   - vlm_render   ：VLM paratext 页走这条（`from ... import column_end_pause_mask`）
+# 只补丁 typeset_render 的话，VLM 页的 "before" 渲染其实仍然开着掩码，
+# before/after 会完全相同 → 假"通过"。必须两处都换。
+_MASK_MODULES = ("amta.typeset.typeset_render", "amta.typeset.vlm_render")
+
 
 def _no_hide(columns):
     """修复前行为：不隐藏任何字形。"""
     return [[False] * len(c) for c in columns]
+
+
+def _set_mask(enabled: bool) -> dict[str, object]:
+    """把两个模块里的 column_end_pause_mask 换成修复前行为，返回原函数表。"""
+    saved: dict[str, object] = {}
+    for modpath in _MASK_MODULES:
+        mod = importlib.import_module(modpath)
+        saved[modpath] = getattr(mod, "column_end_pause_mask")
+        if not enabled:
+            setattr(mod, "column_end_pause_mask", _no_hide)
+    return saved
+
+
+def _restore_mask(saved: dict[str, object]) -> None:
+    for modpath, fn in saved.items():
+        setattr(importlib.import_module(modpath), "column_end_pause_mask", fn)
 
 
 def _render_page(page: str, src_root: Path, out_root: Path, hide: bool):
@@ -60,9 +83,7 @@ def _render_page(page: str, src_root: Path, out_root: Path, hide: bool):
     if not clean_path.exists():
         raise SystemExit(f"page_{page}: clean 图不存在 {clean_path}")
 
-    saved = typeset_render.column_end_pause_mask
-    if not hide:
-        typeset_render.column_end_pause_mask = _no_hide
+    saved = _set_mask(hide)
     try:
         doc = typeset_run(
             work_id=f"column-end-comma-fix-{tag}",
@@ -74,7 +95,7 @@ def _render_page(page: str, src_root: Path, out_root: Path, hide: bool):
             final_path=out_dir / f"page_{page}_final.png",
         )
     finally:
-        typeset_render.column_end_pause_mask = saved
+        _restore_mask(saved)
     return doc, out_dir / f"page_{page}_final.png"
 
 
@@ -142,7 +163,6 @@ def process_page(page: str, src_root: Path, out_root: Path) -> dict:
         raise SystemExit(f"page_{page}: before/after 尺寸不一致")
 
     items_after = {it["region_id"]: it for it in doc_after["rendered_items"]}
-    items_before = {it["region_id"]: it for it in doc_before["rendered_items"]}
 
     meta_identical = ([it.get("lines") for it in doc_before["rendered_items"]]
                       == [it.get("lines") for it in doc_after["rendered_items"]])
