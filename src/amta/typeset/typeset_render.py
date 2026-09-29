@@ -16,7 +16,12 @@ from PIL import Image, ImageDraw, ImageFont, ImageStat
 
 from amta.stores.artifacts import normalize_rendered_item
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
-from amta.typeset.vertical_punct import VERTICAL_COMBINE, should_rotate, verticalize_text
+from amta.typeset.vertical_punct import (
+    VERTICAL_COMBINE,
+    column_end_pause_mask,
+    should_rotate,
+    verticalize_text,
+)
 
 
 def _decide_color_and_stroke(img: Image.Image, bbox: list,
@@ -91,13 +96,18 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
 
     if direction == "vertical":
+        # 列末逗号消冗：断列后，列末逗号与列边界表达同一停顿 → 该字形不显示。
+        # 只改"画不画"，不改 lines 元数据/字格推进/列高，所以列不会缩短或重新居中。
+        # 掩码在 verticalize_text 之前按横排逗号码位算好（竖排形式不改逗号码位）。
+        hide = column_end_pause_mask(lines)
         # 竖排：把有竖排 Unicode 形式的横排标点（括号/省略号）换成竖排形式。
         # 哪些符号要旋转，由 vertical_punct.should_rotate 按 Unicode 自动判断。
         lines = [verticalize_text(ln) for ln in lines]
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
                          stroke=stroke, color=color,
-                         main_font_path=font_path)
+                         main_font_path=font_path,
+                         hide_mask=hide)
     else:
         total_h = len(lines) * lh
         y = cy - total_h // 2
@@ -238,8 +248,12 @@ def _paste_glyph_centered(img: Image.Image, font, ch: str,
 
 
 def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
-                     col_width, stroke, color, main_font_path=None):
-    """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。"""
+                     col_width, stroke, color, main_font_path=None, hide_mask=None):
+    """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。
+
+    hide_mask: 与 lines 同形状的 bool 掩码，True = 该字形不画（仅跳过绘制，
+        字格照常推进、列高照常计算 → 列布局与无掩码时逐像素一致）。
+    """
     n_cols = len(lines)
     total_w = n_cols * col_width
     # 最右列的 x 坐标（列左边缘）
@@ -258,6 +272,7 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
         # 用实际渲染行数（縦中横/标点组合各占一行），不用字符数。
         max_col_h = max(_count_vertical_lines(c) for c in lines) * lh
         y = cy - max_col_h // 2
+        col_hide = hide_mask[col_idx] if hide_mask else None
         i = 0
         while i < len(col_text):
             ch = col_text[i]
@@ -271,6 +286,8 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 punct_w = col_width / n_punct
                 group_x = x + (col_width - n_punct * punct_w) / 2
                 for k, pch in enumerate(punct_group):
+                    if col_hide and col_hide[i + k]:
+                        continue
                     _paste_glyph_centered(
                         img, _choose(pch), pch,
                         group_x + k * punct_w, y, punct_w, lh,
@@ -293,7 +310,10 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 gx = x + (col_width - total_w) / 2
                 ascent, descent = group_fonts[0].getmetrics()
                 gy = y + (lh - (ascent + descent)) / 2
-                for c, f, cw in zip(group, group_fonts, group_widths):
+                for k, (c, f, cw) in enumerate(zip(group, group_fonts, group_widths)):
+                    if col_hide and col_hide[i + k]:
+                        gx += cw
+                        continue
                     draw.text((gx, gy), c, font=f, fill=color,
                               stroke_width=int(stroke), stroke_fill="white")
                     gx += cw
@@ -301,8 +321,9 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 i = j
             else:
                 # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
-                _paste_glyph_centered(
-                    img, _choose(ch), ch, x, y, col_width, lh,
-                    stroke, color, rotate=should_rotate(ch))
+                if not (col_hide and col_hide[i]):
+                    _paste_glyph_centered(
+                        img, _choose(ch), ch, x, y, col_width, lh,
+                        stroke, color, rotate=should_rotate(ch))
                 y += lh
                 i += 1

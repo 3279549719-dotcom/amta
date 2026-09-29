@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from amta.stores.artifacts import normalize_rendered_item
 from amta.typeset.typeset_render import _render_vertical
-from amta.typeset.vertical_punct import verticalize_text
+from amta.typeset.vertical_punct import column_end_pause_mask, verticalize_text
 
 FONTS = {"sans": "msyh.ttc", "serif": "simsun.ttc", "handwritten": "simkai.ttf", "bold": "msyhbd.ttc"}
 
@@ -124,11 +124,15 @@ def render_text(img: Image.Image, text: str, block: dict) -> dict:
     if meta["layout_direction"] == "vertical":
         if stroke and stroke_fill != (255, 255, 255):
             raise ValueError("vertical renderer supports white stroke only")
+        # 列末逗号消冗：只传渲染掩码，meta["lines"] 原样落盘（字格/列高/位置不变）。
+        lines = meta["lines"]
+        hide = column_end_pause_mask(lines)
         ix1, iy1, ix2, iy2 = meta["ink_bbox"]
-        _render_vertical(img, draw, font, [verticalize_text(s) for s in meta["lines"]],
+        _render_vertical(img, draw, font, [verticalize_text(s) for s in lines],
                          (ix1 + ix2) / 2, (iy1 + iy2) / 2, meta["font_size"], meta["line_step"],
-                         col_width=(ix2 - ix1 - 2 * stroke) / max(1, len(meta["lines"])),
-                         stroke=stroke, color=color, main_font_path=meta["font_path"])
+                         col_width=(ix2 - ix1 - 2 * stroke) / max(1, len(lines)),
+                         stroke=stroke, color=color, main_font_path=meta["font_path"],
+                         hide_mask=hide)
     else:
         y = meta["ink_bbox"][1] + stroke
         x1, _y1, x2, _y2 = block["bbox"]
