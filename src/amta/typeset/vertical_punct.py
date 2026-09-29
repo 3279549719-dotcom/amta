@@ -67,8 +67,14 @@ def column_end_pause_mask(columns: list[str]) -> list[list[bool]]:
       同样是与气泡边界重复的停顿，适用同一条列末显示策略。
     - 列中逗号、句末标点（。！？…；：）一律不掩码，绝不做全局去标点。
     - 单列只有一个字符的退化情形不掩码，避免整列变空白。
+    - **整条文本只有一列时不掩码**：消冗的依据是"列边界已经把这次停顿
+      视觉化了"，而单列排布里文本内部根本不存在列边界（那个逗号只是
+      文本自身的末字符，不是断列算法的产物），没有下一列承接断句 →
+      隐藏它就等于凭空吃掉一个逗号。至少两列时才存在"列边界"这个依据。
     """
     mask = [[False] * len(col) for col in columns]
+    if len(columns) < 2:
+        return mask
     for i, col in enumerate(columns):
         if col and col[-1] in _COLUMN_END_REDUNDANT and len(col) > 1:
             mask[i][-1] = True
