@@ -154,13 +154,20 @@ function applyTateChuYoko(textLayer, charStart, charEnd, fontSize) {{
     }}
 }}
 
+function isPunctCharForTcy(ch) {{
+    return ch === '！' || ch === '？' || ch === '!' || ch === '?';
+}}
+
 function findTateChuYokoPositions(text) {{
     var positions = [];
-    var tcyChars = ['⁉', '⁈', '‼', '⁇'];
-    for (var i = 0; i < text.length; i++) {{
-        var ch = text.charAt(i);
-        for (var j = 0; j < tcyChars.length; j++) {{
-            if (ch === tcyChars[j]) {{ positions.push([i, i + 1]); break; }}
+    var i = 0;
+    while (i < text.length) {{
+        if (isPunctCharForTcy(text.charAt(i))) {{
+            var start = i;
+            while (i < text.length && isPunctCharForTcy(text.charAt(i))) i++;
+            if (i - start >= 2) positions.push([start, i]);
+        }} else {{
+            i++;
         }}
     }}
     return positions;
@@ -252,31 +259,27 @@ _TEXT_LAYER_TEMPLATE = """
     {tcy_code}
 """
 
-# 竖排组合标点 → Unicode 连字（抄 manga-translator-ui 的成熟做法）。
-# PS 竖排会把 ！？ 逐字上下堆叠；把它们换成单个连字 ⁉ 后，再用縦中横让 PS
-# 自己在格子里横排居中——位置/对齐全交给字体引擎，不叠层、不手算像素。
-_VERTICAL_LIGATURE_MAP = (
-    ("！？", "⁉"),
-    ("？！", "⁈"),
-    ("！！", "‼"),
-    ("？？", "⁇"),
-    ("!?", "⁉"),
-    ("?!", "⁈"),
-    ("!!", "‼"),
-    ("??", "⁇"),
-)
-_TCY_CHARS = "⁉⁈‼⁇"
+# 竖排里连续 >=2 个标点（！？!?）需要并排：直接对真字符段縦中横，
+# 让 PS 在竖排格子里横排居中。不换成 ⁉ 连字——雅黑没有那个字形会变缺字框。
+_TCY_PUNCT = set("！？!?")
 
 
-def _vertical_ligature(text: str) -> str:
-    """把竖排文本里的成对标点组合换成 Unicode 连字（⁉⁈‼⁇）。
+def _has_conjoined_punct(text: str) -> bool:
+    """文本里是否出现连续 >=2 个 ！？!?（需要縦中横并排）。"""
+    run = 0
+    for ch in text:
+        if ch in _TCY_PUNCT:
+            run += 1
+            if run >= 2:
+                return True
+        else:
+            run = 0
+    return False
 
-    与参考项目一致：先替换成对组合，再把单个半角 !/? 补全角。
-    """
-    for src, dst in _VERTICAL_LIGATURE_MAP:
-        text = text.replace(src, dst)
-    text = text.replace("!", "！").replace("?", "？")
-    return text
+
+def _normalize_vertical_punct(text: str) -> str:
+    """半角 !/? 补全角（竖排全角更自然），不做连字替换。"""
+    return text.replace("!", "！").replace("?", "？")
 
 
 def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str], int]:
@@ -322,10 +325,9 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
         col_pitch = float(item.get("col_step", leading))
         row_pitch = leading
 
-        # 成对标点换成连字 ⁉⁈‼⁇，交给 PS 縦中横横排居中。
-        lines_for_text = [_vertical_ligature(col) for col in lines]
-        # 列高按"实际渲染行数"算（连字/縦中横各占一行），不能按 len(line) 数字符。
-        # 连字是单字符，iter_vertical_rows 自然算一行，与 PNG 一致。
+        # 半角补全角即可；成对标点保留真字符，交给 PS 縦中横横排居中。
+        lines_for_text = [_normalize_vertical_punct(col) for col in lines]
+        # 列高按"实际渲染行数"算（縦中横段占一行），不能按 len(line) 数字符。
         max_rows = max((len(iter_vertical_rows(c)) for c in lines_for_text), default=1)
         col_height = max_rows * row_pitch
         # 列从右向左排，第一列在最右侧
@@ -358,8 +360,8 @@ def _generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str
     name_text = re.sub(r"[\r\n]", "", "".join(lines))[:20]
     name = _escape_jsx_string(f"{region_id}: {name_text}")
 
-    # 縦中横：本层若含连字，让 PS 扫描自身 contents 并对这些字符横排。
-    if is_vertical and any(ch in raw_text for ch in _TCY_CHARS):
+    # 縦中横：本层若含连续 >=2 个标点，让 PS 扫描自身 contents 并对该段横排。
+    if is_vertical and _has_conjoined_punct(raw_text):
         tcy_code = f"""
     var tcyPos{index} = findTateChuYokoPositions(ti{index}.contents);
     for (var ti_{index} = 0; ti_{index} < tcyPos{index}.length; ti_{index}++) {{

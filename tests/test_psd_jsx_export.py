@@ -1,4 +1,4 @@
-"""psd_jsx_export 单元测试 — JSX 脚本生成逻辑。"""
+﻿"""psd_jsx_export 单元测试 — JSX 脚本生成逻辑。"""
 from __future__ import annotations
 
 from amta.typeset.psd_jsx_export import (
@@ -171,8 +171,8 @@ class TestTextLayerJsx:
         assert "59.8" in jsx
         assert "useAutoLeading = false" in jsx
 
-    def test_conjoined_punct_becomes_ligature_with_tcy(self):
-        """竖排 ！？ 换成连字 ⁉，由 Photoshop 縦中横并排，不再另开叠层。"""
+    def test_conjoined_punct_uses_tcy_not_ligature(self):
+        """竖排 ！？ 保留真字符，由 Photoshop 縦中横整段横排并排（不换缺字连字）。"""
         parts, consumed = _generate_text_layer_jsx(
             0,
             self._make_item(
@@ -184,11 +184,10 @@ class TestTextLayerJsx:
         )
         joined = "".join(parts)
         assert consumed == 1  # 单个文字层，縦中横不另开层
-        # ！？ 被替换成连字 ⁉（contents 里）
-        assert "ti0.contents = '按钮是什么⁉'" in joined
-        # 生成縦中横代码，让 PS 把 ⁉ 在格子里横排居中
+        # 真字符保留在 contents 里（雅黑有字形，不会变缺字框）
+        assert "ti0.contents = '按钮是什么！？'" in joined
+        # 生成縦中横代码，让 PS 把这段标点在格子里横排居中
         assert "applyTateChuYoko" in joined
-        assert "findTateChuYokoPositions" in joined
         assert "Direction.VERTICAL" in joined
 
     def test_lone_punct_stays_in_main_layer(self):
