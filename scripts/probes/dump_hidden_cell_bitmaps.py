@@ -18,6 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from PIL import Image  # noqa: E402
 
+from amta.common.encoding import force_utf8_stdio  # noqa: E402
+
+force_utf8_stdio()  # Windows stdout 默认 cp936，中文输出必须走 UTF-8 收口点
+
 OUT_ROOT = Path("workspace/column-end-comma-fix")
 DARK = 128
 LIGHT = 240
