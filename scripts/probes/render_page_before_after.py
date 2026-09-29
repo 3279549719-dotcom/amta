@@ -35,9 +35,9 @@ from amta.typeset.typeset_station import run as typeset_run  # noqa: E402
 DEFAULT_SRC_ROOT = Path(r"E:\manga translator agent\workspace\touhou-getten-shinchi")
 DEFAULT_OUT_ROOT = Path("workspace/column-end-comma-fix")
 COMMA_FAMILY = set("，、,")
-WHITE = (255, 255, 255)
-# 真实页面背景是近白（如 254,254,254），不能按"等于纯白"判背景。
-INK_LUMA_MAX = 128
+# 字格"墨迹"判据：与格内主色（背景）任一通道差超过该值即算字形像素。
+# 与前景/背景谁亮谁暗无关 —— 白字深底的对白框同样适用。
+INK_DELTA = 60
 
 
 def _no_hide(columns):
@@ -96,18 +96,28 @@ def _cell_of(item: dict, col_idx: int, char_idx: int) -> tuple[float, float, flo
 
 
 def _ink(img: Image.Image, cell) -> int:
-    """字格内的"墨迹"像素数。
+    """字格内的"字形墨迹"像素数。
 
-    真实漫画页的背景不是纯白（inpaint 后常见 254,254,254），所以不能用
-    `!= (255,255,255)` 判墨——那会把整格都算成墨。改用亮度阈值：
-    明显暗于背景的像素才算字形墨迹。
+    真实漫画页的背景既不是纯白（inpaint 后常见 254,254,254），文字也未必是
+    黑色（对白可以是**白字深底**，如 page_8 r11）。所以不能按"暗于阈值"判墨
+    ——那会把深色背景整格算成墨、把白字算成零。
+
+    做法：取该字格里出现次数最多的颜色当背景色（字格内背景必然占多数），
+    再数"与背景色明显不同"的像素。这个判据与前景/背景谁亮谁暗无关。
     """
     x1, y1, x2, y2 = (int(round(v)) for v in cell)
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(img.width, x2), min(img.height, y2)
     px = img.load()
-    return sum(1 for y in range(y1, y2) for x in range(x1, x2)
-               if sum(px[x, y]) / 3 < INK_LUMA_MAX)
+    counts: dict[tuple[int, int, int], int] = {}
+    for y in range(y1, y2):
+        for x in range(x1, x2):
+            counts[px[x, y]] = counts.get(px[x, y], 0) + 1
+    if not counts:
+        return 0
+    bg = max(counts, key=lambda c: counts[c])
+    return sum(n for c, n in counts.items()
+               if max(abs(c[i] - bg[i]) for i in range(3)) > INK_DELTA)
 
 
 def _column_end_commas(doc: dict) -> list[tuple[str, int, int, str]]:
@@ -138,8 +148,10 @@ def process_page(page: str, src_root: Path, out_root: Path) -> dict:
                       == [it.get("lines") for it in doc_after["rendered_items"]])
 
     checks = []
+    cells = []
     for rid, ci, ki, col in _column_end_commas(doc_after):
         cell = _cell_of(items_after[rid], ci, ki)
+        cells.append(cell)
         checks.append({
             "region_id": rid,
             "line_idx": ci,
@@ -150,10 +162,22 @@ def process_page(page: str, src_root: Path, out_root: Path) -> dict:
             "ink_after": _ink(img_after, cell),
         })
 
-    # 全图差异总量（归因：只应来自被隐藏的逗号字形）
+    # 全图差异 + 归因：每一处改动都必须落在某个被掩码的字格内。
+    # 若有像素落在字格外，就说明发生了位移（列高/居中/字格推进被改动）→ 回归。
     pb, pa = img_before.load(), img_after.load()
-    total_changed = sum(1 for y in range(img_before.height)
-                        for x in range(img_before.width) if pb[x, y] != pa[x, y])
+    changed = [(x, y)
+               for y in range(img_before.height)
+               for x in range(img_before.width)
+               if pb[x, y] != pa[x, y]]
+
+    def _inside(x: int, y: int) -> bool:
+        for (cx1, cy1, cx2, cy2) in cells:
+            if (int(round(cx1)) <= x < int(round(cx2))
+                    and int(round(cy1)) <= y < int(round(cy2))):
+                return True
+        return False
+
+    orphan = [(x, y) for x, y in changed if not _inside(x, y)]
 
     return {
         "page": page,
@@ -161,7 +185,9 @@ def process_page(page: str, src_root: Path, out_root: Path) -> dict:
         "n_column_end_commas": len(checks),
         "regions": sorted({c["region_id"] for c in checks}),
         "checks": checks,
-        "total_changed_pixels": total_changed,
+        "total_changed_pixels": len(changed),
+        "orphan_changed_pixels": len(orphan),
+        "orphan_sample": orphan[:5],
         "before_png": str(png_before),
         "after_png": str(png_after),
     }
@@ -186,6 +212,9 @@ def main() -> int:
         print(f"page_{page}: 列末逗号 {r['n_column_end_commas']} 处，"
               f"区域 {r['regions']}，全图改动 {r['total_changed_pixels']}px")
         print(f"  lines 元数据 before/after 一致: {r['lines_metadata_identical']}")
+        print(f"  改动落在被掩码字格之外(即发生位移)的像素: "
+              f"{r['orphan_changed_pixels']}"
+              + (f"  !! {r['orphan_sample']}" if r["orphan_changed_pixels"] else "  OK"))
         for c in r["checks"]:
             ok = "OK" if (c["ink_before"] > 0 and c["ink_after"] == 0) else "!! 异常"
             print(f"    [{ok}] {c['region_id']} 列{c['line_idx']} "
