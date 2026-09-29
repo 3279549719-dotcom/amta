@@ -5,9 +5,10 @@
   冒一个新符号加一行——打地鼠。
 - 新做法：按 Unicode 区块/属性判断。新冒出来的符号只要属于同类，自动归位。
 
-对外接口（唯一入口，typeset_render 只依赖这两个函数）：
+对外接口（唯一入口，typeset_render 只依赖这三个函数）：
 - verticalize_text(line): 竖排时把横排标点换成字体自带的竖排 Unicode 形式。
 - should_rotate(ch): 该字符在竖排时是否需要旋转 90°（横向延展的连线/波浪）。
+- column_end_pause_mask(columns): 标出"列末逗号，渲染时不显示"的位置（列边界即停顿）。
 
 横排↔竖排标点的配对，来自 Unicode 标准"竖排形式区块"(U+FE30–U+FE4F)，
 是标准给定的固定对照，不是为本项目试出来的特例。
@@ -42,6 +43,36 @@ def verticalize_text(line: str) -> str:
         mapped = _HORIZ_TO_VERTICAL.get(ch)
         out.append(mapped if mapped is not None else ch)
     return "".join(out)
+
+
+# 竖排"列末逗号消冗"：只针对逗号家族（句读中的"顿"），不碰句末标点。
+# 逗号的作用是标记句中停顿；当它正好落在列末时，换列本身已经把停顿视觉化了，
+# 再画一个逗号就是同一停顿的重复表达 → 冗余。
+# 。！？… 是句末/语气标点，承载"句子结束"的语义，列末也必须保留。
+# 、（顿号）与逗号同族，同为"列内并列停顿"；同一条"列末停顿不显示"策略
+# 对它同样成立，因此在同一名单里，不做单独特例。
+_COLUMN_END_REDUNDANT: frozenset[str] = frozenset("，、,")
+
+
+def column_end_pause_mask(columns: list[str]) -> list[list[bool]]:
+    """标出竖排列末"应停止显示"的停顿符位置（纯函数，唯一入口）。
+
+    返回与 columns 同形状的 bool 掩码：True = 该字符位于某一列的**末位**
+    且属于逗号家族（，、,），渲染时跳过其字形；False = 正常显示。
+
+    设计约束（与"删除标点"方案的关键区别）：
+    - 只关掉**渲染**。译文文本、lines 元数据、字格推进、列高、整组列的
+      垂直居中全部不变——因此列不会缩短、不会重新居中、不会发生位移。
+    - 覆盖**所有**视觉列，包括最后一列：一条对白气泡的末列，其列末逗号
+      同样是与气泡边界重复的停顿，适用同一条列末显示策略。
+    - 列中逗号、句末标点（。！？…；：）一律不掩码，绝不做全局去标点。
+    - 单列只有一个字符的退化情形不掩码，避免整列变空白。
+    """
+    mask = [[False] * len(col) for col in columns]
+    for i, col in enumerate(columns):
+        if col and col[-1] in _COLUMN_END_REDUNDANT and len(col) > 1:
+            mask[i][-1] = True
+    return mask
 
 
 def should_rotate(ch: str) -> bool:
