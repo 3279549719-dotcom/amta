@@ -17,7 +17,12 @@ from PIL import Image, ImageDraw, ImageFont, ImageStat
 
 from amta.stores.artifacts import normalize_rendered_item
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
-from amta.typeset.vertical_punct import VERTICAL_COMBINE, should_rotate, verticalize_text
+from amta.typeset.vertical_punct import (
+    VERTICAL_COMBINE,
+    column_end_pause_mask,
+    should_rotate,
+    verticalize_text,
+)
 
 
 def _decide_color_and_stroke(img: Image.Image, bbox: list,
@@ -92,13 +97,18 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     color, stroke = _decide_color_and_stroke(img, bbox, color, stroke, font_size)
 
     if direction == "vertical":
+        # 列末逗号消冗：断列后，列末逗号与列边界表达同一停顿 → 该字形不显示。
+        # 只改"画不画"，不改 lines 元数据/字格推进/列高，所以列不会缩短或重新居中。
+        # 掩码在 verticalize_text 之前按横排逗号码位算好（竖排形式不改逗号码位）。
+        hide = column_end_pause_mask(lines)
         # 竖排：把有竖排 Unicode 形式的横排标点（括号/省略号）换成竖排形式。
         # 哪些符号要旋转，由 vertical_punct.should_rotate 按 Unicode 自动判断。
         lines = [verticalize_text(ln) for ln in lines]
         _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                          col_width=col_w,
                          stroke=stroke, color=color,
-                         main_font_path=font_path)
+                         main_font_path=font_path,
+                         hide_mask=hide)
     else:
         total_h = len(lines) * lh
         y = cy - total_h // 2
@@ -262,8 +272,16 @@ def _paste_glyph_centered(img: Image.Image, font, ch: str,
 
 
 def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
-                     col_width, stroke, color, main_font_path=None):
-    """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。"""
+                     col_width, stroke, color, main_font_path=None, hide_mask=None):
+    """竖排渲染：多列从右到左，连续标点并排，横向标点旋转。
+
+    hide_mask: 与 lines 同形状的 bool 掩码，True = 该字形不画（仅跳过绘制，
+        字格照常推进、列高照常计算 → 列布局与无掩码时逐像素一致）。
+
+    ⚠️ 掩码是**按字符下标**的，而行序列是按**行**迭代的（縦中横/标点组合会
+    把多个字符合并成一行）。所以这里用 char_i 维护"当前行首字符在该列中的
+    下标"，掩码一律查 `col_hide[char_i + k]`，绝不能拿行号当字符下标。
+    """
     n_cols = len(lines)
     total_w = n_cols * col_width
     # 最右列的 x 坐标（列左边缘）
@@ -276,12 +294,16 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
         return _font_for_char(main_font_path, font_size, ch)
 
     # 所有列顶部对齐到同一水平线（整组列垂直居中），用实际行数算，不用字符数。
-    max_col_h = max(len(iter_vertical_rows(c)) for c in lines) * lh
+    # default=0：空译文会得到 lines == []（translation 里是 ""），此时没有列要画；
+    # 少了这个 default，max() 会直接 ValueError（page_5 r13 就是这种空译文）。
+    max_col_h = max((len(iter_vertical_rows(c)) for c in lines), default=0) * lh
     y0 = cy - max_col_h // 2
 
     for col_idx, col_text in enumerate(lines):
         x = x_start - col_idx * col_width
         y = y0
+        col_hide = hide_mask[col_idx] if hide_mask else None
+        char_i = 0  # 当前行首字符在本列中的字符下标（掩码按下标查）
         for row in iter_vertical_rows(col_text):
             if row.kind == "punct":
                 # 连续标点组：左右并排在同一行，整体在格内均分居中
@@ -290,6 +312,8 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 punct_w = col_width / n_punct
                 group_x = x + (col_width - n_punct * punct_w) / 2
                 for k, pch in enumerate(group):
+                    if col_hide and col_hide[char_i + k]:
+                        continue
                     _paste_glyph_centered(
                         img, _choose(pch), pch,
                         group_x + k * punct_w, y, punct_w, lh,
@@ -303,13 +327,18 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                 gx = x + (col_width - total_w) / 2
                 ascent, descent = group_fonts[0].getmetrics()
                 gy = y + (lh - (ascent + descent)) / 2
-                for c, f, cw in zip(group, group_fonts, group_widths):
+                for k, (c, f, cw) in enumerate(zip(group, group_fonts, group_widths)):
+                    if col_hide and col_hide[char_i + k]:
+                        gx += cw
+                        continue
                     draw.text((gx, gy), c, font=f, fill=color,
                               stroke_width=int(stroke), stroke_fill="white")
                     gx += cw
             else:
                 # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
-                _paste_glyph_centered(
-                    img, _choose(row.text), row.text, x, y, col_width, lh,
-                    stroke, color, rotate=should_rotate(row.text))
+                if not (col_hide and col_hide[char_i]):
+                    _paste_glyph_centered(
+                        img, _choose(row.text), row.text, x, y, col_width, lh,
+                        stroke, color, rotate=should_rotate(row.text))
             y += lh
+            char_i += len(row.text)
