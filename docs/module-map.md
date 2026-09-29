@@ -100,15 +100,16 @@
 ## `typeset/` — amta.typeset — Stage 5/6 排版（自研 Pillow 引擎，ADR-019/020/021）。
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
-- **`psd_jsx_export.py`** — PSD JSX 导出 — 生成 ExtendScript 脚本，调用 Photoshop 创建分层 PSD。（函数: _resolve_font_family, _hex_to_rgb, _escape_jsx_string, _escape_jsx_path, _split_vertical_punct_runs）
+- **`psd_jsx_export.py`** — PSD JSX 导出 — 生成 ExtendScript 脚本，调用 Photoshop 创建分层 PSD。（函数: _resolve_font_family, _hex_to_rgb, _escape_jsx_string, _escape_jsx_path, _has_conjoined_punct）
 - **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, break_lines）
-- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
+- **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（类: VerticalRow；函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
 - **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, column_end_pause_mask, should_rotate）
 - **`vlm_render.py`** — VLM 贪婪换行本地渲染（正式 typeset 模块）。（函数: _rgb, ink_width, wrap_horizontal, _vertical_columns, layout_text）
 
 ## `scripts/` — CLI 工具入口
 
+- **`_run_high_effort_verify.py`** — (无 docstring)
 - **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
 - **`context7.py`** — Context7 CLI wrapper — query up-to-date library documentation.
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。

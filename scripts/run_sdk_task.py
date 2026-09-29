@@ -12,13 +12,20 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from pathlib import Path
 
 # 项目根目录（脚本在 scripts/ 下，根目录是上一级）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from amta.common.encoding import force_utf8_stdio  # noqa: E402
+
+# Windows stdout 默认 cp936，而 DSH/管道按 UTF-8 读；本脚本大量输出中文
+# （任务启动信息、耗时、最终回复），必须走项目统一的 UTF-8 收口点，
+# 否则 agent 侧读到的是乱码（tests/test_encoding.py 会拦）。
+force_utf8_stdio()
 
 
 def build_prompt(plan_path: Path) -> str:
@@ -85,7 +92,7 @@ def main() -> int:
     from deepseek_harness import DeepSeekHarness
 
     prompt = build_prompt(plan_path)
-    print(f"=== 任务启动 ===")
+    print("=== 任务启动 ===")
     print(f"计划: {plan_path}")
     print(f"Session: {args.session_id}")
     print(f"模型: {args.model}")
@@ -117,7 +124,7 @@ def main() -> int:
 
             elapsed = time.time() - start_time
             print()
-            print(f"=== 任务完成 ===")
+            print("=== 任务完成 ===")
             print(f"耗时: {elapsed:.1f} 秒")
             print(f"finish_reason: {result.finish_reason}")
             print(f"final_response 长度: {len(result.final_response)} 字符")
@@ -150,7 +157,7 @@ def main() -> int:
 
     except Exception as e:
         elapsed = time.time() - start_time
-        print(f"\n=== 任务异常 ===")
+        print("\n=== 任务异常 ===")
         print(f"耗时: {elapsed:.1f} 秒")
         print(f"异常: {type(e).__name__}: {e}")
         (output_dir / "error.txt").write_text(str(e), encoding="utf-8")
