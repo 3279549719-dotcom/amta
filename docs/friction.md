@@ -11,6 +11,8 @@
 
 ## 格式
 
+- [2026-09-28] 改进排版仍需人反复发“继续”，且计划未交付给可运行的本机 Agent（AI 代记）→ 文件检查点驱动真实 headless 调用；`uv run python -m pytest tests/test_agent_loop.py -q` 检查两轮自动推进及假成功拒绝 | 实跑验收中
+
 `- [YYYY-MM-DD] 白天卡在哪 → 期望它怎样 | 状态`
 
 状态：`未还` / `已还：<commit>` / `否决：<理由>`

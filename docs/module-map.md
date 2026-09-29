@@ -3,6 +3,13 @@
 > 由 `scripts/peek.py --index` 自动生成。AI 找代码先看这个，再 grep。
 > 更新：`uv run python scripts/peek.py --index`
 
+## `agent_loop/` — Persistent, human-reviewed improvement tasks driven by a local harness.
+
+- **`backend.py`** — Bounded shell-free child execution with durable logs and process-tree cleanup.（函数: execute, terminate）
+- **`cli.py`** — CLI for creating, executing, inspecting and accepting improvement tasks.（函数: main）
+- **`runner.py`** — Cross-session progress, verification and explicit human acceptance.（函数: create, request, parse_result, run, verify）
+- **`state.py`** — Task contracts, atomic checkpoints and single-writer workspace locking.（函数: read, save, git, validate, _argv）
+
 ## `backends/` — amta.backends — 引擎/传输后端（本地或远程确定性执行面）。
 
 - **`chat_client.py`** — OpenAI 兼容 chat/completions 的深模块：统一所有「POST /chat/completions + 解析 message」调用。（函数: _headers, chat, chat_text）
@@ -96,7 +103,7 @@
 - **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, break_lines）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。（函数: run）
-- **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, should_rotate）
+- **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, column_end_pause_mask, should_rotate）
 - **`vlm_render.py`** — VLM 贪婪换行本地渲染（正式 typeset 模块）。（函数: _rgb, ink_width, wrap_horizontal, _vertical_columns, layout_text）
 
 ## `scripts/` — CLI 工具入口
@@ -112,8 +119,10 @@
 - **`peek.py`** — peek — 看一眼这个项目现在长什么样：管线全貌 + 模块地图。
 - **`pre_scan.py`** — CLI: pre-scan a work's canon artifacts to build locked terminology dictionary.
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
+- **`run_agent.py`** — Thin CLI entry point for the project-local improvement agent.
 - **`run_gui.py`** — Touhou Manga Translator GUI — 本地 Web 服务器启动脚本。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
+- **`run_sdk_task.py`** — 通过 deepseek-harness-sdk 启动自主任务。
 - **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
 
