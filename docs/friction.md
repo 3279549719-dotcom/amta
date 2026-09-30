@@ -27,3 +27,4 @@
 - [2026-09-16] 跑完管线只报 failed=0，39 页真台词被 conf 过滤误删系统一声不吭，质量信号全埋 JSON 里靠人眼捞（豆包手写 PowerShell 三轮才拼出体检表）→ run_pipeline 收尾直接吐质量红榜 | 已还：feat/quality-audit（AI 代记：豆包 18:19 自报告）
 - [2026-09-16] 看小泡三态对比要手写 PIL 裁图拼画布（错一次）→ 期望给个 region_id 自动拼三态裁片 | 未还（AI 代记：豆包 18:19 自报告；等第二次真实卡壳——红榜+gen_report --granularity region 可能已覆盖）
 - [2026-09-20] CLAUDE.md 有「HTML 报告铁律」却零断言：一周内 `scripts/probes/` 新写 4 个手写 HTML 生成器（~170 行，commit 5f99f10）、同日归档 3 个、`grep` 命中 14 个文件 1516 行，没有一处会失败 → 期望 grep 一次就能判真假 | 已还：`tests/test_lessons_guard.py::test_L50_no_ad_hoc_html_report`（AI 代记）
+- [2026-09-30] 跑了 N 本同人志，书内自造词（ヤミツキ茸/クズ）前页译过、后页又变回片假名——磁盘上 29 个 `work_state.json` 实扫：活 terms 全部是 `pre_scan` 从静态主词典机械匹配来的 confirmed，没有一条是 LLM 翻译决定长出来的；`candidate` 10 条全是片假名正则误抓的普通词（ルール/メリット/ガチャ），`suggestions.py` 在 src/ 零调用方；跨页上下文硬编码 3 页、candidate 不进 prompt → 期望：第一次翻译决定即暂定可注入，重复出现累加证据页，不要四态审批；可翻译日文残留不能静默以 ok 出货 | 未还（AI 代记：豆包验尸，Stage 2 任务承接）
