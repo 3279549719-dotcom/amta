@@ -98,6 +98,33 @@ def test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empt
     assert "乱码、无法识别的字符或非日文常用文字，对应位置输出空字符串" in system
 
 
+def test_prompt_requires_registering_decisions():
+    """决策登记必须是"必须步骤"，不是可选项。
+
+    回归：16 页真实跑里 page_3 把自造词译对了（成瘾菇）却**没登记 decisions**，
+    因为旧措辞是"额外给出 decisions…没有新表达就省略"，模型读成可选就跳过了。
+    书内记忆因此从 page_4 才开始，需求 1 只是碰巧成立。锁住措辞，别再退回可选。
+    """
+    from amta.translation.translate import translate_plain_with_decisions
+
+    captured = {}
+    canon = [{"region_id": "r00", "baberu_text": "こいつはヤミツキ茸といってな"}]
+
+    def fake_llm(messages):
+        captured["user"] = messages[1]["content"]
+        return json.dumps({"translations": ["SENTINEL"], "decisions": []})
+
+    translate_plain_with_decisions(canon, fake_llm, context_enabled=False)
+
+    user = captured["user"]
+    assert "decisions" in user
+    assert "必须" in user
+    assert "不是可选项" in user
+    # 旧的可选措辞不得回归
+    assert "没有新表达就省略 decisions" not in user
+    assert "额外给出 decisions" not in user
+
+
 def test_prompt_parts_terms_injected():
     """build_prefetch_context must inject relevant glossary terms into system_extra."""
     from amta.translation.stage3_minimal import build_prefetch_context
