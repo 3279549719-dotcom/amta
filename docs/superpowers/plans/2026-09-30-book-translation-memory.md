@@ -176,6 +176,8 @@ def test_corrupt_state_degrades_to_empty_without_raising(tmp_path, monkeypatch):
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from amta.translation.stage3_minimal import translate_page_minimal
@@ -186,6 +188,19 @@ CANON = [
     {"region_id": "r01", "baberu_text": "そろそろ消費者も現状のヤミツキ茸の合有量に物足りなさがくる頃だろう?",
      "page": 7, "vlm_status": "ok"},
 ]
+
+
+@pytest.fixture(autouse=True)
+def _isolated_workspace(tmp_path, monkeypatch):
+    """本文件所有测试都把 workstate.WORKSPACE 重定向到 tmp_path。
+
+    必须 autouse：`translate_page_minimal` 会调用 `record_decisions` → `save_state`
+    → `common.paths.write_json`，而 `write_json` 会自动 mkdir 父目录
+    （`src/amta/common/paths.py:38`）。不隔离就会在仓库里真的建出
+    `workspace/w1/state/work_state.json` 垃圾目录。
+    """
+    from amta.common import workstate
+    monkeypatch.setattr(workstate, "WORKSPACE", tmp_path)
 
 
 def _state(tmp_path):
@@ -201,8 +216,11 @@ def test_residue_triggers_exactly_one_repair(tmp_path, monkeypatch):
     def fake_llm(messages):
         calls.append(messages)
         if len(calls) == 1:
+            # 首次翻译：r01 残留片假名
             return '{"translations": ["杀虫剂也会随虫子抗药性变强哦?", "ヤミツキ茸的含有量"]}'
-        return '{"translations": ["杀虫剂也会随虫子抗药性变强哦?", "成瘾菇的含有量"]}'
+        # 修复调用只问残留的 r01，必须返回干净译文——
+        # 否则这个测试断言的是"修复失败"，证明不了修复能成功。
+        return '{"translations": ["成瘾菇的含有量"]}'
 
     out = translate_page_minimal("w1", CANON, state_dir=_state(tmp_path),
                                  page="page_7", llm_text=fake_llm)
@@ -398,11 +416,14 @@ def _match_surfaces(decisions: dict, text: str) -> dict[str, dict]:
     for entry in (decisions or {}).values():
         if not isinstance(entry, dict):
             continue
-        candidates = [entry.get("surface") or ""] + list(entry.get("aliases") or [])
+        surface = str(entry.get("surface") or "")
+        if not surface:
+            continue
+        candidates = [surface] + [str(a) for a in (entry.get("aliases") or [])]
         for cand in candidates:
             ncand = norm(cand)
             if ncand and ncand in ntext:
-                hits[entry.get("surface")] = entry
+                hits[surface] = entry
                 break
     return hits
 
@@ -418,29 +439,43 @@ def relevant_decisions_with_conflicts(
     """检索并解决 terms/decisions 优先级。
 
     terms（pre_scan/manual 先验）优先于 decisions（模型暂定）。
-    同名不同译名 → 返回冲突条目（供产物落盘），**不覆盖任何一方**。
+    同名同词 → terms 的译名生效（两条都保留在盘上）。
+    同名不同译名 → 同样 terms 生效，并返回冲突条目（供产物落盘），**不覆盖任何一方**。
+
+    匹配用规范化后的**相等**判断，不做子串包含——子串包含会让「ヤミツキ」这种
+    短别名误吞别的词条，是误绑的来源。
     """
+    from amta.common.metrics import norm
+
     hits = relevant_decisions(work_id, src_texts)
     terms = load_state(work_id).get("terms", {}) or {}
-    ntext = None
-    from amta.common.metrics import norm
-    ntext = norm(" ".join(t or "" for t in src_texts))
+
+    # 只索引本页原文里真实出现过的 terms
+    norm_text = norm(" ".join(t or "" for t in src_texts))
+    present_terms: dict[str, tuple[str, dict]] = {}
+    for t_surface, t_meta in terms.items():
+        nt = norm(t_surface)
+        if nt and nt in norm_text:
+            present_terms[nt] = (t_surface, t_meta or {})
 
     resolved: dict[str, Any] = {}
     conflicts: list[dict[str, Any]] = []
     for surface, entry in hits.items():
-        nsurf = norm(surface)
-        term_entry = None
-        for t_surface, t_meta in terms.items():
-            if norm(t_surface) and norm(t_surface) in (ntext or ""):
-                if norm(t_surface) == nsurf or nsurf in norm(t_surface):
-                    term_entry = (t_surface, t_meta)
-                    break
-        if term_entry is None:
+        # 该决定自身的所有表面形（原文 + 见过的别名），规范化后找 terms 命中
+        cands = [str(entry.get("surface") or "")] + [
+            str(a) for a in (entry.get("aliases") or [])
+        ]
+        term_hit = None
+        for cand in cands:
+            ncand = norm(cand)
+            if ncand and ncand in present_terms:
+                term_hit = present_terms[ncand]
+                break
+        if term_hit is None:
             resolved[surface] = entry
             continue
-        t_surface, t_meta = term_entry
-        t_trans = (t_meta or {}).get("translation") or (t_meta or {}).get("canon_translation")
+        t_surface, t_meta = term_hit
+        t_trans = t_meta.get("translation") or t_meta.get("canon_translation")
         if t_trans and t_trans != entry.get("translation"):
             conflicts.append({
                 "surface": surface,
@@ -448,9 +483,12 @@ def relevant_decisions_with_conflicts(
                 "terms_translation": t_trans,
                 "decision_translation": entry.get("translation"),
             })
-        resolved[t_surface] = {"surface": t_surface, "translation": t_trans,
-                               "aliases": list(entry.get("aliases") or []),
-                               "evidence": list(entry.get("evidence") or [])}
+        resolved[t_surface] = {
+            "surface": t_surface,
+            "translation": t_trans,
+            "aliases": list(entry.get("aliases") or []),
+            "evidence": list(entry.get("evidence") or []),
+        }
     return resolved, conflicts
 
 
@@ -476,7 +514,7 @@ Run:
 ```powershell
 uv run python -m pytest tests/test_book_translation_memory.py -q
 ```
-Expected: 全 PASS（7 个）。若 `test_terms_take_precedence_and_conflict_is_surfaced` 失败，检查 `relevant_decisions_with_conflicts` 的 `nsurf in norm(t_surface)` 分支是否覆盖了 `ヤミツキ茸` 这个用例。
+Expected: 全 PASS（7 个）。若 `test_terms_take_precedence_and_conflict_is_surfaced` 失败，检查 `relevant_decisions_with_conflicts` 的 `present_terms` 是否用**规范化相等**命中了 `ヤミツキ茸`（该用例里决定的 surface 与 terms 的键规范化后相同）。
 
 - [ ] **Step 4: 同步既有 workstate 测试并加 validate 断言**
 
@@ -592,41 +630,41 @@ def translate_plain_with_decisions(canon: list[dict], llm, *, system_extra: str 
     return parsed, parse_decisions(raw), raw
 
 
-def repair_with_residue_hint(canon: list[dict], translations: dict[str, str], llm, *,
-                             system_extra: str = "") -> tuple[dict[str, str], list[dict]]:
+def repair_with_residue_hint(
+    canon: list[dict], translations: dict[str, str], llm, *, system_extra: str = "",
+) -> tuple[dict[str, str], list[dict]]:
     """一次有证据的修复：把残留清单回填给模型，只重问一次。
 
     只问残留的那些 region（其余保持原译文），返回 (更新后的 translations, decisions)。
-    仍然残留不是本函数的失败——失败显化由调用方落 low_confidence。
+    "仍然残留"不是本函数的失败——失败显化（low_confidence 落盘）由调用方负责。
+
+    不做分层/升级到整页重译：那是为"整页上下文坏掉"这个未曾观察到的场景预设的机制。
     """
+    from amta.common.metrics import contains_japanese
     residual_ids = [r["region_id"] for r in canon
-                    if _has_residue(translations.get(r["region_id"], ""))]
+                    if contains_japanese(translations.get(r["region_id"], ""))]
     if not residual_ids:
         return dict(translations), []
     batch = [r for r in canon if r["region_id"] in residual_ids]
     region_ids = [r["region_id"] for r in batch]
     blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]
     system = f"{_SYSTEM_PROMPT}\n{system_extra}".strip()
+    listed = "\n".join(f"- {translations.get(rid, '')}" for rid in region_ids)
     instr = ('上一次翻译里，下面这些条目未能翻译成中文，仍含有日文假名：\n'
-             + "\n".join(f"- {translations.get(rid, '')}" for rid in region_ids)
+             + listed
              + '\n请重新翻译这些条目，输出JSON对象，唯一键为translations，'
                '其值为数组，长度和顺序与输入一致，全部使用中文字符。\n')
-    content = instr + json.dumps(blocks, ensure_ascii=False)
     raw = llm([{"role": "system", "content": system},
-               {"role": "user", "content": content}])
+               {"role": "user", "content": instr + json.dumps(blocks, ensure_ascii=False)}])
     arr = parse_translation_array(raw, len(batch))
     out = dict(translations)
     if arr is not None:
         for i, rid in enumerate(region_ids):
             out[rid] = arr[i]
     return out, parse_decisions(raw)
-
-
-def _has_residue(text: str) -> bool:
-    """与 guards.guardrails 同一判据，避免循环 import。"""
-    from amta.common.metrics import contains_japanese
-    return contains_japanese(text or "")
 ```
+
+**注意**：不要在 `translate.py` 里另加 `_has_residue` 辅助函数——`repair_with_residue_hint` 内联 `contains_japanese` 即可，多一个只用一次的包装就是死代码。
 
 - [ ] **Step 3: 在 `stage3_minimal.py` 里把决定注入成"必须使用的译名"，并把 conflicts 塞进 ctx**
 
@@ -761,6 +799,20 @@ class TranslationArtifact(TypedDict, total=False):
     low_confidence: list
     # terms（词典/人工）与 decisions（模型暂定）同名不同译名时记录，不覆盖任何一方。
     memory_conflict: list
+```
+
+同时让 `load_translation`（`src/amta/stores/artifacts.py:386-392`）为旧产物兜底，保持"缺字段不炸"的既有风格：
+
+```python
+def load_translation(path: Path | str) -> dict:
+    doc = read_json(path)
+    if not isinstance(doc, dict) or not isinstance(doc.get("translations"), dict):
+        raise ValueError(f"translation artifact invalid ({path}): missing translations dict")
+    doc.setdefault("residue", [])
+    doc.setdefault("glossary_violations", [])
+    doc.setdefault("low_confidence", [])
+    doc.setdefault("memory_conflict", [])
+    return doc
 ```
 
 - [ ] **Step 2: 改 `translate_page_minimal` 的主体**
@@ -1025,20 +1077,37 @@ Expected: PASS
 
 - [ ] **Step 6: 验证需求 6（零硬编码）**
 
-Run:
-```powershell
-uv run python -c "import subprocess,sys; r=subprocess.run(['git','grep','-n','-e','ヤミツキ茸','-e','迷幻菇','-e','クズ','-e','人渣','--','src/','scripts/'],capture_output=True,text=True,encoding='utf-8'); print(r.stdout or '(no matches)')"
-```
-Expected: 输出 **`(no matches)`** —— `src/` 与 `scripts/` 生产代码 **零命中**。
-
-再单跑一次 `tests/`，把命中**逐条归类**（预期全部是测试夹具里的假数据，没有任何一处是生产规则）：
+**不要**写成 PowerShell 一行命令：PowerShell 把 CJK 参数交给子进程时会损坏，
+`git grep -e ヤミツキ茸` 会 0 命中——**看起来通过，其实是假阴性**（实测踩过）。
+把模式写进文件、用 `-f` 传入，并设 `PYTHONUTF8=1`：
 
 ```powershell
-uv run python -c "import subprocess; r=subprocess.run(['git','grep','-n','-e','ヤミツキ茸','-e','迷幻菇','-e','クズ','-e','人渣','--','tests/'],capture_output=True,text=True,encoding='utf-8'); print(r.stdout or '(no matches)')"
+uv run python - <<'PY'   # PowerShell 不支持 heredoc，实际落成 scripts/probes/ 下的小脚本
+PY
 ```
-Expected: 命中行数应与 Task 1/3 写入的夹具数量一致；报告里逐条说明"这一处是夹具输入/期望值，不是生产规则"。
 
-**不接受笼统豁免**：若出现任何一处位于 `src/` 或 `scripts/` 的命中，即需求 6 不满足，必须改掉再继续。
+落地形式（实测可用，已存为 `output/logs/req6-patterns.txt`）：
+把 `ヤミツキ茸 / 迷幻菇 / 成瘾菇 / クズ / 人渣 / ゲス` 每行一个写进 patterns 文件，然后
+
+```powershell
+$env:PYTHONUTF8=1
+uv run python -c "import subprocess; print(subprocess.run(['git','grep','-n','-f','output/logs/req6-patterns.txt','--','src/','scripts/'],capture_output=True,text=True,encoding='utf-8').stdout or '(no matches)')"
+```
+Expected: **`(no matches)`**。
+
+**注意**：注释也算生产代码。实测第一次跑时 `src/amta/translation/stage3_minimal.py`
+的一句**注释**里写着示例词，被本检查抓出来（已改为引用 spec §0 缺陷 A 而不是复述词本身）。
+所以命中要逐条看，不能靠"那只是注释"豁免。
+
+再单跑 `tests/`，把命中**逐条归类**（预期全部是测试夹具里的假数据）：
+
+```powershell
+$env:PYTHONUTF8=1
+uv run python -c "import subprocess; print(subprocess.run(['git','grep','-n','-f','output/logs/req6-patterns.txt','--','tests/'],capture_output=True,text=True,encoding='utf-8').stdout)"
+```
+Expected: 命中行数应与 Task 1/3/4 写入的夹具数量一致；报告里逐条说明"这一处是夹具输入/期望值，不是生产规则"。
+
+**不接受笼统豁免**：任何一处位于 `src/` 或 `scripts/` 的命中即需求 6 不满足，必须改掉再继续。
 
 - [ ] **Step 7: 提交**
 
@@ -1049,7 +1118,13 @@ git commit -m "fix(translate): invalidate cache on memory change and surface low
 
 ---
 
-### Task 6: 真实样本验证（范围 0–15，新 work-id）
+### Task 6: 真实样本验证（原图 1–16，新 work-id）
+
+> **⚠️ 页号口径（实现时踩过，务必先读）**
+> - `artifacts.page_key(N)` = `page_N`，且 `page_N ↔ N.jpg`（`stores/artifacts.py:217`、`pipeline.py:50-56`）。`run_pipeline.py --start-page/--end-page` 是 **1 基、直接对应文件名**（`scripts/run_pipeline.py:34-35`）。
+> - 直接用 `--src-dir` 指向 `原图` 时：**原图 3 = `artifacts/.../page_3.json`，原图 8 = `page_8.json`**。
+> - **不要**参照 `workspace/gui-1790591328680` 的编号：那是 GUI 上传路径，把源图重命名成 `1.jpg..4.jpg`（`gui/server.py:254-271`），所以它的 `page_1` 其实是源图 3。两个编号体系不同名同物，混用会让验收结论作废。
+> - 因此命令用 `--start-page 1 --end-page 16`（**不是 0–15**；源目录没有 `0.jpg`，传 0 只会打印一条 skip 警告）。用户口头说的"0~15 页"= 前 16 张原图 = 原图 1–16，本命令与之等价。
 
 **Files:**
 - Read-only: `D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图`
@@ -1059,34 +1134,43 @@ git commit -m "fix(translate): invalidate cache on memory change and surface low
 
 Run:
 ```powershell
-uv run python scripts/run_pipeline.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --start-page 0 --end-page 15 --stages detect,ocr,translate
+uv run python scripts/run_pipeline.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --start-page 1 --end-page 16 --stages detect,ocr,translate
 ```
-Expected: 16 页跑完，`failed=0`；收尾打印红榜。
+Expected: 16 页跑完，`failed=0`；收尾打印红榜。原图 1 是扉页（无日文对白），不产生新决定是正常的。
 
 - [ ] **Step 2: 断言跨页复用（验收 1–3）**
 
-Run:
-```powershell
-uv run python scripts/artifact.py query --work-id bookmem-verify --stage translation --format json
-```
-再读原图 3（管线 page_2）与原图 8（管线 page_7）的产物：
+先看记忆里 `ヤミツキ茸` 的 evidence 落在哪一页：
 
 ```powershell
-uv run python -c "import json,pathlib; d=pathlib.Path('workspace/bookmem-verify/state/work_state.json'); s=json.loads(d.read_text(encoding='utf-8')); print(json.dumps(s.get('decisions',{}), ensure_ascii=False, indent=2))"
-uv run python -c "import json,pathlib; print(json.loads(pathlib.Path('workspace/bookmem-verify/artifacts/translation/page_7.json').read_text(encoding='utf-8'))['translations'])"
+uv run python -c "import json,pathlib; s=json.loads(pathlib.Path('workspace/bookmem-verify/state/work_state.json').read_text(encoding='utf-8')); print(json.dumps(s.get('decisions',{}).get('ヤミツキ茸',{}), ensure_ascii=False, indent=2))"
+```
+Expected: 存在该条目，`status="tentative"`，`evidence` 含 `{page: 3, region_id: ..., surface_seen: "ヤミツキ茸", match: "exact"}`（**原图 3 首次出现**）。
+
+再看原图 8（= `page_8.json`）的译文与残留：
+
+```powershell
+uv run python -c "import json,pathlib,re; d=json.loads(pathlib.Path('workspace/bookmem-verify/artifacts/translation/page_8.json').read_text(encoding='utf-8')); print(json.dumps(d['translations'], ensure_ascii=False, indent=2)); print('residue =', d.get('residue')); print('low_confidence =', d.get('low_confidence'))"
 ```
 Expected:
-- `work_state.json` 的 `decisions` 里存在 `ヤミツキ茸` 的条目，`status="tentative"`，`evidence` 至少含一条 `{page: 2, region_id: ..., surface_seen: "ヤミツキ茸", match: "exact"}`
-- `page_7.json` 的 `translations` 里**不再出现片假名 `ヤミツキ茸`**，且所用词 == page_2 那条决定的 `translation`（逐字相同）
-- `page_7.json` 的 `residue == []`、`low_confidence == []`
+- `translations` 里**不再出现片假名 `ヤミツキ茸`**（r01/r04/r16 三处）
+- 三处所用中文词 == 原图 3 那条决定的 `translation`（逐字相同）
+- `residue == []`、`low_confidence == []`
 
-**如实记录**：原图 3 具体选了哪个词（`成瘾菇` / `迷幻菇` / 其他）——**未知且设计上不重要**，只要求一致性。
+**再补一条更强的证据（证明"超出三页窗口"）**：查任一 **page ≥ 9** 且 OCR 含 `ヤミツキ茸` 的产物，其译文同样必须是那个决定 —— 此时距原图 3 已 > 3 页，超出原来的硬编码窗口：
+
+```powershell
+uv run python -c "import json,pathlib; [print(p.parent.name, '->', len([1 for v in json.loads(p.read_text(encoding='utf-8'))['translations'].values() if 'ヤミツキ' in v]), 'residual') for p in sorted(pathlib.Path('workspace/bookmem-verify/artifacts/translation').glob('page_*.json'))]"
+```
+Expected: 所有页的 residual 计数均为 0。
+
+**如实记录**：原图 3 具体选了哪个词（`成瘾菇` / `迷幻菇` / 其他）——**未知且设计上不重要**，只要求全书一致。
 
 - [ ] **Step 3: 补全五阶段，证明低置信度不阻塞下游**
 
 Run:
 ```powershell
-uv run python scripts/run_pipeline.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --start-page 0 --end-page 15 --stages detect,ocr,translate,inpaint,typeset
+uv run python scripts/run_pipeline.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --start-page 1 --end-page 16 --stages detect,ocr,translate,inpaint,typeset
 ```
 Expected: 全阶段跑完；translate 缓存命中（Step 1 已跑）或按需重算；inpaint/typeset 未被任何低置信度拦住。
 
@@ -1096,7 +1180,7 @@ Run:
 ```powershell
 uv run python scripts/gen_report.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --pages 1-16
 ```
-Expected: 报告生成成功；原图 8 对应页面上不再有片假名残留。
+Expected: 报告生成成功；**原图 8 = 报告里的第 8 页**，该页不再有片假名残留。
 
 - [ ] **Step 5: 断点重跑不污染记忆（需求 7）**
 
@@ -1104,14 +1188,20 @@ Expected: 报告生成成功；原图 8 对应页面上不再有片假名残留�
 
 ```powershell
 uv run python -c "import json,pathlib; s=json.loads(pathlib.Path('workspace/bookmem-verify/state/work_state.json').read_text(encoding='utf-8')); print({k: len(v['evidence']) for k,v in s.get('decisions',{}).items()})"
-uv run python scripts/run_pipeline.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --start-page 0 --end-page 15 --stages detect,ocr,translate
+uv run python scripts/run_pipeline.py --work-id bookmem-verify --src-dir "D:\我的汉化\汉化作品\东方\幻想乡居民们的赚钱大法！\原图" --start-page 1 --end-page 16 --stages detect,ocr,translate
 uv run python -c "import json,pathlib; s=json.loads(pathlib.Path('workspace/bookmem-verify/state/work_state.json').read_text(encoding='utf-8')); print({k: len(v['evidence']) for k,v in s.get('decisions',{}).items()})"
 ```
 Expected: 两次输出**完全相同**（evidence 未膨胀）。若第二次全部 cache hit，再 `--force-rerun` 跑一次确认幂等键生效。
 
 - [ ] **Step 6: 记录 before/after 对照**
 
-`workspace/gui-1790591328680` 是 before 基线（page_4 `n_residue=3`、`status=ok`、片假名渲进成品）。**只读**引用它，不修改。把 before 的 `pipeline_log.json` 片段与 after 的 `page_7.json` 并排写进最终报告。
+`workspace/gui-1790591328680` 是 before 基线（**注意其编号体系**：这是 GUI 上传路径，源图被重命名成 `1.jpg..4.jpg`，所以它的 `artifacts/translation/page_4.json` = 原图 8，`page_1.json` = 原图 3）。已实测的 before 事实：
+
+- `artifacts/translation/page_4.json` 的 `residue` = `["差不多消费者也该觉得现在ヤミツキ茸的含量不够劲了吧？", "ヤミツキ茸加倍啊啊啊！", "粉末采用ヤミツキ茸"]`，其顶层键只有 `translations, residue, glossary_violations, translation_mode, work_id, page, schema_version, generated_at` —— **没有任何状态/置信度字段**
+- `state/pipeline_log.json` 的 `run_id=3610320a54cc`（`git_head=e013648`）记 `translate page_4 status=ok n_residue=3`
+- `artifacts/typeset/page_4.json` 里 `ヤミツキ茸` 出现 **4 次**（已渲进成品）
+
+**只读**引用这些证据，不修改该 workspace。把 before 片段与 after 的 `page_8.json` 并排写进最终报告。
 
 ---
 
@@ -1147,18 +1237,18 @@ Expected: 内置全量质检通过后提交。**如实报告它实际执行了�
 
 | # | 证据形式 |
 |---|---|
-| 1 | Task 2 单测 + Task 6 Step 2 的 `work_state.json` `decisions` 片段 |
-| 2 | Task 6 Step 2：`page_7.json` 译文与 page_2 决定逐字相同 |
+| 1 | Task 2 单测 + Task 6 Step 2 的 `work_state.json` `decisions['ヤミツキ茸']` 片段（`evidence[0].page == 3`） |
+| 2 | Task 6 Step 2：`page_8.json` 三处译文与 `page_3` 的决定逐字相同；所有 page 的 `ヤミツキ` 残留计数为 0 |
 | 3 | Task 2 的 `test_model_judged_variant_records_alias` + evidence 片段 |
 | 4 | Task 4 的 `test_residue_after_one_repair_sets_low_confidence` + Task 5 红榜测试 |
 | 5 | Task 2 的 `test_revision_keeps_old_evidence` |
-| 6 | Task 5 Step 6 的 grep 输出（逐条归类命中） |
+| 6 | Task 5 Step 6 的两次 grep 输出（逐条归类命中） |
 | 7 | Task 5 Step 1 的缓存测试 + Task 6 Step 5 的 evidence 条数比对 |
 | 8 | 设计不含 PSD 读取；grep 证明无 PSD 反向抽取代码 |
 
 **必须如实标注的未知**：原图 3 在新 work-id 下具体选了哪个词；真实素材上是否出现"修复后仍残留"（若不出现，低置信度分支只能由 Task 4 的注入式测试证明，真实跑证明的是高置信度路径）。
 
-**不得声明**："第 7 页残留被修复"——该症状在本 workspace 未复现（见 spec §1）。
+**不得声明**："第 7 页残留被修复"——该症状在本 workspace 未复现（见 spec §1）。`ゲス`（原图 2）与 `クズ`（原图 7）也不是同一个词。
 
 ---
 

@@ -48,6 +48,7 @@
 - L54 — 度量层和渲染层必须共享同一套"字符占多宽"的认知
 - L55 — 宽泛负面提示造成漏译时，收窄边界而非增长正面类别清单
 - L56 — 擦除气泡文字：文字矩形 ≠ 气泡区域，别用几何近似代替视觉理解
+- L57 — 页号有两个体系：GUI 上传会重编号，`--src-dir` 才对应原图文件名
 
 ---
 
@@ -411,6 +412,20 @@
   - **CTD 在白泡上和在复杂背景上是两个问题**：ADR-035 在 p62（文字压人物画）试 CTD 失败，不代表 CTD 在白泡上失败——白泡是白底黑字无歧义场景，CTD 精度完全够用。不要把一个场景的实验结论外推到另一个场景。
 - **Prevention**：气泡走 `src/amta/inpaint/ctd_text_mask.py`（CTD seg → 阈值化 → 膨胀 → 按气泡 bbox 裁剪），再和框外 mask 合并送 LaMa。不写 shrink 魔法数字，不写死白色。
 - **Regression**：page 7（姬兔合同本）实测椭圆泡内干净无矩形硬边、酒杯网点保留、作者名不被白块盖住；全量 562 passed。见 ADR-037。
+
+## L57 — 页号有两个体系：GUI 上传会重编号，`--src-dir` 才对应原图文件名
+
+- **Problem**：核对"原图 3 的决定有没有被原图 8 复用"时，拿 `workspace/gui-1790591328680/artifacts/translation/page_4.json` 当"原图 8"。实际上该 work-id 的 `page_1` 才是原图 3、`page_4` 是原图 8——编号整体错位。同期写的验证命令用了 `--start-page 0 --end-page 15`，而源目录根本没有 `0.jpg`。
+- **Root cause**：存在两套页号，同名不同物。
+  - **GUI 上传路径**：`src/amta/gui/server.py:254-271` 把用户上传的页按顺序**重命名**为 `1.jpg..n.jpg` 丢进 `workspace/<id>/input/`，原图名只记在 `input_manifest.json` 的 `stem`/`source_name` 里。所以 work-id 内的 `page_N` 是**上传序号**，与硬盘上的原图编号无关。
+  - **`--src-dir` 路径**：`src/amta/orchestrator/pipeline.py:50-56` 用 `{n}.jpg` 直接拼文件名，`--start-page/--end-page` 是 1 基、**直接对应原图文件名**（`artifacts.page_key(N) = page_N`，`stores/artifacts.py:217`）。此时 `page_N` 就是原图 N。
+  - 两套都产出名为 `page_N.json` 的产物，且都没有把"我是哪套编号"写进产物信封——`detection.json` 的 `source` 与 `image_meta` 实测为空，`canon.items[].page` 只是页号本身，无法反查原图。
+- **Durable lesson**：
+  - 用 work-id 里的 `page_N` 谈"原图第几页"之前，**先读该 work-id 的 `input_manifest.json`** 拿到 `{n: stem}` 映射；有 manifest = GUI 上传路径（编号被重写），无 manifest = `--src-dir` 路径（编号 == 原图名）。
+  - 跨 work-id 比较产物前先对齐口径，否则"验证通过"是假的——`page_4` 在两个体系里可以是两张完全不同的图。
+  - 源目录里没有的页号（如 `0.jpg`）只会打印一条 skip 警告然后静默少跑，不会报错。页号范围要按真实文件名来定。
+- **Prevention**：验证脚本一律显式打印 `input_manifest.json` 的映射再断言；`--src-dir` 指向真实原图目录时用 `--start-page 1` 起。
+- **Regression**：暂无自动化（属于操作口径，非代码行为）。本条的实测证据见 `docs/superpowers/specs/2026-09-30-book-translation-memory-design.md` §1 与 `output/notes/2026-09-30-red-tests.md`。
 
 ## 模板（新增时复制）
 
