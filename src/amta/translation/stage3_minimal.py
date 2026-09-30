@@ -269,9 +269,10 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
 
     # === 书内翻译决定：以原文表达为键检索，命中项作为强制译名 ===
     # 与页距无关（不是"前 N 页"）。terms 优先于 decisions（见 workstate 文档）。
-    # 必须显式做成"强制译名"，因为实测反例证明：把前页译文当普通文本放进 prompt
-    # 不构成任何绑定（gui-1790591328680 的 page_4 prompt 里就有 page_1 的译文，
-    # 它照样把 ヤミツキ茸 原样吐出）。
+    # 必须做成"强制译名"而非普通上下文：实测反例证明，把前页译文当普通文本放进
+    # prompt 不构成任何绑定——那个 work-id 的 prompt 里就带着前页译文，它照样把
+    # 片假名原样吐出。证据见
+    # docs/superpowers/specs/2026-09-30-book-translation-memory-design.md §0 缺陷 A。
     memory_conflicts: list[dict] = []
     decision_hits: dict = {}
     if work_id:

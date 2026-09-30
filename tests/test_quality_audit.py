@@ -96,3 +96,29 @@ def test_legacy_artifacts_use_shared_resolution(tmp_path):
     assert flags.conf_removed == 2
     assert flags.empty_translations == ["r1"]
     assert flags.overflow == ["r1"]
+
+
+def test_audit_lists_low_confidence_regions(tmp_path):
+    """一次修复后仍残留 → 必须出现在红榜上，而不是只躺在产物 JSON 里。
+
+    这是"可翻译日文残留不能静默以普通 ok 出货"的可观察验收点。
+    """
+    art = _make(
+        tmp_path, "page_7",
+        translation={
+            "translations": {"r01": "ヤミツキ茸的含有量"},
+            "residue": ["ヤミツキ茸的含有量"],
+            "low_confidence": [{
+                "region_id": "r01",
+                "reason": "residue_after_one_repair",
+                "attempted": "region_rewrite_with_residue_hint",
+                "evidence_pages": [3],
+            }],
+        },
+    )
+    flags = audit_page(art, "page_7")
+    assert flags.low_confidence == ["r01"]
+    assert flags.has_flags
+    redlist = format_redlist([flags])
+    assert "低置信度" in redlist
+    assert "r01" in redlist

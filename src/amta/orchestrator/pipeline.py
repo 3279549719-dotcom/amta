@@ -121,13 +121,21 @@ def _stage_code_paths(stage: StageSpec) -> list[Path | str]:
 
 
 def _stage_input_files(ctx: StationContext) -> dict[str, Path | str]:
-    """收集该阶段的所有输入文件：原始图片 + 上游产物。
+    """收集该阶段的所有输入文件：原始图片 + 上游产物 + 阶段自身的状态产物。
 
     这些文件的哈希会存入 fingerprint，任何一个变了都会触发重跑。
+
+    translate 额外纳入 state/work_state.json：书内翻译记忆（decisions/terms）变了，
+    该页译文必须重算。否则改记忆后缓存照命中、旧译文静默留下——那是实测过的活 bug
+    （需求 7：缓存命中不得无声丢失记忆）。
     """
     input_files: dict[str, Path | str] = {"raw_image": ctx.raw_image}
     for dep_name, dep_path in ctx.inputs.items():
         input_files[dep_name] = dep_path
+    if ctx.state_dir is not None:
+        ws = Path(ctx.state_dir) / "work_state.json"
+        if ws.exists():
+            input_files["work_state"] = ws
     return input_files
 
 

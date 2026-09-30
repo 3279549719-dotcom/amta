@@ -97,6 +97,7 @@ def _build_registry() -> dict[str, StageSpec]:
             default_config={},
             code_files=[
                 "orchestrator/adapters/translate.py",
+                "orchestrator/pipeline.py",
                 "guards/canon_schema.py",
                 "common/config.py",
                 "common/metrics.py",

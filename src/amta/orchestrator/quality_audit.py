@@ -30,6 +30,7 @@ class PageFlags:
     page: str
     empty_translations: list[str] = field(default_factory=list)  # region ids
     residues: int = 0                                          # 残留原文条数
+    low_confidence: list[str] = field(default_factory=list)    # 一次修复后仍残留的 region ids
     conf_removed: int = 0                                      # 低置信度删框数
     overflow: list[str] = field(default_factory=list)          # 溢出 region ids
     shrunk: list[str] = field(default_factory=list)            # 收缩框 region ids
@@ -39,7 +40,8 @@ class PageFlags:
     @property
     def has_flags(self) -> bool:
         return bool(
-            self.empty_translations or self.residues or self.conf_removed
+            self.empty_translations or self.residues or self.low_confidence
+            or self.conf_removed
             or self.overflow or self.shrunk or self.skipped_no_bbox
             or self.coverage_incomplete
         )
@@ -58,6 +60,11 @@ def audit_page(artifacts_dir: Path, page: str) -> PageFlags:
             if not str(v).strip()
         ]
         flags.residues = len([r for r in t.get("residue", []) if str(r).strip()])
+        # 一次有界修复后仍残留 → 机器可读低置信度。让"没静默以 ok 出货"这件事
+        # 出现在红榜上，而不是只躺在产物 JSON 里。
+        flags.low_confidence = [
+            str(e.get("region_id", "?")) for e in (t.get("low_confidence") or [])
+        ]
 
     # ocr: 低置信度删框（误删风险）
     o = _load_json(store.resolve("canon", page))
@@ -93,6 +100,9 @@ def format_redlist(flags: list[PageFlags]) -> str:
             parts.append(f"空译文 {f.empty_translations}")
         if f.residues:
             parts.append(f"残留原文 {f.residues} 条")
+        if f.low_confidence:
+            parts.append(f"低置信度 {f.low_confidence}（一次修复后仍残留日文，"
+                         f"已落盘机器可读标记，未静默判 ok）")
         if f.conf_removed:
             parts.append(f"conf 删框 {f.conf_removed} 个（误删风险）")
         if f.overflow:
