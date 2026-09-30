@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from amta.typeset import psd_jsx_export as exporter
+from amta.typeset import psd_export
 
 
 @pytest.fixture
@@ -13,13 +14,13 @@ def export_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     clean.write_bytes(b"fixture")
     output = tmp_path / "page.psd"
     output.write_bytes(b"old psd")
-    monkeypatch.setattr(exporter, "_find_photoshop_executable", lambda: "photoshop")
+    monkeypatch.setattr(psd_export, "find_photoshop_executable", lambda: "photoshop")
     return clean, output
 
 
 def test_timeout_preserves_old_psd(export_paths, monkeypatch: pytest.MonkeyPatch):
     clean, output = export_paths
-    monkeypatch.setattr(exporter.subprocess, "Popen", lambda *args, **kwargs: None)
+    monkeypatch.setattr(psd_export.subprocess, "Popen", lambda *args, **kwargs: None)
     result = exporter.export_psd_with_jsx(str(clean), {"rendered_items": [
         {"lines": ["text"], "font_size": 20, "anchor_pos": [20, 20]}
     ]}, str(output), timeout=0)
@@ -60,7 +61,7 @@ def test_only_completed_nonempty_stage_replaces_final(export_paths, monkeypatch,
         if outcome == "error":
             Path(error_match[1]).write_text("save failed")
 
-    monkeypatch.setattr(exporter.subprocess, "Popen", launch)
+    monkeypatch.setattr(psd_export.subprocess, "Popen", launch)
     result = exporter.export_psd_with_jsx(str(clean), {"rendered_items": []},
                                           str(output), timeout=1)
     assert result == (str(output) if outcome == "success" else None)
@@ -84,9 +85,9 @@ def test_unmarked_psd_times_out_and_runtime_paths_are_unique(export_paths, monke
     def advance(seconds):
         clock[0] += seconds
 
-    monkeypatch.setattr(exporter.subprocess, "Popen", launch)
-    monkeypatch.setattr(exporter.time, "monotonic", lambda: clock[0])
-    monkeypatch.setattr(exporter.time, "sleep", advance)
+    monkeypatch.setattr(psd_export.subprocess, "Popen", launch)
+    monkeypatch.setattr(psd_export.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(psd_export.time, "sleep", advance)
     for _ in range(2):
         assert exporter.export_psd_with_jsx(str(clean), {"rendered_items": []},
                                             str(output), timeout=1) is None
