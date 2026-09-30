@@ -1,29 +1,21 @@
-"""typeset 工位适配器 — StationContext → typeset_station.run → StationResult。"""
-from __future__ import annotations
+"""typeset 工位适配器 — StationContext → typeset_station.run → StationResult。
 
-import time
-from pathlib import Path
+上游：detect + ocr + translate + inpaint。
+可选产出（config.export_psd=True）：psd/{page}.psd。
+"""
+from __future__ import annotations
 
 from amta.common.paths import read_json
 from amta.stores import artifacts
 from amta.typeset.typeset_station import run as typeset_run
 
+from .._guarded import guarded
 from ..context import StationContext, StationResult
 
 
 def run(ctx: StationContext) -> StationResult:
-    """执行排版工位。
-
-    上游依赖（consumes=["detect", "ocr", "translate", "inpaint"]）：
-    - ctx.inputs["detect"] → detection.json
-    - ctx.inputs["ocr"] → canon.json
-    - ctx.inputs["translate"] → translation.json
-    - ctx.inputs["inpaint"] → inpaint.json（从中读 clean_image 字段获取 clean 图路径）
-    产出：{artifacts_dir}/{page}_typeset.json + {artifacts_dir}/final/{page}_final.png
-    可选产出（config.export_psd=True）：{artifacts_dir}/psd/{page}.psd
-    """
-    t0 = time.perf_counter()
-    try:
+    """执行排版工位。"""
+    def _do():
         det_path = ctx.inputs.get("detect")
         canon_path = ctx.inputs.get("ocr")
         trans_path = ctx.inputs.get("translate")
@@ -38,11 +30,10 @@ def run(ctx: StationContext) -> StationResult:
         if inpaint_path is None:
             raise ValueError("上游 inpaint 产物路径缺失")
 
-        # 从 inpaint.json 读取 clean 图路径
         inpaint_doc = read_json(inpaint_path)
         clean_image_name = inpaint_doc.get("clean_image", "")
         if not clean_image_name:
-            raise ValueError("inpaint.json 中缺少 clean_image 字段，inpaint 阶段可能未生成 clean 图")
+            raise ValueError("inpaint.json 中缺少 clean_image 字段")
         clean_path = ctx.artifacts_dir / clean_image_name
         if not clean_path.exists():
             raise FileNotFoundError(f"clean 图不存在: {clean_path}")
@@ -61,17 +52,15 @@ def run(ctx: StationContext) -> StationResult:
             final_path=final_path,
         )
 
-        # 可选：生成分层 PSD（人工兜底用，底图层 + 每区域文字层）
-        psd_path: Path | None = None
+        # 可选：分层 PSD（人工兜底）
         if ctx.config.get("export_psd", False):
             from amta.typeset.psd_jsx_export import export_page_psd
             psd_dir = ctx.artifacts_dir / "psd"
             psd_path = psd_dir / f"{ctx.page}.psd"
             exported = export_page_psd(ctx.artifacts_dir, ctx.page, psd_path)
             if not exported or not psd_path.is_file() or psd_path.stat().st_size == 0:
-                raise RuntimeError("PSD export failed; PNG remains available, check Photoshop export logs")
+                raise RuntimeError("PSD export failed; PNG remains available, check Photoshop logs")
 
-        duration = time.perf_counter() - t0
         checks = doc.get("checks", {})
         stats = {
             "rendered": checks.get("rendered", 0),
@@ -80,23 +69,8 @@ def run(ctx: StationContext) -> StationResult:
             "n_overflow": len(checks.get("overflow", [])),
             "n_skipped_no_bbox": len(checks.get("skipped_no_bbox", [])),
         }
-        if psd_path is not None:
-            stats["psd"] = str(psd_path.relative_to(ctx.artifacts_dir.parent))
-        return StationResult(
-            page=ctx.page,
-            stage="typeset",
-            status="ok",
-            output_artifact=out_path,
-            duration_s=round(duration, 2),
-            stats=stats,
-        )
-    except Exception as e:
-        duration = time.perf_counter() - t0
-        return StationResult(
-            page=ctx.page,
-            stage="typeset",
-            status="failed",
-            duration_s=round(duration, 2),
-            error=f"{type(e).__name__}: {str(e)[:200]}",
-        )
+        if ctx.config.get("export_psd", False):
+            stats["psd"] = str((ctx.artifacts_dir / "psd" / f"{ctx.page}.psd").relative_to(ctx.artifacts_dir.parent))
+        return out_path, stats
 
+    return guarded(ctx, "typeset", _do)

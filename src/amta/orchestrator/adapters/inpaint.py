@@ -4,27 +4,19 @@
 """
 from __future__ import annotations
 
-import time
-
 from amta.inpaint.inpaint_station import run as inpaint_run
 from amta.stores import artifacts
 
+from .._guarded import guarded
 from ..context import StationContext, StationResult
 
 
 def run(ctx: StationContext) -> StationResult:
-    """执行 inpaint 工位。
-
-    上游依赖：ctx.inputs["detect"] → detection.json, ctx.inputs["translate"] → translation.json
-    从 ctx.config 读取：inpaint_engine（默认 "lama-manga"）
-    产出：{artifacts_dir}/{page}_inpaint.json + {artifacts_dir}/clean/{page}_clean.png
-    """
-    t0 = time.perf_counter()
-    try:
+    """执行 inpaint 工位。上游：detect + translate。"""
+    def _do():
         det_path = ctx.inputs.get("detect")
         if det_path is None:
             raise ValueError("上游 detect 产物路径缺失，检查阶段依赖配置")
-
         trans_path = ctx.inputs.get("translate")
 
         out_path = artifacts.artifact_paths(ctx.artifacts_dir, ctx.page)["inpaint"]
@@ -40,27 +32,13 @@ def run(ctx: StationContext) -> StationResult:
             trans_path=trans_path,
         )
 
-        duration = time.perf_counter() - t0
         checks = doc.get("checks", {})
-        return StationResult(
-            page=ctx.page,
-            stage="inpaint",
-            status="ok",
-            output_artifact=out_path,
-            duration_s=round(duration, 2),
-            stats={
-                "filled": checks.get("filled", 0),
-                "inpainted": checks.get("inpainted", 0),
-                "skipped": checks.get("skipped", 0),
-                "pixel_diff_ratio": checks.get("pixel_diff_ratio", 0),
-            },
-        )
-    except Exception as e:
-        duration = time.perf_counter() - t0
-        return StationResult(
-            page=ctx.page,
-            stage="inpaint",
-            status="failed",
-            duration_s=round(duration, 2),
-            error=f"{type(e).__name__}: {str(e)[:200]}",
-        )
+        stats = {
+            "filled": checks.get("filled", 0),
+            "inpainted": checks.get("inpainted", 0),
+            "skipped": checks.get("skipped", 0),
+            "pixel_diff_ratio": checks.get("pixel_diff_ratio", 0),
+        }
+        return out_path, stats
+
+    return guarded(ctx, "inpaint", _do)
