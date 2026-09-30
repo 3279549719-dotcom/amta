@@ -157,9 +157,11 @@ def parse_decisions(raw: str) -> list[dict]:
 
 
 _DECISIONS_INSTRUCTION = (
-    '如果本页出现了你首次确定的专有名词、自造词或反复出现的说法，'
-    '额外给出 decisions 数组，每项为 {"surface": 原文表达, "translation": 你用的译名}。'
-    '没有新表达就省略 decisions。\n'
+    '另外，只要本页出现了专有名词、自造词或反复出现的说法，'
+    '你就必须在 decisions 数组里登记你在译文中实际使用的译名，'
+    '每项为 {"surface": 原文表达, "translation": 你用的译名}。'
+    '这是本书后续页码保持一致所必需的登记步骤，不是可选项；'
+    '本页确实没有任何这类表达时才省略 decisions。\n'
 )
 
 
