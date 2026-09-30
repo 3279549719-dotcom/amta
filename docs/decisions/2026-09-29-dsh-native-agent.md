@@ -130,3 +130,38 @@ graph TD
 - If the model repeatedly skips verification, add a `PostToolUse` hook on pytest.
 - If code navigation becomes a bottleneck beyond LSP, consider TS/JS LSP later.
 - If visual inspection needs are more complex, evaluate a vision subagent (fork with Qwen).
+
+## Runtime upgrade: 0.1.0-rc.7 → 0.2.0-rc.2 (2026-09-30)
+
+- **Runtime**: exact tag `0.2.0-rc.2` (commit `639ed015`), checked out at
+  `E:\deepseek harness\deepseek-harness-v0.2.0-rc.2\`; launcher `F:\npm-global\dsh.cmd`
+  now points at its built `apps\cli\lib\bin.js`. The old checkout
+  `E:\deepseek harness\deepseek-harness\` @ `99f6f02f` (0.1.0-rc.7) is kept untouched as
+  the rollback boundary.
+- **Profile pins (headless + web)**: `@liustack/modlens` pinned `3.26.5`; the three LSP
+  packages (`dsh-lsp`, `dsh-lsp-stdio`, `dsh-tool-lsp`) pinned to exact `0.2.0-rc.2`
+  `file:` tgz vendored under `~/.dsh/vendor-lsp/` (NOT Temp). Web-only plugins bumped to
+  the tested set: agent-teams `0.1.22`, dsh-context `0.60.0`, dshmarket `1.66.6`,
+  dsh-pocket `2.10.6`.
+- **dsh-memory removed**: it was never verified as active; it is no longer declared in
+  either profile's `package.json` or bundle list. Long-term memory is currently the
+  human-curated `docs/lessons.md` only.
+- **Credentials**: `~/.dsh/.credentials.yaml` was rewritten to the v1 `refs:` schema,
+  UTF-8 **without BOM**. The old flat file carried a BOM (`EF BB BF`) that the 0.2.0
+  local-credentials migrator turned into a garbage key (`MISSING_CREDENTIAL`). If a future
+  restore re-introduces the BOM, re-run the v1 rewrite.
+- **Verified in isolation before promotion**: goal create → write/read tools → get_goal →
+  `update_goal complete` with zero approval; AMTA cwd reads `AGENTS.md` and runs
+  `uv run python scripts/peek.py`; a v3-era session resumes onto turn 3 with no migration
+  error; production `dsh --version` = `0.2.0-rc.2` and a headless smoke task returns OK.
+- **Known limitation**: one-shot `--profile headless` answers the human turn and exits
+  before the `goal-round-driver`'s async follow-up can start the next round (Windows
+  microtask race with the needsCheckpoint flush). Multi-round unattended closure is a
+  long-lived-process feature; run it inside the web profile (localhost server), not the
+  one-shot CLI.
+- **Known incompatibility**: `@omdsh-dev/dsh-genui` (pinned from GitHub latest, now
+  0.8.7) declares peer deps on `^0.1.0-rc.8` and is skipped by the 0.2.0 loader. The web
+  UI still boots; generative-UI cards are off until a genui release targets 0.2.0.
+- **Rollback**: restore `F:\npm-global\dsh.cmd` from
+  `%LOCALAPPDATA%\AMTA\dsh-upgrade-backups\20260930-002406\dsh.cmd` (points back to the
+  old checkout); restore `~/.dsh` from that backup dir if the profile/certs need to go too.
