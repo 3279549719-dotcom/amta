@@ -147,6 +147,8 @@ def _build_registry() -> dict[str, StageSpec]:
             code_files=[
                 "orchestrator/adapters/typeset.py",
                 "typeset/psd_jsx_export.py",
+                "typeset/psd_jsx.py",
+                "typeset/psd_export.py",
                 "typeset/vertical_punct.py",
                 "stations/vlm_layout.py",
                 "typeset/typeset_station.py",

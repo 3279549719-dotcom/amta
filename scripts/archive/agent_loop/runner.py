@@ -1,4 +1,11 @@
-"""Cross-session progress, verification and explicit human acceptance."""
+"""Cross-session progress, verification and explicit human acceptance.
+
+DEPRECATED 2026-09-29: This outer runner state machine (queued → running →
+verifying → accepted) duplicated DSH's native agent loop. We have migrated to
+DSH-native goal + ralph iteration: the model's own agent loop decides when to
+stop, run pytest, and report. This module is retained for reference but should
+not be invoked from new entry points.
+"""
 from __future__ import annotations
 
 import json

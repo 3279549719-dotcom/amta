@@ -145,3 +145,51 @@ def render_text(img: Image.Image, text: str, block: dict) -> dict:
                       stroke_width=stroke, stroke_fill=stroke_fill)
             y += meta["line_step"]
     return normalize_rendered_item(meta)
+
+
+def render_page(work_id: str, canon_path, trans_path, clean_path,
+                out_path, final_path) -> dict:
+    """VLM paratext 页排版：VLM 已在 OCR 阶段观察好排版风格，这里只做机械执行。"""
+    from pathlib import Path
+    from PIL import Image
+    from amta.common.paths import read_json, write_json
+    from amta.stations.vlm_layout import validate_regions
+    import time
+
+    raw_canon = read_json(canon_path)
+    canon_items = raw_canon["items"]
+    trans = read_json(trans_path).get("translations") or {}
+    img = Image.open(clean_path).convert("RGB")
+    validate_regions(canon_items, img.size)
+
+    rendered = []
+    for item in canon_items:
+        text = trans.get(item.get("region_id", ""), "")
+        if not text or not text.strip():
+            continue
+        meta = render_text(img, text, item)
+        rendered.append({**meta, "region_id": item["region_id"]})
+
+    if final_path:
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        img.save(final_path)
+
+    page_key = out_path.stem.removesuffix("_typeset")
+    doc = {
+        "work_id": work_id,
+        "page": page_key,
+        "renderer": "vlm-greedy-wrap",
+        "rendered_items": rendered,
+        "layout": {r["region_id"]: r for r in rendered},
+        "final_image": f"final/{Path(final_path).name}" if final_path else "",
+        "checks": {
+            "rendered": len(rendered),
+            "translated": len(trans),
+            "coverage_complete": len(rendered) == len(trans),
+            "overflow": [],
+            "skipped_no_bbox": [],
+        },
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    write_json(out_path, doc)
+    return doc
