@@ -225,11 +225,14 @@ def _format_relevant_terms(terms: dict, src_texts: list[str]) -> list[str]:
 
 
 def build_prefetch_context(canon: list[dict], work_state: dict,
-                           state_dir: Path | None) -> dict[str, Any]:
-    """Code-side prefetch: 术语预替换 + glossary 注入 + 前页上下文构建。
+                           state_dir: Path | None, *,
+                           work_id: str | None = None) -> dict[str, Any]:
+    """Code-side prefetch: 术语预替换 + glossary 注入 + 书内决定注入 + 前页上下文构建。
 
     VLM refine 移除后（2026-09-09）：不再有 invalid_ids / duplicate_map /
     ocr_refinements / scene，canon 直接进入术语替换和翻译。
+
+    work_id 可选：省略时不做书内记忆检索（保持旧调用方的行为不变）。
     """
     refined = [dict(r) for r in canon]
 
@@ -258,6 +261,25 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
         system_parts.append("\n".join(term_lines))
     system_extra = "\n\n".join(system_parts)
 
+    # === 书内翻译决定：以原文表达为键检索，命中项作为强制译名 ===
+    # 与页距无关（不是"前 N 页"）。terms 优先于 decisions（见 workstate 文档）。
+    # 必须显式做成"强制译名"，因为实测反例证明：把前页译文当普通文本放进 prompt
+    # 不构成任何绑定（gui-1790591328680 的 page_4 prompt 里就有 page_1 的译文，
+    # 它照样把 ヤミツキ茸 原样吐出）。
+    memory_conflicts: list[dict] = []
+    decision_hits: dict = {}
+    if work_id:
+        src_text = " ".join(r.get("baberu_text") or r.get("text") or "" for r in canon)
+        decision_hits, memory_conflicts = workstate.relevant_decisions_with_conflicts(
+            work_id, [src_text])
+        if decision_hits:
+            lines = ["本书内已确定的译名（必须使用，不得改写、不得保留日文）："]
+            for _surface, _meta in decision_hits.items():
+                if _meta.get("translation"):
+                    lines.append(f"- {_surface} → {_meta['translation']}")
+            system_parts.append("\n".join(lines))
+            system_extra = "\n\n".join(system_parts)
+
     context_prefix = ""
     if state_dir:
         try:
@@ -271,6 +293,7 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
         "refined_canon": refined,
         "system_extra": system_extra,
         "context_prefix": context_prefix,
+        "memory_conflicts": memory_conflicts,
     }
 
 
@@ -316,7 +339,8 @@ def translate_page_minimal(work_id: str, canon, *,
                              thinking={"type": "disabled"})
         llm_text = _default_text
 
-    ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None)
+    ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None,
+                                 work_id=work_id or None)
 
     # VLM paratext 模式：使用专用提示词，保留段落边界（由 canon item 的 ocr_engine 判定）。
     # load_canon 会剥离顶层 ocr_engine，但 item 级 ocr_engine 原样透传，故从 items 判定。
