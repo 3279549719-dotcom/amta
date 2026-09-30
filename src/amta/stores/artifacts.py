@@ -1,4 +1,4 @@
-﻿"""工位产物契约 + 目录即索引访问门 — 单一事实源。
+"""工位产物契约 + 目录即索引访问门 — 单一事实源。
 
 唯一归属：
 - schema 信封与 TypedDict（Detection/Canon/Translation/Inpaint/Typeset/Segment）
@@ -76,6 +76,11 @@ class TranslationArtifact(TypedDict, total=False):
     translations: dict[str, str]
     residue: list[str]
     glossary_violations: list
+    # 有界修复后仍残留 → 机器可读的低置信度证据（空列表 = 高置信度）。
+    # 不引入页级状态枚举：页级状态由本数组是否为空静态推导。
+    low_confidence: list
+    # terms（词典/人工）与 decisions（模型暂定）同名不同译名时记录，不覆盖任何一方。
+    memory_conflict: list
 
 
 # 子目录化 JSON 阶段（= artifact_paths 契约键，除 crops 目录键外）
@@ -389,6 +394,8 @@ def load_translation(path: Path | str) -> dict:
         raise ValueError(f"translation artifact invalid ({path}): missing translations dict")
     doc.setdefault("residue", [])
     doc.setdefault("glossary_violations", [])
+    doc.setdefault("low_confidence", [])
+    doc.setdefault("memory_conflict", [])
     return doc
 
 

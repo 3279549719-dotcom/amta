@@ -25,11 +25,17 @@ from pathlib import Path
 from typing import Any
 
 from amta.common import workstate
-from amta.common.metrics import norm
+from amta.common.metrics import contains_japanese, norm
 from amta.guards import guardrails
 from amta.guards.canon_schema import validate_canon
 from amta.stores import artifacts
-from amta.translation.translate import extract_relevant_terms, get_chat_config, text_chat, translate_plain
+from amta.translation.translate import (
+    extract_relevant_terms,
+    get_chat_config,
+    repair_with_residue_hint,
+    text_chat,
+    translate_plain_with_decisions,
+)
 
 # === Semantic context builder (moved from translate_tools.py, sole consumer here) ===
 _CATEGORY_LABELS = {
@@ -355,8 +361,9 @@ def translate_page_minimal(work_id: str, canon, *,
         system_extra = f"{system_extra}\n\n{paratext_extra}" if system_extra else paratext_extra
 
     translations: dict[str, str] = {}
+    decisions: list[dict] = []
     if ctx["refined_canon"]:
-        translations = translate_plain(
+        translations, decisions, _raw = translate_plain_with_decisions(
             ctx["refined_canon"], llm_text,
             system_extra=system_extra,
             context_prefix=ctx["context_prefix"],
@@ -365,23 +372,65 @@ def translate_page_minimal(work_id: str, canon, *,
 
     result: dict[str, str] = {}
     for r in canon_items:
-        rid = r["region_id"]
-        if rid in translations:
-            result[rid] = translations[rid]
-        else:
-            result[rid] = ""
+        result[r["region_id"]] = translations.get(r["region_id"], "")
 
     # P2 机械标点对齐：已禁用（2026-09-06 grill-with-docs 决策）。
     # 原文标点必须保留，LLM 自然添加的中文标点有助于排版断列，删标点机制自毁。
 
+    # ---- 有界修复：残留非空 → 回填残留清单，只重问一次 ----
+    # 这正是 stage3_minimal 旧注释说"纯机械检查出违规也无法触发重翻/修正, 无实际价值"
+    # 缺的那一半：给它有东西可触发。一次为限，不升级、不循环。
+    repair_attempted = False
     residue = guardrails.japanese_residue_check(list(result.values()))
-    # glossary_violations 已停用: 纯机械检查出违规也无法触发重翻/修正, 无实际价值
+    if any(str(x).strip() for x in residue):
+        repair_attempted = True
+        result, repair_decisions = repair_with_residue_hint(
+            ctx["refined_canon"], result, llm_text, system_extra=system_extra)
+        decisions = decisions + repair_decisions
+        residue = guardrails.japanese_residue_check(list(result.values()))
+
+    # ---- 仍残留 → 落盘机器可读低置信度；仍用它支持的最佳译文继续出图 ----
+    low_confidence: list[dict] = []
+    if repair_attempted:
+        residual_ids = [r["region_id"] for r in canon_items
+                        if contains_japanese(result.get(r["region_id"], ""))]
+        evidence_pages: list[int] = []
+        if residual_ids and work_id:
+            src_all = [r.get("baberu_text") or r.get("text") or "" for r in canon_items]
+            for _entry in workstate.relevant_decisions(work_id, src_all).values():
+                for _ev in (_entry.get("evidence") or []):
+                    _p = _ev.get("page")
+                    if _p is not None and _p not in evidence_pages:
+                        evidence_pages.append(_p)
+            evidence_pages.sort()
+        for rid in residual_ids:
+            low_confidence.append({
+                "region_id": rid,
+                "reason": "residue_after_one_repair",
+                "attempted": "region_rewrite_with_residue_hint",
+                "evidence_pages": evidence_pages,
+            })
+
+    # ---- 记忆写回：本页新决定（幂等键 =(page, region_id)，重跑不重复污染） ----
+    if decisions and work_id:
+        page_no: int | None = None
+        m = re.search(r"\d+", str(env_page or ""))
+        if m:
+            page_no = int(m.group())
+        workstate.record_decisions(work_id, [
+            {**d, "page": page_no, "region_id": d.get("region_id", "")}
+            for d in decisions
+        ])
+
+    # glossary_violations 仍停用：语义绑定由 decisions 承担，不再跑机械 glossary 检查
     violations: list[str] = []
 
     out = artifacts.stamp({
         "translations": result,
         "residue": residue,
         "glossary_violations": violations,
+        "low_confidence": low_confidence,
+        "memory_conflict": ctx.get("memory_conflicts", []),
         "translation_mode": cache_salt,
     }, work_id or "", env_page)
     return out
