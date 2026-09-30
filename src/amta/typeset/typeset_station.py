@@ -1,202 +1,28 @@
-"""typeset 工位库函数 — clean 图 + canon + translation + detection → final.png + typeset 产物(Stage 5)。
+"""typeset 工位路由 — 根据 canon 的 ocr_engine 选择渲染路径。
 
-从 scripts/05_typeset.py 抽取，canon 用 load_canon 规范化（兼容信封格式）。
-bbox 通过 region_id 关联 detection；普通页逐框按原文基准适配译文字号，
-VLM 页使用观察到的样式。两条路线输出共享的 rendered_items 契约。
+VLM paratext 页 → vlm_render.render_page
+普通页           → mits_render.render_page
+
+本文件只做路由和产物信封组装，不做渲染。
 """
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
-from PIL import Image
-
-from amta.common.paths import read_json, write_json
-from amta.stores.artifacts import load_canon
-from amta.typeset.fonts import resolve_font
-from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
-from amta.typeset.typeset_render import render_item
+from amta.common.paths import read_json
 
 
 def run(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
         clean_path: Path, out_path: Path, final_path: Path) -> dict:
-    """单页排版：clean 图 + canon + translation + detection → final.png + typeset.json。
-
-    普通页按原文逐框测量目标字号，再对译文做适配；VLM 页按观察结果排版。
-    """
-    # ===== VLM paratext 渲染分支（早期 return）=====
-    # VLM 已在 OCR 阶段观察好排版风格（方向/对齐/字体/字号/颜色/描边），
-    # 这里只做机械执行：贪婪换行 + 按观察值画字，不走 MITS 基准字号双遍算法。
-    # 注意：load_canon 会剥掉顶层 ocr_engine/layout_observation，故先用 read_json 读原始信封。
+    """单页排版路由：看 canon 的 ocr_engine 字段，调对应渲染器。"""
     raw_canon = read_json(canon_path)
-    if isinstance(raw_canon, dict) and raw_canon.get("ocr_engine") == "vlm-paratext":
-        from amta.stations.vlm_layout import validate_regions
-        from amta.typeset.vlm_render import render_text
+    is_vlm = isinstance(raw_canon, dict) and raw_canon.get("ocr_engine") == "vlm-paratext"
 
-        canon_items = raw_canon["items"]
-        trans = read_json(trans_path).get("translations") or {}
-        img = Image.open(clean_path).convert("RGB")
-        validate_regions(canon_items, img.size)
+    if is_vlm:
+        from amta.typeset.vlm_render import render_page as vlm_render_page
+        return vlm_render_page(work_id, canon_path, trans_path, clean_path,
+                               out_path, final_path)
 
-        rendered = []
-        for item in canon_items:
-            text = trans.get(item.get("region_id", ""), "")
-            if not text or not text.strip():
-                continue
-            meta = render_text(img, text, item)
-            rendered.append({**meta, "region_id": item["region_id"]})
-
-        if final_path:
-            final_path.parent.mkdir(parents=True, exist_ok=True)
-            img.save(final_path)
-
-        page_key = out_path.stem.removesuffix("_typeset")
-        doc = {
-            "work_id": work_id,
-            "page": page_key,
-            "renderer": "vlm-greedy-wrap",
-            "rendered_items": rendered,
-            "layout": {r["region_id"]: r for r in rendered},
-            "final_image": f"final/{final_path.name}" if final_path else "",
-            "checks": {
-                "rendered": len(rendered),
-                "translated": len(trans),
-                "coverage_complete": len(rendered) == len(trans),
-                "overflow": [],
-                "skipped_no_bbox": [],
-            },
-            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        }
-        write_json(out_path, doc)
-        return doc
-
-    canon_doc = load_canon(canon_path)
-    canon_items = canon_doc["items"]
-    trans = read_json(trans_path).get("translations") or {}
-    det = read_json(det_path)
-    # 存 bbox，供排版前收缩用（ADR-033: 对所有框收缩，不再区分 bubble_type）
-    bbox_by_rid = {}
-    for b in (det.get("blocks") or []):
-        rid = b.get("region_id")
-        if rid:
-            bbox_by_rid[rid] = b.get("bbox")
-
-    img = Image.open(clean_path).convert("RGB")
-    img_long_side = max(img.size)
-
-    # ===== 原文逐框基准字号 + 译文实际适配（无额外长度缩放） =====
-    # 参考：zyddnys/manga-image-translator PR #1168
-    # - 基准字号 = 原文在框内能放下的最大字号
-    # - 由 fit_font_size 按译文实际尺寸适配，避免双重压缩
-    # - 最小字号 = 图片长边 / 200
-    # - 每框独立，不统一整页基准
-    canon_ids = {c.get("region_id") for c in canon_items}
-    item_contexts = []
-    skipped_no_bbox = []
-
-    for item in canon_items:
-        rid = item.get("region_id")
-        text = trans.get(rid)
-        if text is None:
-            continue
-        bbox = bbox_by_rid.get(item.get("region_id"))
-        if not bbox:
-            skipped_no_bbox.append(rid)
-            continue
-        category = item.get("category")
-        font_path, stroke = resolve_font(category or "dialogue_bubble", text)
-
-        # 1. 用原文计算基准字号（原文在框内能放下的最大字号）
-        src_text = item.get("baberu_text") or item.get("text") or text
-        src_base_size, _, _ = fit_font_size(src_text, Path(font_path), bbox)
-
-        # 2. 实验：拿掉 length_scale 预压缩。
-        #    fit_font_size 本身会根据译文长度二分找最大可放字号，
-        #    外层再按 length_increase 砍一刀是双重压缩，导致字偏小。
-        scale = 1.0
-
-        # 3. 目标字号 = 原文基准，不低于最小字号
-        min_font_size = max(12, img_long_side / 200)
-        target_size = max(min_font_size, src_base_size)
-
-        item_contexts.append({
-            "rid": rid,
-            "text": text,
-            "font_path": str(font_path),
-            "stroke": stroke,
-            "bbox": bbox,
-            "target_size": target_size,
-            "src_base_size": src_base_size,
-            "scale": scale,
-        })
-
-    # 无统一基准：每框用自己的目标字号
-    base_font_size = None
-
-    # ===== 渲染：每框独立用目标字号 =====
-    rendered_items = []
-    overflow = []
-    shrunk_boxes = []
-
-    for ctx in item_contexts:
-        rid = ctx["rid"]
-        text = ctx["text"]
-        font_path = ctx["font_path"]
-        stroke = ctx["stroke"]
-        bbox = ctx["bbox"]
-        target_size = ctx["target_size"]
-        # 用目标字号渲染（fit_font_size 从 target_size 征下找能放下的最大字号）
-        # 方向推断：从 bbox 长宽比推断原排版方向（日漫竖长框竖排），传给渲染层
-        preferred = infer_direction_from_bbox(bbox)
-        meta = render_item(img, text, font_path, bbox, stroke=stroke,
-                           base_size=target_size,
-                           preferred_direction=preferred)
-        meta["region_id"] = rid
-        meta["font_family"] = Path(font_path).name
-        meta["stroke_width"] = stroke
-        meta["stroke_color"] = "#FFFFFF"
-        meta["text_color"] = "#000000"
-        meta["src_base_size"] = ctx["src_base_size"]
-        meta["length_scale"] = ctx["scale"]
-        rendered_items.append(meta)
-        # 渲染前二次检查：实际字号 < 目标字号的 40% 说明严重溢出
-        if meta["font_size"] < target_size * 0.4:
-            overflow.append(rid)
-
-    if final_path:
-        final_path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(final_path)
-
-    translated = [rid for rid in trans if rid in canon_ids]
-    # layout 字典（按 region_id 索引，供报告模块消费）
-    layout = {}
-    for item in rendered_items:
-        rid = item.get("region_id", "")
-        if rid:
-            layout[rid] = {
-                "layout_direction": item.get("layout_direction", ""),
-                "font_size": item.get("font_size", 0),
-                "lines": item.get("lines", []),
-                "anchor_pos": item.get("anchor_pos", []),
-            }
-    page_key = det.get("page", out_path.stem.removesuffix("_typeset")); final_image_rel = f"final/{page_key}_final.png" if final_path else ""
-    doc = {
-        "work_id": work_id,
-        "page": det.get("page", ""),
-        "base_font_size": base_font_size,
-        "base_font_size_strategy": "source_based_fit",
-        "rendered_items": rendered_items,
-        "layout": layout,
-        "final_image": final_image_rel,
-        "checks": {
-            "rendered": len(rendered_items),
-            "translated": len(translated),
-            "coverage_complete": len(rendered_items) == len(translated),
-            "overflow": overflow,
-            "skipped_no_bbox": skipped_no_bbox,
-            "shrunk_bubbles": shrunk_boxes,
-        },
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-    write_json(out_path, doc)
-    return doc
+    from amta.typeset.mits_render import render_page as mits_render_page
+    return mits_render_page(work_id, canon_path, trans_path, det_path, clean_path,
+                            out_path, final_path)
