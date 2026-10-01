@@ -106,7 +106,6 @@
 
 ## `scripts/` — CLI 工具入口
 
-- **`_run_high_effort_verify.py`** — (无 docstring)
 - **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
 - **`context7.py`** — Context7 CLI wrapper — query up-to-date library documentation.
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
@@ -120,7 +119,6 @@
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
 - **`run_gui.py`** — Touhou Manga Translator GUI — 本地 Web 服务器启动脚本。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
-- **`run_sdk_task.py`** — 通过 deepseek-harness-sdk 启动自主任务。
 - **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
 

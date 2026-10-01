@@ -49,6 +49,7 @@
 - L55 — 宽泛负面提示造成漏译时，收窄边界而非增长正面类别清单
 - L56 — 擦除气泡文字：文字矩形 ≠ 气泡区域，别用几何近似代替视觉理解
 - L57 — 页号有两个体系：GUI 上传会重编号，`--src-dir` 才对应原图文件名
+- L58 — 守卫必须自证"我扫了什么"：静默失效的检查比没有检查更危险
 
 ---
 
@@ -426,6 +427,41 @@
   - 源目录里没有的页号（如 `0.jpg`）只会打印一条 skip 警告然后静默少跑，不会报错。页号范围要按真实文件名来定。
 - **Prevention**：验证脚本一律显式打印 `input_manifest.json` 的映射再断言；`--src-dir` 指向真实原图目录时用 `--start-page 1` 起。
 - **Regression**：暂无自动化（属于操作口径，非代码行为）。本条的实测证据见 `docs/superpowers/specs/2026-09-30-book-translation-memory-design.md` §1 与 `output/notes/2026-09-30-red-tests.md`。
+
+## L58 — 守卫必须自证"我扫了什么"：静默失效的检查比没有检查更危险
+
+- **Problem**：`state.py finish` 全量门禁被 depguard 拦下，报同一条依赖**两个罪**——
+  `deepseek-harness-sdk` 既「未声明」又「已声明但未使用」。而这条依赖完全合法、
+  已声明、也确实被 import。两个罪同时成立在逻辑上不可能，说明是工具坏了，不是代码坏了。
+- **Root cause**：depguard 用 `importlib.metadata.packages_distributions()` 把 import 名
+  解析成分布名。该 API 在 `scripts/` 包语境下**静默返回空 dict**（同一进程里内联调用却
+  返回 80 条，逐字相同的语句、结果不同），于是 `deepseek_harness → deepseek-harness-sdk`
+  解析不出来，`-sdk` 后缀导致名字对不上，一条依赖被双杀。
+  真正的病根不是这个 API，而是**代码里没有任何东西能证明"我确实查了"**：
+  空结果与"干净的仓库"在输出上完全一样。
+- **Durable lesson**：
+  - **算出来的检查必须报告它扫了什么**。`0 命中` 与 `根本没扫` 在输出上不可区分时，
+    这个守卫就是装饰品。扫描计数、样本文件数、解析出的条目数——至少要吐一个。
+  - **优先"问权威源"而不是维护名单**。给 depguard 加一条 `deepseek_harness → ...`
+    的映射就是硬编码，下一个名字对不上的依赖会复现同一个 bug。分布名与 import 名
+    的对应关系就写在 site-packages 的 `.dist-info/RECORD` 里，去读它。
+  - **同一类假阴性会连续出现**：本次 `git grep` 也犯了同一族错误——它默认**看不见
+    未跟踪的新文件**，于是"刚写出来还没 add 的违规"隐形，rc=1 静默通过。加 `--untracked`。
+  - **BOM 会制造假阳性**：PowerShell `Set-Content -Encoding UTF8` 写 BOM，
+    一个"空"模式文件因此解析出 `\ufeff` 模式，而它匹配**每个文件的第一行**，
+    报出 3 处假命中。读模式文件用 `utf-8-sig` 并 `lstrip("\ufeff")`。
+- **Prevention**：
+  - depguard 改成直接扫 site-packages 的 `*.dist-info`（`top_level.txt` + `RECORD`），
+    路径可见、结果可断言；
+  - 回归测试断言 `_installed_import_names()` **非空**——让"静默失效"立刻变红，
+    而不是安静地什么都查不到；另有两条"守卫的守卫"：一条断言合法依赖不被双杀，
+    一条断言真正未声明的 import 仍被报出（防止把守卫改成永远放行）。
+  - 需求 6 的检查落成 `scripts/probes/probe_hardcoded_terms.py`：模式走文件不走 argv
+    （PowerShell 传 CJK 会静默损坏）、`--untracked`、强制 UTF-8 剥 BOM、
+    **打印待查文件数**、空模式/扫不到文件一律 exit 2。
+- **Regression**：`tests/test_depguard.py::test_installed_import_names_resolves_real_distributions`
+  /`::test_no_dependency_is_reported_both_undeclared_and_unused`/`::test_undeclared_import_still_reported`；
+  `tests/test_probe_hardcoded_terms.py`（5 条，含植入违规必须被抓到、BOM-only 判空）。
 
 ## 模板（新增时复制）
 

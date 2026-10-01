@@ -1077,35 +1077,42 @@ Expected: PASS
 
 - [ ] **Step 6: 验证需求 6（零硬编码）**
 
-**不要**写成 PowerShell 一行命令：PowerShell 把 CJK 参数交给子进程时会损坏，
+**不要**写成 PowerShell 一行命令：PowerShell 把 CJK 参数交给子进程时会**静默损坏**，
 `git grep -e ヤミツキ茸` 会 0 命中——**看起来通过，其实是假阴性**（实测踩过）。
-把模式写进文件、用 `-f` 传入，并设 `PYTHONUTF8=1`：
+
+已落成正式探针 `scripts/probes/probe_hardcoded_terms.py`（模式走文件，绝不走 argv）：
 
 ```powershell
-uv run python - <<'PY'   # PowerShell 不支持 heredoc，实际落成 scripts/probes/ 下的小脚本
-PY
+uv run python scripts/probes/probe_hardcoded_terms.py `
+  --patterns-file testsets/hardcoded-term-patterns.txt --scope src/ scripts/
 ```
+Expected: `PASS: 无命中`，并打印「合计待查文件 N 个」（N≈240）。
+**这个计数是结论可信的前提**：没有它就分不清"干净"和"根本没扫"。
 
-落地形式（实测可用，已存为 `output/logs/req6-patterns.txt`）：
-把 `ヤミツキ茸 / 迷幻菇 / 成瘾菇 / クズ / 人渣 / ゲス` 每行一个写进 patterns 文件，然后
+`tests/` 里的命中属测试夹具，单独跑并列出来：
 
 ```powershell
-$env:PYTHONUTF8=1
-uv run python -c "import subprocess; print(subprocess.run(['git','grep','-n','-f','output/logs/req6-patterns.txt','--','src/','scripts/'],capture_output=True,text=True,encoding='utf-8').stdout or '(no matches)')"
+uv run python scripts/probes/probe_hardcoded_terms.py `
+  --patterns-file testsets/hardcoded-term-patterns.txt --scope tests/
 ```
-Expected: **`(no matches)`**。
+Expected: 列出 47 处命中，逐条归类为夹具输入/期望值。
 
 **注意**：注释也算生产代码。实测第一次跑时 `src/amta/translation/stage3_minimal.py`
-的一句**注释**里写着示例词，被本检查抓出来（已改为引用 spec §0 缺陷 A 而不是复述词本身）。
+的一句**注释**里写着示例词，被本检查抓出来（已改为引用 spec §0 缺陷 A）。
 所以命中要逐条看，不能靠"那只是注释"豁免。
 
-再单跑 `tests/`，把命中**逐条归类**（预期全部是测试夹具里的假数据）：
+**不接受笼统豁免**：任何一处位于 `src/` 或 `scripts/` 的命中即需求 6 不满足。
 
-```powershell
-$env:PYTHONUTF8=1
-uv run python -c "import subprocess; print(subprocess.run(['git','grep','-n','-f','output/logs/req6-patterns.txt','--','tests/'],capture_output=True,text=True,encoding='utf-8').stdout)"
-```
-Expected: 命中行数应与 Task 1/3/4 写入的夹具数量一致；报告里逐条说明"这一处是夹具输入/期望值，不是生产规则"。
+探针自身的四条设计规则（都是从真实事故里学来的，改它时不要退回去）：
+
+1. 模式从文件读，不走 argv —— 绕开命令行编码
+2. 强制 UTF-8（`utf-8-sig`，剥 BOM）+ 显式子进程编码 —— 不靠系统默认代码页
+3. 必须报告扫描文件数 —— 否则"0 命中"无法区分"干净"与"没扫"
+4. 扫不到文件 / 模式为空 → **报错退出**，不许静默 PASS
+
+探针第一版自己就犯了三个错，已被 `tests/test_probe_hardcoded_terms.py` 锁住：
+自指命中、`git grep` 看不见**未跟踪**新文件（已加 `--untracked`）、
+PowerShell 的 BOM 让"空"文件解析出 `\ufeff` 模式、从而匹配**每个文件第一行**造成假命中。
 
 **不接受笼统豁免**：任何一处位于 `src/` 或 `scripts/` 的命中即需求 6 不满足，必须改掉再继续。
 
