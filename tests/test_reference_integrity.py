@@ -281,12 +281,24 @@ class TestGeneratedDocsAreFresh:
 
     当时加的修法是**事后检查**：陈旧地图仍然躺在磁盘上被 agent 读到，守卫只在
     收尾喊一声。真正的修法是让生成物在**它该更新的那一刻**更新——现已接进
-    `fastcheck.py` 全量分支的 `module-map` 步（即 `state.py finish` 必经的收口点），
+    `fastcheck.py` 全量分支的 `module-map` 步（即 `state.py finish` 必经的收口点）。
     跑完 fastcheck 磁盘地图必然新鲜。
 
+    ## 2026-10-01 更正：上面"必然新鲜"曾经是**假的**
+
+    旧 `fastcheck.main()` 把 module-map 刷新写在 pytest **之后**（`_test()` 先跑，
+    `_module_map()` 后跑），所以本断言在**同一次 fastcheck 里**看到的是上一次刷新的
+    结果：任何改动公开接口的提交，第一遍 `finish` 必红、第二遍才绿——每次白烧一遍
+    6 分钟全量 pytest。根因不是断言写错，而是"刷新必须排在断言之前"这条关系**只能靠
+    人记得**，写不进代码。
+
+    修法（lessons L60）：`fastcheck` 的护栏接口显式声明「我修什么生成物」（`repairs`）
+    与「我的判定以什么新鲜为前提」（`depends_on`），执行顺序由 `order_guards()` 推出。
+    本文件对应的 `unit tests` 护栏因此声明 `depends_on=("docs/module-map.md",)`。
+
     因此本类的断言现在**恒真**（除非有人绕过 fastcheck 直接提交）。保留它是因为：
-    ① 它是幂等性的独立证明，不依赖 fastcheck 的调用顺序；② 若有人把 module-map
-    步骤从 fastcheck 里摘掉，这里会立刻变红——它是那条接线的守卫。
+    ① 它是幂等性的独立证明；② 若有人把 module-map 步骤从 fastcheck 里摘掉，
+    `order_guards()` 会当场抛「前提没人保证」——它守的是接线，不是地图。
     **不要因为「它现在总是绿的」就删掉它**：它守的是接线，不是地图。
     """
 

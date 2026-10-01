@@ -1,20 +1,45 @@
-"""fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
+"""fastcheck — 机械质检（分层：--quick 秒级 / 默认完整）。
 
 两种模式（2026-09-10 分层，避免 pre-commit 与 /finish 重复跑 pytest）：
-  --quick  秒级快检（pre-commit 钩子用）：compileall + ruff lint + pyright（只读，不写文件）
-  默认     完整 9 步（/finish 收尾用）：quick 三步 + pytest + depguard + mem-lint/gc/inject
+  --quick  秒级快检（pre-commit 钩子用）：compileall + ruff lint + pyright + ROOT/env（只读，不写文件）
+  默认     完整（/finish 收尾用）：上面 5 条 + pytest + depguard + mem-lint/gc/inject
            + module-map 就地刷新（生成物在收口点更新，而不是事后检查）
 
 退出码：0 = 全过；非 0 = 有失败。
+
+## 收尾护栏的接口（2026-10-01 重构成 ClosingGuard，取代 `list[tuple[str, int]]`）
+
+每条护栏**检测一个类别**的东西（行尾风格、依赖声明、生成物与代码一致……），
+接口只有六个字段：`name / category / fn / repairs / depends_on / action`。
+
+**从"枚举步骤"改成"声明关系"**的理由（bitter lesson 的用法）：旧写法把"谁必须排在谁前面"
+写进注释和代码顺序里——`module-map` 刷新写在 pytest **之后**，而 pytest 里那条
+"地图必须新鲜"的断言因此**第一次必红**、跑完刷新后第二次才绿（作者本意是它恒真，
+见 `test_reference_integrity` 里那段 docstring，但意图当时无法表达，于是静默错位）。
+现在"我修什么生成物"（`repairs`）与"我的判定以什么新鲜为前提"（`depends_on`）是**数据**，
+顺序由 `order_guards()` 推出来；声明了前提却没有任何护栏提供它 → 直接抛
+（前提没人保证 = 静默失效，见 lessons L58）。
+
+护栏分两类，判据是 `fn` 会不会就地重写 `repairs`：
+
+1. **生成物类**（`repairs` 非空）：先修再验。它**不因"生成物过期"变红**——
+   过期状态在收尾入口下根本提交不进去（提交前必然被刷新）。红了只有一个含义：
+   **生成器自己坏了**（exit != 0）。
+2. **断事类**（`repairs` 为空）：只能验、不能修，因此**红项必须可行动**——
+   `action` 字段就是"人看到红能做什么"。不可行动的红是噪声，会把操作者训练成
+   伸手去 `--skip-check`（2026-09-10 那次事故的死因）。
 """
 from __future__ import annotations
 
 import argparse
 import compileall
+import hashlib
 import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -24,11 +49,124 @@ from amta.common.paths import ROOT as _PATHS_ROOT
 ROOT = _PATHS_ROOT  # 统一用 paths.ROOT，不自己算
 
 
+@dataclass(frozen=True)
+class ClosingGuard:
+    """一条收尾护栏。
+
+    Attributes:
+        name: 打印用的护栏名。
+        category: 它检测/维护的**类别**（一句话，人读的）。
+        fn: 跑它，返回退出码。0 = 通过。
+        repairs: 它会**就地重写**的生成物路径（相对 ROOT）。非空 = 生成物类护栏：
+            过期不算红，先修再验。
+        depends_on: 它的判定以哪些生成物**新鲜**为前提（相对 ROOT）。
+            顺序由此推出，不再靠人记得把刷新步骤写在断言步骤前面。
+        action: 红了之后人**能做什么**（断事类护栏的红项必须可行动）。
+    """
+
+    name: str
+    category: str
+    fn: Callable[[], int]
+    repairs: tuple[str, ...] = ()
+    depends_on: tuple[str, ...] = ()
+    action: str = ""
+
+
+
 def _run(cmd: list[str], label: str) -> int:
     print(f"== [fastcheck] {label} ==")
     r = subprocess.call(cmd, cwd=str(ROOT))
     print(f"== {label}: {'OK' if r == 0 else 'FAIL'} ==")
     return r
+
+
+def _digest(paths: tuple[str, ...]) -> dict[str, str]:
+    """生成物的内容摘要（不存在 → 空串）。用来判定"这一步到底刷新了什么"。"""
+    out: dict[str, str] = {}
+    for rel in paths:
+        p = ROOT / rel
+        try:
+            out[rel] = hashlib.sha1(p.read_bytes()).hexdigest() if p.is_file() else ""
+        except OSError:
+            out[rel] = ""
+    return out
+
+
+def order_guards(guards: list[ClosingGuard]) -> list[ClosingGuard]:
+    """按声明的关系排序：**修生成物的护栏，排在使用该生成物的护栏之前**。
+
+    这是把"谁必须排在谁前面"从代码顺序搬进接口的那一步：不再靠人记得
+    "module-map 刷新要写在 pytest 前面"，而是由 `repairs` / `depends_on` 推出来。
+
+    声明了前提却没有任何护栏提供它 → **直接抛**：前提没人保证的断言是静默失效的
+    断言（L58），宁可收尾当场炸，也不要它安静地永远为真。
+
+    无依赖关系的护栏保持声明顺序（稳定）；真有环时保序返回，不让调度器卡死。
+    """
+    produced = {p: g.name for g in guards for p in g.repairs}
+    for g in guards:
+        for need in g.depends_on:
+            if need not in produced:
+                raise ValueError(
+                    f"护栏 {g.name!r} 声明依赖生成物 {need!r}，"
+                    f"但没有任何护栏声明会产出它——前提没人保证，断言会静默失效"
+                )
+
+    ordered: list[ClosingGuard] = []
+    remaining = list(guards)
+    done: set[str] = set()
+    while remaining:
+        progressed = False
+        for g in list(remaining):
+            if all(p in done for p in g.depends_on):
+                ordered.append(g)
+                remaining.remove(g)
+                done.update(g.repairs)
+                progressed = True
+        if not progressed:
+            ordered.extend(remaining)  # 环：保序收尾，不卡死
+            break
+    return ordered
+
+
+@dataclass(frozen=True)
+class GuardResult:
+    """一条护栏跑完的结果。**永远带 category**——红项必须告诉人它属于哪一类。"""
+
+    guard: ClosingGuard
+    returncode: int
+    refreshed: tuple[str, ...]  # 本次真被重写的生成物
+
+    @property
+    def ok(self) -> bool:
+        return self.returncode == 0
+
+    @property
+    def status(self) -> str:
+        if not self.ok:
+            return "FAIL"
+        return "刷新" if self.refreshed else "OK"
+
+    def render(self) -> str:
+        if self.refreshed:
+            return f"  {self.status:<4} {self.guard.name:<12} {self.guard.category}（重写: {', '.join(self.refreshed)}）"
+        return f"  {self.status:<4} {self.guard.name:<12} {self.guard.category}"
+
+
+def run_guards(guards: list[ClosingGuard]) -> list[GuardResult]:
+    """按接口跑完所有护栏：生成物类先修再验，断事类只验。
+
+    生成物类护栏**不因"生成物过期"变红**：刷新本身就是它的正常结果（记为「刷新」）。
+    它红了只剩一个含义——生成器自己坏了。
+    """
+    results: list[GuardResult] = []
+    for g in guards:
+        before = _digest(g.repairs)
+        rc = g.fn()
+        after = _digest(g.repairs)
+        refreshed = tuple(p for p in g.repairs if before.get(p) != after.get(p))
+        results.append(GuardResult(guard=g, returncode=rc, refreshed=refreshed))
+    return results
 
 
 def _compile() -> int:
@@ -207,47 +345,127 @@ def _env_check() -> int:
     return 0
 
 
+def _guard_roster(*, quick: bool) -> list[ClosingGuard]:
+    """声明护栏名单。**顺序不是真相，关系才是**——真正的执行序由 `order_guards` 推出。
+
+    这里只填六个字段：它检测哪一类东西、会不会重写生成物、判定以什么为前提、
+    红了人该做什么。新增一条护栏 = 往这里加一条，不改调度代码。
+    """
+    guards = [
+        ClosingGuard(
+            name="compile",
+            category="Python 源码可编译",
+            fn=_compile,
+            action="看 Traceback 指出的语法错误；compileall 只报文件不报行号，直接跑那个文件即可",
+        ),
+        ClosingGuard(
+            name="lint",
+            category="ruff 静态风格/错误",
+            fn=_lint,
+            action="按 ruff 输出的规则号改代码；不要逐条 noqa，先看是否是真问题",
+        ),
+        ClosingGuard(
+            name="typecheck",
+            category="pyright 类型正确",
+            fn=_typecheck,
+            action="按报错点的类型改签名或收窄；不要用 # type: ignore 掩盖",
+        ),
+        ClosingGuard(
+            name="ROOT path",
+            category="paths.ROOT 指向真正的项目根",
+            fn=_root_check,
+            action="检查 src/amta/common/paths.py 的 ROOT 上溯级数",
+        ),
+        ClosingGuard(
+            name="env config",
+            category=".env 存在且 API key 可加载",
+            fn=_env_check,
+            action="补 .env（CHAT_API_KEY），或修 amta.common.config 的加载路径",
+        ),
+    ]
+    if quick:
+        return guards
+
+    guards.extend([
+        ClosingGuard(
+            name="unit tests",
+            category="行为回归（pytest 全量）",
+            fn=_test,
+            # pytest 里那条「地图必须新鲜」的断言是本步的前提；顺序由此推出，
+            # 不再靠人记得把 module-map 刷新写在 pytest 前面（2026-10-01 修）。
+            depends_on=("docs/module-map.md",),
+            action="先按 diagnosing-bugs 定位红项根因；确属既有红项也要先修或明确记账",
+        ),
+        ClosingGuard(
+            name="depguard",
+            category="第三方依赖已声明且在用",
+            fn=_depguard,
+            action="按 depguard 输出补 pyproject 声明，或删掉没用到的 import",
+        ),
+        ClosingGuard(
+            name="memory lint",
+            category="记忆机制活性（staleness/幽灵路径/预算）",
+            fn=_memory_lint,
+            action="按 WARN 条目清账：归档过期的 today-*.md、补 ADR 索引、清死路径",
+        ),
+        ClosingGuard(
+            name="memory gc",
+            category="记忆地产 GC 可用（dry-run）",
+            fn=_memory_gc,
+            action="跑 `scripts/memory.py gc` 看真实报错；dry-run 不该改任何文件",
+        ),
+        ClosingGuard(
+            name="memory inject",
+            category="DSH 注入包可生成（CLAUDE.local.md）",
+            fn=_memory_inject,
+            repairs=("CLAUDE.local.md",),
+            action="生成器坏了：跑 `scripts/memory.py inject` 看报错",
+        ),
+        ClosingGuard(
+            name="module-map",
+            category="docs/module-map.md 与当前代码一致",
+            fn=_module_map,
+            repairs=("docs/module-map.md",),
+            action="生成器坏了：跑 `scripts/peek.py --index` 看报错",
+        ),
+    ])
+    return guards
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="amta fastcheck 机械质检")
     ap.add_argument("--quick", action="store_true",
                     help="only compile/lint/typecheck (seconds, read-only, used by pre-commit); full 9-step (incl. module-map refresh) is for /finish")
     args = ap.parse_args()
 
-    c = _compile()
-    lint_rc = _lint()
-    t = _typecheck()
-    root_rc = _root_check()
-    env_rc = _env_check()
-    checks: list[tuple[str, int]] = [
-        ("compile", c),
-        ("lint", lint_rc),
-        ("typecheck", t),
-        ("ROOT path", root_rc),
-        ("env config", env_rc),
-    ]
-    if not args.quick:
-        u = _test()
-        d = _depguard()
-        m = _memory_lint()
-        g = _memory_gc()
-        inj = _memory_inject()
-        mm = _module_map()
-        checks.extend([
-            ("unit tests", u),
-            ("depguard", d),
-            ("memory lint", m),
-            ("memory gc", g),
-            ("memory inject", inj),
-            ("module-map", mm),
-        ])
-    else:
-        print("== [fastcheck] --quick: skip pytest/depguard/memory/module-map (full run at /finish) ==")
-    fails = [name for name, rc in checks if rc]
-    if fails:
-        print(f"== [fastcheck] FAIL: {', '.join(fails)} ==")
+    guards = order_guards(_guard_roster(quick=args.quick))
+    print(f"== [fastcheck] 收尾护栏 {len(guards)} 条"
+          f"（{'--quick 只读' if args.quick else '全量'}）==")
+    for g in guards:
+        marks = []
+        if g.repairs:
+            marks.append(f"修: {', '.join(g.repairs)}")
+        if g.depends_on:
+            marks.append(f"前提: {', '.join(g.depends_on)}")
+        suffix = f"  [{'; '.join(marks)}]" if marks else ""
+        print(f"   {g.name:<12} 类别: {g.category}{suffix}")
+
+    results = run_guards(guards)
+
+    print("== 收尾护栏结果 ==")
+    for r in results:
+        print(r.render())
+
+    failed = [r for r in results if not r.ok]
+    if failed:
+        print(f"== [fastcheck] FAIL: {', '.join(r.guard.name for r in failed)} ==")
+        print("== 红项可行动清单 ==")
+        for r in failed:
+            print(f"  · {r.guard.name}（{r.guard.category}）：{r.guard.action or '（未声明 action）'}")
         return 1
     print("== [fastcheck] QUICK PASS ==" if args.quick else "== [fastcheck] ALL PASS ==")
     return 0
+
 
 
 if __name__ == "__main__":
