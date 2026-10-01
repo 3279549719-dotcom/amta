@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from amta.common.deliverables import load_stems
 from amta.common.paths import ROOT
 from amta.stores.artifact_cache import invalidate_cache_for_page
 from amta.stores.artifacts import JSON_STAGES, ArtifactStore, fingerprint_of
@@ -32,6 +33,41 @@ IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 
 # 所有已知阶段（JSON + 图片）
 ALL_STAGES = JSON_STAGES + IMAGE_STAGES
+
+
+# ---------------------------------------------------------------------------
+# 页号口径：page_N 到底对应哪张原图（L57）
+# ---------------------------------------------------------------------------
+
+def load_page_sources(workspace_root: Path, work_id: str) -> dict[str, str]:
+    """`page_N → 源文件名` 映射，读的是该工作区的 `input_manifest.json`。
+
+    为什么这件事必须由工具说（L57 的实际代价）：仓库里同时存在两套页号，
+    同名不同物——
+    - **GUI 上传**（`src/amta/gui/server.py:254-271`）把上传页重命名成 `1.jpg..n.jpg`，
+      原图名只落在 `input_manifest.json` 里，所以 `page_1` 可能是原图 3；
+    - **`--src-dir` 直跑**（`orchestrator/pipeline.py:50-56`）用 `{n}.jpg` 拼文件名，
+      `page_N` 就是原图 N。
+
+    两套都产出 `page_N.json`，产物信封里没写自己属于哪套。人工对齐口径的错误代价
+    是整个验收结论作废，所以映射要由查询原语**顺带**给出，不靠人记。
+
+    Args:
+        workspace_root: `workspace/` 目录。
+        work_id: 工作区 ID。
+
+    Returns:
+        `{"page_3": "原图名"}`；**没有 manifest 时返回 `{}`**——此时不要臆断
+        `page_N == N.jpg`：没有 manifest 既可能是 `--src-dir` 直跑，
+        也可能是 manifest 机制之前的老工作区，两者无法从产物本身区分。
+    """
+    stems = load_stems(workspace_root / work_id)
+    return {f"page_{n}": name for n, name in sorted(stems.items())}
+
+
+def page_sources(work_id: str) -> dict[str, str]:
+    """`load_page_sources` 针对本仓 `workspace/` 的便捷版。"""
+    return load_page_sources(ROOT / "workspace", work_id)
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +85,7 @@ class ArtifactInfo:
     size: int          # bytes
     mtime: str         # ISO 8601
     fingerprint: str | None  # .fingerprint 文件内容（前 16 位），无则 None
+    source_name: str | None = None  # page_N 对应的源文件名（读 input_manifest.json），无则 None
 
 
 def _read_fingerprint(path: Path) -> str | None:
@@ -151,7 +188,8 @@ def query_artifacts(
 
     results: list[ArtifactInfo] = []
     for wid in work_ids:
-        results.extend(_query_workspace(wid, stages, page))
+        # 页号口径随产物一起返回：省掉"这份 page_4 是原图第几页"的人工对齐（L57）
+        results.extend(_query_workspace(wid, stages, page, sources=page_sources(wid)))
 
     # 排序：work_id → stage → page
     results.sort(key=lambda a: (a.work_id, a.stage, _page_sort_key(a.page)))
@@ -181,20 +219,22 @@ def _query_workspace(
     work_id: str,
     stages: list[str],
     page_filter: str | None,
+    sources: dict[str, str] | None = None,
 ) -> list[ArtifactInfo]:
     """查询单个工作区的产物。"""
     artifacts_dir = ROOT / "workspace" / work_id / "artifacts"
     if not artifacts_dir.is_dir():
         return []
 
+    sources = sources or {}
     results: list[ArtifactInfo] = []
     store = ArtifactStore(artifacts_dir)
 
     for stage in stages:
         if stage in JSON_STAGES:
-            results.extend(_collect_json_stage(work_id, store, stage, page_filter))
+            results.extend(_collect_json_stage(work_id, store, stage, page_filter, sources))
         elif stage in IMAGE_STAGES:
-            results.extend(_collect_image_stage(work_id, artifacts_dir, stage, page_filter))
+            results.extend(_collect_image_stage(work_id, artifacts_dir, stage, page_filter, sources))
         # 未知阶段静默跳过（可拓展：未来加新阶段只需加进 STAGES 元组）
 
     return results
@@ -205,6 +245,7 @@ def _collect_json_stage(
     store: ArtifactStore,
     stage: str,
     page_filter: str | None,
+    sources: dict[str, str],
 ) -> list[ArtifactInfo]:
     """收集一个 JSON 阶段的所有产物。"""
     results = []
@@ -225,6 +266,7 @@ def _collect_json_stage(
             size=size,
             mtime=mtime,
             fingerprint=_read_fingerprint(path),
+            source_name=sources.get(page),
         ))
     return results
 
@@ -234,6 +276,7 @@ def _collect_image_stage(
     artifacts_dir: Path,
     stage: str,
     page_filter: str | None,
+    sources: dict[str, str],
 ) -> list[ArtifactInfo]:
     """收集一个图片阶段的所有产物（final / clean / crops）。"""
     stage_dir = artifacts_dir / stage
@@ -258,6 +301,7 @@ def _collect_image_stage(
                 size=size,
                 mtime=mtime,
                 fingerprint=_read_fingerprint(path),
+                source_name=sources.get(page),
             ))
     return results
 
@@ -273,13 +317,17 @@ def format_output(artifacts: list[ArtifactInfo], fmt: str) -> str:
     elif fmt == "table":
         if not artifacts:
             return "(no artifacts)"
-        # 表头
-        lines = [f"{'work_id':<30} {'stage':<14} {'page':<12} {'type':<6} {'size':>8} {'mtime':<20} {'fp':<6}"]
-        lines.append("-" * 100)
+        # 表头（src 列 = page_N 对应的源文件名，来自 input_manifest.json；见 L57）
+        lines = [f"{'work_id':<30} {'stage':<14} {'page':<12} {'type':<6} {'size':>8} {'mtime':<20} {'fp':<6} {'src':<16}"]
+        lines.append("-" * 118)
         for a in artifacts:
             size_str = f"{a.size:,}" if a.size < 1024 * 1024 else f"{a.size / 1024 / 1024:.1f}M"
             fp_str = a.fingerprint[:6] if a.fingerprint else "-"
-            lines.append(f"{a.work_id:<30} {a.stage:<14} {a.page:<12} {a.type:<6} {size_str:>8} {a.mtime:<20} {fp_str:<6}")
+            src_str = a.source_name or "-"
+            lines.append(
+                f"{a.work_id:<30} {a.stage:<14} {a.page:<12} {a.type:<6} {size_str:>8} "
+                f"{a.mtime:<20} {fp_str:<6} {src_str:<16}"
+            )
         return "\n".join(lines)
     else:
         raise ValueError(f"unknown format: {fmt}")
@@ -314,6 +362,15 @@ def cmd_query(args: argparse.Namespace) -> int:
 
     if not artifacts:
         return 1
+
+    # 页号口径提示（L57）：没有 manifest 就**不要**臆断 page_N == N.jpg
+    if args.work_id and not page_sources(args.work_id):
+        print(
+            f"[artifact] 注意：workspace/{args.work_id} 没有 input_manifest.json，"
+            "无法反查 page_N 对应的源文件名——不要假设 page_N == 原图 N.jpg"
+            "（GUI 上传会重编号，见 lessons L57）",
+            file=sys.stderr,
+        )
     return 0
 
 

@@ -50,6 +50,7 @@
 - L56 — 擦除气泡文字：文字矩形 ≠ 气泡区域，别用几何近似代替视觉理解
 - L57 — 页号有两个体系：GUI 上传会重编号，`--src-dir` 才对应原图文件名
 - L58 — 守卫必须自证"我扫了什么"：静默失效的检查比没有检查更危险
+- L59 — 收尾入口只提交"它报告过的东西"：黑名单挡不住已跟踪文件
 
 ---
 
@@ -462,6 +463,32 @@
 - **Regression**：`tests/test_depguard.py::test_installed_import_names_resolves_real_distributions`
   /`::test_no_dependency_is_reported_both_undeclared_and_unused`/`::test_undeclared_import_still_reported`；
   `tests/test_probe_hardcoded_terms.py`（5 条，含植入违规必须被抓到、BOM-only 判空）。
+
+## L59 — 收尾入口只提交"它报告过的东西"：黑名单挡不住已跟踪文件
+
+- **Problem**：`state.py finish` 内部的 `git add -A` 把**用户自己改的两个文件**
+  （`.dsh/skills/handoff/SKILL.md`、`.gitignore`）扫进收尾提交，违反"不得提交用户自有改动"
+  （2026-10-01，**同类第二次**，第一次 2026-09-17）。上一轮的对策是往 `.git/info/exclude`
+  加路径——**没拦住**：那份声明的语义是"忽略**未跟踪**文件"，已跟踪文件的改动照样被 add 走。
+- **Root cause**：收尾入口的**动作**（add 了哪些路径）与它的**输出**（一句 `finish OK`）
+  之间没有对应关系——提交内容从不被报告，于是"夹带"在证据上根本不存在。
+  判据来源也选错了：把"忽略未跟踪文件"的声明当成了"不许提交改动"的规则用。
+- **Durable lesson**：
+  - **入口的动作必须先成为它自己的输出**：先算出「将提交 / 不动」两堆清单并打印，
+    **再按清单显式 add**（`git add -A -- <paths>`）。报告与动作同源，夹带就无处隐身。
+  - **既有声明用既有语义，别指望它多干活**：`.git/info/exclude` 不是"用户文件保护名单"。
+    要保护**已跟踪**文件，判据必须由收尾入口自己执行。
+  - **判据要问权威源，不要复刻语法**：`**`、目录规则、取反这些 gitignore 语义
+    交给 `git check-ignore`（**必须带 `--no-index`**，否则它不对已跟踪路径作答）——
+    代码里一行 gitignore 解析都不写（L58 同款：优先问权威源而不是维护名单）。
+  - **计数即证据**（L58 续）：清单永远打印"扫了几个路径 / 命中几条模式 / 判据来自哪个文件"，
+    否则空清单与"根本没扫"在输出上不可区分。
+  - **扫不到必须炸**：`git status` 读失败若降级成空列表，就等于把"没查"伪装成"干净"。
+- **Prevention**：`amta.common.state_manager` 的 `commit_plan()` + `finish()` 显式路径 add
+  （不再 `add -A`）；`uv run python scripts/state.py finish "说明" --dry-run` 先看清单再落盘；
+  报告永远打印，且"全部改动都属用户自有"时**不跑质检、不产生空 commit**。
+- **Regression**：`tests/test_state_finish_stowaway.py`（17 条）——含事故复现（用户自有的
+  已跟踪文件不得进提交）、全部用户自有则空转、清单计数与判据来源、损坏 index 必须抛。
 
 ## 模板（新增时复制）
 

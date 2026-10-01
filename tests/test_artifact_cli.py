@@ -197,3 +197,110 @@ class TestReadFingerprint:
         art = d / "page_11.json"
         art.write_text("{}", encoding="utf-8")
         assert self._fn()(art) is None
+
+
+# ---- 页号口径：page_N → 源文件名（L57） ----
+
+
+def _artifact_module():
+    """导入 scripts/artifact.py（必须先注册进 sys.modules，见 TestReadFingerprint._fn）。"""
+    import importlib.util
+    import sys as _sys
+
+    name = "artifact_cli_mod_for_test"
+    if name in _sys.modules:
+        return _sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    _sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _write_manifest(work_dir: Path, pages: list[dict]) -> None:
+    work_dir.mkdir(parents=True, exist_ok=True)
+    (work_dir / "input_manifest.json").write_text(
+        json.dumps({"pages": pages}, ensure_ascii=False), encoding="utf-8",
+    )
+
+
+class TestPageSourceMapping:
+    """L57：`page_N` 与"原图第几页"是两个体系，查询原语要顺带给出映射。
+
+    实测代价：上一轮把 `workspace/gui-*/…/page_4.json` 当成"原图 8"去核对，
+    而那个 work-id 的 `page_1` 才是原图 3——编号整体错位，结论作废。
+    """
+
+    def test_maps_page_key_to_original_name(self, tmp_path):
+        ws = tmp_path / "workspace"
+        _write_manifest(ws / "w1", [
+            {"n": 1, "stem": "封面", "source_name": "003.jpg"},
+            {"n": 4, "stem": "p008", "source_name": "008.jpg"},
+        ])
+
+        assert _artifact_module().load_page_sources(ws, "w1") == {
+            "page_1": "封面", "page_4": "p008",
+        }
+
+    def test_missing_manifest_returns_empty_not_identity(self, tmp_path):
+        """没有 manifest 时必须返回 `{}`——**不许**臆断 `page_N == N.jpg`。
+
+        没有 manifest 既可能是 `--src-dir` 直跑（此时确实是 N.jpg），
+        也可能是 manifest 机制之前的老 GUI 工作区（此时不是）。产物本身分不出来，
+        所以工具只能如实说"不知道"，不能编一个看起来合理的映射。
+        """
+        ws = tmp_path / "workspace"
+        (ws / "w2").mkdir(parents=True)
+        (ws / "w2" / "artifacts").mkdir()
+        assert _artifact_module().load_page_sources(ws, "w2") == {}
+
+    def test_corrupt_manifest_returns_empty(self, tmp_path):
+        ws = tmp_path / "workspace"
+        d = ws / "w3"
+        d.mkdir(parents=True)
+        (d / "input_manifest.json").write_text("{not json", encoding="utf-8")
+        assert _artifact_module().load_page_sources(ws, "w3") == {}
+
+    def test_cli_query_prints_source_column(self):
+        """端到端：query 的产物里真的带上 `source_name`，且表格有 src 列。
+
+        这里必须用真实 `workspace/`（query 只扫仓库自己的工作区，见
+        `_discover_workspaces`），所以用唯一 work-id 并在 finally 里清掉。
+        """
+        import shutil
+
+        from amta.common.paths import ROOT
+
+        work_id = "_artifact_cli_srcmap_test"
+        work_dir = ROOT / "workspace" / work_id
+        try:
+            _write_manifest(work_dir, [{"n": 1, "stem": "原图甲", "source_name": "003.jpg"}])
+            _w_json(work_dir / "artifacts" / "typeset" / "page_1.json", {"ok": True})
+
+            result = _run(["query", "--work-id", work_id, "--stage", "typeset",
+                           "--format", "table"])
+
+            assert result.returncode == 0, result.stderr
+            assert "src" in result.stdout
+            assert "原图甲" in result.stdout, "query 没带上 page→源文件名 映射"
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+    def test_cli_query_warns_when_manifest_is_missing(self):
+        """没有 manifest 时要**出声**——沉默会让"page_1 就是原图 1"重新变成默认假设。"""
+        import shutil
+
+        from amta.common.paths import ROOT
+
+        work_id = "_artifact_cli_nomanifest_test"
+        work_dir = ROOT / "workspace" / work_id
+        try:
+            _w_json(work_dir / "artifacts" / "typeset" / "page_1.json", {"ok": True})
+
+            result = _run(["query", "--work-id", work_id, "--stage", "typeset"])
+
+            assert "input_manifest.json" in result.stderr
+            assert "L57" in result.stderr
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
