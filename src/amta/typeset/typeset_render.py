@@ -257,11 +257,17 @@ def _paste_glyph_centered(img: Image.Image, font, ch: str,
     """
     b = font.getbbox(ch)
     gw, gh = b[2] - b[0], b[3] - b[1]
-    pad = max(gw, gh) + int(stroke) * 2 + 4
+    stroke = int(stroke)
+    # pad 必须保证 text 落点的 y/x 不为负：
+    #   text_y = (pad-gh)/2 - b[1] >= 0  ⇒  pad >= gh + 2*b[1]
+    #   text_x = (pad-gw)/2 - b[0] >= 0  ⇒  pad >= gw + 2*b[0]
+    # 否则字形顶端/左端（含尖顶抗锯齿行）会被 cimg 上边界直接裁掉，
+    # 表现为所有汉字顶部被平切一截（2026-10-01 タガタメ 成品图事故）。
+    pad = max(gw + 2 * b[0], gh + 2 * b[1]) + stroke * 2 + 4
     cimg = Image.new("RGBA", (pad, pad), (0, 0, 0, 0))
     ImageDraw.Draw(cimg).text(
         ((pad - gw) / 2 - b[0], (pad - gh) / 2 - b[1]), ch,
-        font=font, fill=color, stroke_width=int(stroke), stroke_fill="white")
+        font=font, fill=color, stroke_width=stroke, stroke_fill="white")
     if rotate:
         cimg = cimg.rotate(90, expand=True)
     tight = cimg.getbbox()
@@ -335,10 +341,22 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                               stroke_width=int(stroke), stroke_fill="white")
                     gx += cw
             else:
-                # 普通字符 + 需立起的横躺符号，统一走"字格居中"原语
+                ch = row.text
                 if not (col_hide and col_hide[char_i]):
-                    _paste_glyph_centered(
-                        img, _choose(row.text), row.text, x, y, col_width, lh,
-                        stroke, color, rotate=should_rotate(row.text))
+                    f = _choose(ch)
+                    if should_rotate(ch):
+                        # 需立起的横躺符号：必须 off-screen 画完旋转再贴
+                        _paste_glyph_centered(
+                            img, f, ch, x, y, col_width, lh,
+                            stroke, color, rotate=True)
+                    else:
+                        # 汉字/假名等不旋转字符：直接用 Pillow anchor="mm"
+                        # 在字格中心画。不走 off-screen cimg——
+                        # 小画布上负坐标落笔会裁掉字形尖顶（2026-10-01 事故），
+                        # 让库的通用居中能力处理，而不是手工凑画布大小。
+                        draw.text((x + col_width / 2, y + lh / 2), ch,
+                                  font=f, anchor="mm", fill=color,
+                                  stroke_width=int(stroke),
+                                  stroke_fill="white")
             y += lh
             char_i += len(row.text)
