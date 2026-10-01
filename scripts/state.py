@@ -3,7 +3,13 @@
 一个子命令，这就是全部：
 
   对话结束：uv run python scripts/state.py finish "说明"   # 全量质检 + 提交，唯一收尾入口
+  先看清单：uv run python scripts/state.py finish "说明" --dry-run   # 只报"会提交什么"，不落盘
   改到一半想快检：uv run python scripts/fastcheck.py --quick   # 秒级只读（不经过 state.py）
+
+finish **不再** `git add -A` 扫全树：它先算出收尾清单（「将提交」vs「不动·用户自有」），
+只 add 清单里的路径，并把清单原样打印出来。用户自有路径的判据是 `.git/info/exclude`
+（git 自己的本地排除清单，用 `git check-ignore` 判定）——2026-10-01 事故：`add -A`
+把用户改的 `.dsh/skills/handoff/SKILL.md`、`.gitignore` 一起提交了。
 
 **为什么只有这三条**：此前"收尾"有三种写法——CLAUDE.md 说 state.py finish、
 cycle-close skill 说 npm run finish + 手工 git add、verify skill 又说第三套，
@@ -46,6 +52,10 @@ def main() -> int:
         "--skip-check", action="store_true",
         help="逃生门：跳过完整质检直接提交（默认不跳；用了会在输出里留痕）",
     )
+    p_fin.add_argument(
+        "--dry-run", action="store_true",
+        help="只看收尾清单（这次会提交什么、什么不动），不跑质检、不落盘",
+    )
     p_fin.set_defaults(func=_cmd_finish)
 
     args = ap.parse_args()
@@ -68,7 +78,9 @@ def _cmd_finish(args: argparse.Namespace) -> int:
     if args.skip_check:
         print("[state] !! --skip-check：跳过完整质检直接提交（这次没有门）", file=sys.stderr)
     try:
-        finish_verified(summary, tag=args.tag, skip_check=args.skip_check)
+        report = finish_verified(
+            summary, tag=args.tag, skip_check=args.skip_check, dry_run=args.dry_run,
+        )
     except QualityGateFailed as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
@@ -79,6 +91,13 @@ def _cmd_finish(args: argparse.Namespace) -> int:
         # 质检过了但 git 写失败 → 绝不能说 OK（2026-09-17：曾静默超时假报成功）
         print(f"ERROR: 质检已过，但落盘失败：{e}", file=sys.stderr)
         return 1
+
+    # 收尾清单**永远**打印：这是"这次到底提交了什么"的唯一证据。
+    # 2026-10-01 事故就是它缺席——`git add -A` 把用户自有改动一起提交，而输出只说 OK。
+    print(report.render())
+    if not report.committed:
+        print(f"[state] 未落盘：{report.reason}")
+        return 0
     print(f"[state] finish OK: {summary.strip().splitlines()[0]}")
     return 0
 

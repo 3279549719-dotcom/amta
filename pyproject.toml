@@ -34,8 +34,11 @@ dependencies = [
     "uvicorn==0.34.0",
     "httpx==0.28.1",
     "python-multipart>=0.0.32",
-    "deepseek-harness-sdk>=0.1.5rc1",
 ]
+# 2026-10-01 移除 deepseek-harness-sdk：唯一消费方是旧 agent_loop 脚手架
+# （scripts/run_sdk_task.py、scripts/_run_high_effort_verify.py），而 src/amta/agent_loop/
+# 已随 ADR《Migrate to DSH-Native Manga Translator Agent》整体删除，DSH 原生 goal 取代了
+# 自写外层循环。两个脚本已归档到 scripts/archive/，此依赖不再被任何生产代码 import。
 
 [tool.uv]
 cache-dir = ".uv-cache"

@@ -36,7 +36,10 @@ force_utf8_stdio()
 ROOT = Path(__file__).resolve().parent.parent
 SCAN_DIRS = ("src", "scripts", "tests")
 LOCAL_TOP = {"amta", "scripts", "tests"}  # 本仓顶层模块，不是第三方
-# 分布名与 import 名的映射（import PIL → 包名 pillow）
+# 分布名与 import 名的映射（import PIL → 包名 pillow）。
+# ⚠️ 不要往这里堆特例名单。`deepseek_harness`（分布名 `deepseek-harness-sdk`）曾因为
+# 只差一个 `-sdk` 后缀、而本表只有两条手写映射，被同时误报「未声明」+「未使用」双杀。
+# 通用解在 `_installed_import_names()`：直接问已安装元数据"这个 import 名属于哪个分布"。
 IMPORT_TO_PKG = {"PIL": "pillow", "cv2": "opencv-python"}
 # 运行时动态 import / 开发工具链白名单（不入 [project].dependencies）
 ALLOWLIST = {
@@ -82,6 +85,81 @@ def _norm(name: str) -> str:
     注意只用于比较，界面文案仍显示原始名。
     """
     return name.lower().replace("_", "-").replace(".", "-")
+
+
+def _installed_import_names() -> dict[str, str]:
+    """{import 顶层名: 分布名} —— 从 site-packages 的 .dist-info 直接读，不维护名单。
+
+    分布名和 import 名本来就没有稳定对应关系（pillow/PIL、opencv-python/cv2、
+    deepseek-harness-sdk/deepseek_harness）。手写映射必然漏，漏了就对同一条依赖
+    同时误报"未声明"和"未使用"。
+
+    ⚠️ 不用 `importlib.metadata.packages_distributions()`：实测在本仓 `scripts/`
+    包语境下它返回空 dict（同一进程里内联调用却返回 80 条），静默失效且不抛异常，
+    正是这种"看起来在检查、其实什么都没查"的机制最危险。改成直接扫
+    site-packages 下的 `*.dist-info/RECORD` 与 `top_level.txt`——路径可见、结果可断言。
+    """
+    import sysconfig
+
+    mapping: dict[str, str] = {}
+    roots: list[Path] = []
+    for key in ("purelib", "platlib"):
+        p = sysconfig.get_paths().get(key)
+        if p:
+            roots.append(Path(p))
+    try:
+        import site
+        for p in list(site.getsitepackages()) + [site.getusersitepackages()]:
+            if p:
+                roots.append(Path(p))
+    except Exception:
+        pass
+
+    seen_roots: set[Path] = set()
+    for root in roots:
+        if root in seen_roots or not root.is_dir():
+            continue
+        seen_roots.add(root)
+        for info in root.glob("*.dist-info"):
+            dist_name = info.name[: -len(".dist-info")].split("-")[0]
+            meta = info / "METADATA"
+            if meta.is_file():
+                try:
+                    for line in meta.read_text(encoding="utf-8", errors="replace").splitlines():
+                        if line.startswith("Name:"):
+                            dist_name = line.split(":", 1)[1].strip()
+                            break
+                except OSError:
+                    pass
+            modules: set[str] = set()
+            top = info / "top_level.txt"
+            if top.is_file():
+                try:
+                    modules.update(
+                        ln.strip() for ln in
+                        top.read_text(encoding="utf-8", errors="replace").splitlines()
+                        if ln.strip()
+                    )
+                except OSError:
+                    pass
+            record = info / "RECORD"
+            if record.is_file():
+                try:
+                    for line in record.read_text(encoding="utf-8", errors="replace").splitlines():
+                        first = line.split(",", 1)[0].strip().strip('"')
+                        parts = first.split("/")
+                        if len(parts) < 2 or parts[0].endswith(".dist-info"):
+                            continue
+                        cand = parts[0]
+                        if cand.endswith(".py"):
+                            cand = cand[:-3]
+                        if cand.isidentifier():
+                            modules.add(cand)
+                except OSError:
+                    pass
+            for m in modules:
+                mapping.setdefault(m, dist_name)
+    return mapping
 
 
 def _declared_deps() -> set[str]:
@@ -149,10 +227,12 @@ def main() -> int:
     declared_keys = {_norm(d) for d in declared}
     found = _scan_third_party()
     used: set[str] = {_norm(name) for name in INDIRECT_RUNTIME_DEPS}
+    installed = _installed_import_names()
     issues: list[str] = []
     for rel, mods in sorted(found.items()):
         for m in sorted(mods):
-            pkg = IMPORT_TO_PKG.get(m, m)
+            # 解析顺序：显式映射 → 已安装元数据 → 同名回退
+            pkg = IMPORT_TO_PKG.get(m) or installed.get(m) or m
             key = _norm(pkg)
             used.add(key)
             if key not in declared_keys:

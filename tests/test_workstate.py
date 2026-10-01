@@ -118,3 +118,12 @@ def test_validate_state_flags_bad_status():
     bad = {"work_id": "w", "characters": {"a": {"status": "nope"}}, "terms": {}, "recent_context": []}
     assert any("invalid status" in p for p in ws.validate_state(bad))
     assert ws.validate_state({"work_id": "w", "characters": {}, "terms": {}, "recent_context": []}) == []
+
+
+def test_validate_decisions_rejects_bad_status(tmp_path, monkeypatch):
+    from amta.common import workstate
+    monkeypatch.setattr(workstate, "WORKSPACE", tmp_path)
+    workstate.init_workspace("w1")
+    problems = workstate.validate_decisions(
+        {"decisions": {"x": {"status": "bogus", "translation": "y", "evidence": []}}})
+    assert any("invalid status" in p for p in problems)

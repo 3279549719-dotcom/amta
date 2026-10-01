@@ -98,6 +98,33 @@ def test_prompt_translates_narrative_vocalizations_but_allows_noise_to_stay_empt
     assert "乱码、无法识别的字符或非日文常用文字，对应位置输出空字符串" in system
 
 
+def test_prompt_requires_registering_decisions():
+    """决策登记必须是"必须步骤"，不是可选项。
+
+    回归：16 页真实跑里 page_3 把自造词译对了（成瘾菇）却**没登记 decisions**，
+    因为旧措辞是"额外给出 decisions…没有新表达就省略"，模型读成可选就跳过了。
+    书内记忆因此从 page_4 才开始，需求 1 只是碰巧成立。锁住措辞，别再退回可选。
+    """
+    from amta.translation.translate import translate_plain_with_decisions
+
+    captured = {}
+    canon = [{"region_id": "r00", "baberu_text": "こいつはヤミツキ茸といってな"}]
+
+    def fake_llm(messages):
+        captured["user"] = messages[1]["content"]
+        return json.dumps({"translations": ["SENTINEL"], "decisions": []})
+
+    translate_plain_with_decisions(canon, fake_llm, context_enabled=False)
+
+    user = captured["user"]
+    assert "decisions" in user
+    assert "必须" in user
+    assert "不是可选项" in user
+    # 旧的可选措辞不得回归
+    assert "没有新表达就省略 decisions" not in user
+    assert "额外给出 decisions" not in user
+
+
 def test_prompt_parts_terms_injected():
     """build_prefetch_context must inject relevant glossary terms into system_extra."""
     from amta.translation.stage3_minimal import build_prefetch_context
@@ -233,3 +260,37 @@ def test_translate_plain_empty_canon():
         [], lambda m: '{"translations": []}', system_extra="", context_prefix=""
     )
     assert result == {}
+
+
+def test_book_decisions_injected_as_binding_rule():
+    """书内决定必须以"必须使用"级措辞进 system_extra（区别于走预替换的 terms）。"""
+    from amta.common import workstate
+    from amta.translation.stage3_minimal import build_prefetch_context
+    from test_book_translation_memory import isolated_workspace
+
+    with isolated_workspace("w1"):
+        workstate.record_decisions("w1", [
+            {"surface": "ヤミツキ茸", "translation": "成瘾菇", "surface_seen": "ヤミツキ茸",
+             "page": 2, "region_id": "r05", "match": "exact"},
+        ])
+        canon = [{"region_id": "r00", "baberu_text": "ヤミツキ茸二倍だあああ!", "page": 7}]
+        ctx = build_prefetch_context(canon, workstate.load_state("w1"), None, work_id="w1")
+        assert "ヤミツキ茸 → 成瘾菇" in ctx["system_extra"]
+        assert "必须使用" in ctx["system_extra"]
+
+
+def test_decisions_do_not_leak_across_work_ids():
+    """书内记忆按 work-id 隔离——没有这条测试，"一本书内"就只是散文声明。"""
+    from amta.common import workstate
+    from amta.translation.stage3_minimal import build_prefetch_context
+    from test_book_translation_memory import isolated_workspace
+
+    with isolated_workspace("book-a", "book-b"):
+        workstate.record_decisions("book-a", [
+            {"surface": "ヤミツキ茸", "translation": "成瘾菇", "surface_seen": "ヤミツキ茸",
+             "page": 2, "region_id": "r05", "match": "exact"},
+        ])
+        canon = [{"region_id": "r00", "baberu_text": "ヤミツキ茸二倍だあああ!", "page": 7}]
+        ctx = build_prefetch_context(canon, workstate.load_state("book-b"), None,
+                                     work_id="book-b")
+        assert "成瘾菇" not in ctx["system_extra"]

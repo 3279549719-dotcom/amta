@@ -277,3 +277,45 @@ def test_cache_status_counts_both_layouts(tmp_path):
     assert st["total_artifacts"] == 3
     assert st["cached_with_fingerprint"] == 2
     assert st["pages_tracked"] == 2
+
+
+def test_translate_fingerprint_includes_work_state(tmp_path):
+    """需求 7：改翻译记忆必须让 translate 产物失效，否则旧译文静默留下。
+
+    实测过的活 bug：`work_state.json` 原本不在 translate 的指纹输入里，
+    于是改记忆后缓存照命中、旧译文被静默复用。
+    """
+    from amta.orchestrator.context import StationContext
+    from amta.orchestrator.pipeline import _stage_input_files
+    from amta.orchestrator.registry import get_stage
+    from amta.stores.artifact_cache import (
+        compute_fingerprint,
+        is_fresh,
+        save_fingerprint,
+    )
+
+    state = tmp_path / "state"
+    state.mkdir()
+    ws = state / "work_state.json"
+    ws.write_text('{"work_id": "w1", "decisions": {}}', encoding="utf-8")
+    canon = tmp_path / "canon.json"
+    canon.write_text('{"items": []}', encoding="utf-8")
+    raw = tmp_path / "raw.jpg"
+    raw.write_bytes(b"x")
+    out = tmp_path / "translation.json"
+    out.write_text('{"translations": {}}', encoding="utf-8")
+
+    code = [Path(__file__).resolve().parents[1] / "src" / "amta" / f
+            for f in get_stage("translate").code_files]
+    ctx = StationContext(work_id="w1", page="page_0", page_idx=0, raw_image=raw,
+                         artifacts_dir=tmp_path, state_dir=state,
+                         inputs={"ocr": canon}, config={})
+    inputs = _stage_input_files(ctx)
+    assert "work_state" in inputs, "translate 阶段必须把 work_state.json 纳入指纹输入"
+
+    save_fingerprint(out, "translate", "page_0", compute_fingerprint(inputs, code, {}))
+    assert is_fresh(out, inputs, code, {}) is True
+
+    ws.write_text('{"work_id": "w1", "decisions": {"x": {"translation": "y"}}}',
+                  encoding="utf-8")
+    assert is_fresh(out, _stage_input_files(ctx), code, {}) is False

@@ -25,11 +25,17 @@ from pathlib import Path
 from typing import Any
 
 from amta.common import workstate
-from amta.common.metrics import norm
+from amta.common.metrics import contains_japanese, norm
 from amta.guards import guardrails
 from amta.guards.canon_schema import validate_canon
 from amta.stores import artifacts
-from amta.translation.translate import extract_relevant_terms, get_chat_config, text_chat, translate_plain
+from amta.translation.translate import (
+    extract_relevant_terms,
+    get_chat_config,
+    repair_with_residue_hint,
+    text_chat,
+    translate_plain_with_decisions,
+)
 
 # === Semantic context builder (moved from translate_tools.py, sole consumer here) ===
 _CATEGORY_LABELS = {
@@ -225,11 +231,14 @@ def _format_relevant_terms(terms: dict, src_texts: list[str]) -> list[str]:
 
 
 def build_prefetch_context(canon: list[dict], work_state: dict,
-                           state_dir: Path | None) -> dict[str, Any]:
-    """Code-side prefetch: 术语预替换 + glossary 注入 + 前页上下文构建。
+                           state_dir: Path | None, *,
+                           work_id: str | None = None) -> dict[str, Any]:
+    """Code-side prefetch: 术语预替换 + glossary 注入 + 书内决定注入 + 前页上下文构建。
 
     VLM refine 移除后（2026-09-09）：不再有 invalid_ids / duplicate_map /
     ocr_refinements / scene，canon 直接进入术语替换和翻译。
+
+    work_id 可选：省略时不做书内记忆检索（保持旧调用方的行为不变）。
     """
     refined = [dict(r) for r in canon]
 
@@ -258,6 +267,26 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
         system_parts.append("\n".join(term_lines))
     system_extra = "\n\n".join(system_parts)
 
+    # === 书内翻译决定：以原文表达为键检索，命中项作为强制译名 ===
+    # 与页距无关（不是"前 N 页"）。terms 优先于 decisions（见 workstate 文档）。
+    # 必须做成"强制译名"而非普通上下文：实测反例证明，把前页译文当普通文本放进
+    # prompt 不构成任何绑定——那个 work-id 的 prompt 里就带着前页译文，它照样把
+    # 片假名原样吐出。证据见
+    # docs/superpowers/specs/2026-09-30-book-translation-memory-design.md §0 缺陷 A。
+    memory_conflicts: list[dict] = []
+    decision_hits: dict = {}
+    if work_id:
+        src_text = " ".join(r.get("baberu_text") or r.get("text") or "" for r in canon)
+        decision_hits, memory_conflicts = workstate.relevant_decisions_with_conflicts(
+            work_id, [src_text])
+        if decision_hits:
+            lines = ["本书内已确定的译名（必须使用，不得改写、不得保留日文）："]
+            for _surface, _meta in decision_hits.items():
+                if _meta.get("translation"):
+                    lines.append(f"- {_surface} → {_meta['translation']}")
+            system_parts.append("\n".join(lines))
+            system_extra = "\n\n".join(system_parts)
+
     context_prefix = ""
     if state_dir:
         try:
@@ -271,6 +300,7 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
         "refined_canon": refined,
         "system_extra": system_extra,
         "context_prefix": context_prefix,
+        "memory_conflicts": memory_conflicts,
     }
 
 
@@ -316,7 +346,8 @@ def translate_page_minimal(work_id: str, canon, *,
                              thinking={"type": "disabled"})
         llm_text = _default_text
 
-    ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None)
+    ctx = build_prefetch_context(canon_items, ws, Path(state_dir) if state_dir else None,
+                                 work_id=work_id or None)
 
     # VLM paratext 模式：使用专用提示词，保留段落边界（由 canon item 的 ocr_engine 判定）。
     # load_canon 会剥离顶层 ocr_engine，但 item 级 ocr_engine 原样透传，故从 items 判定。
@@ -331,8 +362,9 @@ def translate_page_minimal(work_id: str, canon, *,
         system_extra = f"{system_extra}\n\n{paratext_extra}" if system_extra else paratext_extra
 
     translations: dict[str, str] = {}
+    decisions: list[dict] = []
     if ctx["refined_canon"]:
-        translations = translate_plain(
+        translations, decisions, _raw = translate_plain_with_decisions(
             ctx["refined_canon"], llm_text,
             system_extra=system_extra,
             context_prefix=ctx["context_prefix"],
@@ -341,23 +373,65 @@ def translate_page_minimal(work_id: str, canon, *,
 
     result: dict[str, str] = {}
     for r in canon_items:
-        rid = r["region_id"]
-        if rid in translations:
-            result[rid] = translations[rid]
-        else:
-            result[rid] = ""
+        result[r["region_id"]] = translations.get(r["region_id"], "")
 
     # P2 机械标点对齐：已禁用（2026-09-06 grill-with-docs 决策）。
     # 原文标点必须保留，LLM 自然添加的中文标点有助于排版断列，删标点机制自毁。
 
+    # ---- 有界修复：残留非空 → 回填残留清单，只重问一次 ----
+    # 这正是 stage3_minimal 旧注释说"纯机械检查出违规也无法触发重翻/修正, 无实际价值"
+    # 缺的那一半：给它有东西可触发。一次为限，不升级、不循环。
+    repair_attempted = False
     residue = guardrails.japanese_residue_check(list(result.values()))
-    # glossary_violations 已停用: 纯机械检查出违规也无法触发重翻/修正, 无实际价值
+    if any(str(x).strip() for x in residue):
+        repair_attempted = True
+        result, repair_decisions = repair_with_residue_hint(
+            ctx["refined_canon"], result, llm_text, system_extra=system_extra)
+        decisions = decisions + repair_decisions
+        residue = guardrails.japanese_residue_check(list(result.values()))
+
+    # ---- 仍残留 → 落盘机器可读低置信度；仍用它支持的最佳译文继续出图 ----
+    low_confidence: list[dict] = []
+    if repair_attempted:
+        residual_ids = [r["region_id"] for r in canon_items
+                        if contains_japanese(result.get(r["region_id"], ""))]
+        evidence_pages: list[int] = []
+        if residual_ids and work_id:
+            src_all = [r.get("baberu_text") or r.get("text") or "" for r in canon_items]
+            for _entry in workstate.relevant_decisions(work_id, src_all).values():
+                for _ev in (_entry.get("evidence") or []):
+                    _p = _ev.get("page")
+                    if _p is not None and _p not in evidence_pages:
+                        evidence_pages.append(_p)
+            evidence_pages.sort()
+        for rid in residual_ids:
+            low_confidence.append({
+                "region_id": rid,
+                "reason": "residue_after_one_repair",
+                "attempted": "region_rewrite_with_residue_hint",
+                "evidence_pages": evidence_pages,
+            })
+
+    # ---- 记忆写回：本页新决定（幂等键 =(page, region_id)，重跑不重复污染） ----
+    if decisions and work_id:
+        page_no: int | None = None
+        m = re.search(r"\d+", str(env_page or ""))
+        if m:
+            page_no = int(m.group())
+        workstate.record_decisions(work_id, [
+            {**d, "page": page_no, "region_id": d.get("region_id", "")}
+            for d in decisions
+        ])
+
+    # glossary_violations 仍停用：语义绑定由 decisions 承担，不再跑机械 glossary 检查
     violations: list[str] = []
 
     out = artifacts.stamp({
         "translations": result,
         "residue": residue,
         "glossary_violations": violations,
+        "low_confidence": low_confidence,
+        "memory_conflict": ctx.get("memory_conflicts", []),
         "translation_mode": cache_salt,
     }, work_id or "", env_page)
     return out

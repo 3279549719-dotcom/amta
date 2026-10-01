@@ -20,7 +20,7 @@
 - **`metrics.py`** — 共享指标库：OCR/recall 评分用的归一化、编辑距离、CER/EM 与匹配函数。（函数: contains_japanese, norm, levenshtein, cer, best_match）
 - **`paths.py`** — 项目路径与公共 IO 工具 — 消除各脚本重复的 ROOT/OUTPUT/DATA 样板。（函数: ensure_output, ensure_utf8_stdio, read_json, write_json）
 - **`pipeline_log.py`** — pipeline_log — 流水线 step-level tracing(借鉴 OTel span 思想,零依赖,ADR-018)。（类: PipelineLog；函数: _now, git_head）
-- **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, StateManager, GitCommandFailed；函数: quality_gate_command, _run_quality_gate, finish_verified）
+- **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, ChangedPath, CommitPlan；函数: _parse_status_z, _chunks, quality_gate_command, _run_quality_gate, finish_verified）
 - **`tickets.py`** — tickets — needs_review 工单机制（ADR-017，借鉴 CMMS 工单状态机 + 维修手册归档）。（类: TicketStore；函数: _now, classify_kind）
 - **`workstate.py`** — per-work workspace + work_state — 产物结构 rebaseline（ADR-013）。（函数: work_dir, ensure_workspace, empty_state, init_workspace, load_state）
 
@@ -83,7 +83,7 @@
 ## `stores/` — amta.stores — 产物/工件存储层。
 
 - **`artifact_cache.py`** — Artifact Cache — 基于内容哈希的增量构建模块。（函数: compute_file_hash, compute_code_hash, compute_config_hash, compute_fingerprint, fingerprint_path）
-- **`artifacts.py`** — (无 docstring)
+- **`artifacts.py`** — 工位产物契约 + 目录即索引访问门 — 单一事实源。（类: DetectionBlock, DetectionArtifact, CanonItem；函数: fingerprint_of, _page_no, _unlink_if_exists, _rmdir_if_empty, resolve_artifact）
 
 ## `translation/` — amta.translation — Stage 3 翻译核心（minimal 纯文本 LLM 路径，ADR-014/016/023）。
 
@@ -106,13 +106,12 @@
 
 ## `scripts/` — CLI 工具入口
 
-- **`_run_high_effort_verify.py`** — (无 docstring)
 - **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
 - **`context7.py`** — Context7 CLI wrapper — query up-to-date library documentation.
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
-- **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整 9 步）。
+- **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整）。
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
 - **`memory.py`** — memory.py — 记忆系统统一 CLI（ADR-025/026/027 收敛）。
 - **`peek.py`** — peek — 看一眼这个项目现在长什么样：管线全貌 + 模块地图。
@@ -120,7 +119,6 @@
 - **`refactor_module.py`** — refactor_module — 批量重命名模块导入路径（深接口工具）。
 - **`run_gui.py`** — Touhou Manga Translator GUI — 本地 Web 服务器启动脚本。
 - **`run_pipeline.py`** — 管线编排器 CLI — 替代 00_run_all.py 的统一入口。
-- **`run_sdk_task.py`** — 通过 deepseek-harness-sdk 启动自主任务。
 - **`share_file.py`** — 一键上传本地文件到飞书云空间并生成公网链接。
 - **`state.py`** — state — StateManager 的 CLI 入口（Embedded 模式）。
 

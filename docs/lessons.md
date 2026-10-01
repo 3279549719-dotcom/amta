@@ -48,6 +48,10 @@
 - L54 — 度量层和渲染层必须共享同一套"字符占多宽"的认知
 - L55 — 宽泛负面提示造成漏译时，收窄边界而非增长正面类别清单
 - L56 — 擦除气泡文字：文字矩形 ≠ 气泡区域，别用几何近似代替视觉理解
+- L57 — 页号有两个体系：GUI 上传会重编号，`--src-dir` 才对应原图文件名
+- L58 — 守卫必须自证"我扫了什么"：静默失效的检查比没有检查更危险
+- L59 — 收尾入口只提交"它报告过的东西"：黑名单挡不住已跟踪文件
+- L60 — 收尾护栏要有**接口**（我修什么/我依赖什么），而不是记住执行顺序；收尾不需要"先红再绿"
 
 ---
 
@@ -411,6 +415,118 @@
   - **CTD 在白泡上和在复杂背景上是两个问题**：ADR-035 在 p62（文字压人物画）试 CTD 失败，不代表 CTD 在白泡上失败——白泡是白底黑字无歧义场景，CTD 精度完全够用。不要把一个场景的实验结论外推到另一个场景。
 - **Prevention**：气泡走 `src/amta/inpaint/ctd_text_mask.py`（CTD seg → 阈值化 → 膨胀 → 按气泡 bbox 裁剪），再和框外 mask 合并送 LaMa。不写 shrink 魔法数字，不写死白色。
 - **Regression**：page 7（姬兔合同本）实测椭圆泡内干净无矩形硬边、酒杯网点保留、作者名不被白块盖住；全量 562 passed。见 ADR-037。
+
+## L57 — 页号有两个体系：GUI 上传会重编号，`--src-dir` 才对应原图文件名
+
+- **Problem**：核对"原图 3 的决定有没有被原图 8 复用"时，拿 `workspace/gui-1790591328680/artifacts/translation/page_4.json` 当"原图 8"。实际上该 work-id 的 `page_1` 才是原图 3、`page_4` 是原图 8——编号整体错位。同期写的验证命令用了 `--start-page 0 --end-page 15`，而源目录根本没有 `0.jpg`。
+- **Root cause**：存在两套页号，同名不同物。
+  - **GUI 上传路径**：`src/amta/gui/server.py:254-271` 把用户上传的页按顺序**重命名**为 `1.jpg..n.jpg` 丢进 `workspace/<id>/input/`，原图名只记在 `input_manifest.json` 的 `stem`/`source_name` 里。所以 work-id 内的 `page_N` 是**上传序号**，与硬盘上的原图编号无关。
+  - **`--src-dir` 路径**：`src/amta/orchestrator/pipeline.py:50-56` 用 `{n}.jpg` 直接拼文件名，`--start-page/--end-page` 是 1 基、**直接对应原图文件名**（`artifacts.page_key(N) = page_N`，`stores/artifacts.py:217`）。此时 `page_N` 就是原图 N。
+  - 两套都产出名为 `page_N.json` 的产物，且都没有把"我是哪套编号"写进产物信封——`detection.json` 的 `source` 与 `image_meta` 实测为空，`canon.items[].page` 只是页号本身，无法反查原图。
+- **Durable lesson**：
+  - 用 work-id 里的 `page_N` 谈"原图第几页"之前，**先读该 work-id 的 `input_manifest.json`** 拿到 `{n: stem}` 映射；有 manifest = GUI 上传路径（编号被重写），无 manifest = `--src-dir` 路径（编号 == 原图名）。
+  - 跨 work-id 比较产物前先对齐口径，否则"验证通过"是假的——`page_4` 在两个体系里可以是两张完全不同的图。
+  - 源目录里没有的页号（如 `0.jpg`）只会打印一条 skip 警告然后静默少跑，不会报错。页号范围要按真实文件名来定。
+- **Prevention**：验证脚本一律显式打印 `input_manifest.json` 的映射再断言；`--src-dir` 指向真实原图目录时用 `--start-page 1` 起。
+- **Regression**：暂无自动化（属于操作口径，非代码行为）。本条的实测证据见 `docs/superpowers/specs/2026-09-30-book-translation-memory-design.md` §1 与 `output/notes/2026-09-30-red-tests.md`。
+
+## L58 — 守卫必须自证"我扫了什么"：静默失效的检查比没有检查更危险
+
+- **Problem**：`state.py finish` 全量门禁被 depguard 拦下，报同一条依赖**两个罪**——
+  `deepseek-harness-sdk` 既「未声明」又「已声明但未使用」。而这条依赖完全合法、
+  已声明、也确实被 import。两个罪同时成立在逻辑上不可能，说明是工具坏了，不是代码坏了。
+- **Root cause**：depguard 用 `importlib.metadata.packages_distributions()` 把 import 名
+  解析成分布名。该 API 在 `scripts/` 包语境下**静默返回空 dict**（同一进程里内联调用却
+  返回 80 条，逐字相同的语句、结果不同），于是 `deepseek_harness → deepseek-harness-sdk`
+  解析不出来，`-sdk` 后缀导致名字对不上，一条依赖被双杀。
+  真正的病根不是这个 API，而是**代码里没有任何东西能证明"我确实查了"**：
+  空结果与"干净的仓库"在输出上完全一样。
+- **Durable lesson**：
+  - **算出来的检查必须报告它扫了什么**。`0 命中` 与 `根本没扫` 在输出上不可区分时，
+    这个守卫就是装饰品。扫描计数、样本文件数、解析出的条目数——至少要吐一个。
+  - **优先"问权威源"而不是维护名单**。给 depguard 加一条 `deepseek_harness → ...`
+    的映射就是硬编码，下一个名字对不上的依赖会复现同一个 bug。分布名与 import 名
+    的对应关系就写在 site-packages 的 `.dist-info/RECORD` 里，去读它。
+  - **同一类假阴性会连续出现**：本次 `git grep` 也犯了同一族错误——它默认**看不见
+    未跟踪的新文件**，于是"刚写出来还没 add 的违规"隐形，rc=1 静默通过。加 `--untracked`。
+  - **BOM 会制造假阳性**：PowerShell `Set-Content -Encoding UTF8` 写 BOM，
+    一个"空"模式文件因此解析出 `\ufeff` 模式，而它匹配**每个文件的第一行**，
+    报出 3 处假命中。读模式文件用 `utf-8-sig` 并 `lstrip("\ufeff")`。
+- **Prevention**：
+  - depguard 改成直接扫 site-packages 的 `*.dist-info`（`top_level.txt` + `RECORD`），
+    路径可见、结果可断言；
+  - 回归测试断言 `_installed_import_names()` **非空**——让"静默失效"立刻变红，
+    而不是安静地什么都查不到；另有两条"守卫的守卫"：一条断言合法依赖不被双杀，
+    一条断言真正未声明的 import 仍被报出（防止把守卫改成永远放行）。
+  - 需求 6 的检查落成 `scripts/probes/probe_hardcoded_terms.py`：模式走文件不走 argv
+    （PowerShell 传 CJK 会静默损坏）、`--untracked`、强制 UTF-8 剥 BOM、
+    **打印待查文件数**、空模式/扫不到文件一律 exit 2。
+- **Regression**：`tests/test_depguard.py::test_installed_import_names_resolves_real_distributions`
+  /`::test_no_dependency_is_reported_both_undeclared_and_unused`/`::test_undeclared_import_still_reported`；
+  `tests/test_probe_hardcoded_terms.py`（5 条，含植入违规必须被抓到、BOM-only 判空）。
+
+## L59 — 收尾入口只提交"它报告过的东西"：黑名单挡不住已跟踪文件
+
+- **Problem**：`state.py finish` 内部的 `git add -A` 把**用户自己改的两个文件**
+  （`.dsh/skills/handoff/SKILL.md`、`.gitignore`）扫进收尾提交，违反"不得提交用户自有改动"
+  （2026-10-01，**同类第二次**，第一次 2026-09-17）。上一轮的对策是往 `.git/info/exclude`
+  加路径——**没拦住**：那份声明的语义是"忽略**未跟踪**文件"，已跟踪文件的改动照样被 add 走。
+- **Root cause**：收尾入口的**动作**（add 了哪些路径）与它的**输出**（一句 `finish OK`）
+  之间没有对应关系——提交内容从不被报告，于是"夹带"在证据上根本不存在。
+  判据来源也选错了：把"忽略未跟踪文件"的声明当成了"不许提交改动"的规则用。
+- **Durable lesson**：
+  - **入口的动作必须先成为它自己的输出**：先算出「将提交 / 不动」两堆清单并打印，
+    **再按清单显式 add**（`git add -A -- <paths>`）。报告与动作同源，夹带就无处隐身。
+  - **既有声明用既有语义，别指望它多干活**：`.git/info/exclude` 不是"用户文件保护名单"。
+    要保护**已跟踪**文件，判据必须由收尾入口自己执行。
+  - **判据要问权威源，不要复刻语法**：`**`、目录规则、取反这些 gitignore 语义
+    交给 `git check-ignore`（**必须带 `--no-index`**，否则它不对已跟踪路径作答）——
+    代码里一行 gitignore 解析都不写（L58 同款：优先问权威源而不是维护名单）。
+  - **计数即证据**（L58 续）：清单永远打印"扫了几个路径 / 命中几条模式 / 判据来自哪个文件"，
+    否则空清单与"根本没扫"在输出上不可区分。
+  - **扫不到必须炸**：`git status` 读失败若降级成空列表，就等于把"没查"伪装成"干净"。
+- **Prevention**：`amta.common.state_manager` 的 `commit_plan()` + `finish()` 显式路径 add
+  （不再 `add -A`）；`uv run python scripts/state.py finish "说明" --dry-run` 先看清单再落盘；
+  报告永远打印，且"全部改动都属用户自有"时**不跑质检、不产生空 commit**。
+- **Regression**：`tests/test_state_finish_stowaway.py`（17 条）——含事故复现（用户自有的
+  已跟踪文件不得进提交）、全部用户自有则空转、清单计数与判据来源、损坏 index 必须抛。
+
+## L60 — 收尾护栏要有接口（我修什么/我依赖什么），而不是记住执行顺序
+
+- **Problem**：任何改动公开接口的提交，**第一遍 `state.py finish` 必红、第二遍才绿**——
+  每次白烧一遍 6 分钟全量 pytest。实测就发生在写这条的同一天（`module-map` 新鲜度
+  断言红，刷新跑完后重跑才绿）。
+- **Root cause**：`fastcheck` 的护栏当时是 `checks: list[tuple[str, int]]` —— 一个
+  **步骤枚举**。"刷新必须排在断言之前"这条关系**只存在于代码顺序和一段注释里**，
+  没有任何地方能表达它，所以它写反了也没人看得出来。作者本意是"跑完 fastcheck
+  地图必然新鲜"（`test_reference_integrity` 的 docstring 就是这么写的），
+  而实现是 `_test()` 先跑、`_module_map()` 后跑 —— **意图与实现相反，且双方都不出声**。
+- **Durable lesson**：
+  - **护栏要有接口，不要枚举**（bitter lesson 的用法：与其把每种情况一条条描述清楚，
+    不如定一个一般接口，让一般机制去处理）。接口就六个字段：
+    `name / category / fn / repairs / depends_on / action`。新增护栏 = 填这几个字段，
+    **不改调度代码**；执行顺序由 `repairs` × `depends_on` 推出来。
+  - **收尾阶段不需要"先红再绿"**。先红再绿的两种用途要拆开：
+    ① *守卫的能力自证*——固化成**针对守卫自身的植入违规自测**（本仓已有三例：
+    `test_h6_detector_can_actually_fail` / `test_planted_violation_is_caught` /
+    `test_detector_recognizes_chinese_output`），它是与本次改动无关的永久事实；
+    ② *开发期驱动实现、减少返工*——属 authoring 阶段，收尾时它已经结束了。
+    **收尾护栏的第一性判据是「红项必须可行动」**：一个工具自己就能修、
+    修完必然绿的红不是门，是噪声——它训练操作者预期红，然后伸手去 `--skip-check`
+    （2026-09-10 事故的死因，见 L50/收尾规程单一入口那条账）。
+  - 由此护栏只有两类：**生成物类**（`repairs` 非空）先修再验，刷新记为「刷新」而非失败，
+    红了只剩一个含义——**生成器自己坏了**；**断事类**（`repairs` 为空）只能验不能修，
+    因此必须带 `action`（红了人该做什么）。
+  - **前提没人保证要当场炸**：声明了 `depends_on` 却没有任何护栏提供它 →
+    `order_guards()` 直接抛。否则那条断言会安静地永远为真（L58 的同族错误）。
+  - 生成物类的合法性前提：**过期状态在收尾入口下根本提交不进去**（提交前必被刷新）。
+    如果哪天门禁不再刷新它，这条就不成立了——所以它是"接线守卫"的守。
+- **Prevention**：`scripts/fastcheck.py` 的 `ClosingGuard` + `order_guards()` +
+  `run_guards()`；`unit tests` 护栏声明 `depends_on=("docs/module-map.md",)`，
+  于是刷新自动排到 pytest 前面；名单与顺序在收尾时整表打印（每条带"类别"）。
+- **Regression**：`tests/test_fastcheck_guard_order.py`（14 条）——含"**故意写反**声明顺序
+  必须被掰正"、"孤立前提必须抛"、"刷新不算红但生成器坏了仍然红"、"`--quick` 名单里
+  不许有会写工作区的护栏"、"每条断事类护栏必须声明 action"。
 
 ## 模板（新增时复制）
 

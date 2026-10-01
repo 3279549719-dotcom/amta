@@ -54,6 +54,7 @@ def run_text(
     timeout: float | None = None,
     check: bool = False,
     env: dict[str, str] | None = None,
+    stdin: str | None = None,
 ) -> TextResult:
     """跑命令并返回 UTF-8 解码后的文本结果。
 
@@ -63,6 +64,10 @@ def run_text(
         timeout: 秒；超时抛 `subprocess.TimeoutExpired`。
         check: True 时非零退出抛 `subprocess.CalledProcessError`（与 subprocess 同语义）。
         env: 环境变量。None 表示继承。
+        stdin: 喂给子进程标准输入的文本（按 UTF-8 编码）。None 表示不接管 stdin。
+            给 `git check-ignore -z --stdin` 这类"路径走 stdin 才原样"的命令用——
+            `-z` 与 `--stdin` 是绑定的（非 stdin 模式下 git 直接报错），而已跟踪的
+            非 ASCII 路径在无 `-z` 输出里会被转义成 `"\\346..."`。
 
     Returns:
         TextResult: returncode / stdout / stderr / cmd。
@@ -79,6 +84,7 @@ def run_text(
         env=env,
         capture_output=True,
         timeout=timeout,
+        input=None if stdin is None else stdin.encode("utf-8"),
     )
     result = TextResult(
         returncode=proc.returncode,

@@ -121,6 +121,50 @@ def parse_translation_array(raw: str, expected_count: int) -> list[str] | None:
     return [str(v).strip() for v in translations]
 
 
+def parse_decisions(raw: str) -> list[dict]:
+    """从同一次回复里取本页新做的书内决定。
+
+    契约：{"translations":[...], "decisions":[{"surface","translation","surface_seen"}]}
+    decisions 是可选键；缺失/形状不对 → 返回 []（不报错、不重试）。
+    模型自己判断"这算不算一个书内表达"——代码不筛类别、不写正则、不写停用词表
+    （片假名正则正是历史 candidate 假阳性的来源）。
+    """
+    text = (raw or "").strip()
+    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, dict):
+        return []
+    raw_decisions = data.get("decisions")
+    if not isinstance(raw_decisions, list):
+        return []
+    out: list[dict] = []
+    for item in raw_decisions:
+        if not isinstance(item, dict):
+            continue
+        surface = str(item.get("surface") or "").strip()
+        translation = str(item.get("translation") or "").strip()
+        if not surface or not translation:
+            continue
+        out.append({
+            "surface": surface,
+            "translation": translation,
+            "surface_seen": str(item.get("surface_seen") or surface).strip(),
+        })
+    return out
+
+
+_DECISIONS_INSTRUCTION = (
+    '另外，只要本页出现了专有名词、自造词或反复出现的说法，'
+    '你就必须在 decisions 数组里登记你在译文中实际使用的译名，'
+    '每项为 {"surface": 原文表达, "translation": 你用的译名}。'
+    '这是本书后续页码保持一致所必需的登记步骤，不是可选项；'
+    '本页确实没有任何这类表达时才省略 decisions。\n'
+)
+
+
 def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
                     context_prefix: str = "", max_retries: int = 0,
                     context_enabled: bool = True) -> dict[str, str]:
@@ -183,3 +227,73 @@ def translate_plain(canon: list[dict], llm, *, system_extra: str = "",
     # 前缀剥离补丁已移除（Q6）：输入不再写 r01| 前缀，LLM 无东西可抄；
     # 若输出格式崩坏，由数组契约（长度校验）直接判全批空，不做静默修补
     return result
+
+
+def translate_plain_with_decisions(
+    canon: list[dict], llm, *, system_extra: str = "",
+    context_prefix: str = "", context_enabled: bool = True,
+) -> tuple[dict[str, str], list[dict], str]:
+    """与 translate_plain 同一次调用，但额外回传本页新决定与原始回复。
+
+    返回 (translations, decisions, raw_response)。
+    长度不符 / 解析失败 → translations 全空、decisions 为空（不重试，语义同 translate_plain）。
+
+    为什么合并进同一次调用而不额外发一次：把"抽取书内表达"当成独立步骤是在预设
+    翻译调用做不好这件事，而没有任何观察到的证据支持该预设。合并 = 干净页面仍然
+    只有一次调用（见 tests/test_translate_repair.py::test_clean_page_makes_only_one_call）。
+    """
+    if not canon:
+        return {}, [], ""
+    region_ids = [r["region_id"] for r in canon]
+    system = f"{_SYSTEM_PROMPT}\n{system_extra}".strip()
+    blocks = [r.get("baberu_text") or r.get("text") or "" for r in canon]
+    instr = ('将以下日文漫画内容翻译成中文。'
+             '输入为JSON数组，每个元素是一条待翻译文本；数组字符串内的\\n是块内换行，不是条目分隔。'
+             '输出JSON对象，唯一键为translations；其值为数组，长度和顺序与输入一致。'
+             '漫画口语化表达，句末尽量不要句号。\n')
+    cur = instr + _DECISIONS_INSTRUCTION + json.dumps(blocks, ensure_ascii=False)
+    if context_enabled and context_prefix:
+        cur = f"{context_prefix}\n\n{cur}"
+    raw = llm([{"role": "system", "content": system},
+               {"role": "user", "content": cur}])
+    arr = parse_translation_array(raw, len(canon))
+    if arr is None:
+        return {r["region_id"]: "" for r in canon}, [], raw
+    parsed = {rid: arr[i] for i, rid in enumerate(region_ids)}
+    if mechanical_guardrails(canon, parsed):
+        return {r["region_id"]: "" for r in canon}, [], raw
+    return parsed, parse_decisions(raw), raw
+
+
+def repair_with_residue_hint(
+    canon: list[dict], translations: dict[str, str], llm, *, system_extra: str = "",
+) -> tuple[dict[str, str], list[dict]]:
+    """一次有证据的修复：把残留清单回填给模型，只重问一次。
+
+    只问残留的那些 region（其余保持原译文），返回 (更新后的 translations, decisions)。
+    "仍然残留"不是本函数的失败——失败显化（low_confidence 落盘）由调用方负责。
+
+    不做分层/升级到整页重译：那是为"整页上下文坏掉"这个未曾观察到的场景预设的机制。
+    """
+    from amta.common.metrics import contains_japanese
+    residual_ids = [r["region_id"] for r in canon
+                    if contains_japanese(translations.get(r["region_id"], ""))]
+    if not residual_ids:
+        return dict(translations), []
+    batch = [r for r in canon if r["region_id"] in residual_ids]
+    region_ids = [r["region_id"] for r in batch]
+    blocks = [r.get("baberu_text") or r.get("text") or "" for r in batch]
+    system = f"{_SYSTEM_PROMPT}\n{system_extra}".strip()
+    listed = "\n".join(f"- {translations.get(rid, '')}" for rid in region_ids)
+    instr = ('上一次翻译里，下面这些条目未能翻译成中文，仍含有日文假名：\n'
+             + listed
+             + '\n请重新翻译这些条目，输出JSON对象，唯一键为translations，'
+               '其值为数组，长度和顺序与输入一致，全部使用中文字符。\n')
+    raw = llm([{"role": "system", "content": system},
+               {"role": "user", "content": instr + json.dumps(blocks, ensure_ascii=False)}])
+    arr = parse_translation_array(raw, len(batch))
+    out = dict(translations)
+    if arr is not None:
+        for i, rid in enumerate(region_ids):
+            out[rid] = arr[i]
+    return out, parse_decisions(raw)
