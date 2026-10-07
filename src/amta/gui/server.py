@@ -26,9 +26,11 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel
 
+from amta.common import workstate
+from amta.common.book_store import load_glossary, save_glossary
+from amta.common.deliverables import deliverable_stem, write_input_manifest
 from amta.common.environment import run_environment_check
 from amta.common.paths import ROOT
-from amta.common.deliverables import deliverable_stem, write_input_manifest
 from amta.orchestrator import PipelineConfig, run_pipeline
 from amta.orchestrator.quality_audit import audit_run, format_redlist
 
@@ -367,6 +369,40 @@ def request_psd(work_id: str, page: str) -> dict:
         name=f"psd-{work_id}-{page}", daemon=True,
     ).start()
     return {"status": "started"}
+
+
+# ---------------------------------------------------------------------------
+# 书级术语表确认（GUI 人工核对 / 编辑）
+# ---------------------------------------------------------------------------
+@app.get("/api/glossary")
+def get_glossary(work_id: str) -> dict[str, object]:
+    """返回本 work 所属书的已确认术语表。
+
+    book_id 记录在 work_state 里（由 src_dir 推导，见 book_store）；
+    没有 book_id（本 work 尚未绑定书）时返回空表 + book_id=None。
+    """
+    _workspace_dir(work_id)
+    ws = workstate.load_state(work_id)
+    book_id = ws.get("book_id")
+    if not book_id:
+        return {"glossary": {}, "book_id": None}
+    return {"glossary": load_glossary(str(book_id)), "book_id": book_id}
+
+
+@app.post("/api/glossary")
+def save_glossary_endpoint(req: dict) -> dict[str, object]:
+    """保存 GUI 中人工确认/编辑后的术语表，写回磁盘。"""
+    work_id = req.get("work_id", "")
+    glossary = req.get("glossary", {})
+    if not work_id or not isinstance(glossary, dict):
+        raise HTTPException(status_code=400, detail="work_id and glossary required")
+    _workspace_dir(work_id)
+    ws = workstate.load_state(work_id)
+    book_id = ws.get("book_id")
+    if not book_id:
+        raise HTTPException(status_code=400, detail="no book_id in work_state")
+    save_glossary(str(book_id), glossary)
+    return {"ok": True, "count": len(glossary)}
 
 
 # ---------------------------------------------------------------------------
