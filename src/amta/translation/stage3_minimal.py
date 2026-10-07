@@ -247,10 +247,23 @@ def build_prefetch_context(canon: list[dict], work_state: dict,
     # BEFORE glossary injection. This makes glossary injection a no-op
     # (Japanese terms no longer in cur_text) and ensures LLM translates
     # a 日中混合文 where terms are already correct. Zero retry, zero repair.
+    # === Book-level glossary: merge confirmed names into locked terms ===
+    from amta.common.book_store import load_glossary
+    book_glossary = {}
+    # TODO(book_id): book_id will be passed in once run_pipeline derives it.
+    # For now, we read from a convention: work_state carries a book_id field
+    # that run_pipeline sets on init.
+    book_id = work_state.get("book_id")
+    if book_id:
+        book_glossary = load_glossary(book_id)
+    # === End book-level glossary merge ===
+
     _locked = {}
     for _k, _v in work_state.get("terms", {}).items():
         if _v.get("status") == "confirmed" and _v.get("translation"):
             _locked[_k] = _v["translation"]
+    # Book-level glossary overrides — these are human-confirmed names
+    _locked.update(book_glossary)
     if _locked and refined:
         from amta.guards.term_replace import replace_in_canon
         refined = replace_in_canon(refined, _locked)
