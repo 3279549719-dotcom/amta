@@ -52,11 +52,16 @@ class TestPreferBreakAfterPunct:
         joined_check = any("谢谢" in col for col in cols)
         assert joined_check, f"'谢谢'被腰斩了: {cols}"
 
-    def test_comma_is_strong_break_point(self):
-        """有逗号时优先在逗号后断。"""
+    def test_comma_not_forced_to_column_end(self):
+        """2026-10-07：移除"标点后断列有奖励"后，DP 不再主动把逗号顶到列尾。
+
+        逗号可以落在列中（后面跟字），由 column_end_pause_mask 兜底处理
+        极少数仍落到列尾的情况。
+        """
         cols = wrap_vertical("那么，丰酱，去把羽毛给辉夜大人看看", 7)
-        # 第一列应该在第一个逗号后结束
-        assert cols[0].endswith("，"), f"第一列应在逗号后断: {cols}"
+        joined = "".join(cols)
+        assert joined == "那么，丰酱，去把羽毛给辉夜大人看看"
+        # 不强制要求 cols[0].endswith("，")——这正是被移除的旧行为。
 
 
 class TestKeepExistingBehavior:
