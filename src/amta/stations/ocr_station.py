@@ -60,15 +60,24 @@ def _crop_by_region(raw_page: Path, blocks: list[dict], page_idx: int,
 
 
 def _should_filter_by_conf(row: dict, b: dict) -> tuple[bool, str]:
-    """Q3 OCR confidence 过滤判断。只对副引擎纯新增框做过滤。
+    """Q3 OCR confidence 过滤判断。只对瓦片副引擎纯新增框做过滤。
 
     背景：3个已知假框全是副引擎新增框（瓦片化捡杂质），主引擎框假阳性率极低。
-    只对副引擎新增框做 first_token_conf < 0.4 过滤，避免误伤主引擎框中
-    首字识别错误的真实文字（如生僻汉字"嫦"、数字"八"被误读）。
+    只对副引擎纯新增框（source_engines == ["rtdetr-v2-tiled"]）做 first_token_conf
+    < 0.4 过滤，避免误伤主引擎框中首字识别错误的真实文字（如生僻汉字"嫦"、
+    数字"八"被误读）。
+
+    2026-10-07 修复：此前实现漏了 source_engines 判断，b 参数被接收但未使用，
+    导致瓦片副引擎关闭后主引擎真气泡（tagatame p33_r01/r02）被误杀。现在补上。
 
     Returns:
         (是否过滤, 过滤原因)
     """
+    # 第一道门：只有瓦片副引擎纯新增框才谈得上过滤
+    source_engines = b.get("source_engines") or []
+    if source_engines != ["rtdetr-v2-tiled"]:
+        return False, ""
+    # 第二道门：瓦片副引擎纯新增框首字 conf 低 → 过滤
     first_conf = row.get("first_token_conf", 1.0)
     if first_conf < OCR_CONF_THRESHOLD:
         return True, f"first_conf={first_conf:.4f}<{OCR_CONF_THRESHOLD}"
