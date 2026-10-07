@@ -425,11 +425,93 @@
     transition: background 0.15s;
   }
   .export-item:hover { background: #f1f5f9; }
+
+  /* ===== Glossary Modal ===== */
+  .gloss-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+    display: none; align-items: center; justify-content: center; z-index: 1100;
+  }
+  .gloss-overlay.show { display: flex; }
+  .gloss-modal {
+    background: var(--white); border-radius: var(--radius-lg);
+    width: min(680px, 92vw); max-height: 82vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  }
+  .gloss-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 16px 20px 12px; border-bottom: 1px solid var(--gray-100);
+  }
+  .gloss-title { font-size: 15px; font-weight: 700; color: var(--gray-900); }
+  .gloss-sub { font-size: 11px; color: var(--gray-400); margin-top: 2px; word-break: break-all; }
+  .gloss-close {
+    border: none; background: transparent; font-size: 20px; line-height: 1;
+    color: var(--gray-400); cursor: pointer; padding: 2px 8px; border-radius: 4px;
+  }
+  .gloss-close:hover { background: var(--gray-100); color: var(--gray-700); }
+  .gloss-body { padding: 12px 20px; overflow-y: auto; flex: 1; }
+  .gloss-notice { font-size: 12px; color: var(--gray-500); margin-bottom: 10px; }
+  .gloss-notice:empty { margin-bottom: 0; }
+  .gloss-warn {
+    background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
+    border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; line-height: 1.6;
+  }
+  .gloss-row-head, .gloss-row {
+    display: grid; grid-template-columns: 1fr 1fr 64px; gap: 8px; align-items: center;
+  }
+  .gloss-row-head {
+    font-size: 11px; color: var(--gray-400); font-weight: 600;
+    padding: 4px 2px 6px;
+  }
+  .gloss-surf, .gloss-trans {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm); font-size: 13px; font-family: inherit;
+  }
+  .gloss-surf:focus, .gloss-trans:focus { outline: none; border-color: var(--blue-500); }
+  .gloss-surf-text {
+    padding: 6px 8px; font-size: 13px; color: var(--gray-800);
+    background: var(--gray-50); border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm); min-height: 31px; word-break: break-word;
+  }
+  .gloss-empty { font-size: 12px; color: var(--gray-400); padding: 14px 4px; text-align: center; }
+  .gloss-del {
+    border: none; background: transparent; color: #dc2626; font-size: 12px;
+    cursor: pointer; padding: 6px 0; border-radius: 4px;
+  }
+  .gloss-del:hover { background: #fee2e2; }
+  .gloss-foot {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    padding: 12px 20px; border-top: 1px solid var(--gray-100); background: var(--gray-50);
+  }
 </style>
 </head>
 <body>
 
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- ===== Glossary Modal（书级术语表确认/编辑） ===== -->
+<div class="gloss-overlay" id="glossOverlay">
+  <div class="gloss-modal" role="dialog" aria-modal="true">
+    <div class="gloss-head">
+      <div>
+        <div class="gloss-title">术语表确认</div>
+        <div class="gloss-sub" id="glossWorkId"></div>
+      </div>
+      <button class="gloss-close" id="glossClose" title="关闭">×</button>
+    </div>
+    <div class="gloss-body">
+      <div class="gloss-notice" id="glossNotice"></div>
+      <div class="gloss-row gloss-row-head">
+        <span>日文 surface</span><span>中文 translation</span><span>操作</span>
+      </div>
+      <div class="gloss-rows" id="glossRows"></div>
+    </div>
+    <div class="gloss-foot">
+      <button class="btn btn-secondary" id="glossAdd" disabled>添加术语</button>
+      <button class="btn btn-primary" id="glossSave" disabled>保存</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===== Top Bar ===== -->
 <header class="topbar">
@@ -460,6 +542,12 @@
         <div class="export-item" data-format="psd">PSD 分层文件</div>
       </div>
     </div>
+    <button class="btn btn-secondary" id="glossaryBtn" disabled title="请先上传一次并跑完翻译以关联 work">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.042m0-13.999a8.967 8.967 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.042m0-13.999v13.999"/>
+      </svg>
+      Glossary
+    </button>
   </div>
 </header>
 
@@ -531,6 +619,9 @@
   var idCounter = 0;
   var processing = false;
   var loadingFiles = false;
+  // 当前会话的 workId：translate 流程开始时写入；也可由 URL ?work_id= 预置。
+  // Glossary 面板复用它来定位书级术语表（后端按 work_state.book_id 取表）。
+  var currentWorkId = null;
 
   // DOM
   var dropZone = document.getElementById('dropZone');
@@ -688,7 +779,10 @@
     outputDot.classList.remove('done');
     outputBadge.textContent = 'Processing…';
 
-    var workId = 'gui-' + Date.now();
+    // 记录当前会话 workId 供 Glossary 面板复用（上传与翻译用同一个 id）
+    currentWorkId = 'gui-' + Date.now();
+    refreshGlossaryBtn();
+    var workId = currentWorkId;
     var formData = new FormData();
     formData.append('work_id', workId);
     submittedImages.forEach(function(im) {
@@ -872,6 +966,187 @@
       }
     }
   });
+
+  // ------------------------------------------------------------------
+  // Glossary（书级术语表确认/编辑）
+  //
+  // workId 来源：① 本页上传并跑完翻译后由 translate 流程写入 currentWorkId；
+  // ② 打开页时 URL 带 ?work_id=<已有work_id>，用于直接核对历史 work 的术语表。
+  // 后端约定：work_state 里没有 book_id（刚上传、还没跑过翻译）时 GET 返回
+  // {glossary:{}, book_id:null}、POST 返回 400——此时面板禁用保存/添加并给提示。
+  // ------------------------------------------------------------------
+  var glossaryBtn = document.getElementById('glossaryBtn');
+  var glossOverlay = document.getElementById('glossOverlay');
+  var glossClose = document.getElementById('glossClose');
+  var glossWorkId = document.getElementById('glossWorkId');
+  var glossNotice = document.getElementById('glossNotice');
+  var glossRows = document.getElementById('glossRows');
+  var glossAdd = document.getElementById('glossAdd');
+  var glossSave = document.getElementById('glossSave');
+
+  function refreshGlossaryBtn() {
+    glossaryBtn.disabled = !currentWorkId;
+    glossaryBtn.title = currentWorkId
+      ? '查看/编辑本书已确认术语表（' + currentWorkId + '）'
+      : '请先上传一次并跑完翻译以关联 work（或在 URL 加 ?work_id=已有work_id）';
+  }
+
+  function setGlossNotice(kind, text) {
+    glossNotice.innerHTML = '';
+    if (!text) return;
+    if (kind === 'warn') {
+      var box = document.createElement('div');
+      box.className = 'gloss-warn';
+      box.textContent = text;
+      glossNotice.appendChild(box);
+    } else {
+      glossNotice.textContent = text;
+    }
+  }
+
+  function openGlossModal() {
+    if (!currentWorkId) {
+      toast('请先上传一次并跑完翻译以关联 work', 'info');
+      return;
+    }
+    glossWorkId.textContent = 'work: ' + currentWorkId;
+    glossRows.innerHTML = '';
+    glossAdd.disabled = true;
+    glossSave.disabled = true;
+    setGlossNotice('plain', '加载中…');
+    glossOverlay.classList.add('show');
+    fetch('/api/glossary?work_id=' + encodeURIComponent(currentWorkId))
+      .then(function(r) {
+        return r.json().then(function(data) {
+          if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+          return data;
+        });
+      })
+      .then(function(data) {
+        renderGlossary(data);
+      })
+      .catch(function(err) {
+        setGlossNotice('warn', '加载失败: ' + err.message);
+      });
+  }
+
+  function renderGlossary(data) {
+    glossRows.innerHTML = '';
+    if (!data.book_id) {
+      setGlossNotice('warn', '当前 work 还没有关联书级术语表（book_id 为空）。请先跑完一次翻译让 work 绑定书，或用 ?work_id=<已有work_id> 打开本页。');
+      glossAdd.disabled = true;
+      glossSave.disabled = true;
+      return;
+    }
+    setGlossNotice('plain', 'book_id: ' + data.book_id);
+    glossAdd.disabled = false;
+    glossSave.disabled = false;
+    var gloss = data.glossary || {};
+    var keys = Object.keys(gloss);
+    if (!keys.length) {
+      var empty = document.createElement('div');
+      empty.className = 'gloss-empty';
+      empty.textContent = '（暂无术语，点下方"添加术语"新增）';
+      glossRows.appendChild(empty);
+    }
+    keys.forEach(function(surface) {
+      addGlossRow(surface, gloss[surface], false);
+    });
+  }
+
+  function addGlossRow(surface, translation, editableSurface) {
+    var row = document.createElement('div');
+    row.className = 'gloss-row';
+    var surfCell = document.createElement('div');
+    if (editableSurface) {
+      var si = document.createElement('input');
+      si.className = 'gloss-surf';
+      si.placeholder = '日文 surface';
+      surfCell.appendChild(si);
+    } else {
+      var sp = document.createElement('span');
+      sp.className = 'gloss-surf-text';
+      sp.textContent = surface;
+      surfCell.appendChild(sp);
+    }
+    var tCell = document.createElement('div');
+    var ti = document.createElement('input');
+    ti.className = 'gloss-trans';
+    ti.placeholder = '中文 translation';
+    ti.value = translation || '';
+    tCell.appendChild(ti);
+    var delCell = document.createElement('div');
+    var delBtn = document.createElement('button');
+    delBtn.className = 'gloss-del';
+    delBtn.textContent = '删除';
+    delBtn.addEventListener('click', function() { row.remove(); });
+    delCell.appendChild(delBtn);
+    row.appendChild(surfCell);
+    row.appendChild(tCell);
+    row.appendChild(delCell);
+    glossRows.appendChild(row);
+  }
+
+  function collectGlossary() {
+    var rows = glossRows.querySelectorAll('.gloss-row');
+    var out = {};
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var sInput = r.querySelector('.gloss-surf');
+      var sSpan = r.querySelector('.gloss-surf-text');
+      var tInput = r.querySelector('.gloss-trans');
+      var s = ((sInput ? sInput.value : (sSpan ? sSpan.textContent : '')) || '').trim();
+      var t = ((tInput ? tInput.value : '') || '').trim();
+      if (!s && !t) continue; // 整行留空：用户没填，直接丢弃
+      if (!s || !t) {
+        alert('第 ' + (i + 1) + ' 行：日文和中文都不能为空');
+        return null;
+      }
+      out[s] = t;
+    }
+    return out;
+  }
+
+  glossaryBtn.addEventListener('click', openGlossModal);
+  glossAdd.addEventListener('click', function() { addGlossRow('', '', true); });
+  glossClose.addEventListener('click', function() { glossOverlay.classList.remove('show'); });
+  glossOverlay.addEventListener('click', function(e) {
+    if (e.target === glossOverlay) glossOverlay.classList.remove('show');
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && glossOverlay.classList.contains('show')) {
+      glossOverlay.classList.remove('show');
+    }
+  });
+
+  glossSave.addEventListener('click', function() {
+    var g = collectGlossary();
+    if (g === null) return;
+    glossSave.disabled = true;
+    fetch('/api/glossary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ work_id: currentWorkId, glossary: g })
+    }).then(function(r) {
+      return r.json().then(function(data) {
+        if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+        return data;
+      });
+    }).then(function(data) {
+      toast('已保存 ' + data.count + ' 条术语', 'success');
+      glossOverlay.classList.remove('show');
+    }).catch(function(err) {
+      toast('保存失败: ' + err.message, 'error');
+    }).finally(function() {
+      glossSave.disabled = false;
+    });
+  });
+
+  // URL 上带 ?work_id=xxx 时直接拿它当操作对象（便于核对历史 work 的术语表）
+  var qp = new URLSearchParams(window.location.search);
+  var qWorkId = (qp.get('work_id') || '').trim();
+  if (qWorkId) currentWorkId = qWorkId;
+  refreshGlossaryBtn();
 })();
 </script>
 </body>
