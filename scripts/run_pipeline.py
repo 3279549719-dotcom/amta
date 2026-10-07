@@ -90,6 +90,23 @@ def main() -> int:
         print(f"  {line}")
     print()
 
+    # 书级 glossary：从 src_dir 推导 book_id、落 meta、检测是否已有确认词典（book-level glossary Task 5）
+    from amta.common.book_store import book_id_from_src_dir, has_glossary, save_meta
+    from amta.common import workstate
+
+    book_id = book_id_from_src_dir(a.src_dir)
+    save_meta(book_id, a.src_dir)
+    print(f"[book] book_id={book_id} (src_dir={a.src_dir})")
+    if has_glossary(book_id):
+        print("[book] existing glossary found, skipping pre-scan")
+    else:
+        print("[book] no glossary yet — first run: will trigger name pre-scan")
+
+    # 把 book_id 写进 work_state，供 stage3_minimal 读取书级词典
+    ws = workstate.load_state(a.work_id)
+    ws["book_id"] = book_id
+    workstate.save_state(a.work_id, ws)
+
     result = run_pipeline(config)
 
     # 摘要输出
