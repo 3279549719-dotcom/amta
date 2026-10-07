@@ -58,6 +58,31 @@ def _no_hide(columns):
     return [[False] * len(c) for c in columns]
 
 
+FONT_SIZE = 34
+LINE_STEP = 45
+
+
+def _render_cols(cols, bbox, mask=None, hide: bool = True):
+    """把**确定的列序列**直接交给渲染层（绕过断列），返回 (img, meta)。
+
+    mask 为 None 时用真实的 column_end_pause_mask；传入 _no_hide 则模拟
+    「不隐藏任何字形」的旧行为，用于逐像素对比。
+    """
+    img = Image.new("RGB", (400, 900), "white")
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype(FONT, FONT_SIZE)
+    if mask is None:
+        from amta.typeset.vertical_punct import column_end_pause_mask
+        mask = column_end_pause_mask(cols)
+    cx, cy = (bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2
+    _render_vertical(img, draw, font, cols, cx, cy, FONT_SIZE, LINE_STEP,
+                     col_width=float(FONT_SIZE), stroke=0, color=(0, 0, 0),
+                     main_font_path=FONT, hide_mask=mask)
+    meta = {"lines": cols, "line_step": LINE_STEP, "col_step": float(FONT_SIZE),
+            "anchor_pos": [cx, cy], "font_size": FONT_SIZE}
+    return img, meta
+
+
 def _cell_of(result, col_idx_from_right: int, char_idx: int, bbox):
     """列/字格在页面坐标系里的矩形（与 _render_vertical 的排布一致）。"""
     lines = result["lines"]
@@ -72,26 +97,31 @@ def _cell_of(result, col_idx_from_right: int, char_idx: int, bbox):
             int(col_left + col_w), int(top + (char_idx + 1) * lh))
 
 
-# 2026-10-07：DP 移除"标点后断列奖励"后，短文本不再自然产生列末逗号。
-# 改用一段较长的对白，使 DP 必然在第一列末尾落在逗号上（列末逗号=mask 触发点）。
-COL_END_TEXT = "他说，今天不去了，明天再说吧，后天也许去，大后天也不一定"
-COL_END_EXPECTED_LINES = ["他说，今天不去了，", "明天再说吧，后天也", "许去，大后天也不一定"]
+# 2026-10-07 度量口径改造（断列单位从「字符」改为「渲染行」）后，DP 的列长
+# 均衡更彻底，靠「挑一段文本 + 一个 bbox」凑出列末逗号变得脆弱（实测
+# fit_font_size 会挑到逗号落在列首/列中的版式）。
+# 因此本组用例改为直接喂给渲染层**确定的列序列**，把"列末逗号该不该画"
+# 这条渲染契约与「断列挑到哪种版式」这件度量层的事解耦：
+#   COL_END_COLS   第 0 列（最右列）末位是「，」→ 掩码命中，字形不画
+#   COL_MID_COLS   逗号在列内部（非末位）→ 必须照画
+COL_END_COLS = ["仙人，", "风范端庄贤淑哦"]
+COL_MID_COLS = ["仙人，风范", "端庄贤淑哦"]
+SPLIT_BBOX = [100, 100, 180, 420]
 
 
-# === 布局不变量 ===
+# === 布局不变量（直接驱动渲染层，断列结果由用例固定）===
 
-def test_render_item_preserves_lines_metadata():
-    """关键回归：译文与 lines 元数据不得被改写（只隐藏渲染）。"""
-    _, result = _vertical_result(COL_END_TEXT, [100, 100, 240, 700])
-    assert result["layout_direction"] == "vertical"
-    assert [c for c in result["lines"]] == COL_END_EXPECTED_LINES, result["lines"]
-    assert sum(len(col) for col in result["lines"]) == len(COL_END_TEXT)
+def test_render_does_not_rewrite_lines_metadata():
+    """关键回归：列序列是落盘契约，渲染层不得改写它（只隐藏字形）。"""
+    img, result = _render_cols(COL_END_COLS, SPLIT_BBOX)
+    assert result["lines"] == COL_END_COLS, result["lines"]
+    assert sum(len(col) for col in result["lines"]) == sum(len(c) for c in COL_END_COLS)
 
 
-def test_render_item_keeps_cell_advance_and_column_height():
-    """只隐藏字形：列高与组位置不变（不会因删字而重新居中/位移）。"""
-    bbox = [100, 100, 240, 700]
-    img, result = _vertical_result(COL_END_TEXT, bbox)
+def test_hidden_glyph_does_not_shift_column_top():
+    """只隐藏字形：列顶与组位置不变（不会因删字而重新居中/位移）。"""
+    bbox = SPLIT_BBOX
+    img, result = _render_cols(COL_END_COLS, bbox)
     lines = result["lines"]
     lh = result["line_step"]
     _, cy = result["anchor_pos"]
@@ -109,19 +139,16 @@ def test_render_item_keeps_cell_advance_and_column_height():
                                     (bbox[1] + bbox[3]) // 2]
 
 
-def test_changed_pixels_confined_to_masked_cell(monkeypatch):
+def test_changed_pixels_confined_to_masked_cell():
     """像素级最强断言：改动只发生在被掩码的字格，其余字格逐像素一致。
 
     这直接证明"列高 / 字格推进 / 居中不变"——没有任何位移。
     """
-    import amta.typeset.typeset_render as tr
+    cols = COL_END_COLS
+    bbox = SPLIT_BBOX
 
-    text = COL_END_TEXT
-    bbox = [100, 100, 240, 700]
-
-    img_after, result_after = _vertical_result(text, bbox)
-    monkeypatch.setattr(tr, "column_end_pause_mask", _no_hide)
-    img_before, result_before = _vertical_result(text, bbox)
+    img_after, result_after = _render_cols(cols, bbox, mask=None)
+    img_before, result_before = _render_cols(cols, bbox, mask=_no_hide(cols))
 
     for key in ("lines", "line_step", "col_step", "anchor_pos", "font_size"):
         assert result_before[key] == result_after[key], f"{key} 发生变化"
@@ -143,12 +170,11 @@ def test_changed_pixels_confined_to_masked_cell(monkeypatch):
 
 # === 掩码确实生效 ===
 
-def test_render_item_hides_column_end_comma_glyph():
+def test_column_end_comma_glyph_hidden():
     """渲染层：列末逗号的字形不再出现在列末字格里。"""
-    text = COL_END_TEXT
-    bbox = [100, 100, 240, 700]
-    img, result = _vertical_result(text, bbox)
-    assert result["lines"] == COL_END_EXPECTED_LINES, result["lines"]
+    bbox = SPLIT_BBOX
+    img, result = _render_cols(COL_END_COLS, bbox)
+    assert result["lines"] == COL_END_COLS, result["lines"]
     cell = _cell_of(result, 0, len(result["lines"][0]) - 1, bbox)
     n_cell, _ = ink_stats(img, cell)
     assert n_cell == 0, f"列末逗号字格仍被绘制: {n_cell}px @ {cell}"
@@ -162,17 +188,12 @@ def test_render_item_keeps_sentence_final_mark():
     assert "！" in "".join(result["lines"]), f"句末标点被误删: {result['lines']}"
 
 
-def test_render_item_keeps_mid_column_comma_glyph():
-    """列中逗号不是边界冗余，字形必须照画。
-
-    bbox 高度决定列宽：这个高度下断列结果是 ['仙人，风', '范端庄贤淑哦']，
-    逗号位于第 0 列**内部**（不是列末），因此必须保留。
-    """
-    text = "仙人，风范端庄贤淑哦"
-    bbox = [100, 100, 240, 900]
-    img, result = _vertical_result(text, bbox)
+def test_mid_column_comma_glyph_kept():
+    """列中逗号不是边界冗余，字形必须照画。"""
+    bbox = SPLIT_BBOX
+    img, result = _render_cols(COL_MID_COLS, bbox)
     lines = result["lines"]
-    assert lines[0] == "仙人，风", lines
+    assert lines[0] == COL_MID_COLS[0], lines
     idx = lines[0].index("，")
     assert idx < len(lines[0]) - 1, "本用例要求逗号在列内部"
     cell = _cell_of(result, 0, idx, bbox)

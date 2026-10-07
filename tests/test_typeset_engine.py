@@ -12,12 +12,16 @@ FONT_PATH = Path("C:/Windows/Fonts/msyh.ttc")
 
 
 def test_narrow_tall_box_prefers_vertical_with_large_font():
-    """探针：窄长框（宽207高954，47字）经几何推断首选竖排，字号应>=30。
+    """探针：窄长框（宽207高954，47字）经几何推断首选竖排，方向必须是竖排。
 
     历史背景：本测试诞生时旧实现横排仅19px（二分漏解）。9bcc04c 补扫修复后
     横排可达43px，纯字号选优会以 1px 之差（43 vs 42）选横排——方向翻转在
     噪声级差距上发生，故方向由几何推断决定（render 层契约），不由字号选优
     决定。本测试镜像真实管线调用方式：infer_direction_from_bbox -> 传入。
+
+    2026-10-07 选优顺序改为「列数少优先，但只在字号代价不超过相对下限时才让
+    列数赢」：本框一列要掉到 12px（< 43 * 0.7），代价远超相对下限，因此仍按
+    旧行为分列；方向契约（竖排）、字号规模与总字数守恒仍然成立。
     """
     from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
     bbox = [0, 0, 207, 954]

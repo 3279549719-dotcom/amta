@@ -27,6 +27,7 @@
 
 ## `guards/` — amta.guards — 翻译机械护栏 / 术语 / VLM 裁决（Stage 3 质量面）。
 
+- **`book_bootstrap.py`** — Bootstrap a brand-new book: OCR its whole folder, then LLM-extract names.（函数: collect_ocr_text, bootstrap_book, prescan_names_from_text）
 - **`canon_schema.py`** — pre-translate Input schema 校验（ADR-016）— 逻辑已收编 amta.stores.artifacts（深接口改造）。
 - **`glossary.py`** — Knowledge guardrail（ADR-016）：confirmed 术语译名一致性校验。（函数: check_glossary）
 - **`guardrails.py`** — 翻译机械护栏 — 从 translate.py 拆出的深模块。（函数: mechanical_guardrails, japanese_residue_check, _run_guardrails_for_test）
@@ -100,7 +101,7 @@
 - **`psd_export.py`** — Photoshop 进程管理 — 查找可执行文件、调 JSX、轮询完成。（函数: find_photoshop_executable, export_psd_with_jsx）
 - **`psd_jsx.py`** — JSX 脚本生成 — 纯字符串操作，无 I/O、无 Photoshop 调用。（函数: resolve_font_family, hex_to_rgb, escape_jsx_string, escape_jsx_path, has_conjoined_punct）
 - **`psd_jsx_export.py`** — PSD JSX 导出 — Facade，向后兼容。（函数: export_page_psd）
-- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, break_lines）
+- **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号搜索双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, _cell_rows）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（类: VerticalRow；函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位路由 — 根据 canon 的 ocr_engine 选择渲染路径。（函数: run）
 - **`vertical_punct.py`** — 竖排标点处理（接口层）：按 Unicode 标准自动推导，不针对具体字符硬编码。（函数: verticalize_text, column_end_pause_mask, should_rotate）

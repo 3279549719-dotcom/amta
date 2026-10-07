@@ -14,7 +14,7 @@ from amta.common.paths import read_json, write_json
 from amta.stores.artifacts import load_canon
 from amta.typeset.fonts import resolve_font
 from amta.typeset.typeset_engine import fit_font_size, infer_direction_from_bbox
-from amta.typeset.typeset_render import render_item
+from amta.typeset.typeset_render import _normalize_text_for_render, render_item
 
 
 def render_page(work_id: str, canon_path: Path, trans_path: Path, det_path: Path,
@@ -51,8 +51,15 @@ def render_page(work_id: str, canon_path: Path, trans_path: Path, det_path: Path
         category = item.get("category")
         font_path, stroke = resolve_font(category or "dialogue_bubble", text)
 
+        # 原文基准字号：必须先做与渲染同一步的字符规范化（render_item 内部会跑
+        # _normalize_text_for_render），否则同一句话在「算基准字号」和「实际渲染」
+        # 两步得到不同的字符数/度量——例如 "こいつ...!!" 的三个 ASCII 点会被渲染层
+        # 归一成一个省略号，基准字号却按三个点算，直接把整格字号压小一档
+        # （2026-10-07 タガタメ 0030 r08 事故）。
         src_text = item.get("baberu_text") or item.get("text") or text
-        src_base_size, _, _ = fit_font_size(src_text, Path(font_path), bbox)
+        src_base_size, _, _ = fit_font_size(
+            _normalize_text_for_render(src_text), Path(font_path), bbox
+        )
         target_size = max(max(12, img_long_side / 200), src_base_size)
 
         item_contexts.append({

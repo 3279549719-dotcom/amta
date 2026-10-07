@@ -184,7 +184,8 @@ def test_vlm_mid_column_comma_is_still_drawn():
     """列中逗号不是边界冗余：VLM 路径也必须照画。"""
     img = Image.new("RGB", (900, 1200), "white")
     meta = render_text(img, "仙人，风范端庄贤淑哦", _vertical_block(700))
-    assert meta["lines"] == ["仙人，风范端", "庄贤淑哦"], meta["lines"]
+    # 2026-10-07 度量口径改造后（切列单位=渲染行）断列结果：
+    assert meta["lines"] == ["仙人，风", "范端庄贤淑哦"], meta["lines"]
     comma_cell = _vertical_cell(meta, 0, meta["lines"][0].index("，"))
     assert _ink_in(img, comma_cell) > 0, "VLM 列中逗号被误隐藏"
 
@@ -192,18 +193,24 @@ def test_vlm_mid_column_comma_is_still_drawn():
 def test_vlm_mask_indices_survive_verticalize(monkeypatch):
     """掩码按横排原文算、作用在 verticalize 之后的列上：下标必须仍然对齐。
 
-    样例列 '（你好），' 竖排后是 '︵你好），'（`（` → `︵`）。若下标错位，
-    要么逗号格没被隐藏，要么左边的 `︵` 被误隐藏。
+    样例列 '（你' 竖排后是 '︵你'（`（` → `︵`）。若下标错位，
+    要么别的字被误隐藏、要么 `︵` 被误隐藏。
+
+    2026-10-07 度量口径改造后（切列单位=渲染行）断列结果是
+    ['（你', '好），世界']——逗号落在第 1 列列中（不是列末），
+    因此这里断言的是「列中逗号照画」+「列首 `︵` 照画」+ 同列其它字照画，
+    下标若错位就会命中错误的字格。
     """
     img = Image.new("RGB", (900, 1200), "white")
     meta = render_text(img, "（你好），世界", _vertical_block(320, fsr=0.03))
-    assert meta["lines"] == ["（你好），", "世界"], meta["lines"]
-    # 列末逗号（下标 4）被隐藏
-    assert _ink_in(img, _vertical_cell(meta, 0, 4)) == 0, "列末逗号未消隐"
-    # 同一列的 `（`（竖排形式 `︵`，下标 0）照画 → 下标没错位
+    assert meta["lines"] == ["（你", "好），世界"], meta["lines"]
+    # 第 1 列列中逗号（下标 2）照画
+    idx_comma = meta["lines"][1].index("，")
+    assert _ink_in(img, _vertical_cell(meta, 1, idx_comma)) > 0, "列中逗号被误隐藏"
+    # 第 0 列的 `（`（竖排形式 `︵`，下标 0）照画 → 下标没错位
     assert _ink_in(img, _vertical_cell(meta, 0, 0)) > 0, "列首括号被误隐藏（下标错位）"
     # 同列其它字也照画
-    assert _ink_in(img, _vertical_cell(meta, 0, 2)) > 0
+    assert _ink_in(img, _vertical_cell(meta, 0, 1)) > 0
 
 
 def _render_meta_and_pixels(text: str, block: dict, hide: bool):

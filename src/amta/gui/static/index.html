@@ -913,8 +913,17 @@
   translateBtn.addEventListener('click', function() {
     if (processing || loadingFiles) return;
     if (!currentBook) { toast('先填漫画文件夹并点「识别这本书」', 'warn'); return; }
-    var pages = parsePages(bookPageInput.value.trim(), currentBook.pages);
-    if (!pages || !pages.length) { toast('这个文件夹里没找到可翻译的页', 'warn'); return; }
+    // 唯一判据：你拖进来几张图，就跑这几张（从文件名 0056.png 取页号 56）。
+    // 没拖图时才用页框兜底。绝不默认整本。
+    var dropped = [];
+    images.forEach(function(im) {
+      var m = /(\d+)/.exec(im.name || '');
+      if (m) dropped.push(parseInt(m[1], 10));
+    });
+    var pages = dropped.length
+      ? dropped.sort(function(a, b) { return a - b; })
+      : parsePages(bookPageInput.value.trim(), null);
+    if (!pages || !pages.length) { toast('先拖入要翻译的图片，或在页框填页号', 'warn'); return; }
 
     processing = true;
     var submittedMode = currentMode;

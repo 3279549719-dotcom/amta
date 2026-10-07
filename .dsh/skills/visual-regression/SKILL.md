@@ -1,26 +1,26 @@
 ---
 name: visual-regression
-description: Compare before/after rendered pages to detect visual regressions. Use after changing inpaint, typeset, or translation rendering — before claiming a fix "looks better".
+description: Compare source and before/after page regions when OCR, translation, inpaint, or typeset changes could affect the final image. Use before claiming a visual or text-quality fix succeeded.
 ---
 
 # Visual Regression
 
-When you change rendering code (inpaint mask, typeset layout, bubble text
-placement), you must prove the output actually improved. "I think it looks
-better" is not evidence.
+For a visual or text-quality fix, identify the affected page and region first.
+Compare the source, the relevant intermediate text/artifact, and the rendered
+result. A whole-page impression cannot verify a small bubble.
 
 ## 1. Generate the review report
 
 ```powershell
-uv run python scripts/gen_report.py --work-id <work> --src-dir <dir> --pages 1-10
+uv run python scripts/gen_report.py --work-id <work> --src-dir <dir> --pages <page>
 ```
 
 This produces a side-by-side report (source vs rendered) in the workspace.
-Open it to see every page at a glance.
+Open the affected page and region.
 
 ## 2. Look at the specific pages you changed
 
-Use `modlens_read_image` to inspect individual rendered pages. Ask specific
+Inspect the exact affected crop in the report or image viewer. Ask specific
 questions, not "is this good?":
 
 - Are any bubbles still showing original Japanese text?
@@ -31,19 +31,18 @@ questions, not "is this good?":
 
 ## 3. Compare before/after
 
-If you have a previous render to compare (git stash, backup directory, or
-a previous work-id), use `modlens_read_image` on both versions of the same
-page and describe the difference. A regression is a page that got worse —
-new overflow, new missed bubbles, new inpaint artifacts.
+If you have a previous render to compare (backup directory or previous work-id),
+inspect the same region in both versions and describe the difference. Look for
+new overflow, missed bubbles, or inpaint artifacts.
 
 ## 4. Decision gate
 
 You may only claim "fixed" when ALL of these are true:
 
-- [ ] `uv run python -m pytest -q` exits 0
-- [ ] The probe on the affected page produces the expected intermediate output
-- [ ] `modlens_read_image` on the rendered page confirms the specific symptom
-  you set out to fix is gone
-- [ ] No NEW symptoms appeared on pages adjacent to your change
+- [ ] Relevant regression tests and project checks pass
+- [ ] The affected page's intermediate artifact has the expected content
+- [ ] The source, intermediate artifact, and before/after crop support the
+  specific claim; a single image-tool judgment is not sufficient
+- [ ] No new symptom appeared in the inspected before/after regions
 
 If any box is unchecked, you are not done. Go back and fix it.

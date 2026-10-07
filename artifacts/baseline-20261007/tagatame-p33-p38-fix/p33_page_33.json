@@ -1,0 +1,206 @@
+{
+  "work_id": "tagatame-p33-p38-fix",
+  "page": "page_33",
+  "renderer": "mits-source-fit",
+  "rendered_items": [
+    {
+      "layout_direction": "vertical",
+      "font_size": 52,
+      "lines": [
+        "阴阳印!!"
+      ],
+      "anchor_pos": [
+        732,
+        392
+      ],
+      "font_path": "C:\\Windows\\Fonts\\msyhbd.ttc",
+      "line_step": 70,
+      "col_step": 52.0,
+      "align": "center",
+      "preferred_direction": "vertical",
+      "rendered_color": "#000000",
+      "rendered_stroke": 2,
+      "stroke_color": "#FFFFFF",
+      "font_family": "msyhbd.ttc",
+      "region_id": "r00",
+      "stroke_width": 0,
+      "text_color": "#000000",
+      "src_base_size": 52
+    },
+    {
+      "layout_direction": "vertical",
+      "font_size": 24,
+      "lines": [
+        "好啦",
+        "我知道啦"
+      ],
+      "anchor_pos": [
+        206,
+        1262
+      ],
+      "font_path": "C:\\Windows\\Fonts\\msyh.ttc",
+      "line_step": 33,
+      "col_step": 24.0,
+      "align": "center",
+      "preferred_direction": "vertical",
+      "rendered_color": "#000000",
+      "rendered_stroke": 0,
+      "stroke_color": "#FFFFFF",
+      "font_family": "msyh.ttc",
+      "region_id": "r01",
+      "stroke_width": 0,
+      "text_color": "#000000",
+      "src_base_size": 24
+    },
+    {
+      "layout_direction": "vertical",
+      "font_size": 13,
+      "lines": [
+        "——就",
+        "算去抓木乃",
+        "伊反被变成木乃",
+        "伊那也没办法吧"
+      ],
+      "anchor_pos": [
+        358,
+        729
+      ],
+      "font_path": "C:\\Windows\\Fonts\\msyh.ttc",
+      "line_step": 18,
+      "col_step": 13.0,
+      "align": "center",
+      "preferred_direction": "vertical",
+      "rendered_color": "#000000",
+      "rendered_stroke": 0,
+      "stroke_color": "#FFFFFF",
+      "font_family": "msyh.ttc",
+      "region_id": "r02",
+      "stroke_width": 0,
+      "text_color": "#000000",
+      "src_base_size": 13
+    },
+    {
+      "layout_direction": "vertical",
+      "font_size": 17,
+      "lines": [
+        "而且该打",
+        "倒的是——"
+      ],
+      "anchor_pos": [
+        42,
+        804
+      ],
+      "font_path": "C:\\Windows\\Fonts\\msyh.ttc",
+      "line_step": 23,
+      "col_step": 17.0,
+      "align": "center",
+      "preferred_direction": "vertical",
+      "rendered_color": "#000000",
+      "rendered_stroke": 0,
+      "stroke_color": "#FFFFFF",
+      "font_family": "msyh.ttc",
+      "region_id": "r03",
+      "stroke_width": 0,
+      "text_color": "#000000",
+      "src_base_size": 17
+    },
+    {
+      "layout_direction": "vertical",
+      "font_size": 12,
+      "lines": [
+        "灵",
+        "梦︙!?"
+      ],
+      "anchor_pos": [
+        467,
+        795
+      ],
+      "font_path": "C:\\Windows\\Fonts\\msyhbd.ttc",
+      "line_step": 17,
+      "col_step": 12.0,
+      "align": "center",
+      "preferred_direction": "vertical",
+      "rendered_color": "#000000",
+      "rendered_stroke": 0,
+      "stroke_color": "#FFFFFF",
+      "font_family": "msyhbd.ttc",
+      "region_id": "r04",
+      "stroke_width": 0,
+      "text_color": "#000000",
+      "src_base_size": 12
+    }
+  ],
+  "layout": {
+    "r00": {
+      "layout_direction": "vertical",
+      "font_size": 52,
+      "lines": [
+        "阴阳印!!"
+      ],
+      "anchor_pos": [
+        732,
+        392
+      ]
+    },
+    "r01": {
+      "layout_direction": "vertical",
+      "font_size": 24,
+      "lines": [
+        "好啦",
+        "我知道啦"
+      ],
+      "anchor_pos": [
+        206,
+        1262
+      ]
+    },
+    "r02": {
+      "layout_direction": "vertical",
+      "font_size": 13,
+      "lines": [
+        "——就",
+        "算去抓木乃",
+        "伊反被变成木乃",
+        "伊那也没办法吧"
+      ],
+      "anchor_pos": [
+        358,
+        729
+      ]
+    },
+    "r03": {
+      "layout_direction": "vertical",
+      "font_size": 17,
+      "lines": [
+        "而且该打",
+        "倒的是——"
+      ],
+      "anchor_pos": [
+        42,
+        804
+      ]
+    },
+    "r04": {
+      "layout_direction": "vertical",
+      "font_size": 12,
+      "lines": [
+        "灵",
+        "梦︙!?"
+      ],
+      "anchor_pos": [
+        467,
+        795
+      ]
+    }
+  },
+  "final_image": "final/page_33_final.png",
+  "checks": {
+    "rendered": 5,
+    "translated": 5,
+    "coverage_complete": true,
+    "overflow": [],
+    "skipped_no_bbox": [],
+    "shrunk_bubbles": []
+  },
+  "generated_at": "2026-10-07T13:55:21"
+}

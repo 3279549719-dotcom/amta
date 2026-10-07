@@ -1,0 +1,331 @@
+"""排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号二分双方向选优。
+
+ADR-033 决策C：删除 decide_direction，fit_font_size 同时计算横/竖排最大字号选最优。
+第一性原理：在给定矩形内放给定文字，字号最大化且不溢出；横竖排只是两种排列方式。
+竖排支持多列（与横排多行完全对称），窄长框长文本不再被压成极小字号。
+
+2026-09-11 基准字号改造（ADR-033 补充）：
+- 专业排版原则：所有文字字号应基本一致，不为撑满框而放大字号。
+- 新增 compute_base_font_size()：基于图片长边自动计算基准字号。
+- fit_font_size 新增 base_size 参数：从基准字号往下找（而非从 MAX_SIZE 往下找），
+  大框不撑满、小框才缩小到相对下限（基准字号 * MIN_SIZE_RATIO）。
+- 不传 base_size 时保持旧行为（向后兼容）。
+"""
+from __future__ import annotations
+
+import unicodedata
+from pathlib import Path
+
+from PIL import ImageFont
+
+NO_START_PUNCT = "，。！？、）》】……—"
+MIN_SIZE = 12
+MAX_SIZE = 52
+SAFE_RATIO = 0.85
+
+# 基准字号参数（2026-09-11）：
+# 基准字号 = 图片长边 / BASE_SIZE_DIVISOR（如 3258px 图 → 36px）
+# 相对下限 = 基准字号 * MIN_SIZE_RATIO（如 36px → 18px）
+BASE_SIZE_DIVISOR = 90
+MIN_SIZE_RATIO = 0.7  # 相对下限 = 基准字号 * 0.7（如 38px → 27px），低于此值宁可溢出也不缩小
+
+# 方向推断阈值：高宽比 >= 1.5 视为竖排框，宽高比 >= 1.5 视为横排框
+DIRECTION_RATIO_THRESHOLD = 1.5
+
+
+def _is_latin_token_char(ch: str) -> bool:
+    """判断字符是否属于不可分割的横向 token（拉丁字母、数字、常见连接符）。
+
+    断行时拉丁 token 内部不允许断开，避免 cosplay 被拆成 c-osplay。
+    用 Unicode 类别 + 常见符号判断，不硬编码单词表。
+    """
+    cat = unicodedata.category(ch)
+    if cat in ("Ll", "Lu", "Lt", "Lm", "Nd"):
+        return True
+    return ch in " _@./=+%-"
+
+
+def _inside_latin_token(text: str, pos: int) -> bool:
+    """判断断行点 pos 是否落在拉丁 token 内部（前后都是 token 字符 → 不允许断）。"""
+    if pos <= 0 or pos >= len(text):
+        return False
+    return _is_latin_token_char(text[pos - 1]) and _is_latin_token_char(text[pos])
+
+
+def compute_base_font_size(img_long_side: int) -> int:
+    """基于图片长边计算基准字号。
+
+    专业排版原则：所有文字字号应基本一致，基准字号由图片分辨率决定。
+    公式：base_size = max(MIN_SIZE, img_long_side // BASE_SIZE_DIVISOR)
+
+    Args:
+        img_long_side: 图片长边像素值（max(width, height)）
+
+    Returns:
+        基准字号（整数 px）
+    """
+    return max(MIN_SIZE, img_long_side // BASE_SIZE_DIVISOR)
+
+
+def infer_direction_from_bbox(bbox: list) -> str | None:
+    """从文本框长宽比推断原文排版方向。
+
+    日漫排版规律：窄长框（高>>宽）通常是竖排，横长框（宽>>高）通常是横排。
+    接近方形的框返回 None，表示不强制方向，回退到字号选优。
+
+    Args:
+        bbox: [x1, y1, x2, y2]
+
+    Returns:
+        "vertical" | "horizontal" | None
+    """
+    x1, y1, x2, y2 = bbox
+    w = max(1, x2 - x1)
+    h = max(1, y2 - y1)
+    if h / w >= DIRECTION_RATIO_THRESHOLD:
+        return "vertical"
+    if w / h >= DIRECTION_RATIO_THRESHOLD:
+        return "horizontal"
+    return None
+
+
+def break_lines(text: str, max_chars: int) -> list[str]:
+    """统一断行：给定每行/列最大字数，DP 找最优断点，遵守硬禁则。
+
+    横竖排共用：max_chars 对横排是每行字数，对竖排是每列字数。
+    硬禁则：
+    - 标点不出现在行首（行頭禁則）
+    - 开括号不出现在行尾（行末禁則）
+    - 短文本不断行
+
+    成本函数：列数最少 → 列长均衡 → 避免短尾。
+（2026-10-07 移除"标点后断列有奖励"：这是 hand-tuned 审美 knob，会主动把
+逗号顶到列尾再让 mask 擦屁股。硬禁则已保证标点不顶列头，断点让算法自己找。）
+    """
+    if max_chars <= 0:
+        return [text] if text else []
+    n = len(text)
+    if n == 0:
+        return []
+    if n <= max_chars:
+        return [text]
+
+    no_start = set(NO_START_PUNCT)
+    no_end = set("「（【《〈")
+    # 整行纯标点判定用的字符集：NO_START_PUNCT 已含全角 ！？…，补半角
+    punct_only = no_start | set("!?")
+    overflow_tolerance = 0  # 严格不超 max_chars：原先=2 允许中间列超字，
+    # 导致最长列变长、_fits 高度检查不通过，二分被迫降字号。
+    # 竖排宽度本有余量，应靠多分列而不是超列来排满。
+
+    INF = float("inf")
+    # dp[i] = (cost, prev_break)
+    dp: list[tuple[float, int]] = [(INF, -1)] * (n + 1)
+    dp[0] = (0.0, -1)
+
+    for i in range(1, n + 1):
+        j_min = max(0, i - max_chars - overflow_tolerance)
+        for j in range(j_min, i):
+            col_len = i - j
+            # 行首禁则
+            if j > 0 and text[j] in no_start:
+                continue
+            # 拉丁 token 保护：不允许在英文单词/数字内部断行
+            if j > 0 and _inside_latin_token(text, j):
+                continue
+            # 行末禁则：行尾不能是开括号
+            if j > 0 and text[i - 1] in no_end:
+                continue
+            # 整行纯标点（标点独占一行/一列）：禁止
+            if all(c in punct_only for c in text[j:i]):
+                continue
+            # 超长容忍：overflow_tolerance=0 时此分支实际不触发；
+            # 保留兜底——只有最后一列允许略超。
+            if col_len > max_chars:
+                if i != n:
+                    continue
+
+            prev_cost, _ = dp[j]
+            if prev_cost == INF:
+                continue
+            # 成本：行数最少（主目标）→ 行长均衡（次目标）
+            cost = prev_cost + 10000  # 每多一行 +10000（主目标）
+            # 行长均衡：当前行越接近 max_chars 越好
+            cost += abs(col_len - max_chars) * 10
+            # 短行惩罚：任何行太短都罚（不只最后一行），末行罚更重。
+            # 防止为了"少一行"把中间行压成只剩个标点的小尾巴。
+            if col_len < max_chars // 2:
+                cost += 500 if i == n else 200
+
+            if cost < dp[i][0]:
+                dp[i] = (cost, j)
+
+    # 回溯
+    lines: list[str] = []
+    i = n
+    while i > 0:
+        _, j = dp[i]
+        if j < 0:
+            lines.append(text[:i])
+            break
+        lines.append(text[j:i])
+        i = j
+    lines.reverse()
+    return [ln.lstrip() for ln in lines]
+
+
+def wrap_text(text: str, font, max_width: float) -> list[str]:
+    """横排折行：用统一 break_lines，按字宽算 max_chars。"""
+    char_w = font.getlength("字")
+    if char_w == 0:
+        return [text]
+    max_chars = max(1, int(max_width / char_w))
+    return break_lines(text, max_chars)
+
+
+def wrap_vertical(text: str, chars_per_col: int) -> list[str]:
+    """竖排按列分割：复用统一 break_lines。"""
+    return break_lines(text, chars_per_col)
+
+
+def _font_metrics(font: ImageFont.FreeTypeFont) -> tuple[float, float]:
+    """精确测量单个中文字符的宽和行高（利用字体本身的度量，不用硬编码比例）。"""
+    char_w = font.getlength("字")
+    ascent, descent = font.getmetrics()
+    line_h = ascent + descent
+    return char_w, line_h
+
+
+def _vertical_col_width(col_text: str, font, char_w: float) -> float:
+    """竖排一列的实际宽度。
+
+    普通字符占 char_w；连续拉丁字母/数字按横向排列的实际像素宽度算
+    （縦中横），不再假设每个字母占一个字宽。
+    """
+    max_w = char_w
+    i = 0
+    while i < len(col_text):
+        ch = col_text[i]
+        if _is_latin_token_char(ch):
+            j = i
+            while j < len(col_text) and (
+                _is_latin_token_char(col_text[j]) or col_text[j] == " "
+            ):
+                j += 1
+            group = col_text[i:j].strip()
+            if group:
+                max_w = max(max_w, font.getlength(group))
+            i = j
+        else:
+            i += 1
+    return max_w
+
+
+def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
+          direction: str) -> bool:
+    """检查折行/分列结果是否放入框内（精确测量，无溢出容忍）。"""
+    x1, y1, x2, y2 = bbox
+    w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
+    _char_w, line_h = _font_metrics(font)
+    if direction == "vertical":
+        # 竖排：各列实际宽度之和 <= 框宽；最长列字数 * 行高 <= 框高
+        max_col_chars = max(len(col) for col in lines) if lines else 0
+        total_w = sum(_vertical_col_width(col, font, _char_w) for col in lines)
+        return total_w <= w and (max_col_chars * line_h) <= h
+    # 横排：最长行像素宽 <= 框宽；行数 * 行高 <= 框高
+    max_line = max(font.getlength(ln) for ln in lines) if lines else 0
+    return max_line <= w and len(lines) * line_h <= h
+
+
+def _max_size_for_direction(text: str, font_path: Path, bbox: list,
+                            direction: str, min_sz: int, max_sz: int
+                            ) -> tuple[int, list[str]]:
+    """对指定方向做字号二分，返回 (最大字号, 折行/分列结果)。"""
+    if not text:
+        return min_sz, []
+    x1, y1, x2, y2 = bbox
+    w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
+    lo, hi = min_sz, max_sz
+    best, best_lines = min_sz, []
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        font = ImageFont.truetype(str(font_path), mid)
+        if direction == "vertical":
+            # 竖排：每列字数 = 框高 / 精确行高，按列分割
+            _char_w, line_h = _font_metrics(font)
+            chars_per_col = max(1, int(h / line_h))
+            lines = wrap_vertical(text, chars_per_col)
+        else:
+            lines = wrap_text(text, font, w)
+        if lines and _fits(lines, font, bbox, direction):
+            best, best_lines = mid, lines
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    if not best_lines:  # min_sz 也放不下
+        font = ImageFont.truetype(str(font_path), min_sz)
+        if direction == "vertical":
+            _char_w, line_h = _font_metrics(font)
+            chars_per_col = max(1, int(h / line_h))
+            best_lines = wrap_vertical(text, chars_per_col)
+        else:
+            best_lines = wrap_text(text, font, w)
+        return min_sz, best_lines
+    # 线性补扫：二分假设"字号越大越放不下"单调，但竖排 chars_per_col 跳变会导致
+    # 非单调（3列能放→2列卡住→再小又能放）。二分在 mid 失败后会跳过更大的可行字号。
+    # 这里从 best+1 到 max_sz 线性补扫一遍，捞回被跳过的大字号（最多 30 次，秒级）。
+    for sz in range(best + 1, max_sz + 1):
+        font = ImageFont.truetype(str(font_path), sz)
+        if direction == "vertical":
+            _char_w, line_h = _font_metrics(font)
+            cpc = max(1, int(h / line_h))
+            cand_lines = wrap_vertical(text, cpc)
+        else:
+            cand_lines = wrap_text(text, font, w)
+        if cand_lines and _fits(cand_lines, font, bbox, direction):
+            best, best_lines = sz, cand_lines
+    return best, best_lines
+
+
+def fit_font_size(text: str, font_path: Path, bbox: list,
+                  min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE,
+                  preferred_direction: str | None = None,
+                  base_size: int | None = None
+                  ) -> tuple[int, str, list[str]]:
+    """同时计算横排和竖排的最大可行字号，返回 (字号, 方向, 折行/分列)。
+
+    第一性原理：在给定矩形内放给定文字，字号最大化且不溢出。
+    两种方向约束方程一致（宽高互换），选字号更大者。
+
+    base_size（2026-09-11 新增）：基准字号模式。
+    - 传入时：max_sz = base_size（大框不撑满），min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))（相对下限）
+    - 不传时：用旧的 max_sz/min_sz（向后兼容，框内最大化字号）
+
+    preferred_direction: 首选方向（"horizontal"|"vertical"|None）。
+        - 若指定，优先在该方向最大化字号；
+        - 仅当首选方向字号 < 次选方向字号 * 0.70 时才切换到次选方向；
+        - None 时纯字号选优（旧行为）。
+    """
+    # 基准字号模式：覆盖 max_sz 和 min_sz
+    if base_size is not None:
+        max_sz = int(base_size)
+        min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))
+
+    h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
+    v_size, v_lines = _max_size_for_direction(text, font_path, bbox, "vertical", min_sz, max_sz)
+
+    if preferred_direction == "vertical":
+        # 首选竖排：竖排字号不小于横排70%就选竖排
+        if v_size >= h_size * 0.70:
+            return v_size, "vertical", v_lines
+        return h_size, "horizontal", h_lines
+    if preferred_direction == "horizontal":
+        # 首选横排：横排字号不小于竖排70%就选横排
+        if h_size >= v_size * 0.70:
+            return h_size, "horizontal", h_lines
+        return v_size, "vertical", v_lines
+
+    # 无首选方向：纯字号选优，平局偏向竖排（旧行为）
+    if v_size >= h_size:
+        return v_size, "vertical", v_lines
+    return h_size, "horizontal", h_lines

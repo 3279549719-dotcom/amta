@@ -60,13 +60,20 @@ def wrap_horizontal(text: str, font: ImageFont.FreeTypeFont, max_width: float) -
     return lines
 
 
-def _vertical_columns(text: str, chars_per_col: int) -> list[str]:
+def _vertical_columns(text: str, cells_per_col: int) -> list[str]:
+    """竖排切列——单位是**渲染行**，不是字符。
+
+    度量（这里）和渲染（_render_vertical ← iter_vertical_rows）必须共用同一套
+    「一个渲染单位占一行」的认知，否则 "!!" 会被当两行、縦中横会被当多行，
+    列高算错、垂直居中偏移、溢出（docs/lessons.md L54 的完整版）。
+    """
+    from amta.typeset.typeset_engine import break_cells
     cols: list[str] = []
     for paragraph in text.split("\n"):
-        for i in range(0, max(1, len(paragraph)), chars_per_col):
-            cols.append(paragraph[i:i + chars_per_col])
         if not paragraph:
             cols.append("")
+            continue
+        cols.extend(break_cells(paragraph, max(1, cells_per_col)))
     return [c for c in cols if c] or [""]
 
 
@@ -90,12 +97,14 @@ def layout_text(text: str, block: dict, image_size: tuple[int, int]) -> dict:
             used_h = (len(lines) - 1) * step + max(heights) + 2 * stroke
             used_w = max(ink_width(font, line) for line in lines) + 2 * stroke
         else:
+            from amta.typeset.typeset_engine import _cell_count
             cpc = max(1, int((height - 2 * stroke) / (sum(font.getmetrics()) * line_spacing)))
             lines = _vertical_columns(text, cpc)
             step = math.ceil(sum(font.getmetrics()) * line_spacing)
             col_width = font.getlength("字") * line_spacing
             used_w = len(lines) * col_width + 2 * stroke
-            used_h = max(map(len, lines)) * step + 2 * stroke
+            # 列高按渲染行数（连续标点/縦中横各占一行），不是字符数
+            used_h = max((_cell_count(col) for col in lines), default=0) * step + 2 * stroke
         if used_w <= width and used_h <= height:
             align = block.get("align", "center")
             if direction == "horizontal":

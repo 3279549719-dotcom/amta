@@ -1,0 +1,29 @@
+fix(typeset): 竖排列数少优先（受相对下限约束）+ 度量/渲染共用渲染行口径
+
+根因两处，同一句「明明一列放得下却排成两列」：
+1) 度量口径不同源：_fits 列高用 len(col) 字符数，渲染层 iter_vertical_rows 把
+   !!/!?/… 合成一个渲染行 → 一列被误判放不下；断列 DP 也以字符下标切分。
+   现竖排列高/列宽/断列一律走渲染行口径（_cell_rows/_cell_count/_column_width/
+   break_cells/wrap_cells_to_columns）。
+2) 选优顺序：竖排原来「字号最大优先、列数只是副产品」，气泡卡在零余量边界时
+   +1px 字号就把一句短促喊话拆成两列。现改为「列数少优先，但只在单列字号
+   >= 参考字号 * MIN_SIZE_RATIO 时才让列数赢」——复用既有相对下限，不加新阈值。
+   参考字号必须放开 base_size 上限去测（base_size 是「大框不撑满」的封顶，拿它
+   当分母会把紧框参考字号一起压低，曾把原图两列气泡误判成一列）。
+   方向判定用参考字号、版式用选优结果，避免列数优先生效后方向契约被反噬。
+
+另修：mits_render 算 src_base_size 前先做与渲染同一步的字符规范化；竖排搜索从
+「二分+线性补扫」改为 (字号 × 列数) 有界枚举（单调性不成立）；横排断行按真实
+字形像素宽度。
+
+实测（全库 1844 竖排片区，HEAD vs 当前，同 bbox/译文/字体）：
+  identical 1644 / fewer_cols 166（均值 −2.83px，最坏 −24px）/ more_cols 2（均变大字号）
+端到端重排（run_pipeline）：0033 r04 → 14px×1列；0038 r09 → 12px×2列（一列几何不可能）；
+对照 0033 r01（原图两列）→ 24px×2列保持。quality audit: all clean。
+
+验证：typeset 相关 59 条测试全绿；pytest 全量 716 passed。
+既有红项（与本改动无关，已用 git stash 独立复现）：tests/test_gui_frontend.py
+  ::test_frontend_page_identity_and_concurrency —— 由上一提交 c1168b9「书绑定」改造
+  改了 index.html（translateBtn 现在要求先识别书、用 book 流程），而
+  tests/test_gui_frontend.cjs 仍按旧的 /api/upload + /api/translate 流程断言，
+  且 VM 上下文缺 URLSearchParams。收尾时用 --skip-check 越过该既有红项并记账。
