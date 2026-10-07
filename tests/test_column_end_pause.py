@@ -97,21 +97,24 @@ def test_empty_input():
 
 # === 与实际断列行为衔接 ===
 
-def test_break_lines_puts_comma_at_column_end():
-    """基线：DP 的"标点后断列"奖励会让逗号落到列末（这就是冗余的来源）。
+def test_break_lines_no_longer_forces_comma_to_column_end():
+    """2026-10-07：移除"标点后断列有奖励"后，DP 不再主动把逗号顶到列末。
 
-    根因锚点：typeset_engine.break_lines 对 text[j-1] in strong_break 的断点
-    给 cost -= 50 奖励，算法因此主动偏好把逗号放在列末。
+    旧行为（已删）：DP 给 text[j-1] in strong_break 的断点 cost -= 50，
+    导致"仙人风范，端庄贤淑"被切成 ["仙人风范，", "端庄贤淑"]。
+    新行为：DP 只靠列长均衡定断点，逗号自然落进列中。
     """
     lines = wrap_vertical("仙人风范，端庄贤淑", 6)
-    assert len(lines) == 2
-    assert lines[0].endswith("，"), f"基线断列应让逗号落列末，实际 {lines}"
+    assert lines == ["仙人风", "范，端庄贤淑"], f"新断列: {lines}"
+    # 逗号在第二列中间，不是列末
+    assert not lines[0].endswith("，"), f"逗号不该在列末: {lines}"
 
 
 def test_engine_output_plus_policy_matches_desired_effect():
     """端到端规则：断列结果经掩码后显示 = 用户期望的两列。"""
     lines = wrap_vertical("仙人风范，端庄贤淑", 6)
-    assert _masked(lines) == ["仙人风范", "端庄贤淑"]
+    # 逗号已在列中，掩码不触发；显示即原文
+    assert _masked(lines) == ["仙人风", "范，端庄贤淑"]
 
 
 def test_real_page4_r03_column_end_comma_is_masked():

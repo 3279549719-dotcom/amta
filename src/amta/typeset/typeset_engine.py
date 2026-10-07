@@ -98,7 +98,9 @@ def break_lines(text: str, max_chars: int) -> list[str]:
     - 开括号不出现在行尾（行末禁則）
     - 短文本不断行
 
-    成本函数：列数最少 → 列长均衡 → 避免短尾 → 标点后断列有奖励。
+    成本函数：列数最少 → 列长均衡 → 避免短尾。
+（2026-10-07 移除"标点后断列有奖励"：这是 hand-tuned 审美 knob，会主动把
+逗号顶到列尾再让 mask 擦屁股。硬禁则已保证标点不顶列头，断点让算法自己找。）
     """
     if max_chars <= 0:
         return [text] if text else []
@@ -110,7 +112,6 @@ def break_lines(text: str, max_chars: int) -> list[str]:
 
     no_start = set(NO_START_PUNCT)
     no_end = set("「（【《〈")
-    strong_break = set("，。！？、；：")
     # 整行纯标点判定用的字符集：NO_START_PUNCT 已含全角 ！？…，补半角
     punct_only = no_start | set("!?")
     overflow_tolerance = 0  # 严格不超 max_chars：原先=2 允许中间列超字，
@@ -138,11 +139,10 @@ def break_lines(text: str, max_chars: int) -> list[str]:
             # 整行纯标点（标点独占一行/一列）：禁止
             if all(c in punct_only for c in text[j:i]):
                 continue
-            # 超长容忍
+            # 超长容忍：overflow_tolerance=0 时此分支实际不触发；
+            # 保留兜底——只有最后一列允许略超。
             if col_len > max_chars:
-                is_last = (i == n)
-                is_after_strong = (j > 0 and text[j - 1] in strong_break)
-                if not (is_last or is_after_strong):
+                if i != n:
                     continue
 
             prev_cost, _ = dp[j]
@@ -156,9 +156,6 @@ def break_lines(text: str, max_chars: int) -> list[str]:
             # 防止为了"少一行"把中间行压成只剩个标点的小尾巴。
             if col_len < max_chars // 2:
                 cost += 500 if i == n else 200
-            # 强断点奖励：标点后断行
-            if j > 0 and text[j - 1] in strong_break:
-                cost -= 50
 
             if cost < dp[i][0]:
                 dp[i] = (cost, j)

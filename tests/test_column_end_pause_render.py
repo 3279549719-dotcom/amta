@@ -72,22 +72,26 @@ def _cell_of(result, col_idx_from_right: int, char_idx: int, bbox):
             int(col_left + col_w), int(top + (char_idx + 1) * lh))
 
 
+# 2026-10-07：DP 移除"标点后断列奖励"后，短文本不再自然产生列末逗号。
+# 改用一段较长的对白，使 DP 必然在第一列末尾落在逗号上（列末逗号=mask 触发点）。
+COL_END_TEXT = "他说，今天不去了，明天再说吧，后天也许去，大后天也不一定"
+COL_END_EXPECTED_LINES = ["他说，今天不去了，", "明天再说吧，后天也", "许去，大后天也不一定"]
+
+
 # === 布局不变量 ===
 
 def test_render_item_preserves_lines_metadata():
     """关键回归：译文与 lines 元数据不得被改写（只隐藏渲染）。"""
-    text = "仙人风范，端庄贤淑"
-    _, result = _vertical_result(text, [100, 100, 240, 700])
+    _, result = _vertical_result(COL_END_TEXT, [100, 100, 240, 700])
     assert result["layout_direction"] == "vertical"
-    assert [c for c in result["lines"]] == ["仙人风范，", "端庄贤淑"], result["lines"]
-    assert sum(len(col) for col in result["lines"]) == len(text)
+    assert [c for c in result["lines"]] == COL_END_EXPECTED_LINES, result["lines"]
+    assert sum(len(col) for col in result["lines"]) == len(COL_END_TEXT)
 
 
 def test_render_item_keeps_cell_advance_and_column_height():
     """只隐藏字形：列高与组位置不变（不会因删字而重新居中/位移）。"""
-    text = "仙人风范，端庄贤淑"
     bbox = [100, 100, 240, 700]
-    img, result = _vertical_result(text, bbox)
+    img, result = _vertical_result(COL_END_TEXT, bbox)
     lines = result["lines"]
     lh = result["line_step"]
     _, cy = result["anchor_pos"]
@@ -112,7 +116,7 @@ def test_changed_pixels_confined_to_masked_cell(monkeypatch):
     """
     import amta.typeset.typeset_render as tr
 
-    text = "仙人风范，端庄贤淑"
+    text = COL_END_TEXT
     bbox = [100, 100, 240, 700]
 
     img_after, result_after = _vertical_result(text, bbox)
@@ -141,10 +145,10 @@ def test_changed_pixels_confined_to_masked_cell(monkeypatch):
 
 def test_render_item_hides_column_end_comma_glyph():
     """渲染层：列末逗号的字形不再出现在列末字格里。"""
-    text = "仙人风范，端庄贤淑"
+    text = COL_END_TEXT
     bbox = [100, 100, 240, 700]
     img, result = _vertical_result(text, bbox)
-    assert result["lines"] == ["仙人风范，", "端庄贤淑"]
+    assert result["lines"] == COL_END_EXPECTED_LINES, result["lines"]
     cell = _cell_of(result, 0, len(result["lines"][0]) - 1, bbox)
     n_cell, _ = ink_stats(img, cell)
     assert n_cell == 0, f"列末逗号字格仍被绘制: {n_cell}px @ {cell}"
