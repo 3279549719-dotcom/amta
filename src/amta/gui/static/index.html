@@ -813,7 +813,8 @@
       return new Promise(function(resolve, reject) {
         var reader = new FileReader();
         reader.onload = function(e) {
-          resolve({id: ++idCounter, name: file.name, file: file,
+          var m = /(\d+)/.exec(file.name || '');
+          resolve({id: ++idCounter, name: file.name, file: file, page: m ? String(parseInt(m[1], 10)) : null,
             src: e.target.result, outputSrc: null, translated: false});
         };
         reader.onerror = function() { reject(new Error('Could not read ' + file.name)); };
