@@ -96,3 +96,7 @@ research/08-ocr-vlm-audit-probe/
 
 # ---- 平铺迁移期留存（确认无用后删）----
 .remember.parent-era-20260906/
+
+# ---- 根级探针/对比产物（脚本可再生成，不入库）----
+# 例：scripts/probes/*.py 的输出（全库枚举统计、版式对比图）。页面级 PNG 大。
+/artifacts/
