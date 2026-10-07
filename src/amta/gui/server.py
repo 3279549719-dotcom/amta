@@ -27,7 +27,11 @@ from PIL import Image
 from pydantic import BaseModel
 
 from amta.common import workstate
-from amta.common.book_store import load_glossary, save_glossary
+from amta.common.book_store import (
+    book_id_from_src_dir,
+    load_glossary,
+    save_glossary,
+)
 from amta.common.deliverables import deliverable_stem, write_input_manifest
 from amta.common.environment import run_environment_check
 from amta.common.paths import ROOT
@@ -93,7 +97,13 @@ def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
         pages = req.pages
         if pages is None:
             src = Path(req.src_dir)
-            pages = sorted(int(p.stem) for p in src.glob("*.jpg") if p.stem.isdigit())
+            # 整本跑时从文件夹实际扫描数字命名的图片（jpg/png/webp 都认）
+            pages = sorted(
+                int(p.stem)
+                for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp")
+                for p in src.glob(ext)
+                if p.stem.isdigit()
+            )
         # VLM 模式：把离散页作为 vlm_pages，编排器会给这些页的 ocr/translate/typeset
         # 注入 vlm_mode=True。pages 为空时不做 VLM 路由（不生效但不报错）。
         vlm_pages = list(pages) if (req.mode == "vlm" and pages) else []
@@ -374,6 +384,154 @@ def request_psd(work_id: str, page: str) -> dict:
 # ---------------------------------------------------------------------------
 # 书级术语表确认（GUI 人工核对 / 编辑）
 # ---------------------------------------------------------------------------
+@app.get("/api/book/resolve")
+def resolve_book(dir: str) -> dict[str, object]:
+    """根据图片所在文件夹的真实路径，识别这是哪本同人册。
+
+    这是"指纹"的入口：路径 → book_id → 已有 glossary 自动挂上。
+    新文件夹 = 新 book_id = 空 glossary（自动开新槽，互不污染）。
+    前端拿到 book_id 后用 work_id="book-<book_id>" 固定工作区，用户看不见 work_id。
+    """
+    d = Path(dir).expanduser()
+    if not d.exists():
+        raise HTTPException(status_code=400, detail=f"path not found: {dir}")
+    if d.is_file():  # 手滑填成单个图片也能兜住：用它所在文件夹
+        d = d.parent
+    bid = book_id_from_src_dir(d)
+    glossary = load_glossary(bid)
+    pages = sorted(
+        int(p.stem)
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp")
+        for p in d.glob(ext)
+        if p.stem.isdigit()
+    )
+    return {
+        "book_id": bid,
+        "work_id": f"book-{bid}",
+        "src_dir": str(d),
+        "glossary": glossary,
+        "page_count": len(pages),
+        "pages": pages,
+    }
+
+
+def _known_books() -> list[dict[str, object]]:
+    """列出所有已登记的书：book_id -> src_dir。来自 workspace/books/*/meta.json。"""
+    out = []
+    books_root = ROOT / "workspace" / "books"
+    if not books_root.is_dir():
+        return out
+    for bid_dir in books_root.iterdir():
+        meta = bid_dir / "meta.json"
+        if not meta.is_file():
+            continue
+        try:
+            from amta.common.paths import read_json
+            m = read_json(meta)
+            src = Path(m.get("src_dir", ""))
+            if src.is_dir():
+                out.append({"book_id": bid_dir.name, "src_dir": src})
+        except (OSError, ValueError):
+            continue
+    return out
+
+
+@app.post("/api/book/match")
+async def match_book(files: list[UploadFile] = File(...)) -> dict[str, object]:
+    """用户直接丢图片进来 —— 服务器在已登记的书文件夹里比对这些图是从哪本掉出来的。
+
+    这是"零路径"的关键：浏览器不给绝对路径，但服务器在本机，能拿文件名+大小
+    (+内容哈希) 去每本书的 src_dir 里找同名同大小的图。匹配到唯一一本就自动绑定，
+    不用手填路径。匹配不到（新书）就返回 matched=false，前端才退回去要路径。
+    """
+    known = _known_books()
+    if not known:
+        return {"matched": False, "reason": "还没有任何已登记的书，先填一次文件夹建立档案"}
+
+    # 第一遍：按 文件名+大小 粗筛
+    per_file_candidates: list[set[str]] = []
+    for f in files:
+        content = await f.read()
+        fname = Path(f.filename or "").name  # 防路径穿越，只取文件名
+        size = len(content)
+        cand: set[str] = set()
+        for b in known:
+            target = b["src_dir"] / fname  # type: ignore[operator]
+            try:
+                if target.is_file() and target.stat().st_size == size:
+                    cand.add(b["book_id"])  # type: ignore[union-attr]
+            except OSError:
+                continue
+        per_file_candidates.append(cand)
+
+    if not per_file_candidates:
+        return {"matched": False, "reason": "没有收到图片"}
+
+    common = set.intersection(*per_file_candidates)
+    if len(common) != 1:
+        return {
+            "matched": False,
+            "reason": ("这些图在已登记的书里对不上（可能是新书或换了文件）。"
+                       "请在文件夹栏指一次它所在文件夹，之后自动记住。"),
+        }
+
+    bid = common.pop()
+    src_dir = next(b["src_dir"] for b in known if b["book_id"] == bid)
+    glossary = load_glossary(bid)
+    pages = sorted(
+        int(p.stem)
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp")
+        for p in Path(src_dir).glob(ext)  # type: ignore[arg-type]
+        if p.stem.isdigit()
+    )
+    return {
+        "matched": True,
+        "book_id": bid,
+        "work_id": f"book-{bid}",
+        "src_dir": str(src_dir),
+        "glossary": glossary,
+        "page_count": len(pages),
+        "pages": pages,
+    }
+
+
+@app.post("/api/book/bootstrap")
+def bootstrap_book_endpoint(req: dict) -> dict[str, object]:
+    """新书一键建档：对整个文件夹跑 detect+ocr，LLM 抽人名，返回 glossary 草稿。
+
+    注意：只返回草稿、不写盘。用户在 Glossary 面板里核对/修改后点保存，
+    才由 POST /api/glossary 落盘锁定。
+    """
+    src = (req.get("src_dir") or "").strip()
+    if not src:
+        raise HTTPException(status_code=400, detail="src_dir required")
+    d = Path(src).expanduser()
+    if d.is_file():
+        d = d.parent
+    if not d.is_dir():
+        raise HTTPException(status_code=400, detail=f"folder not found: {src}")
+
+    from amta.common.book_store import save_meta
+    from amta.guards.book_bootstrap import bootstrap_book
+
+    bid = book_id_from_src_dir(d)
+    save_meta(bid, d)
+    work_id = f"book-{bid}"
+    # 把 book_id 写进 work_state，免得翻译时又认不出书
+    ws = workstate.load_state(work_id)
+    ws["book_id"] = bid
+    workstate.save_state(work_id, ws)
+
+    draft = bootstrap_book(d, work_id)
+    return {
+        "book_id": bid,
+        "work_id": work_id,
+        "src_dir": str(d),
+        "glossary": draft,
+        "count": len(draft),
+    }
+
+
 @app.get("/api/glossary")
 def get_glossary(work_id: str) -> dict[str, object]:
     """返回本 work 所属书的已确认术语表。

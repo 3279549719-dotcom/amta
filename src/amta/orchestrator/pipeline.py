@@ -22,7 +22,7 @@ from pathlib import Path
 
 from amta.common.paths import ROOT, read_json
 from amta.common.pipeline_log import PipelineLog
-from amta.common.workstate import ensure_workspace
+from amta.common.workstate import ensure_workspace, load_state, save_state
 from amta.stores import artifacts
 from amta.stores.artifact_cache import compute_fingerprint, is_fresh, save_fingerprint
 
@@ -45,11 +45,26 @@ def _resolve_page_list(config: PipelineConfig) -> list[tuple[int, str, Path]]:
     else:
         page_numbers = list(range(config.start_page, config.end_page + 1))
 
+    # 先把文件夹里所有"数字命名"的图片建成 页号 -> 路径 的索引。
+    # 兼容任意扩展名（jpg/png/webp）和任意补零写法（7.jpg / 0007.png 都算第 7 页）。
+    # 以前硬编码 src_dir/{n}.jpg，碰 png 或补零命名直接 WARN 跳过——文件夹模式下会整批找不到图。
+    page_index: dict[int, Path] = {}
+    if config.src_dir.is_dir():
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
+            for p in config.src_dir.glob(ext):
+                stem = p.stem
+                if stem.isdigit():
+                    page_index.setdefault(int(stem), p)
+
     pages = []
     for n in page_numbers:
-        raw_path = config.src_dir / f"{n}.jpg"
-        if not raw_path.exists():
-            print(f"[pipeline] WARN {raw_path} not found, skip page {n}")
+        raw_path = page_index.get(n)
+        if raw_path is None:
+            # 回退：直接 {n}.jpg（老约定，workspace/input 那种 1.jpg 序号命名）
+            fallback = config.src_dir / f"{n}.jpg"
+            raw_path = fallback if fallback.exists() else None
+        if raw_path is None:
+            print(f"[pipeline] WARN page {n} not found in {config.src_dir}, skip")
             continue
         page_idx = n
         page_key = artifacts.page_key(page_idx)
@@ -275,6 +290,26 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     state_dir = ws_root / "state"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     state_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1.5 绑定书级 glossary：从 src_dir 推导 book_id 并写进 work_state。
+    # 这是 CLI 和 GUI 的共同收口——以前只有 scripts/run_pipeline.py 做这一步，
+    # GUI 直接调 run_pipeline 时漏掉，导致 work_state 没有 book_id：
+    #   - /api/glossary 读 work_state.book_id 为空 → 面板显示"词典不存在"
+    #   - translate 读 work_state.book_id 为空 → 跳过书级译名表 → 人名自由发挥
+    # src_dir 可能被误填成单个图片文件（GUI 里填 0007.PNG），此时用其父目录作书根。
+    from amta.common.book_store import book_id_from_src_dir, has_glossary, save_meta
+    book_root = Path(config.src_dir)
+    if book_root.is_file():
+        book_root = book_root.parent
+    book_id = book_id_from_src_dir(book_root)
+    save_meta(book_id, book_root)
+    ws = load_state(config.work_id)
+    ws_changed = ws.get("book_id") != book_id
+    ws["book_id"] = book_id
+    if ws_changed:
+        save_state(config.work_id, ws)
+    print(f"[book] book_id={book_id} (src_dir={book_root})"
+          + ("; glossary loaded" if has_glossary(book_id) else "; no glossary yet"))
 
     # 2. 初始化日志
     log = PipelineLog(state_dir / "pipeline_log.json")

@@ -119,6 +119,11 @@ def main() -> int:
         print(f"first failure: page={result.failed_step['page']} "
               f"stage={result.failed_step['stage']} reason={result.failed_step['reason']}")
 
+    if not result.pages:
+        print("[pipeline] ERROR: 未处理任何页面；请检查 --src-dir、页码范围和输入文件名")
+        print("=" * 60)
+        return 1
+
     # 质量体检红榜（friction 2026-09-16：质量信号不再静默埋在 JSON 里）
     artifacts_dir = ensure_workspace(a.work_id) / "artifacts"
     redlist = audit_run(artifacts_dir, result.pages)

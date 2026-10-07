@@ -483,6 +483,20 @@
     display: flex; align-items: center; justify-content: flex-end; gap: 10px;
     padding: 12px 20px; border-top: 1px solid var(--gray-100); background: var(--gray-50);
   }
+  /* Book bar — point at source folder, auto-recognize book & glossary */
+  .bookbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 20px; border-bottom: 1px solid var(--gray-100);
+    background: var(--gray-50); font-size: 13px;
+  }
+  .bookbar-label { font-weight: 600; color: var(--gray-600); white-space: nowrap; }
+  .bookbar input[type="text"] {
+    flex: 1; min-width: 260px; padding: 6px 10px; border: 1px solid var(--gray-200);
+    border-radius: 6px; font-size: 13px; background: #fff;
+  }
+  .bookbar input[type="text"]:focus { outline: none; border-color: #6366f1; }
+  .bookbar-status { color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bookbar-status b { color: #6366f0; font-family: ui-monospace, monospace; }
 </style>
 </head>
 <body>
@@ -550,6 +564,16 @@
     </button>
   </div>
 </header>
+
+<!-- Book bar: point at the source folder → fingerprint → bind glossary -->
+<div class="bookbar">
+  <span class="bookbar-label">漫画文件夹</span>
+  <input type="text" id="bookDirInput" placeholder="例如 D:\我的汉化\汉化作品\东方\タガタメ" autocomplete="off">
+  <input type="text" id="bookPageInput" placeholder="页（留空=全部，或 7 / 1-10）" autocomplete="off" style="width:200px">
+  <button class="btn btn-secondary" id="bookResolveBtn">识别这本书</button>
+  <button class="btn btn-secondary" id="bookScanBtn" disabled title="对整个文件夹跑 OCR + LLM 抽人名">扫描整本·建人名表</button>
+  <span id="bookStatus" class="bookbar-status">未识别——填好文件夹路径点「识别这本书」</span>
+</div>
 
 <!-- ===== Main ===== -->
 <div class="main">
@@ -622,6 +646,9 @@
   // 当前会话的 workId：translate 流程开始时写入；也可由 URL ?work_id= 预置。
   // Glossary 面板复用它来定位书级术语表（后端按 work_state.book_id 取表）。
   var currentWorkId = null;
+  // 已识别的书：{book_id, work_id, src_dir, pages, glossary}。由文件夹路径指纹得到，
+  // 是"这是哪本同人册"的唯一身份；同一文件夹永远复用同一 work_id，用户不用看见它。
+  var currentBook = null;
 
   // DOM
   var dropZone = document.getElementById('dropZone');
@@ -641,6 +668,10 @@
   var sidebar = document.getElementById('sidebar');
   var thumbAdd = document.getElementById('thumbAdd');
   var toastContainer = document.getElementById('toastContainer');
+  var bookDirInput = document.getElementById('bookDirInput');
+  var bookPageInput = document.getElementById('bookPageInput');
+  var bookResolveBtn = document.getElementById('bookResolveBtn');
+  var bookStatus = document.getElementById('bookStatus');
 
   function toast(msg, type) {
     var t = document.createElement('div');
@@ -663,6 +694,85 @@
       toast('Mode: ' + (currentMode === 'vlm' ? 'VLM Paratext' : 'Default'), 'info');
     });
   });
+
+  // Parse a page spec like "7", "1-10", "1,3,5" into a sorted int list. Empty → fallback.
+  function parsePages(spec, fallback) {
+    spec = (spec || '').trim();
+    if (!spec) return fallback;
+    var out = [];
+    spec.split(',').forEach(function(part) {
+      part = part.trim();
+      var m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (m) {
+        for (var i = parseInt(m[1], 10); i <= parseInt(m[2], 10); i++) out.push(i);
+      } else if (/^\d+$/.test(part)) {
+        out.push(parseInt(part, 10));
+      }
+    });
+    return out.length ? out.sort(function(a, b) { return a - b; }) : fallback;
+  }
+
+  // Resolve book from folder path
+  function resolveBook() {
+    var dir = bookDirInput.value.trim();
+    if (!dir) { toast('先填漫画文件夹路径', 'warn'); return; }
+    bookStatus.textContent = '识别中…';
+    fetch('/api/book/resolve?dir=' + encodeURIComponent(dir))
+      .then(function(r) {
+        if (!r.ok) return r.json().then(function(j) { throw new Error(j.detail || ('HTTP ' + r.status)); });
+        return r.json();
+      })
+      .then(function(data) {
+        currentBook = data;
+        currentWorkId = data.work_id;
+        try { localStorage.setItem('amta_book_dir', dir); } catch (e) {}
+        var n = Object.keys(data.glossary).length;
+        bookStatus.innerHTML = '已识别 <b>' + data.book_id + '</b> · 术语 ' + n + ' 条 · 共 ' + data.page_count + ' 页';
+        refreshGlossaryBtn();
+        bookScanBtn.disabled = false;
+        toast('已绑定书 ' + data.book_id + (n ? '（术语 ' + n + ' 条）' : '（新书，空术语表——点「扫描整本」建档）'), 'success');
+      })
+      .catch(function(err) {
+        currentBook = null;
+        bookStatus.textContent = '识别失败：' + err.message;
+        toast(err.message, 'error');
+      });
+  }
+  bookResolveBtn.addEventListener('click', resolveBook);
+  bookDirInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') resolveBook(); });
+
+  var bookScanBtn = document.getElementById('bookScanBtn');
+  // 新书一键建档：整本 OCR + LLM 抽人名 → 弹出 glossary 草稿让你改
+  bookScanBtn.addEventListener('click', function() {
+    if (!currentBook) { toast('先识别这本书', 'warn'); return; }
+    bookScanBtn.disabled = true;
+    bookStatus.textContent = '整本 OCR + 抽人名中（首次较慢，请稍候）…';
+    fetch('/api/book/bootstrap', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ src_dir: currentBook.src_dir })
+    })
+      .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status)); return d; }); })
+      .then(function(data) {
+        bookScanBtn.disabled = false;
+        currentBook.glossary = data.glossary;
+        bookStatus.innerHTML = '预扫描完成 <b>' + data.book_id + '</b> · 抽到 ' + data.count + ' 个人名，请核对';
+        // 直接把草稿塞进 glossary 面板供人工编辑
+        currentWorkId = data.work_id;
+        glossWorkId.textContent = 'work: ' + data.work_id;
+        glossRows.innerHTML = '';
+        setGlossNotice('plain', '草稿（未保存）——核对/修改后点保存：' + data.book_id);
+        renderGlossary(data);
+        glossOverlay.classList.add('show');
+        toast('抽到 ' + data.count + ' 个人名，核对后点保存', 'success');
+      })
+      .catch(function(err) {
+        bookScanBtn.disabled = false;
+        bookStatus.textContent = '预扫描失败：' + err.message;
+        toast(err.message, 'error');
+      });
+  });
+  // 记住上次的文件夹
+  try { var saved = localStorage.getItem('amta_book_dir'); if (saved) bookDirInput.value = saved; } catch (e) {}
 
   // File handling
   dropZone.addEventListener('click', function() { fileInput.click(); });
@@ -711,6 +821,7 @@
       });
     })).then(function(loaded) {
       loaded.forEach(function(img) { images.push(img); addThumb(img); });
+      matchDroppedBook(files);   // 丢进来就自动认书，不用手填路径
     }).catch(function(err) {
       toast(err.message, 'error');
     }).finally(function() {
@@ -720,11 +831,39 @@
     toast('Added ' + files.length + ' image' + (files.length > 1 ? 's' : ''), 'success');
   }
 
+  // 丢图进来 → 服务器在已登记的书里比对这图从哪本掉出来 → 自动绑定 glossary
+  function matchDroppedBook(fileList) {
+    var fd = new FormData();
+    Array.from(fileList).forEach(function(f) { fd.append('files', f, f.name); });
+    bookStatus.textContent = '正在根据图片识别这是哪本…';
+    fetch('/api/book/match', { method: 'POST', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.matched) {
+          currentBook = { book_id: data.book_id, work_id: data.work_id, src_dir: data.src_dir,
+                          pages: data.pages, glossary: data.glossary };
+          currentWorkId = data.work_id;
+          var n = Object.keys(data.glossary).length;
+          bookStatus.innerHTML = '已从图片识别 <b>' + data.book_id + '</b> · 术语 ' + n + ' 条 · 共 ' + data.page_count + ' 页';
+          bookDirInput.value = data.src_dir;
+          refreshGlossaryBtn();
+          bookScanBtn.disabled = false;
+          toast('自动识别成功：术语 ' + n + ' 条', 'success');
+        } else {
+          currentBook = null;
+          bookStatus.textContent = '未自动识别（' + (data.reason || '新书') + '）—— 在上方文件夹栏指一次即可';
+        }
+      })
+      .catch(function(err) { bookStatus.textContent = '识别失败：' + err.message; });
+  }
+
   function addThumb(img) {
     var thumb = document.createElement('div');
     thumb.className = 'thumb';
     thumb.dataset.id = img.id;
-    thumb.innerHTML = '<img src="' + img.src + '" alt=""><span class="page-num">' + images.length + '</span>';
+    var thumbSrc = img.src || '';
+    thumb.innerHTML = (thumbSrc ? '<img src="' + thumbSrc + '" alt="">' : '') +
+      '<span class="page-num">' + (img.page || images.length) + '</span>';
     thumb.addEventListener('click', function() {
       var idx = images.findIndex(function(i) { return i.id === img.id; });
       if (idx !== -1) selectImage(idx);
@@ -741,10 +880,15 @@
       t.classList.toggle('active', parseInt(t.dataset.id) === img.id);
     });
 
-    inputImg.src = img.src;
-    inputImg.style.display = 'block';
-    dropZone.style.display = 'none';
-    inputDot.classList.add('loaded');
+    if (img.src) {
+      inputImg.src = img.src;
+      inputImg.style.display = 'block';
+      dropZone.style.display = 'none';
+      inputDot.classList.add('loaded');
+    } else {
+      inputImg.style.display = 'none';
+      dropZone.style.display = 'flex';
+    }
     inputName.textContent = img.name.length > 24 ? img.name.substring(0, 21) + '...' : img.name;
 
     if (img.translated && img.outputSrc) {
@@ -765,65 +909,53 @@
     translateBtn.disabled = processing || loadingFiles;
   }
 
-  // Translate — 真实 API：上传全部图片 -> 提交任务 -> 轮询 -> 拉取产物
+  // Translate — 直接对真实文件夹跑管线：work_id 由书指纹派生，glossary 自动绑定。
   translateBtn.addEventListener('click', function() {
-    if (currentIndex === -1 || processing || loadingFiles) return;
+    if (processing || loadingFiles) return;
+    if (!currentBook) { toast('先填漫画文件夹并点「识别这本书」', 'warn'); return; }
+    var pages = parsePages(bookPageInput.value.trim(), currentBook.pages);
+    if (!pages || !pages.length) { toast('这个文件夹里没找到可翻译的页', 'warn'); return; }
 
     processing = true;
-    var submittedImages = images.slice();
     var submittedMode = currentMode;
+    var workId = currentBook.work_id;
+    currentWorkId = workId;
+    refreshGlossaryBtn();
     translateBtn.disabled = true;
     loadingOverlay.classList.add('show');
-    loadingText.textContent = 'Uploading…';
+    loadingText.textContent = 'Translating…';
     loadingStep.textContent = '';
     outputDot.classList.remove('done');
-    outputBadge.textContent = 'Processing…';
+    outputBadge.textContent = 'Processing…（页 ' + pages.join(',') + '）';
 
-    // 记录当前会话 workId 供 Glossary 面板复用（上传与翻译用同一个 id）
-    currentWorkId = 'gui-' + Date.now();
-    refreshGlossaryBtn();
-    var workId = currentWorkId;
-    var formData = new FormData();
-    formData.append('work_id', workId);
-    submittedImages.forEach(function(im) {
-      formData.append('files', im.file, im.name);
-    });
-
-    fetch('/api/upload', { method: 'POST', body: formData })
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        work_id: workId,
+        src_dir: currentBook.src_dir,
+        mode: submittedMode,
+        pages: pages
+      })
+    })
       .then(function(r) {
-        if (!r.ok) throw new Error('upload failed: ' + r.status);
+        if (!r.ok) return r.json().then(function(j) { throw new Error(j.detail || ('HTTP ' + r.status)); });
         return r.json();
       })
-      .then(function(upload) {
-        loadingText.textContent = 'Translating…';
-        return fetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            work_id: workId,
-            src_dir: upload.src_dir,
-            mode: submittedMode,
-            pages: upload.pages
-          })
-        }).then(function(r) {
-          if (!r.ok) throw new Error('translate submit failed: ' + r.status);
-          return r.json();
-        });
-      })
       .then(function(job) {
-        pollJob(job.job_id, workId, submittedImages, submittedMode);
+        pollJob(job.job_id, workId, pages, submittedMode);
       })
       .catch(function(err) {
         loadingOverlay.classList.remove('show');
         processing = false;
-        translateBtn.disabled = images.length === 0 || loadingFiles;
+        translateBtn.disabled = false;
         toast('Error: ' + err.message, 'error');
       });
   });
 
   // 轮询任务状态；done 后拉取 artifacts 并按页号回填到对应 image
   var pollTimer = null;
-  function pollJob(jobId, workId, submittedImages, submittedMode) {
+  function pollJob(jobId, workId, submittedPages, submittedMode) {
     var steps = submittedMode === 'vlm'
       ? ['VLM reading layout…', 'Translating…', 'Rendering…']
       : ['Detecting…', 'OCR…', 'Translating…', 'Inpainting…', 'Typesetting…'];
@@ -843,20 +975,25 @@
             return fetch('/api/artifacts/' + workId)
               .then(function(r) { return r.json(); })
               .then(function(res) {
-                // Resolve against the immutable upload order, not the current sidebar.
+                // 文件夹模式：按页号把产物挂到 images[]（没有上传原件，就建纯结果条目）
                 res.artifacts.forEach(function(a) {
-                  var idx = parseInt(a.page, 10) - 1;
-                  if (idx >= 0 && idx < submittedImages.length) {
-                    submittedImages[idx].translated = true;
-                    submittedImages[idx].outputSrc = a.url;
-                    submittedImages[idx].workId = workId;
-                    submittedImages[idx].page = String(a.page);
+                  var entry = images.find(function(i) { return String(i.page) === String(a.page); });
+                  if (!entry) {
+                    entry = { id: ++idCounter, name: 'p' + a.page, file: null, src: null,
+                              outputSrc: null, translated: false, page: String(a.page) };
+                    images.push(entry);
+                    addThumb(entry);
                   }
+                  entry.translated = true;
+                  entry.outputSrc = a.url;
+                  entry.workId = workId;
+                  entry.page = String(a.page);
                 });
                 processing = false;
-                if (currentIndex !== -1) selectImage(currentIndex);
+                var first = images.find(function(i) { return i.translated; });
+                if (first) selectImage(images.indexOf(first));
                 loadingOverlay.classList.remove('show');
-                translateBtn.disabled = images.length === 0 || loadingFiles;
+                translateBtn.disabled = false;
                 toast('Done (' + submittedMode + ')', 'success');
                 if (job.quality_warning) toast(job.quality_warning, 'info');
               });
