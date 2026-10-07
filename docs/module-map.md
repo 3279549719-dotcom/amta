@@ -17,7 +17,7 @@
 - **`environment.py`** — 环境自检门卫 — 管线启动前自动检查并修复环境问题。（函数: _check_proxy, _check_root, _check_models, _check_env, run_environment_check）
 - **`geometry.py`** — 共享几何库：bbox 解析、IoU、并集聚合、嵌套标记、category 映射。（函数: bbox_from_block, iou, union_boxes, union_blocks, _area）
 - **`images.py`** — 图片工具：带 padding 的裁剪（benchmark / recall_crop / ocr_run 共用）。（函数: crop_with_pad）
-- **`metrics.py`** — 共享指标库：OCR/recall 评分用的归一化、编辑距离、CER/EM 与匹配函数。（函数: contains_japanese, norm, levenshtein, cer, best_match）
+- **`metrics.py`** — 共享指标库：OCR/recall 评分用的归一化、编辑距离、CER/EM 与匹配函数。（函数: contains_japanese, _normalize_kana, norm, levenshtein, cer）
 - **`paths.py`** — 项目路径与公共 IO 工具 — 消除各脚本重复的 ROOT/OUTPUT/DATA 样板。（函数: ensure_output, ensure_utf8_stdio, read_json, write_json）
 - **`pipeline_log.py`** — pipeline_log — 流水线 step-level tracing(借鉴 OTel span 思想,零依赖,ADR-018)。（类: PipelineLog；函数: _now, git_head）
 - **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, ChangedPath, CommitPlan；函数: _parse_status_z, _chunks, quality_gate_command, _run_quality_gate, finish_verified）

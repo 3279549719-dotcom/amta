@@ -88,6 +88,7 @@ def test_clean_page_makes_only_one_call():
 
 def test_decisions_returned_by_translate_are_persisted():
     from amta.common import workstate
+    from amta.common.metrics import norm
 
     def with_decision(messages):
         return ('{"translations": ["a", "b"], "decisions": ['
@@ -98,5 +99,6 @@ def test_decisions_returned_by_translate_are_persisted():
         translate_page_minimal("w1", CANON, state_dir=_state(root),
                                page="page_7", llm_text=with_decision)
         d = workstate.load_decisions("w1")
-        assert d["ヤミツキ茸"]["translation"] == "成瘾菇"
-        assert d["ヤミツキ茸"]["evidence"][0]["page"] == 7
+        # decision 键为 norm(surface)——片假名归一后即 やみつき茸
+        assert d[norm("ヤミツキ茸")]["translation"] == "成瘾菇"
+        assert d[norm("ヤミツキ茸")]["evidence"][0]["page"] == 7

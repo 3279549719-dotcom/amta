@@ -21,9 +21,35 @@ def contains_japanese(s: str) -> bool:
     return bool(_JAPANESE_RE.search(s or ""))
 
 
+# 小写假名 → 大写假名（片假名小写在 katakana→hiragana 换算后也命中此表）
+_SMALL_TO_BIG = {
+    "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",
+    "っ": "つ", "ゃ": "や", "ゅ": "ゆ", "ょ": "よ", "ゎ": "わ",
+}
+
+
+def _normalize_kana(s: str) -> str:
+    """片假名→平假名、小写假名→大写假名。让 スーさん / すーさん / スーサン 归一到同一串。
+
+    片假名换算区间刻意取 U+30A1–U+30F6（ァ～ヶ），不含 ー(U+30FC)、ヽヾ、ヷ～ヺ，
+    以保留长音符号等现行口径（ADR-010 双轨前的既定行为）。
+    """
+    out = []
+    for ch in s:
+        code = ord(ch)
+        # 片假名 U+30A1–U+30F6 → 平假名 U+3041–U+3096（减 0x60）
+        if 0x30A1 <= code <= 0x30F6:
+            ch = chr(code - 0x60)
+        ch = _SMALL_TO_BIG.get(ch, ch)
+        out.append(ch)
+    return "".join(out)
+
+
 def norm(s: str) -> str:
-    """归一化：去掉空白/标点/特殊符号，保留假名、汉字、字母、数字。"""
-    return _NORM_RE.sub("", s or "")
+    """归一化：去掉空白/标点/特殊符号，并统一假名文字（片假名→平假名、小写→大写）。"""
+    s = _NORM_RE.sub("", s or "")
+    s = _normalize_kana(s)
+    return s
 
 
 def levenshtein(a: str, b: str) -> int:

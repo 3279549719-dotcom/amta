@@ -40,8 +40,11 @@ class CerTest(unittest.TestCase):
         self.assertEqual(metrics.cer("月の都は狭い", "月の都は\n狭い"), 0.0)
 
     def test_one_char_flip(self):
-        # くぃくぃ → くいくい：2 处替换 / 4 字 = 0.5
-        self.assertEqual(metrics.cer("くぃ くぃ", "くいくい"), 0.5)
+        # CER 机制：2 处替换 / 4 字 = 0.5（分母取 GT 长度）。
+        # 注意：不要再用 くぃ/くい 做翻转对——Task 1 起 norm() 会把小写假名 ぃ→い 折叠，
+        # 二者归一后相等（CER=0）。这里挑两个不含小写假名的普通假名串：
+        # はなこと → はねたと：な→ね、こ→た 两处替换，と 不动。
+        self.assertEqual(metrics.cer("はなこと", "はねたと"), 0.5)
 
     def test_empty_gt_nonempty_pred(self):
         self.assertEqual(metrics.cer("", "あ"), 1.0)

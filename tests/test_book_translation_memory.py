@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from amta.common import workstate
+from amta.common.metrics import norm
 
 _TMP_ROOT = Path(__file__).resolve().parents[1] / "output" / "logs" / "pytest-ws"
 
@@ -48,8 +49,9 @@ def test_record_creates_tentative_decision_with_evidence():
              "page": 2, "region_id": "r05", "match": "exact"},
         ])
         d = workstate.load_decisions("w1")
-        assert "ヤミツキ茸" in d
-        e = d["ヤミツキ茸"]
+        # decision 字典以 norm(surface) 为权威键——片假名归一后键为 やみつき茸
+        assert norm("ヤミツキ茸") in d
+        e = d[norm("ヤミツキ茸")]
         assert e["translation"] == "成瘾菇"
         assert e["status"] == "tentative"
         assert e["source"] == "translate"
@@ -78,7 +80,7 @@ def test_evidence_append_is_idempotent():
               "page": 2, "region_id": "r05", "match": "exact"}
         workstate.record_decisions("w1", [ev])
         workstate.record_decisions("w1", [ev])
-        assert len(workstate.load_decisions("w1")["ヤミツキ茸"]["evidence"]) == 1
+        assert len(workstate.load_decisions("w1")[norm("ヤミツキ茸")]["evidence"]) == 1
 
 
 def test_revision_keeps_old_evidence():
@@ -91,7 +93,7 @@ def test_revision_keeps_old_evidence():
             {"surface": "ヤミツキ茸", "translation": "迷幻菇", "surface_seen": "ヤミツキ茸",
              "page": 7, "region_id": "r00", "match": "exact"},
         ])
-        e = workstate.load_decisions("w1")["ヤミツキ茸"]
+        e = workstate.load_decisions("w1")[norm("ヤミツキ茸")]
         assert e["translation"] == "迷幻菇"          # 新证据生效
         assert len(e["evidence"]) == 2               # 旧证据不丢
         assert e["evidence"][0]["page"] == 2
@@ -107,7 +109,7 @@ def test_model_judged_variant_records_alias():
             {"surface": "ヤミツキ茸", "translation": "成瘾菇", "surface_seen": "ヤミツキ",
              "page": 7, "region_id": "r04", "match": "model_judged"},
         ])
-        e = workstate.load_decisions("w1")["ヤミツキ茸"]
+        e = workstate.load_decisions("w1")[norm("ヤミツキ茸")]
         assert "ヤミツキ" in e["aliases"]
         assert {x["match"] for x in e["evidence"]} == {"exact", "model_judged"}
 
