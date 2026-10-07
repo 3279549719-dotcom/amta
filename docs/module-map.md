@@ -11,6 +11,7 @@
 
 ## `common/` — amta.common — 跨阶段共享叶子库（纯通用，不依赖其他域）。
 
+- **`book_store.py`** — Book-level glossary store: keyed by src_dir path hash, shared across all work-ids.（函数: book_id_from_src_dir, _book_dir, glossary_path, meta_path, load_glossary）
 - **`config.py`** — 密钥与模型配置 — env → .env 回退唯一归属（深接口改造，修 F4 三处重复解析）。（函数: _read_key, _resolve, get_chat_config, get_vlm_api_key, get_dashscope_key）
 - **`deliverables.py`** — 交付物命名：内部用 page_N 编号，对外下载时用原图文件名。（函数: sanitize_stem, write_input_manifest, load_stems, deliverable_stem）
 - **`encoding.py`** — encoding — Windows 编码收口：跨边界文本只在这里处理一次。（类: TextResult；函数: _decode, run_text, run_text_or, force_utf8_stdio）
@@ -29,6 +30,7 @@
 - **`canon_schema.py`** — pre-translate Input schema 校验（ADR-016）— 逻辑已收编 amta.stores.artifacts（深接口改造）。
 - **`glossary.py`** — Knowledge guardrail（ADR-016）：confirmed 术语译名一致性校验。（函数: check_glossary）
 - **`guardrails.py`** — 翻译机械护栏 — 从 translate.py 拆出的深模块。（函数: mechanical_guardrails, japanese_residue_check, _run_guardrails_for_test）
+- **`name_pre_scan.py`** — Whole-book katakana name extraction via LLM (one-time pre-scan).（函数: build_extraction_prompt, parse_extraction_response）
 - **`pre_scan.py`** — Pre-scan: build per-work locked terminology dictionary from all OCR text.（函数: run_pre_scan）
 - **`suggestions.py`** — suggestions 机制唯一归属（修 F5）：片假名术语提取 → 追加落盘 → 跨页合并。（类: SuggestionsExtractor；函数: append_suggestions, merge_into_state）
 - **`term_dict.py`** — Term dictionary: load THBWiki master dictionary and match terms in text.（函数: load_master_dict, match_terms）
