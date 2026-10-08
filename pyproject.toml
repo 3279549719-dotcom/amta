@@ -82,7 +82,8 @@ exclude = ["models/**", "output/**", "scripts/archive/**", "scripts/probes/**", 
 pythonpath = ["src", "."]
 # Windows 全局临时目录可能残留无权限 pytest-current 链接；测试临时文件固定留在项目同盘目录。
 # --strict-markers：拼错 marker 名直接报错，防止"以为打了标其实没生效"。
-addopts = "--basetemp=.pytest_tmp --strict-markers"
+# --timeout=60：单个测试 60 秒不结束就杀（2026-10-08 递归 pytest hang 14 分钟事故驱动）。
+addopts = "--basetemp=.pytest_tmp --strict-markers --timeout=60"
 # 只收集 tests/：仓库里散落着 output/archive_86era、reference/_vendor 等历史/外部测试，
 # 全仓扫描会拖慢收集并产生 import 报错（2026-09-07 第二波清理时暴露）
 testpaths = ["tests"]
@@ -98,4 +99,5 @@ markers = [
 dev = [
     "pytest>=9.1.1",
     "pytest-testmon>=2.2.0",
+    "pytest-timeout>=2.4.0",
 ]

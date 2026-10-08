@@ -78,6 +78,26 @@ class TestFinishVerified:
         finish_verified("test: 注入 gate 必须被调用", gate=fake_gate, repo_root=repo)
         assert called == [True], "注入的 gate 没被调用——finish_verified 无视了 gate 参数"
 
+    def test_injected_gate_path_never_runs_real_quality_gate(self, repo):
+        """反向守护：注入 gate 时，run_gate / _run_quality_gate 一次都不能碰。
+
+        为什么需要这个：上面那个正向测试（fake_gate 被调）在 bug 复发时会先
+        真的去跑 run_gate() → 真 fastcheck → 递归 hang，根本走不到 assert。
+        这里用 mock 把真 gate 挡掉，即使代码走错分支也是毫秒级红，不 hang。
+        """
+        from unittest.mock import patch
+
+        import amta.common.state_manager as sm
+
+        (repo / "new.txt").write_text("dirty\n", encoding="utf-8")
+        with patch.object(sm, "run_gate") as mock_run_gate, \
+             patch.object(sm, "_run_quality_gate") as mock_qg:
+            mock_qg.return_value = 0
+            finish_verified("test: 注入时不跑真 gate", gate=_gate_passes, repo_root=repo)
+
+        mock_run_gate.assert_not_called()
+        mock_qg.assert_not_called()
+
     def test_red_gate_refuses_to_commit(self, repo):
         """质检没过就绝不落盘——这是本门存在的全部理由。"""
         (repo / "new.txt").write_text("dirty\n", encoding="utf-8")
