@@ -197,6 +197,45 @@ class TestRealGateShape:
         assert "feat: 裸 finish" in _git(repo, "log", "--oneline", "-1")
 
 
+class TestGateReportHonestVerdict:
+    """GateReport.passed 必须诚实——fastcheck 红了就必须红（2026-10-08 修后门）。
+
+    后门长这样：`rc == 0 or not self.new_failures`。当 ruff/depguard 挂了、
+    pytest 没跑到时，new_failures 是空列表，`not []` = True，gate 照样 PASS。
+    下面锁住四种形状，关键是前两种。
+    """
+
+    def _report(self, rc: int, failing: list[str], baseline: set[str] | None = None):
+        from amta.common.state_manager import GateReport
+        return GateReport(
+            fastcheck_returncode=rc,
+            pytest_failing=failing,
+            baseline=baseline or set(),
+        )
+
+    def test_rc_zero_is_pass_regardless_of_failing(self):
+        """fastcheck 绿 = 绿（pytest 失败列表不影响 verdict——rc 已经是 fastcheck 的事）。"""
+        r = self._report(0, ["tests/x.py::test_y"])
+        assert r.passed is True
+
+    def test_rc_nonzero_with_empty_failing_is_fail(self):
+        """关键：fastcheck 红 + pytest 失败列表为空 = 必须红。
+
+        这就是后门曾经放行的场景（ruff 挂了、pytest 根本没跑成）。
+        """
+        r = self._report(1, [])
+        assert r.passed is False, "后门复活：rc=1 但 failing 为空时放行了"
+
+    def test_rc_nonzero_with_new_failure_is_fail(self):
+        r = self._report(1, ["tests/x.py::test_y"], baseline=set())
+        assert r.passed is False
+
+    def test_rc_nonzero_with_only_baseline_reds_is_still_fail(self):
+        """既有红不再放行——baseline 只用于 render 显示，不影响 verdict。"""
+        r = self._report(1, ["tests/old.py::test_z"], baseline={"tests/old.py::test_z"})
+        assert r.passed is False, "既有红竟然放行了 gate"
+
+
 class TestWriteFailureIsNotSilent:
     """写操作失败必须炸出来——2026-09-17 实测：唯一收尾入口假报 OK。
 

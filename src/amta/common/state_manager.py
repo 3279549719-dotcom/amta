@@ -574,8 +574,14 @@ class GateReport:
 
     @property
     def passed(self) -> bool:
-        """gate 是否通过：fastcheck 全绿，或红的全是既有红。"""
-        return self.fastcheck_returncode == 0 or not self.new_failures
+        """gate 是否通过：fastcheck 退出码为 0 才是绿。
+
+        2026-10-08 修后门：原来 `or not self.new_failures` 是个洞——
+        ruff/depguard 失败时 new_failures 是空（因为不是 test ID），
+        gate 照样报 PASS。fastcheck 非零 = gate 红，没有例外。
+        baseline 仍用于 render() 区分 NEW vs PRE-EXISTING，但不再放行。
+        """
+        return self.fastcheck_returncode == 0
 
     def render(self) -> str:
         lines = ["=== GATE REPORT ==="]
