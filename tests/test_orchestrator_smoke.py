@@ -1,8 +1,12 @@
-"""编排器冒烟测试 — 用 fake 工位验证页面循环、阶段循环、断点续跑、错误处理。
+﻿"""编排器冒烟测试 — 用 fake 工位验证页面循环、阶段循环、断点续跑、错误处理。
 
 不依赖真实 OCR/翻译模型，纯逻辑验证。
 """
 from __future__ import annotations
+import pytest
+
+pytestmark = pytest.mark.slow
+
 
 import json
 import sys

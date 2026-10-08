@@ -1,4 +1,4 @@
-"""三阶段最终选型集成测试 — 验证接口契约与数据格式（不实际调用模型/API）。
+﻿"""三阶段最终选型集成测试 — 验证接口契约与数据格式（不实际调用模型/API）。
 
 最终选型:
 - 检测: RT-DETR-v2 (scripts/detect_rtdetr.py, 输出 label/score)
@@ -7,11 +7,14 @@
 """
 from __future__ import annotations
 
+import pytest
+
+
 import json
 import sys
 from pathlib import Path
 
-import pytest
+pytestmark = pytest.mark.slow
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))

@@ -81,12 +81,21 @@ exclude = ["models/**", "output/**", "scripts/archive/**", "scripts/probes/**", 
 # memory_* 测试的 import 通路：amta 包 + tests 跨文件 fixture 复用（ADR-025 前置）
 pythonpath = ["src", "."]
 # Windows 全局临时目录可能残留无权限 pytest-current 链接；测试临时文件固定留在项目同盘目录。
-addopts = "--basetemp=.pytest_tmp"
+# --strict-markers：拼错 marker 名直接报错，防止"以为打了标其实没生效"。
+addopts = "--basetemp=.pytest_tmp --strict-markers"
 # 只收集 tests/：仓库里散落着 output/archive_86era、reference/_vendor 等历史/外部测试，
 # 全仓扫描会拖慢收集并产生 import 报错（2026-09-07 第二波清理时暴露）
 testpaths = ["tests"]
+# 测试分层（2026-10-08）：
+#   slow = 加载 ML 模型（torch/onnx/lama）或跑全管线，>5s 或大内存。gate 默认排除，baseline 仍跑。
+#   experiment = 实验性 probe 脚本测试，可能随时失效或删除。gate 默认排除。
+markers = [
+    "slow: 重测试——加载 ML 模型（torch/onnx/lama）或跑全管线。gate 默认排除，baseline 仍跑。",
+    "experiment: 实验性 probe 脚本测试，可能随时失效或删除。gate 默认排除。",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-testmon>=2.2.0",
 ]

@@ -1,15 +1,18 @@
-"""RT-DETR-v2 检测器冒烟测试。
+﻿"""RT-DETR-v2 检测器冒烟测试。
 
 TDD seam: RTDetrDetector.detect(image) -> list[dict]
 验证：模型能加载、输出格式正确、框在图像范围内、非空。
 """
 from __future__ import annotations
 
+import pytest
+
+
 import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
+pytestmark = pytest.mark.slow
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))

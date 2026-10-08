@@ -62,6 +62,22 @@ def _gate_fails() -> int:
 class TestFinishVerified:
     """gate 红 → 拒绝提交；gate 绿 → 提交。"""
 
+    def test_injected_gate_is_actually_called(self, repo):
+        """注入的 gate 必须被调用——不能无视它去跑真 fastcheck。
+
+        回归测试（2026-10-08）：finish_verified 接受 gate 参数但代码里写死 run_gate()，
+        导致每个 gate 测试都递归跑真 fastcheck，pytest 卡死 14 分钟。
+        """
+        called = []
+
+        def fake_gate() -> int:
+            called.append(True)
+            return 0
+
+        (repo / "new.txt").write_text("dirty\n", encoding="utf-8")
+        finish_verified("test: 注入 gate 必须被调用", gate=fake_gate, repo_root=repo)
+        assert called == [True], "注入的 gate 没被调用——finish_verified 无视了 gate 参数"
+
     def test_red_gate_refuses_to_commit(self, repo):
         """质检没过就绝不落盘——这是本门存在的全部理由。"""
         (repo / "new.txt").write_text("dirty\n", encoding="utf-8")

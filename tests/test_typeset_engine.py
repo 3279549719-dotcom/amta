@@ -32,9 +32,11 @@ def test_narrow_tall_box_prefers_vertical_with_large_font():
         text, FONT_PATH, bbox, preferred_direction=preferred
     )
     assert direction == "vertical", f"窄长框首选竖排，实际选了{direction}"
+    # 契约：字号必须大到"人眼能读"（>=30px 是 207px 宽框里竖排的合理下限），
+    # 且文字确实放得下（fit_font_size 按构造保证）。改算法时只要几何守住就不该红。
     assert font_size >= 30, f"竖排字号应>=30，实际{font_size}（旧实现横排仅19px）"
     assert isinstance(lines, list) and len(lines) >= 1
-    # 竖排多列：每列是子串，总字数等于原文
+    # 竖排多列：每列是子串，总字数等于原文（契约：不丢字不加字）
     assert sum(len(col) for col in lines) == len(text)
 
 

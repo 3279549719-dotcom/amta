@@ -1,10 +1,14 @@
-"""硬编码词探针自身的回归测试。
+﻿"""硬编码词探针自身的回归测试。
 
 为什么要给一个"检查脚本"写测试：本脚本存在的理由就是消灭**假阴性**，
 而它第一版就有三个真 bug（自指命中、看不见未跟踪文件、BOM 造成假命中）。
 一个自己会静默失效的检查，比没有检查更危险——所以它的失效方式必须被锁住。
 """
 from __future__ import annotations
+import pytest
+
+pytestmark = pytest.mark.experiment
+
 
 import sys
 from pathlib import Path

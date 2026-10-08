@@ -221,31 +221,58 @@ def _typecheck() -> int:
 
 
 def _test() -> int:
-    """跑 tests/ 单测。tests/ 是 pytest 风格（模块级 test_* 函数 + tmp_path/monkeypatch fixtures）；
+    """跑 tests/ 单测（testmon 增量 + 默认排除 slow/experiment）。
+
+    tests/ 是 pytest 风格（模块级 test_* 函数 + tmp_path/monkeypatch fixtures）；
     `unittest discover` 只收 TestCase 类会静默跳过模块级函数（曾致 translate/workstate 测试不跑却报 PASS）。
     Windows 下 pytest 尾部 PermissionError: pytest-current 是 tmp_path teardown 噪音，
     结果以汇总行 "N passed" 判定，不以 exit code 判定。
+
+    2026-10-08 测试分层：
+      - --testmon：只跑受本次 diff 影响的测试（首次建库后秒级）。
+      - -m "not slow and not experiment"：gate 不跑重 ML / 实验 probe 测试。
+      - 失败 test ID 落到 .dsh/pytest-failing-last.txt，供 state_manager.run_gate()
+        直接读取做基线对比，不再第二遍冷跑 pytest（修复双跑 bug）。
     """
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    import re as _re
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
     # --basetemp 规避 Windows 下 pytest 默认 basetemp 的 pytest-current symlink teardown
     # PermissionError：指定显式目录后 pytest 不建该 symlink。
     # 每次用 pid 唯一目录（2026-09-10 修复）：固定目录一旦权限损坏（WinError 5 僵尸目录，
     # 连 icacls/rd 都删不掉），teardown 失败会让每个文件首个用例后的全部用例 ERROR
     # （436 passed 退化为 253 passed+183 ERROR）；唯一目录跑完即弃，坏目录无法再污染。
     basetemp = ROOT / "output" / "logs" / f".pytest-bt-{os.getpid()}"
+    pytest_args = [
+        sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q",
+        "--testmon",
+        "-m", "not slow and not experiment",
+        "--basetemp", str(basetemp),
+    ]
     r = subprocess.run(
-        [sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q", "--basetemp", str(basetemp)],
+        pytest_args,
         cwd=str(ROOT), env=env, capture_output=True,
         text=True, encoding="utf-8", errors="replace",
     )
     out = (r.stdout or "") + (r.stderr or "")
     shutil.rmtree(basetemp, ignore_errors=True)  # best-effort: 删不掉不影响（下次换 pid 新目录）
     print(out[-2000:])
-    import re as _re
+
+    # 解析 FAILED/ERROR 行 → 落盘失败 test ID，供 gate 基线对比
+    failing_ids: list[str] = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("FAILED") or line.startswith("ERROR"):
+            parts = line.split(" ", 1)
+            if len(parts) >= 2:
+                failing_ids.append(parts[1].split(" - ")[0])
+    failing_file = ROOT / ".dsh" / "pytest-failing-last.txt"
+    failing_file.parent.mkdir(parents=True, exist_ok=True)
+    failing_file.write_text("\n".join(sorted(failing_ids)), encoding="utf-8")
+
     m = _re.search(r"(\d+) passed", out)
     failed = _re.search(r"(\d+) failed", out)
     if m and not failed:
-        print(f"== [fastcheck] pytest: {m.group(1)} passed ==")
+        print(f"== [fastcheck] pytest: {m.group(1)} passed（{len(failing_ids)} failing 已落盘）==")
         return 0
     print(f"== [fastcheck] pytest 无通过汇总（exit {r.returncode}）==")
     return 1

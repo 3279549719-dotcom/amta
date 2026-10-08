@@ -21,7 +21,7 @@
 - **`metrics.py`** — 共享指标库：OCR/recall 评分用的归一化、编辑距离、CER/EM 与匹配函数。（函数: contains_japanese, _normalize_kana, norm, levenshtein, cer）
 - **`paths.py`** — 项目路径与公共 IO 工具 — 消除各脚本重复的 ROOT/OUTPUT/DATA 样板。（函数: ensure_output, ensure_utf8_stdio, read_json, write_json）
 - **`pipeline_log.py`** — pipeline_log — 流水线 step-level tracing(借鉴 OTel span 思想,零依赖,ADR-018)。（类: PipelineLog；函数: _now, git_head）
-- **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, ChangedPath, CommitPlan；函数: _parse_status_z, _chunks, quality_gate_command, _run_quality_gate, finish_verified）
+- **`state_manager.py`** — state_manager — 对话状态管理（合并 context-bootstrap + finisher）。（类: StateSnapshot, ChangedPath, CommitPlan；函数: _parse_status_z, _chunks, quality_gate_command, _run_quality_gate, _pytest_failing_tests）
 - **`tickets.py`** — tickets — needs_review 工单机制（ADR-017，借鉴 CMMS 工单状态机 + 维修手册归档）。（类: TicketStore；函数: _now, classify_kind）
 - **`workstate.py`** — per-work workspace + work_state — 产物结构 rebaseline（ADR-013）。（函数: work_dir, ensure_workspace, empty_state, init_workspace, load_state）
 

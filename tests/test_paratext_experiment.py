@@ -1,5 +1,8 @@
-"""Experimental contracts; tiny synthetic fixtures, no manga scans."""
+﻿"""Experimental contracts; tiny synthetic fixtures, no manga scans."""
+
 import pytest
+
+pytestmark = pytest.mark.experiment
 from PIL import Image, ImageChops, ImageFont
 
 from scripts.probes.paratext_layout import exclusive_crop, validate_regions

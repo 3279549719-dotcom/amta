@@ -1,4 +1,4 @@
-"""TDD 切片1: FFC 模型定义 + lama-manga 权重加载测试。
+﻿"""TDD 切片1: FFC 模型定义 + lama-manga 权重加载测试。
 
 验证:
 1. 能从 amta.inpaint._lama_ffc 导入 FFCResNetGenerator
@@ -7,6 +7,10 @@
 4. 前向传播输出形状正确 (B,3,H,W)
 """
 from __future__ import annotations
+import pytest
+
+pytestmark = pytest.mark.slow
+
 
 import glob
 import sys
