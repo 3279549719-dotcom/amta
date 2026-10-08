@@ -40,6 +40,7 @@ Embedded 模式：不是"告诉 AI 去跑 git log"，是"调用一个函数就�
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -481,6 +482,130 @@ def _run_quality_gate() -> int:
     return subprocess.run(quality_gate_command(), cwd=str(ROOT)).returncode
 
 
+# ---------------------------------------------------------------------------
+# 基线红名单（2026-10-08：被"本来就红"的旧测试白烧 20 分钟事故驱动）
+# ---------------------------------------------------------------------------
+
+_BASELINE_RED_FILE = ROOT / ".dsh" / "baseline-red.txt"
+
+
+def _pytest_failing_tests() -> list[str]:
+    """跑 pytest 并收集失败的测试 ID（如 tests/test_foo.py::test_bar）。
+
+    用 `--tb=no -q` 只看汇总行，再解析 FAILED/ERROR 行。
+    """
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1",
+           "PYTHONIOENCODING": "utf-8"}
+    basetemp = ROOT / "output" / "logs" / f".pytest-baseline-{os.getpid()}"
+    import shutil
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", str(ROOT / "tests"),
+             "-q", "--tb=no", "-p", "no:cacheprovider",
+             "--basetemp", str(basetemp)],
+            cwd=str(ROOT), env=env, capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+        )
+    finally:
+        shutil.rmtree(basetemp, ignore_errors=True)
+    out = (r.stdout or "") + (r.stderr or "")
+    failing: list[str] = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("FAILED") or line.startswith("ERROR"):
+            # FAILED tests/test_x.py::test_y - assertion error
+            parts = line.split(" ", 1)
+            if len(parts) >= 2:
+                failing.append(parts[1].split(" - ")[0])
+    return failing
+
+
+def save_baseline() -> list[str]:
+    """跑一次 pytest，把当前失败的测试 ID 存为基线。返回失败列表。"""
+    failing = _pytest_failing_tests()
+    _BASELINE_RED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _BASELINE_RED_FILE.write_text("\n".join(sorted(failing)), encoding="utf-8")
+    return failing
+
+
+def load_baseline() -> set[str]:
+    """读基线红名单（文件不存在 → 空集 = 之前没记过基线）。"""
+    if not _BASELINE_RED_FILE.exists():
+        return set()
+    return {
+        line.strip() for line in _BASELINE_RED_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+
+
+@dataclass
+class GateReport:
+    """gate 跑完的结构化结果：跑了什么、红了哪些、哪些是新红。"""
+
+    fastcheck_returncode: int
+    pytest_failing: list[str]
+    baseline: set[str]
+
+    @property
+    def new_failures(self) -> list[str]:
+        """不在基线里的红 = 这次改动引入的。"""
+        return [t for t in self.pytest_failing if t not in self.baseline]
+
+    @property
+    def pre_existing(self) -> list[str]:
+        """在基线里的红 = 之前就有，不拦。"""
+        return [t for t in self.pytest_failing if t in self.baseline]
+
+    @property
+    def passed(self) -> bool:
+        """gate 是否通过：fastcheck 全绿，或红的全是既有红。"""
+        return self.fastcheck_returncode == 0 or not self.new_failures
+
+    def render(self) -> str:
+        lines = ["=== GATE REPORT ==="]
+        if self.fastcheck_returncode == 0:
+            lines.append("fastcheck: ALL PASS")
+        else:
+            lines.append(f"fastcheck: FAIL (exit {self.fastcheck_returncode})")
+        if not self.pytest_failing:
+            lines.append("pytest: no failures")
+        else:
+            lines.append(f"pytest: {len(self.pytest_failing)} failing")
+            if self.new_failures:
+                lines.append(f"  NEW (blocks ship, {len(self.new_failures)}):")
+                for t in self.new_failures:
+                    lines.append(f"    ✗ {t}")
+            if self.pre_existing:
+                lines.append(f"  PRE-EXISTING (in baseline, not blocking, {len(self.pre_existing)}):")
+                for t in self.pre_existing:
+                    lines.append(f"    · {t}")
+        lines.append(f"baseline file: {_BASELINE_RED_FILE}")
+        lines.append(f"verdict: {'PASS' if self.passed else 'FAIL — new failures must be fixed before ship'}")
+        return "\n".join(lines)
+
+
+def run_gate(*, capture_pytest: bool = True) -> GateReport:
+    """跑质检门（fastcheck 全量），并对比基线红名单。**不碰 git**。
+
+    这是 gate/ship 拆分的 gate 侧：跑测试、报结果，但不 commit。
+    ship 侧见 `StateManager.finish()`（纯 git add+commit，不跑测试）。
+
+    Args:
+        capture_pytest: 是否额外解析 pytest 失败列表做基线对比。
+            fastcheck 自己也会跑 pytest，但它的输出混在其他 guard 里不好解析，
+            所以这里单独跑一次 `--tb=no` 只收失败 ID。
+    """
+    rc = _run_quality_gate()
+    if not capture_pytest:
+        return GateReport(fastcheck_returncode=rc, pytest_failing=[], baseline=load_baseline())
+    failing = _pytest_failing_tests()
+    return GateReport(
+        fastcheck_returncode=rc,
+        pytest_failing=failing,
+        baseline=load_baseline(),
+    )
+
+
 def finish_verified(
     summary: str,
     tag: str | None = None,
@@ -524,9 +649,13 @@ def finish_verified(
         return FinishReport(plan=plan, committed=False, reason="dry-run：只报告，不落盘")
 
     if not skip_check:
-        code = (gate or _run_quality_gate)()
-        if code != 0:
-            raise QualityGateFailed(code)
+        # gate/ship 拆分后的 gate：跑 fastcheck + pytest，对比基线红名单。
+        # 只有 NEW_FAILURE（不在基线里的红）才拦；既有红不拦（2026-10-08：
+        # 被"本来就红"的旧测试白烧 20 分钟事故驱动）。
+        report = run_gate()
+        print(report.render())
+        if not report.passed:
+            raise QualityGateFailed(1)
 
     # 清单**重新算**：全量门禁自己会生成文件（module-map 刷新等），
     # 拿门禁前的清单去 add 会把门禁刚产出的东西漏在提交外。

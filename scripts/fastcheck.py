@@ -233,8 +233,12 @@ def _test() -> int:
     # 连 icacls/rd 都删不掉），teardown 失败会让每个文件首个用例后的全部用例 ERROR
     # （436 passed 退化为 253 passed+183 ERROR）；唯一目录跑完即弃，坏目录无法再污染。
     basetemp = ROOT / "output" / "logs" / f".pytest-bt-{os.getpid()}"
+    # --testmon：只跑受本次 diff 影响的测试（首次建库后秒级）。
+    # 第一次跑会全量建 .testmondata，之后增量。全量回归用 --force-rerun。
+    pytest_args = [sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q",
+                   "--testmon", "--basetemp", str(basetemp)]
     r = subprocess.run(
-        [sys.executable, "-m", "pytest", str(ROOT / "tests"), "-q", "--basetemp", str(basetemp)],
+        pytest_args,
         cwd=str(ROOT), env=env, capture_output=True,
         text=True, encoding="utf-8", errors="replace",
     )
