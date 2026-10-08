@@ -19,7 +19,7 @@ DSH 会话（我）= 单 LLM Agent（导演）
 - **环境自检门卫**：`scripts/run_pipeline.py` 启动时自动检查代理 / 模型 / `.env` / ROOT 路径，不通过直接报错，不需要人工检查环境
 - **模型推理设备自动检测**（`cuda if available else cpu`），不硬编码设备
 - **唯一入口三个**：跑管线 `scripts/run_pipeline.py`、看现状 `scripts/peek.py`、找产物 `scripts/artifact.py`
-- 细节（接口、流程、坑全表）→ `AGENTS.md`、`CLAUDE.md`；决策索引 → `docs/decisions/README.md`
+- 细节（接口、流程、坑全表）→ `CLAUDE.md`；决策索引 → `docs/decisions/README.md`
 
 ## 管线阶段
 

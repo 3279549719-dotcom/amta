@@ -12,7 +12,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 ## 关键入口（指针）
 | 用途 | 命令 | 说明 |
 |---|---|---|
-| 跑管线 | `uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>` | 启动时自动环境自检；阶段：detect,ocr,translate,inpaint,typeset,segment（`segment` 是占位阶段，已注册未接，调用会报错）；**必须包含所有上游依赖阶段**（跑 typeset 必须含 detect,ocr,translate,inpaint）；artifact_cache 自动跳过未变更阶段 |
+| 跑管线 | `uv run python scripts/run_pipeline.py --work-id <id> --src-dir <dir> --start-page N --end-page M --stages <阶段>` | 启动时自动环境自检；阶段：detect,ocr,translate,inpaint,typeset,segment（`segment` 是占位阶段，已注册未接，调用会报错）；上游产物已存在时**可只跑下游**（如 `--stages typeset`，上游自动从磁盘读，不用全列）；但 detect/ocr 是非确定性的——一旦缓存失效被迫重跑会改 canon，重排 typeset 前先确认 OCR 产物是你要冻结的那版；artifact_cache 自动跳过未变更阶段 |
 | 搞懂代码现状 | `uv run python scripts/peek.py` | 打印当前 stage/engine/上下游/占位与孤儿阶段（读当前源码，非文档）。**它只干这件事**：找模块/函数/类用 grep，模块总览读 `docs/module-map.md` |
 | 批量改导入路径 | `uv run python scripts/refactor_module.py --old <旧点路径> --new <新点路径> [--dry-run] [--test]` | 重命名模块时用，禁止手改 imports（深接口工具，`--dry-run` 先预览） |
 | 找产物 | `uv run python scripts/artifact.py {query\|find\|invalidate} ...` | **一个 `query` 原语覆盖所有查询场景**：`--work-id <id>` 或 `--all`，可选 `--stage`/`--page`/`--format {json,table}`。`find` 是兼容层（要 `--stage`+`--page`+`--artifacts-dir`）。`invalidate` 失效单页缓存（要 `--work-id`+`--page`）。**拿不准先 `--help`，别照抄本行** |
@@ -55,4 +55,10 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 - **模型推理设备铁律**：所有模型推理阶段必须自动检测设备（`cuda if available else cpu`），禁止硬编码 `device="cpu"`。换 GPU 环境后应自动提速，不需要改代码。
 
 ## Python 运行规范（强制）
-所有 Python 命令用 `uv run python`，禁止裸 `python`（系统 Python 无依赖，`.venv` 是 3.12）。项目包在 `src/` 下，脚本内部已自动处理 PYTHONPATH。详见 AGENTS.md。
+所有 Python 命令用 `uv run python`，禁止裸 `python`（系统 Python 无依赖，`.venv` 是 3.12）。项目包在 `src/` 下，脚本内部已自动处理 PYTHONPATH。
+
+## 编码风格（强制）
+- Python 3.12，四空格缩进，type hints，小公共接口。Ruff + Pyright 强制风格与类型。
+- `snake_case` 模块/函数，`PascalCase` 类，`test_<行为>` 测试。
+- 每个 bug fix 加回归测试（artifact 契约、stage 依赖、渲染行为）。fixture 保持小，**永远不提交整页漫画图**。
+- 提交信息用 Conventional Commit：`feat(scope):` / `fix(scope):` / `refactor(scope):` / `docs(scope):` / `chore(scope):`。每个 commit 聚焦一件事。

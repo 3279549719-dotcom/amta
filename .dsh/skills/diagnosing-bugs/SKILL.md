@@ -1,6 +1,12 @@
 ---
 name: diagnosing-bugs
-description: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow.
+description: >
+  Use AUTOMATICALLY (do not wait for the user to say "debug") whenever: a test fails, a stage errors,
+  output looks wrong, numbers don't match expectations, or you are about to say "the root cause is X".
+  Builds a tight red/green feedback loop before any hypothesis. Do NOT use for new feature development,
+  pure refactoring, or when you can already point at the one-line obvious typo.
+  Hard rule: any "root cause is X" claim must carry quantitative evidence (a failing test output,
+  a probe measurement, a repro command); otherwise write it as a hypothesis, not a conclusion.
 ---
 
 # Diagnosing Bugs
