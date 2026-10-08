@@ -1,4 +1,4 @@
-"""TDD 切片2: LocalLamaInpainter 支持 model_type=lama-manga。
+﻿"""TDD 切片2: LocalLamaInpainter 支持 model_type=lama-manga。
 
 验证:
 1. LocalLamaInpainter(model_type="lama-manga") 能加载模型
@@ -6,6 +6,10 @@
 3. 模型类型属性正确
 """
 from __future__ import annotations
+import pytest
+
+pytestmark = pytest.mark.slow
+
 
 import sys
 from pathlib import Path

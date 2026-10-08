@@ -1,4 +1,4 @@
-"""Stage 3 minimal translation — translate_plain + prefetch + entry.
+﻿"""Stage 3 minimal translation — translate_plain + prefetch + entry.
 
 VLM refine 已移除（2026-09-09），归档见 archive/vlm_refine_stage3_2026-09-09.py。
 
@@ -7,6 +7,10 @@ Covers:
 - build_prefetch_context: code-side term/context prefetch
 - translate_page_minimal: 1-LLM-call-per-page entry contract
 """
+import pytest
+
+pytestmark = pytest.mark.slow
+
 import json
 
 

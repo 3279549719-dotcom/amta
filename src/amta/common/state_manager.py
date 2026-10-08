@@ -528,6 +528,22 @@ def save_baseline() -> list[str]:
     return failing
 
 
+def _read_last_failing() -> list[str]:
+    """读 fastcheck._test() 落盘的失败 test ID 列表。
+
+    gate 路径不再第二遍冷跑 pytest——fastcheck 那遍已经用 testmon 跑过了，
+    失败 ID 就在 .dsh/pytest-failing-last.txt。
+    文件不存在（比如直接跑 pytest 没经过 fastcheck）时返回空列表。
+    """
+    path = _BASELINE_RED_FILE.parent / "pytest-failing-last.txt"
+    if not path.exists():
+        return []
+    return [
+        line.strip() for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def load_baseline() -> set[str]:
     """读基线红名单（文件不存在 → 空集 = 之前没记过基线）。"""
     if not _BASELINE_RED_FILE.exists():
@@ -587,18 +603,15 @@ class GateReport:
 def run_gate(*, capture_pytest: bool = True) -> GateReport:
     """跑质检门（fastcheck 全量），并对比基线红名单。**不碰 git**。
 
-    这是 gate/ship 拆分的 gate 侧：跑测试、报结果，但不 commit。
-    ship 侧见 `StateManager.finish()`（纯 git add+commit，不跑测试）。
-
-    Args:
-        capture_pytest: 是否额外解析 pytest 失败列表做基线对比。
-            fastcheck 自己也会跑 pytest，但它的输出混在其他 guard 里不好解析，
-            所以这里单独跑一次 `--tb=no` 只收失败 ID。
+    2026-10-08 测试分层：
+      fastcheck._test() 已经用 testmon 跑了增量 pytest，并把失败 ID 落到
+      .dsh/pytest-failing-last.txt。这里**直接读文件**，不再第二遍冷跑 pytest。
+      （修复：原来 gate 跑两遍 pytest——fastcheck 一遍 testmon + 又一遍无 testmon 全量。）
     """
     rc = _run_quality_gate()
     if not capture_pytest:
         return GateReport(fastcheck_returncode=rc, pytest_failing=[], baseline=load_baseline())
-    failing = _pytest_failing_tests()
+    failing = _read_last_failing()
     return GateReport(
         fastcheck_returncode=rc,
         pytest_failing=failing,
@@ -649,13 +662,19 @@ def finish_verified(
         return FinishReport(plan=plan, committed=False, reason="dry-run：只报告，不落盘")
 
     if not skip_check:
-        # gate/ship 拆分后的 gate：跑 fastcheck + pytest，对比基线红名单。
-        # 只有 NEW_FAILURE（不在基线里的红）才拦；既有红不拦（2026-10-08：
-        # 被"本来就红"的旧测试白烧 20 分钟事故驱动）。
-        report = run_gate()
-        print(report.render())
-        if not report.passed:
-            raise QualityGateFailed(1)
+        if gate is not None:
+            # 测试注入的 gate：直接拿退出码，不跑真 fastcheck。
+            # （2026-10-08 修：原来无视 gate 参数写死 run_gate()，
+            # 导致每个 gate 测试递归跑真 fastcheck，pytest 卡死 14 分钟。）
+            rc = gate()
+            if rc != 0:
+                raise QualityGateFailed(rc)
+        else:
+            # 真 gate：跑 fastcheck + 基线对比。
+            report = run_gate()
+            print(report.render())
+            if not report.passed:
+                raise QualityGateFailed(1)
 
     # 清单**重新算**：全量门禁自己会生成文件（module-map 刷新等），
     # 拿门禁前的清单去 add 会把门禁刚产出的东西漏在提交外。
