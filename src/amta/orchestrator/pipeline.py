@@ -191,6 +191,40 @@ def _fail_result(
     return result
 
 
+def _cleanup_intermediate_images(artifacts_dir: Path, page_key: str) -> None:
+    """typeset 成功后清理该页上游中间位图。
+
+    删的是大文件（可从 JSON + 原图重建），留的是小文件（增量缓存基础）：
+    - 删: clean/page_N_clean.png（inpaint 中间图，typeset 已消费）
+    - 留: final/page_N_final.png（成品）
+    - 留: 所有 JSON + .fingerprint（增量缓存）
+    crops/ 由 run_pipeline 末尾统一清空（文件名不区分页码，逐页删不干净）。
+    """
+    clean_file = artifacts_dir / "clean" / f"{page_key}_clean.png"
+    if clean_file.exists():
+        try:
+            clean_file.unlink()
+            print(f"[pipeline] {page_key} cleaned intermediate: {clean_file.name}")
+        except OSError as e:
+            print(f"[pipeline] WARN cleanup clean failed ({clean_file}): {e}")
+
+
+def _clear_crops_dir(artifacts_dir: Path) -> None:
+    """全部跑完后清空 crops/ 目录（OCR 裁剪图，typeset 不需要）。"""
+    crops_dir = artifacts_dir / "crops"
+    if not crops_dir.is_dir():
+        return
+    removed = 0
+    for f in crops_dir.glob("*.png"):
+        try:
+            f.unlink()
+            removed += 1
+        except OSError:
+            pass
+    if removed:
+        print(f"[pipeline] cleared crops/ ({removed} files)")
+
+
 def _run_stage(
     config: PipelineConfig,
     log: PipelineLog,
@@ -246,6 +280,10 @@ def _run_stage(
     # 调用工位
     print(f"[pipeline] {page_key} {stage_name} running...")
     result = stage.station(ctx)
+
+    # typeset 成功 → 清理该页上游中间位图（clean/），JSON 保留当增量缓存
+    if stage_name == "typeset" and result.status == "ok":
+        _cleanup_intermediate_images(artifacts_dir, page_key)
 
     # 执行成功 → 保存指纹（供下次增量判断用）
     if result.status == "ok" and out_path is not None and out_path.exists():
@@ -361,6 +399,9 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     # 5. 收尾
     if first_failure is None:
         log.end_run(run_id)
+        # 全部成功 → 清空 crops/（OCR 裁剪图，typeset 已不需要）
+        if "typeset" in config.stages:
+            _clear_crops_dir(artifacts_dir)
 
     total_duration = round(time.perf_counter() - t_total, 2)
     print(f"\n[pipeline] DONE run={run_id} pages={len(pages)} failed={len(failed_pages)} "
