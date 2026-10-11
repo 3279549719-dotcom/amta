@@ -23,6 +23,19 @@ from amta.common.paths import ROOT, write_json
 
 MODEL_PATH = ROOT / "models" / "CTBD" / "detector.onnx"
 
+# ---- 模块级单例：检测器只加载一次 ----
+# 之前每页新建 RTDetrDetector → 每页都创建新的 ort.InferenceSession，
+# 既浪费加载时间，又可能因旧会话未释放导致内存累积（长时间跑批 OOM）。
+# 改为进程内单例：模型加载一次，所有页复用；conf_threshold 通过 detect() 传入。
+_detector: RTDetrDetector | None = None
+
+
+def _get_detector() -> RTDetrDetector:
+    global _detector
+    if _detector is None:
+        _detector = RTDetrDetector()
+    return _detector
+
 
 # ---- 几何工具 ----
 
@@ -433,9 +446,10 @@ def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
     if page_idx is None:
         page_idx = int(raw_page.stem)
     page = f"page_{page_idx}"
-    det = RTDetrDetector(conf_threshold=conf_threshold)
+    # 单例复用：检测器只加载一次，conf_threshold 通过 detect() 传入
+    det = _get_detector()
     t0 = time.time()
-    blocks = det.detect(str(raw_page))
+    blocks = det.detect(str(raw_page), conf_threshold=conf_threshold)
     per_engine = {"rtdetr-v2": len(blocks)}
 
     if tiling_enabled:
