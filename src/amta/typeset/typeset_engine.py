@@ -133,14 +133,34 @@ def _cell_width(kind: str, txt: str, char_w: float, font) -> float:
     """一个渲染单位占的横向宽度，与 _render_vertical 的实际画法一致。
 
     - punct：整组并排在同一字格内，逐字符均分（_render_vertical 的 punct_w）。
-    - latin：縦中横整组横向排在字格中心，可能比字格宽（取实际宽度）。
+    - latin：整组横排渲染后顺时针旋转90°贴入，旋转后的横向宽度 = 原横排字高
+      ≈ line_h ≈ char_w（不再是横排宽度）。
     - char ：一个字格宽。
     """
     if kind == "punct":
         return char_w / max(1, len(txt))
     if kind == "latin":
-        return max(char_w, font.getlength(txt))
+        return char_w
     return char_w
+
+
+def _vertical_rows_weighted(col_text: str, font, line_h: float) -> int:
+    """竖排一列的渲染行数（span 加权）：拉丁组旋转90°后占 ceil(横宽/行高) 行。
+
+    汉字/标点组各占 1 行；拉丁组（数字/英文）旋转后高度 = 横排宽度，
+    因此占 ceil(font.getlength(text) / line_h) 行。纯中文列结果与
+    len(iter_vertical_rows(col_text)) 完全一致，不影响纯中文气泡布局。
+    """
+    from amta.typeset.typeset_render import iter_vertical_rows
+    total = 0
+    for row in iter_vertical_rows(col_text):
+        if row.kind == "latin":
+            import math
+            w = font.getlength(row.text)
+            total += max(1, int(math.ceil(w / line_h)))
+        else:
+            total += 1
+    return total
 
 
 def _column_width(col_text: str, char_w: float, font) -> float:
@@ -409,8 +429,8 @@ def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
     w, h = (x2 - x1) * SAFE_RATIO, (y2 - y1) * SAFE_RATIO
     char_w, line_h = _font_metrics(font)
     if direction == "vertical":
-        # 竖排：各列实际宽度之和 <= 框宽；最长列渲染行数 * 行高 <= 框高
-        max_col_rows = max((_cell_count(col) for col in lines), default=0)
+        # 竖排：各列实际宽度之和 <= 框宽；最长列渲染行数（span 加权）* 行高 <= 框高
+        max_col_rows = max((_vertical_rows_weighted(col, font, line_h) for col in lines), default=0)
         total_w = sum(_column_width(col, char_w, font) for col in lines)
         return total_w <= w and (max_col_rows * line_h) <= h
     # 横排：最长行像素宽 <= 框宽；行数 * 行高 <= 框高
@@ -419,7 +439,7 @@ def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
 
 
 def _fill_columns(text: str, cells, n_cols: int) -> list[str]:
-    """把文本渲染行均分成 n_cols 列（前列可多 1 行）；不足 n_cols 列则返回实际列。"""
+    """把文本渲染行均分成 n_cols 列（按 span 行数均衡）；不足 n_cols 列则返回实际列。"""
     if n_cols <= 1:
         return [text]
     return wrap_cells_to_columns(cells, n_cols)
