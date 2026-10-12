@@ -8,6 +8,7 @@ ADR-033 决策C：render_item 不再接收 direction，由 fit_font_size 双方�
 """
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -237,6 +238,18 @@ def iter_vertical_rows(col_text: str) -> list[VerticalRow]:
     return rows
 
 
+def latin_row_span(text: str, font, line_h: float) -> int:
+    """旋转90°后的拉丁/数字组在竖排中占据的行数（line-height 倍数）。
+
+    先横排渲染整组，再整体顺时针旋转90°：旋转后高度 = 原横排宽度。
+    因此占 ceil(横排宽度 / line_h) 行。单字符至少占1行。
+    """
+    if line_h <= 0:
+        return 1
+    text_w = font.getlength(text)
+    return max(1, int(math.ceil(text_w / line_h)))
+
+
 def _count_vertical_lines(col_text: str) -> int:
     """竖排一列的实际渲染行数 = 拆出来的行数（縦中横/标点组合各占一行）。
 
@@ -325,21 +338,45 @@ def _render_vertical(img, draw, font, lines, cx, cy, font_size, lh,
                         group_x + k * punct_w, y, punct_w, lh,
                         stroke, color)
             elif row.kind == "latin":
-                # 縦中横：整组拉丁/数字在当前行内横向排列、水平居中。
+                # 拉丁/数字组：先横排渲染到离屏画布，再整体顺时针旋转90°贴入。
+                # 旋转后高度 = 原横排宽度，自然占据 ceil(横宽/行高) 行；不缩放，
+                # 保持字号与汉字一致。纯中文行推进仍为 1 行，列分配不变。
                 group = row.text
                 group_fonts = [_choose(c) for c in group]
                 group_widths = [f.getlength(c) for f, c in zip(group_fonts, group)]
                 total_w = sum(group_widths)
-                gx = x + (col_width - total_w) / 2
                 ascent, descent = group_fonts[0].getmetrics()
-                gy = y + (lh - (ascent + descent)) / 2
+                text_h = ascent + descent
+                # 离屏画布：留出描边和抗锯齿余量
+                pad = int(stroke) * 2 + 4
+                canvas_w = int(math.ceil(total_w)) + pad * 2
+                canvas_h = int(math.ceil(text_h)) + pad * 2
+                cimg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+                cdraw = ImageDraw.Draw(cimg)
+                gx = pad
                 for k, (c, f, cw) in enumerate(zip(group, group_fonts, group_widths)):
                     if col_hide and col_hide[char_i + k]:
                         gx += cw
                         continue
-                    draw.text((gx, gy), c, font=f, fill=color,
-                              stroke_width=int(stroke), stroke_fill="white")
+                    cdraw.text((gx, pad), c, font=f, fill=color,
+                               stroke_width=int(stroke), stroke_fill="white")
                     gx += cw
+                # 顺时针旋转90°（PIL 正角度为逆时针，故用 -90）：
+                # 旋转后顶部朝右，从上往下读即为正常横排顺序
+                cimg = cimg.rotate(-90, expand=True)
+                tight = cimg.getbbox()
+                if tight:
+                    cimg = cimg.crop(tight)
+                # 旋转后高度 = 原横排宽度，自然占 span 行；不缩放
+                span = max(1, int(math.ceil(cimg.height / lh)))
+                block_h = span * lh
+                # 在 span 行块内居中
+                paste_x = x + (col_width - cimg.width) / 2
+                paste_y = y + (block_h - cimg.height) / 2
+                img.paste(cimg, (int(paste_x), int(paste_y)), cimg)
+                y += block_h
+                char_i += len(row.text)
+                continue
             else:
                 ch = row.text
                 if not (col_hide and col_hide[char_i]):
