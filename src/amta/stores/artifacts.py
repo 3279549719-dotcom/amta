@@ -361,14 +361,27 @@ def save_canon(artifacts_dir: Path, page: str, work_id: str, items: list[dict],
 
 
 def load_canon(path: Path | str) -> dict:
-    """读 canon：兼容旧裸 list（1.x 产物）；非法 raise ValueError（修 F2 双契约）。"""
+    """读 canon：兼容旧裸 list（1.x 产物）；非法 raise ValueError（修 F2 双契约）。
+
+    OCR 读不出的小框（音效字 / 装饰框 / 无对白插画）在此直接丢弃——下游 translate
+    不该因为一个空框就否决整页。真·OCR 挂掉会表现为整页没有任何框，由上层
+    （页面级空 canon）兜底，不在此报错。
+    """
     doc = read_json(path)
     if isinstance(doc, list):
         doc = {"items": doc}
     items = doc.get("items")
-    _raise_problems(validate_canon_items(items), path)
-    if not isinstance(items, list):  # 类型收窄：校验通过即必为 list（pyright）
+    if not isinstance(items, list):
         raise ValueError(f"artifact invalid ({path}): canon must be a list")
+    # 丢掉 OCR 没读出字的框
+    items = [
+        r for r in items
+        if isinstance(r, dict) and any(
+            str(t or "").strip() for t in
+            (r.get("text"), r.get("baberu_text"), r.get("vlm_text"))
+        )
+    ]
+    _raise_problems(validate_canon_items(items), path)
     return {
         "work_id": doc.get("work_id", ""),
         "page": doc.get("page", ""),

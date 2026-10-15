@@ -16,6 +16,15 @@ SRC_DIR = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 from amta.stations.detect_station import detect_page, RTDetrDetector
+import amta.stations.detect_station as detect_station_mod
+
+
+@pytest.fixture(autouse=True)
+def _reset_singleton():
+    """每个测试前清掉模块级 detector 缓存，避免前序测试泄漏单例导致本测试 patch 不触发。"""
+    detect_station_mod._detector = None
+    yield
+    detect_station_mod._detector = None
 
 
 @pytest.fixture

@@ -821,6 +821,10 @@
         reader.readAsDataURL(file);
       });
     })).then(function(loaded) {
+      // 新拖入的图片替换掉之前的列表（不是追加），避免"只放了2页却跑了20页"
+      images.length = 0;
+      currentIndex = -1;
+      document.querySelectorAll('.thumb').forEach(function(t) { t.remove(); });
       loaded.forEach(function(img) { images.push(img); addThumb(img); });
       matchDroppedBook(files);   // 丢进来就自动认书，不用手填路径
     }).catch(function(err) {
@@ -918,6 +922,7 @@
     // 没拖图时才用页框兜底。绝不默认整本。
     var dropped = [];
     images.forEach(function(im) {
+      if (!im.file) return;  // 跳过从后端回填的旧页（file 为 null），只跑用户新拖进来的
       var m = /(\d+)/.exec(im.name || '');
       if (m) dropped.push(parseInt(m[1], 10));
     });

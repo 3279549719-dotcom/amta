@@ -1,1 +1,0 @@
-tests/test_encoding.py::TestNoBareTextTrueInLiveCode::test_no_bare_text_true

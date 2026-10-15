@@ -24,7 +24,7 @@ AMTA — 会话驱动的漫画翻译自动化。DSH 会话=导演（决策/翻�
 ## 必执行 Checklist（chained，AI 自主触发）
 - **对话结束**：走 **cycle-close** 协议收尾。落盘唯一入口 `state.py finish "summary"`——**它内置全量质检，红了拒绝提交**（急用 `--skip-check`），不需要手动 git add/commit。npm 别名见 `package.json`，不在此处复述
 - **改到一半**：`fastcheck.py --quick` 秒级只读快检，不用等收尾（pre-commit 跑的就是它，两条路同一扇门）
-- 搞懂代码现状：**先 `peek` 看管线全貌，再用 grep / `docs/module-map.md` 定位模块**，然后才读目标文件；不要先翻 workspace/ 旧产物
+- 搞懂代码现状：**先 `peek` 看管线全貌，再用 grep / `docs/module-map.md` 定位模块**，然后才读目标文件；不要先翻 workspace/ 旧产物。读一个阶段按这个顺序：`src/amta/orchestrator/registry.py` 的 StageSpec（契约）→ `src/amta/orchestrator/adapters/<阶段>.py`（薄入口）→ 对应 station → 深模块；想知道"为什么这么设计"用 `memory.py grep --scope decisions <阶段名>`
 - 找产物/查缓存/列某阶段文件：**用 `artifact.py`**，禁止翻目录
 - 遇到报错/异常/测试失败：**先按 diagnosing-bugs skill 流程定位根因**，禁止直接猜答案
 - 做架构/选型决策前：先核对现有代码、产物和相关 ADR；只有关键取舍需要用户判断时才提问
