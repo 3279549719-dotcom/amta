@@ -680,7 +680,10 @@ def fit_font_size(text: str, font_path: Path, bbox: list,
     横排按行折、竖排按列分；方向由几何契约或首选方向决定（见下）。
 
     base_size（2026-09-11 新增）：基准字号模式。
-    - 传入时：max_sz = base_size（大框不撑满），min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))（相对下限）
+    - 传入时：max_sz = base_size（大框不撑满）
+    - 搜索范围从 MIN_SIZE（绝对下限）到 max_sz；MIN_SIZE_RATIO 是选择偏好
+      （在 _vertical_pick 内部作为"单列代价可接受线"），不是搜索截断。
+      这样几何可行但小于相对下限的布局也能进入候选集，由选择层决定是否采用。
     - 不传时：用旧的 max_sz/min_sz（向后兼容，框内最大化字号）
 
     preferred_direction: 首选方向（"horizontal"|"vertical"|None）。
@@ -692,10 +695,10 @@ def fit_font_size(text: str, font_path: Path, bbox: list,
     选优顺序（2026-10-07）：**列数少优先，但只在字号代价不超过相对下限
     （MIN_SIZE_RATIO）时才让列数赢**——见 _vertical_pick。
     """
-    # 基准字号模式：覆盖 max_sz 和 min_sz
+    # 基准字号模式：搜索从绝对下限 MIN_SIZE 开始，MIN_SIZE_RATIO 是选择偏好而非搜索截断
     if base_size is not None:
         max_sz = int(base_size)
-        min_sz = max(MIN_SIZE, int(base_size * MIN_SIZE_RATIO))
+        min_sz = MIN_SIZE
 
     h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
     # 竖排：列数少优先（受相对下限约束），参考字号只用于方向判定
