@@ -231,3 +231,69 @@ class TestDegenerateCases:
         assert infer_direction_from_bbox(P17_R08_BBOX) == "vertical"
         assert infer_direction_from_bbox([0, 0, 380, 222]) == "horizontal"
         assert infer_direction_from_bbox([0, 0, 200, 200]) is None
+
+
+# === 5. 竖排列首禁则（kinsoku）==============================================
+# 2026-10-18：_vertical_layout_at 原来用 wrap_cells_to_columns 朴素等分，
+# 会把 ？/，/— 切到列首。改用 _split_cells_into_columns（DP + kinsoku）。
+
+NO_START_PUNCT = set("，。！？、）》】……—!?！？")
+
+
+def _assert_no_punct_at_col_start(cols: list[str]) -> None:
+    for i, c in enumerate(cols):
+        c = c.strip()
+        if i == 0 or not c:
+            continue  # 首列豁免
+        assert c[0] not in NO_START_PUNCT, f"col{i+1} starts with punct {c[0]!r}: {cols}"
+
+
+class TestVerticalKinsokuColumns:
+    def test_question_mark_not_at_col_start(self):
+        """page_12 r02: '真的吗？好开心！' 分 3 列，？不得开列。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("真的吗？好开心！")
+        result = _split_cells_into_columns(cells, 3)
+        assert result is not None
+        _assert_no_punct_at_col_start(result)
+
+    def test_comma_not_at_col_start(self):
+        """page_11 r01: 末列不得以 ， 开头。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("……不用我说你也明白吧，笨蛋")
+        result = _split_cells_into_columns(cells, 4)
+        assert result is not None
+        _assert_no_punct_at_col_start(result)
+
+    def test_em_dash_not_at_col_start(self):
+        """page_11 r02: 次列不得以 — 开头。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("不适合你——啦")
+        result = _split_cells_into_columns(cells, 2)
+        assert result is not None
+        _assert_no_punct_at_col_start(result)
+
+    def test_first_column_exempt(self):
+        """句首可以以 —— 开头（首列豁免）。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("——真是的")
+        result = _split_cells_into_columns(cells, 2)
+        assert result is not None
+        assert result[0].startswith("——")
+
+    def test_too_many_columns_returns_none(self):
+        """短文本切超多数列数应返回 None，不强行分列。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("你好")
+        result = _split_cells_into_columns(cells, 5)
+        assert result is None
+
+    def test_leading_space_stripped(self):
+        """列首空格应被 lstrip（page_17 r03 ' 婚礼'）。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("我啊 一直很憧憬 婚礼")
+        result = _split_cells_into_columns(cells, 3)
+        assert result is not None
+        for c in result:
+            assert not c.startswith(" "), f"col starts with space: {c!r}"
+

@@ -438,11 +438,92 @@ def _fits(lines: list[str], font: ImageFont.FreeTypeFont, bbox: list,
     return max_line <= w and len(lines) * line_h <= h
 
 
-def _fill_columns(text: str, cells, n_cols: int) -> list[str]:
-    """把文本渲染行均分成 n_cols 列（按 span 行数均衡）；不足 n_cols 列则返回实际列。"""
+def _split_cells_into_columns(cells: list, n_cols: int) -> list[str] | None:
+    """把渲染行序列切成正好 n_cols 列，遵守行頭/行末禁则。
+
+    朴素等分（wrap_cells_to_columns）不看首字符，会把 `？`/`，`/`—` 切到列首。
+    这里用 DP 在 kinsoku 约束下找最均衡的 n_cols 个断点：
+    - 首列豁免（句首可以是任意字符）
+    - 后续列首不得是 no_start 标点
+    - 列尾不得是 no_end 开括号
+    - 纯标点段禁止
+    找不到合法 n_cols 分时返回 None（调用方应试 n_cols+1）。
+    """
+    if n_cols <= 1:
+        return ["".join(t for _k, t in cells)] if cells else []
+    n = len(cells)
+    if n < n_cols:
+        return None
+
+    no_start = set(NO_START_PUNCT) | set("!?")
+    no_end = set("「（【《〈")
+    punct_only = no_start
+
+    def head_txt(seg):
+        u = seg[0]
+        return u[1] if isinstance(u, tuple) else u
+
+    def tail_txt(seg):
+        u = seg[-1]
+        return u[1] if isinstance(u, tuple) else u
+
+    avg = n / n_cols
+    INF = float("inf")
+    # dp[k][i] = (cost, prev_j)：前 i 个 cells 切成 k 列的最优代价
+    dp: list[list[tuple[float, int]]] = [
+        [(INF, -1)] * (n + 1) for _ in range(n_cols + 1)
+    ]
+    dp[0][0] = (0.0, -1)
+
+    for k in range(1, n_cols + 1):
+        for i in range(k, n + 1):
+            for j in range(k - 1, i):
+                prev_cost = dp[k - 1][j][0]
+                if prev_cost == INF:
+                    continue
+                seg = cells[j:i]
+                # 非首列：行頭禁则
+                if j > 0:
+                    h = head_txt(seg)
+                    if h and h[0] in no_start:
+                        continue
+                # 行末禁则：开括号不落在列尾
+                t = tail_txt(seg)
+                if t and t[0] in no_end:
+                    continue
+                # 纯标点段禁止
+                all_punct = True
+                for u in seg:
+                    txt = u[1] if isinstance(u, tuple) else u
+                    if txt[0] not in punct_only:
+                        all_punct = False
+                        break
+                if all_punct:
+                    continue
+                # 均衡代价：段长贴近 avg
+                cost = prev_cost + abs(len(seg) - avg)
+                if cost < dp[k][i][0]:
+                    dp[k][i] = (cost, j)
+
+    if dp[n_cols][n][0] == INF:
+        return None
+
+    # 回溯
+    cols: list[str] = []
+    i = n
+    for k in range(n_cols, 0, -1):
+        j = dp[k][i][1]
+        cols.append("".join(t for _kind, t in cells[j:i]).lstrip())
+        i = j
+    cols.reverse()
+    return cols
+
+
+def _fill_columns(text: str, cells, n_cols: int) -> list[str] | None:
+    """把文本渲染行切成 n_cols 列（kinsoku-aware）；不可行返回 None。"""
     if n_cols <= 1:
         return [text]
-    return wrap_cells_to_columns(cells, n_cols)
+    return _split_cells_into_columns(cells, n_cols)
 
 
 def _enum_vertical_feasible(text: str, font_path: Path, bbox: list,
@@ -471,6 +552,9 @@ def _vertical_layout_at(text: str, font_path: Path, bbox: list, size: int
     char_w, _line_h = _font_metrics(font)
     for n_cols in range(1, len(cells) + 1):
         cols = _fill_columns(text, cells, n_cols)
+        if cols is None:
+            # kinsoku 不允许这么多列（标点会落到列首）——试更多列
+            continue
         # 列距不可能放下就直接剪枝（列更宽只会更放不下）
         if sum(_column_width(c, char_w, font) for c in cols) > w:
             break
