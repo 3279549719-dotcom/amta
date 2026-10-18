@@ -317,3 +317,40 @@ class TestVerticalKinsokuColumns:
         assert joined.replace(" ", "") == text.replace(" ", ""), \
             f"chars lost: {text!r} -> {joined!r}"
 
+
+class TestBookBec83KinsokuRegression:
+    """book-bec83a161b2f5f80 实页回归：这些列首标点事故不能再犯。
+
+    几何参数从实页 bbox 提取，译文用当时的真实翻译。
+    这些是 Task 1 的基线证据——改算法后这些断言必须仍通过。
+    """
+
+    def test_page11_r01_no_comma_at_col_start(self):
+        """page_11 r01: 末列不得以逗号开头（2026-10-18 事故）。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("……不用我说你也明白吧，笨蛋")
+        result = _split_cells_into_columns(cells, 4)
+        assert result is not None
+        _assert_no_punct_at_col_start(result)
+
+    def test_page12_r02_no_question_at_col_start(self):
+        """page_12 r02: 次列不得以问号开头。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("真的吗？好开心！")
+        result = _split_cells_into_columns(cells, 3)
+        assert result is not None
+        _assert_no_punct_at_col_start(result)
+
+    def test_direction_preserved_under_font_shrink(self):
+        """方向判定与最终字号分开：竖排框缩小后不应翻转成横排。
+
+        一个窄高 bbox，preferred_direction=vertical。即使字号因紧框变小，
+        方向仍必须是 vertical，不能因为字号变小就改成横排。
+        """
+        _size, direction, _lines = fit_font_size(
+            "短台词", FONT, [50, 100, 100, 400],
+            preferred_direction="vertical", base_size=20,
+        )
+        assert direction == "vertical", \
+            f"竖排窄框不应翻转成横排: dir={direction}"
+
