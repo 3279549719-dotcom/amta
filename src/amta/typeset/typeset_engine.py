@@ -39,11 +39,10 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-# 行頭禁則：这些标点不能出现在新行/新列的开头（闭标点 + 句读符号）
-# 依据中日文排版惯例：，。！？、：；）》】…— 及半角对应
-NO_START_PUNCT = "，。！？、：；）》】……—"
+# 行頭禁則：这些标点不能出现在新行/新列的开头（闭标点 + 句读符号 + 闭括号）
+NO_START_PUNCT = "，。！？、：；）》】」』〉……—"
 # 行末禁則：这些标点不能留在行/列的末尾（开括号）
-NO_END_PUNCT = "「（【《〈"
+NO_END_PUNCT = "「『（【《〈"
 MIN_SIZE = 12
 MAX_SIZE = 52
 SAFE_RATIO = 0.85
