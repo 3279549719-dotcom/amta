@@ -39,7 +39,11 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-NO_START_PUNCT = "，。！？、）》】……—"
+# 行頭禁則：这些标点不能出现在新行/新列的开头（闭标点 + 句读符号）
+# 依据中日文排版惯例：，。！？、：；）》】…— 及半角对应
+NO_START_PUNCT = "，。！？、：；）》】……—"
+# 行末禁則：这些标点不能留在行/列的末尾（开括号）
+NO_END_PUNCT = "「（【《〈"
 MIN_SIZE = 12
 MAX_SIZE = 52
 SAFE_RATIO = 0.85
@@ -186,7 +190,7 @@ def _break_units(units: list, max_units: int, cost) -> list[list]:
         return [units]
 
     no_start = set(NO_START_PUNCT)
-    no_end = set("「（【《〈")
+    no_end = set(NO_END_PUNCT)
     punct_only = no_start | set("!?")
 
     def head(seg) -> str:
@@ -354,7 +358,7 @@ def wrap_text(text: str, font, max_width: float) -> list[str]:
     _avg_chars_per_line = max(1, int(max_width / max(1.0, font.getlength("字"))))
     units = list(text)
     no_start = set(NO_START_PUNCT) | set("!?")
-    no_end = set("「（【《〈")
+    no_end = set(NO_END_PUNCT)
 
     INF = float("inf")
     dp: list[tuple[float, int]] = [(INF, -1)] * (n + 1)
@@ -456,7 +460,7 @@ def _split_cells_into_columns(cells: list, n_cols: int) -> list[str] | None:
         return None
 
     no_start = set(NO_START_PUNCT) | set("!?")
-    no_end = set("「（【《〈")
+    no_end = set(NO_END_PUNCT)
     punct_only = no_start
 
     def head_txt(seg):
@@ -564,10 +568,12 @@ def _vertical_layout_at(text: str, font_path: Path, bbox: list, size: int
 
 
 def _vertical_pick(text: str, font_path: Path, bbox: list,
-                   min_sz: int, max_sz: int) -> tuple[int, list[str], int, bool]:
+                   min_sz: int, max_sz: int,
+                   diag: dict | None = None) -> tuple[int, list[str], int, bool]:
     """竖排选优：**列数少优先，但只在字号代价可接受时**。
 
     返回 (字号, 分列结果, 参考字号, 是否单列版式)。
+    diag: 传入时填充决策记录（candidate_count, single_col_size, rejection_reason 等）。
 
     选优规则（无新旋钮，全部复用既有尺度）：
     - 参考字号 ref = **放开 base_size 上限**、放开列数限制后能取到的最大字号，
@@ -579,9 +585,6 @@ def _vertical_pick(text: str, font_path: Path, bbox: list,
       腰斩」的场景，代价落在相对下限以内。
     - 否则走旧行为：能取到的最大字号，同字号取最少列。此时「能一列」的代价已
       超过相对下限，说明分列是版式需求而非 +1px 的偶然。
-
-    这样既修掉「零余量框里 +1px 就拆列」，又保证原图本来多列的气泡（例如
-    「好啦我知道啦」：单列 19px / 参考 36px → 19/36 < 0.7）不被压成一列。
     """
     x1, y1, x2, y2 = bbox
     h = (y2 - y1) * SAFE_RATIO
@@ -613,9 +616,22 @@ def _vertical_pick(text: str, font_path: Path, bbox: list,
                 if v[0] == 1), None)
     # 只在「单列代价落在相对下限以内」时才让列数赢：否则分列是版式需求，
     # 不是 +1px 的偶然（原文多列气泡的代价会远超此线，仍走旧行为）
+    if diag is not None:
+        diag["candidate_count"] = len(capped)
+        diag["searched_range"] = [min_sz, max_sz]
+        diag["ref_size"] = ref
+        diag["single_col_size"] = one[0] if one else None
     if one is not None and one[0] >= ref * MIN_SIZE_RATIO:
         size, (_n_cols, cols) = one
+        if diag is not None:
+            diag["chosen"] = "single_column"
+            diag["chosen_size"] = size
+            diag["rejection_reason"] = None
         return size, cols, ref, True
+    if diag is not None and one is not None:
+        diag["rejection_reason"] = (
+            f"single_col {one[0]}px < ref*{MIN_SIZE_RATIO}={ref*MIN_SIZE_RATIO:.1f}px"
+        )
     # 否则走旧行为：能取到的最大字号，同字号取最少列
     if capped:
         best_size = max(capped)
@@ -623,6 +639,10 @@ def _vertical_pick(text: str, font_path: Path, bbox: list,
     else:
         best_size, n_cols = ref, len(ref_cols or [])
         cols = ref_cols or []
+    if diag is not None:
+        diag["chosen"] = "max_size_multi_col"
+        diag["chosen_size"] = best_size
+        diag["chosen_cols"] = n_cols
     return best_size, cols, ref, n_cols == 1
 
 
@@ -672,7 +692,8 @@ def _max_size_for_direction(text: str, font_path: Path, bbox: list,
 def fit_font_size(text: str, font_path: Path, bbox: list,
                   min_sz: int = MIN_SIZE, max_sz: int = MAX_SIZE,
                   preferred_direction: str | None = None,
-                  base_size: int | None = None
+                  base_size: int | None = None,
+                  diag: dict | None = None
                   ) -> tuple[int, str, list[str]]:
     """同时计算横排和竖排的最大可行字号，返回 (字号, 方向, 折行/分列)。
 
@@ -702,7 +723,10 @@ def fit_font_size(text: str, font_path: Path, bbox: list,
 
     h_size, h_lines = _max_size_for_direction(text, font_path, bbox, "horizontal", min_sz, max_sz)
     # 竖排：列数少优先（受相对下限约束），参考字号只用于方向判定
-    v_size, v_lines, v_ref, _is_one = _vertical_pick(text, font_path, bbox, min_sz, max_sz)
+    v_size, v_lines, v_ref, _is_one = _vertical_pick(text, font_path, bbox, min_sz, max_sz, diag=diag)
+    if diag is not None:
+        diag["h_size"] = h_size
+        diag["v_ref"] = v_ref
 
     if preferred_direction == "vertical":
         # 首选竖排：竖排参考字号不小于横排70%就选竖排

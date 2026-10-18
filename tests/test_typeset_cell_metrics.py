@@ -297,3 +297,23 @@ class TestVerticalKinsokuColumns:
         for c in result:
             assert not c.startswith(" "), f"col starts with space: {c!r}"
 
+    def test_colon_semicolon_not_at_col_start(self):
+        """：； 也不得开列（统一 kinsoku，vlm_render 与 engine 共用）。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        cells = _cell_rows("我说：真的吗；骗人")
+        result = _split_cells_into_columns(cells, 3)
+        assert result is not None
+        _assert_no_punct_at_col_start(result)
+
+    def test_char_conservation(self):
+        """kinsoku 重排不能漏字或删标点。"""
+        from amta.typeset.typeset_engine import _split_cells_into_columns, _cell_rows
+        text = "……不用我说你也明白吧，笨蛋！"
+        cells = _cell_rows(text)
+        result = _split_cells_into_columns(cells, 3)
+        assert result is not None
+        joined = "".join(result)
+        # 去掉空格后字符数应守恒
+        assert joined.replace(" ", "") == text.replace(" ", ""), \
+            f"chars lost: {text!r} -> {joined!r}"
+

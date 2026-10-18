@@ -13,14 +13,16 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from amta.stores.artifacts import normalize_rendered_item
+from amta.typeset.typeset_engine import NO_START_PUNCT, NO_END_PUNCT
 from amta.typeset.typeset_render import _render_vertical
 from amta.typeset.vertical_punct import column_end_pause_mask, verticalize_text
 
 FONTS = {"sans": "msyh.ttc", "serif": "simsun.ttc", "handwritten": "simkai.ttf", "bold": "msyhbd.ttc"}
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_@./=+%-]+|.")
-_NO_LINE_START = set("，。！？、：；）》】〉」』…—,.!?;:")
-_NO_LINE_END = set("（【《〈「『(")
+# 统一 kinsoku：从 typeset_engine 导入，横排补半角对应
+_NO_LINE_START = set(NO_START_PUNCT) | set(",.!?;:")
+_NO_LINE_END = set(NO_END_PUNCT) | set("(")
 
 
 def _rgb(value: str) -> tuple[int, int, int]:

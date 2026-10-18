@@ -83,9 +83,10 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
     # 方向推断：尊重调用方显式指定；None 时从 bbox 长宽比几何推断（9-16 债务修复）
     if preferred_direction is None:
         preferred_direction = infer_direction_from_bbox(bbox)
+    _diag: dict = {}
     font_size, direction, lines = fit_font_size(
         text, Path(font_path), bbox, preferred_direction=preferred_direction,
-        base_size=base_size
+        base_size=base_size, diag=_diag
     )
     font = ImageFont.truetype(font_path, font_size)
     draw = ImageDraw.Draw(img)
@@ -130,7 +131,8 @@ def render_item(img: Image.Image, text: str, font_path: str, bbox: list,
             "font_path": font_path, "line_step": lh, "col_step": col_w, "align": "center",
             "preferred_direction": preferred_direction,
             "rendered_color": f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}",
-            "rendered_stroke": stroke, "stroke_color": "#FFFFFF"})
+            "rendered_stroke": stroke, "stroke_color": "#FFFFFF",
+            "typeset_diag": _diag})
 
 
 # --- 渲染前字符规范化（唯一真源）-------------------------------------------
