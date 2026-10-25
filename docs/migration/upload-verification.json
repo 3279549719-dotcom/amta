@@ -1,0 +1,68 @@
+{
+  "verified_date": "2026-10-26",
+  "repository": "3279549719-dotcom/amta",
+  "release_tag": "migration-assets-2026-10-25",
+  "method": "GitHub server SHA-256 and byte size matched local verified archives and manifests",
+  "assets": [
+    {
+      "name": "ctbd.zip",
+      "bytes": 156399718,
+      "sha256": "9d07dde1cd5a7b1f6fb24264df9b178f291bcc76d4a828fcff58d6b93f22799c",
+      "github_asset_id": 676458553
+    },
+    {
+      "name": "ctd.zip",
+      "bytes": 62114189,
+      "sha256": "59188573e288c172c4e7f679da9446dee6561e4733187ed0437c056268d88bb1",
+      "github_asset_id": 676458560
+    },
+    {
+      "name": "hayai.zip",
+      "bytes": 579451369,
+      "sha256": "94d9fb21f9614ca0c57f4bb326b5e7b7437c5d6da3085942417eb43814375e1b",
+      "github_asset_id": 676458552
+    },
+    {
+      "name": "lama-manga.zip",
+      "bytes": 190518550,
+      "sha256": "257f859cd48511edaa84b299377581fd7c435633090eff95c1fe6da6da96b3f8",
+      "github_asset_id": 676458565
+    },
+    {
+      "name": "baberu.zip",
+      "bytes": 252079008,
+      "sha256": "e1eff7ae19c9c390d033da829bae180a99e8fdd4356a40da43f302a75d115066",
+      "github_asset_id": 676458555
+    },
+    {
+      "name": "big-lama.zip",
+      "bytes": 191335324,
+      "sha256": "031d238ea769ed65a309c0f6ea51dc7c3e340077c37c7c3f483cc3dc3c92266b",
+      "github_asset_id": 676460104
+    },
+    {
+      "name": "llama-cpp-windows.zip",
+      "bytes": 39406176,
+      "sha256": "84be88730aba1ef766b8162337408221b018fa28320c8335f14cee12fcec1e99",
+      "github_asset_id": 676462104
+    },
+    {
+      "name": "simple-lama-source.zip",
+      "bytes": 49031,
+      "sha256": "0b1ec5235134760cf065ce096b3a8505ba4d1134fc8b37b88809bbd49faa9498",
+      "github_asset_id": 676462492
+    },
+    {
+      "name": "assets.json",
+      "bytes": 21207,
+      "sha256": "4d347f77acc076fee54dcd6c9054c3a863380336d574f968b0fd215ce6419f45",
+      "github_asset_id": 676462538
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 647,
+      "sha256": "a7d7f756198bcf851830a64d2eac920938adce1e660d79e2e7d1021868d21006",
+      "github_asset_id": 676462566
+    }
+  ]
+}

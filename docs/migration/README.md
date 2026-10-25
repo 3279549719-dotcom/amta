@@ -9,6 +9,7 @@
 - [assets.json](assets.json)：每个模型/运行组件的用途、来源、归档文件、还原位置、逐文件大小与 SHA-256。
 - [SHA256SUMS.txt](SHA256SUMS.txt)：下载后核对 ZIP 完整性。
 - [environment-windows.json](environment-windows.json)：当前 Python 和已安装包版本的观察快照，不能直接当作 Mac 安装清单。
+- [upload-verification.json](upload-verification.json)：2026-10-26 核对 GitHub 服务端摘要；8 个 ZIP 加两个清单文件全部匹配本地 SHA-256 和大小。8 个 ZIP 共 1,471,353,365 字节，包含 85 个原始模型/运行组件文件。
 - 根目录 `.env.example`：无密钥的管线配置模板。实际 `.env` 不入库。
 - [performance-and-mac.md](performance-and-mac.md)：历史耗时、PSD 调查、Apple silicon 适配边界。
 
@@ -36,6 +37,8 @@
 每个资产的精确字节数与校验值以 `assets.json` 为准。归档保留本地已有版本，不自动升级到上游最新模型。附带的第三方来源与许可说明不改变各项目原许可。
 
 此快照只覆盖当前 checkout 和清单明确列出的外部模型，不声称归档其他 worktree、私人浏览器/AI 客户端设置或其他项目。
+
+备份验证详情见 [VALIDATION.md](VALIDATION.md)：656 项测试通过，但已有类型检查与项目记忆过期问题未消失，故以迁移快照 prerelease 发布。
 
 ## 当前路径债务：不能只下载 ZIP 就假定能启动
 

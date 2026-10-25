@@ -5,6 +5,7 @@ This is an archival snapshot of the user's existing workbench, not a claim that 
 ## Checks performed
 
 - Runtime archives: eight ZIPs; every listed member SHA-256 matches its original local file; ZIP CRCs pass. Archive SHA-256 values are in `SHA256SUMS.txt`. No artwork, page intermediates, PSDs or `.env` was packaged.
+- Remote upload: GitHub reports `uploaded` for all eight archives plus `assets.json` and `SHA256SUMS.txt`; every server-side SHA-256 digest and byte size matches the local verified file. Receipt: `upload-verification.json`. Archive total: 1,471,353,365 bytes, preserving 85 original files.
 - Secret scan: checked known credential values from the private configuration against tracked text files, the unpushed commit patches, the working diff and new migration documents; also checked GitHub/OpenAI-style token patterns in publication changes. No matches. Secret values were not printed or written to the backup. This is a focused scan, not a historical security audit of every existing remote commit.
 - `git diff --check`: pass.
 - `uv run --no-sync python scripts/state.py gate`: **exit 1**. The full configured gate was run; its pytest step uses testmon and excludes `slow` and `experiment`.
@@ -16,7 +17,7 @@ This is an archival snapshot of the user's existing workbench, not a claim that 
 
 ## Archival commit exception
 
-The repository provides `state.py finish --skip-check`. It is used explicitly for this preservation snapshot after recording the failed gate above, rather than repairing unrelated user work or pretending validation passed. The commit hook that repeats the same already-failed type check is disabled only for this one archival commit process, not in repository configuration. This snapshot is published as a prerelease, not a validated production release.
+The repository provides `state.py finish --skip-check`. It is used explicitly for this preservation snapshot after recording the failed gate above, rather than repairing unrelated user work or pretending validation passed. The commit hook that repeats the same already-failed type check is disabled only for the archival/receipt commit processes, not in repository configuration. The second commit adds only documentation and the upload receipt; no runtime code changed after the recorded gate. This snapshot is published as a prerelease, not a validated production release.
 
 ## Scope limits
 

@@ -9,6 +9,6 @@
 - [x] Write configuration template and restoration instructions, explicitly recording Windows path and Apple MPS/Photoshop portability gaps.
 - [x] Retrieve historical stage timings and investigate PSD export using timed probes if Photoshop is available; distinguish observations from hypotheses.
 - [x] Review the snapshot for secrets and unwanted inputs/outputs and run the repository completion gate. Preserve the authorized existing work through the explicit archival exception recorded in `docs/migration/VALIDATION.md` (656 tests passed; existing type/memory checks remain red).
-- [ ] Push the snapshot branch, upload release assets, and verify the remote commit and asset checksums.
+- [x] Push the snapshot branch, upload release assets, and verify the remote commit and asset checksums. All ten uploaded files (eight archives plus two manifests) match GitHub server SHA-256 and byte sizes; see `docs/migration/upload-verification.json`.
 
 No model-quality upgrade or macOS port is part of this backup task. The migration snapshot must not be described as a ready-to-run macOS package.
