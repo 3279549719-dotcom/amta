@@ -444,7 +444,9 @@ def detect_page(work_id: str, raw_page: Path, out_dir: Path, *,
       与主链任一框 coverage<coverage_thresh 的框（真新增），碎片被覆盖即丢弃
     """
     if page_idx is None:
-        page_idx = int(raw_page.stem)
+        import re
+        m = re.search(r"(\d+)", raw_page.stem)
+        page_idx = int(m.group(1)) if m else 1
     page = f"page_{page_idx}"
     # 单例复用：检测器只加载一次，conf_threshold 通过 detect() 传入
     det = _get_detector()

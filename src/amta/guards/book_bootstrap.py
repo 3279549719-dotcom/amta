@@ -54,13 +54,8 @@ def bootstrap_book(src_dir: Path, work_id: str) -> dict[str, str]:
     shows it for human editing; saving happens via POST /api/glossary.
     """
     from amta.orchestrator import PipelineConfig, run_pipeline
-
-    # discover pages once
-    page_index: dict[int, Path] = {}
-    for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
-        for p in Path(src_dir).glob(ext):
-            if p.stem.isdigit():
-                page_index.setdefault(int(p.stem), p)
+    from amta.stores import artifacts
+    page_index = artifacts.discover_pages(src_dir)
     pages = sorted(page_index)
     if not pages:
         return {}

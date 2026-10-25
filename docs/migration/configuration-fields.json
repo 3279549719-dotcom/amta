@@ -1,0 +1,32 @@
+{
+  "pipeline_required": [
+    "CHAT_BASE_URL",
+    "CHAT_MODEL",
+    "CHAT_API_KEY"
+  ],
+  "pipeline_optional": [
+    "DASHSCOPE_API_KEY",
+    "DASHSCOPE_KEY",
+    "VISION_MODEL",
+    "DASHSCOPE_BASE_URL",
+    "HAYAI_OCR_MODEL",
+    "PHOTOSHOP_PATH"
+  ],
+  "other_existing_env_field_names_only": [
+    "CONTEXT7_API_KEY",
+    "EMAIL_SENDER",
+    "EMAIL_SMTP_PASSWORD",
+    "EMAIL_SMTP_PORT",
+    "EMAIL_SMTP_SERVER",
+    "EMAIL_USE_TLS",
+    "FIRECRAWL_API_KEY",
+    "GITHUB_Personal_access_tokens",
+    "HINDSIGHT_API_TOKEN",
+    "HINDSIGHT_API_URL",
+    "SUPABASE_ACCESS_TOKEN",
+    "SUPABASE_KEY",
+    "SUPABASE_URL",
+    "WEB_SEARCH_ENABLED"
+  ],
+  "note": "Other service credentials are not needed by the default manga pipeline and are NOT backed up. Their values remain private."
+}

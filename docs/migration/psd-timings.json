@@ -1,0 +1,314 @@
+{
+  "measurement_date": "2026-10-25",
+  "conditions": "Windows; one 1400x2428 page; 9 text layers; simultaneous model backup compression/hashing; two observations, not an isolated benchmark",
+  "runs": [
+    {
+      "label": "cold",
+      "success": true,
+      "wall_seconds": 253.416,
+      "pre_script_seconds": 186.134,
+      "open_seconds": 10.575,
+      "layers_seconds": 40.75,
+      "font_search_seconds_included_in_layers": 0.314,
+      "save_seconds": 10.362,
+      "dimensions": [
+        1400,
+        2428
+      ],
+      "text_layers": 9,
+      "events": [
+        {
+          "event": "script_start",
+          "epoch_ms": 1792937164599
+        },
+        {
+          "event": "open_start",
+          "epoch_ms": 1792937165423
+        },
+        {
+          "event": "open_end",
+          "epoch_ms": 1792937175998
+        },
+        {
+          "event": "layer_0_start",
+          "epoch_ms": 1792937179497
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937184400
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937184515
+        },
+        {
+          "event": "layer_1_start",
+          "epoch_ms": 1792937188652
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937189452
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937189487
+        },
+        {
+          "event": "layer_2_start",
+          "epoch_ms": 1792937192811
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937193635
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937193669
+        },
+        {
+          "event": "layer_3_start",
+          "epoch_ms": 1792937197020
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937197747
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937197773
+        },
+        {
+          "event": "layer_4_start",
+          "epoch_ms": 1792937200930
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937201529
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937201547
+        },
+        {
+          "event": "layer_5_start",
+          "epoch_ms": 1792937204577
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937205301
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937205322
+        },
+        {
+          "event": "layer_6_start",
+          "epoch_ms": 1792937208195
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937209008
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937209025
+        },
+        {
+          "event": "layer_7_start",
+          "epoch_ms": 1792937211988
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937212814
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937212839
+        },
+        {
+          "event": "layer_8_start",
+          "epoch_ms": 1792937216327
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937217075
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937217098
+        },
+        {
+          "event": "layers_end",
+          "epoch_ms": 1792937220247
+        },
+        {
+          "event": "save_start",
+          "epoch_ms": 1792937220295
+        },
+        {
+          "event": "save_end",
+          "epoch_ms": 1792937230657
+        },
+        {
+          "event": "close_end",
+          "epoch_ms": 1792937231609
+        }
+      ],
+      "start_epoch_ms": 1792936978464.768
+    },
+    {
+      "label": "warm",
+      "success": true,
+      "wall_seconds": 62.599,
+      "pre_script_seconds": 13.339,
+      "open_seconds": 1.862,
+      "layers_seconds": 41.28,
+      "font_search_seconds_included_in_layers": 0.272,
+      "save_seconds": 3.516,
+      "dimensions": [
+        1400,
+        2428
+      ],
+      "text_layers": 9,
+      "events": [
+        {
+          "event": "script_start",
+          "epoch_ms": 1792937245304
+        },
+        {
+          "event": "open_start",
+          "epoch_ms": 1792937245854
+        },
+        {
+          "event": "open_end",
+          "epoch_ms": 1792937247716
+        },
+        {
+          "event": "layer_0_start",
+          "epoch_ms": 1792937248356
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937249128
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937249151
+        },
+        {
+          "event": "layer_1_start",
+          "epoch_ms": 1792937253112
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937253568
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937253589
+        },
+        {
+          "event": "layer_2_start",
+          "epoch_ms": 1792937258408
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937259164
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937259189
+        },
+        {
+          "event": "layer_3_start",
+          "epoch_ms": 1792937262540
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937263718
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937263750
+        },
+        {
+          "event": "layer_4_start",
+          "epoch_ms": 1792937267389
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937268158
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937268188
+        },
+        {
+          "event": "layer_5_start",
+          "epoch_ms": 1792937271971
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937272849
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937272883
+        },
+        {
+          "event": "layer_6_start",
+          "epoch_ms": 1792937276440
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937277258
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937277287
+        },
+        {
+          "event": "layer_7_start",
+          "epoch_ms": 1792937280519
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937281437
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937281480
+        },
+        {
+          "event": "layer_8_start",
+          "epoch_ms": 1792937285397
+        },
+        {
+          "event": "font_start",
+          "epoch_ms": 1792937286109
+        },
+        {
+          "event": "font_end",
+          "epoch_ms": 1792937286144
+        },
+        {
+          "event": "layers_end",
+          "epoch_ms": 1792937289636
+        },
+        {
+          "event": "save_start",
+          "epoch_ms": 1792937289638
+        },
+        {
+          "event": "save_end",
+          "epoch_ms": 1792937293154
+        },
+        {
+          "event": "close_end",
+          "epoch_ms": 1792937294367
+        }
+      ],
+      "start_epoch_ms": 1792937231964.8213
+    }
+  ]
+}

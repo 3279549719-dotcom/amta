@@ -37,6 +37,7 @@ from amta.common.environment import run_environment_check
 from amta.common.paths import ROOT
 from amta.orchestrator import PipelineConfig, run_pipeline
 from amta.orchestrator.quality_audit import audit_run, format_redlist
+from amta.stores import artifacts
 
 app = FastAPI(title="Touhou Manga Translator", version="0.1.0")
 
@@ -97,13 +98,7 @@ def _run_pipeline_background(job_id: str, req: TranslateRequest) -> None:
         pages = req.pages
         if pages is None:
             src = Path(req.src_dir)
-            # 整本跑时从文件夹实际扫描数字命名的图片（jpg/png/webp 都认）
-            pages = sorted(
-                int(p.stem)
-                for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp")
-                for p in src.glob(ext)
-                if p.stem.isdigit()
-            )
+            pages = sorted(artifacts.discover_pages(src))
         # VLM 模式：把离散页作为 vlm_pages，编排器会给这些页的 ocr/translate/typeset
         # 注入 vlm_mode=True。pages 为空时不做 VLM 路由（不生效但不报错）。
         vlm_pages = list(pages) if (req.mode == "vlm" and pages) else []
@@ -399,12 +394,7 @@ def resolve_book(dir: str) -> dict[str, object]:
         d = d.parent
     bid = book_id_from_src_dir(d)
     glossary = load_glossary(bid)
-    pages = sorted(
-        int(p.stem)
-        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp")
-        for p in d.glob(ext)
-        if p.stem.isdigit()
-    )
+    pages = sorted(artifacts.discover_pages(d))
     return {
         "book_id": bid,
         "work_id": f"book-{bid}",
@@ -478,12 +468,7 @@ async def match_book(files: list[UploadFile] = File(...)) -> dict[str, object]:
     bid = common.pop()
     src_dir = next(b["src_dir"] for b in known if b["book_id"] == bid)
     glossary = load_glossary(bid)
-    pages = sorted(
-        int(p.stem)
-        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp")
-        for p in Path(src_dir).glob(ext)  # type: ignore[arg-type]
-        if p.stem.isdigit()
-    )
+    pages = sorted(artifacts.discover_pages(src_dir))
     return {
         "matched": True,
         "book_id": bid,

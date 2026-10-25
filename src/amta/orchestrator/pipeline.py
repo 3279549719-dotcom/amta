@@ -45,16 +45,9 @@ def _resolve_page_list(config: PipelineConfig) -> list[tuple[int, str, Path]]:
     else:
         page_numbers = list(range(config.start_page, config.end_page + 1))
 
-    # 先把文件夹里所有"数字命名"的图片建成 页号 -> 路径 的索引。
-    # 兼容任意扩展名（jpg/png/webp）和任意补零写法（7.jpg / 0007.png 都算第 7 页）。
-    # 以前硬编码 src_dir/{n}.jpg，碰 png 或补零命名直接 WARN 跳过——文件夹模式下会整批找不到图。
     page_index: dict[int, Path] = {}
     if config.src_dir.is_dir():
-        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
-            for p in config.src_dir.glob(ext):
-                stem = p.stem
-                if stem.isdigit():
-                    page_index.setdefault(int(stem), p)
+        page_index = artifacts.discover_pages(config.src_dir)
 
     pages = []
     for n in page_numbers:

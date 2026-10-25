@@ -1,0 +1,542 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-25",
+  "repository": "3279549719-dotcom/amta",
+  "release_tag": "migration-assets-2026-10-25",
+  "source_base_commit": "bebbf5cb4f0e4c4452a9379b2b6a3bba705242ee",
+  "scope": "current checkout and explicitly enumerated model/runtime directories; not other worktrees",
+  "excluded": [
+    "API secrets",
+    "raw artwork",
+    "translated artwork",
+    "intermediate page artifacts",
+    ".venv",
+    "download caches",
+    "Python bytecode",
+    "Photoshop binaries",
+    "proprietary font files"
+  ],
+  "assets": [
+    {
+      "name": "ctbd",
+      "role": "required",
+      "upstream": "https://huggingface.co/ogkalu/comic-text-and-bubble-detector",
+      "license_note": "Apache-2.0",
+      "archive": "ctbd.zip",
+      "archive_bytes": 156399718,
+      "archive_sha256": "9d07dde1cd5a7b1f6fb24264df9b178f291bcc76d4a828fcff58d6b93f22799c",
+      "restore_prefix": "models/CTBD",
+      "files": [
+        {
+          "path": "models/CTBD/detector.onnx",
+          "bytes": 168481531,
+          "sha256": "065744e91c0594ad8663aa8b870ce3fb27222942eded5a3cc388ce23421bd195"
+        }
+      ]
+    },
+    {
+      "name": "ctd",
+      "role": "required",
+      "upstream": "https://github.com/dmMaze/comic-text-detector",
+      "license_note": "GPL-3.0 upstream code; preserve upstream notices",
+      "archive": "ctd.zip",
+      "archive_bytes": 62114189,
+      "archive_sha256": "59188573e288c172c4e7f679da9446dee6561e4733187ed0437c056268d88bb1",
+      "restore_prefix": "models/CTD",
+      "files": [
+        {
+          "path": "models/CTD/comictextdetector.pt.onnx",
+          "bytes": 94669756,
+          "sha256": "1a86ace74961413cbd650002e7bb4dcec4980ffa21b2f19b86933372071d718f"
+        }
+      ]
+    },
+    {
+      "name": "hayai",
+      "role": "required-default-ocr",
+      "upstream": "https://huggingface.co/JustANormalTinkerer/hayai-ocr-v2",
+      "license_note": "Apache-2.0",
+      "archive": "hayai.zip",
+      "archive_bytes": 579451369,
+      "archive_sha256": "94d9fb21f9614ca0c57f4bb326b5e7b7437c5d6da3085942417eb43814375e1b",
+      "restore_prefix": "models/hayai-ocr-v2",
+      "files": [
+        {
+          "path": "models/hayai-ocr-v2/.gitattributes",
+          "bytes": 1519,
+          "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361"
+        },
+        {
+          "path": "models/hayai-ocr-v2/config.json",
+          "bytes": 342,
+          "sha256": "581b762f1dfd55d0108f3f84e3f157bc762524af37fb0c19a7172a18b75582e2"
+        },
+        {
+          "path": "models/hayai-ocr-v2/configuration_hayai.py",
+          "bytes": 401,
+          "sha256": "47abd38cf1bae7aef27d01f5b8b4aa0960a7bc625a8afad79c4762ff5e5ed970"
+        },
+        {
+          "path": "models/hayai-ocr-v2/model.safetensors",
+          "bytes": 622502784,
+          "sha256": "4c645b221db8428cda04991be234c18133bb8861142a3d87cba04c5099b02328"
+        },
+        {
+          "path": "models/hayai-ocr-v2/modeling_hayai.py",
+          "bytes": 28251,
+          "sha256": "3d78976206549964abd55f776ab059e002adc72d2167daf168e46a12a5f4ae62"
+        },
+        {
+          "path": "models/hayai-ocr-v2/README.md",
+          "bytes": 7294,
+          "sha256": "07f6721980d6c63167260835b4ce24673c63cb973af36f66f989cdb55b21ade6"
+        },
+        {
+          "path": "models/hayai-ocr-v2/tokenizer.json",
+          "bytes": 1247253,
+          "sha256": "f8a0a909c628a684fe463094614e236a8b1d3609e7770f77e7beafaf1056bf13"
+        },
+        {
+          "path": "models/hayai-ocr-v2/tokenizer_config.json",
+          "bytes": 244,
+          "sha256": "6fb6c69afaedf1275872d3e62e276fd4467bd00da7a84cbbb5566a2cd28f58f6"
+        }
+      ]
+    },
+    {
+      "name": "lama-manga",
+      "role": "required",
+      "upstream": "https://huggingface.co/mayocream/lama-manga",
+      "license_note": "MIT model repository; LaMa Apache-2.0 implementation",
+      "archive": "lama-manga.zip",
+      "archive_bytes": 190518550,
+      "archive_sha256": "257f859cd48511edaa84b299377581fd7c435633090eff95c1fe6da6da96b3f8",
+      "restore_prefix": "models/lama-manga",
+      "files": [
+        {
+          "path": "models/lama-manga/lama-manga.safetensors",
+          "bytes": 204332996,
+          "sha256": "a790515e9da839b8d89af7d565ceb110d908b7d6fbdb991f2acb2ec7d9b08bdb"
+        }
+      ]
+    },
+    {
+      "name": "baberu",
+      "role": "optional-alternative-ocr",
+      "upstream": "https://huggingface.co/genshiai-daichi/baberu-ocr",
+      "license_note": "Apache-2.0",
+      "archive": "baberu.zip",
+      "archive_bytes": 252079008,
+      "archive_sha256": "e1eff7ae19c9c390d033da829bae180a99e8fdd4356a40da43f302a75d115066",
+      "restore_prefix": "models/baberu-ocr",
+      "files": [
+        {
+          "path": "models/baberu-ocr/config.json",
+          "bytes": 973,
+          "sha256": "01506b6e49a5421b0b996fbcdd5d2fe8f1850269167ce7b1f82a3859488c2b22"
+        },
+        {
+          "path": "models/baberu-ocr/generation_config.json",
+          "bytes": 269,
+          "sha256": "7034ddf56bf65c34efad0783d1310b05437618b8da04a947c9f59e0e6063eca7"
+        },
+        {
+          "path": "models/baberu-ocr/onnx/decoder_prefill_int8.onnx",
+          "bytes": 35133596,
+          "sha256": "4f8d28d4e5e8b6c7f3a4510663aa0a9199a7eec06bcb1dc0afb3ca571494e97f"
+        },
+        {
+          "path": "models/baberu-ocr/onnx/decoder_step_int8.onnx",
+          "bytes": 33929034,
+          "sha256": "2eaf792ca70b67e55140ef0bcfbfc3c3b1e07d72ca277dcc46aae27c81f27ac8"
+        },
+        {
+          "path": "models/baberu-ocr/onnx/vision_fp16.onnx",
+          "bytes": 172917304,
+          "sha256": "4ce333804846b23f1983376efe363c164d4624ecc6bd16f99a15a859d8423117"
+        },
+        {
+          "path": "models/baberu-ocr/onnx/vision_int4.onnx",
+          "bytes": 52293486,
+          "sha256": "9526bcf99eb8de805df7ea2f66b385cfcbcb5dff0e99a5dcfb02bdb2d4182bde"
+        },
+        {
+          "path": "models/baberu-ocr/onnx_infer.py",
+          "bytes": 4843,
+          "sha256": "1a7737e6583715be2359807bda92f53ea16091ed186569c7a85f8b82d294373f"
+        },
+        {
+          "path": "models/baberu-ocr/tokenizer/tokenizer_config.json",
+          "bytes": 937,
+          "sha256": "c6c8004b1d310bd7c56455387c25cdf4da28594bbd5713aaa3fddfd5eac8f483"
+        },
+        {
+          "path": "models/baberu-ocr/tokenizer/vocab.json",
+          "bytes": 130761,
+          "sha256": "681de4eb83154a397af49e2ddae4705041b12a22e16fe00860b829e889e5f47c"
+        }
+      ]
+    },
+    {
+      "name": "big-lama",
+      "role": "legacy-guard-still-requires",
+      "upstream": "https://github.com/enesmsahin/simple-lama-inpainting",
+      "license_note": "Apache-2.0 upstream implementation",
+      "archive": "big-lama.zip",
+      "archive_bytes": 191335324,
+      "archive_sha256": "031d238ea769ed65a309c0f6ea51dc7c3e340077c37c7c3f483cc3dc3c92266b",
+      "restore_prefix": "models/big-lama.pt",
+      "files": [
+        {
+          "path": "models/big-lama.pt",
+          "bytes": 205803670,
+          "sha256": "7ba7aa7ac37a4d41fdbbeba3a2af7ead18058552997e3a3cd1a3b2210c9e6b4c"
+        }
+      ]
+    },
+    {
+      "name": "llama-cpp-windows",
+      "role": "legacy-windows-only",
+      "upstream": "https://github.com/ggml-org/llama.cpp/releases/tag/b10582",
+      "license_note": "MIT; bundled LLVM OpenMP notice retained",
+      "archive": "llama-cpp-windows.zip",
+      "archive_bytes": 39406176,
+      "archive_sha256": "84be88730aba1ef766b8162337408221b018fa28320c8335f14cee12fcec1e99",
+      "restore_prefix": "models/llama-cpp",
+      "files": [
+        {
+          "path": "models/llama-cpp/ggml-base.dll",
+          "bytes": 774144,
+          "sha256": "0eb8655122e66ffb26fa5299fbb4f18b5d4d04f13e7657c06d9873e0516fc496"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-alderlake.dll",
+          "bytes": 1181696,
+          "sha256": "5ce3946cd9e3dfdcbe0bd13f79961b31d2649497f37ef6cfbba2a1fe9443c88f"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-cannonlake.dll",
+          "bytes": 1396736,
+          "sha256": "96a6f9b29eb5da81436b798f1e64e41b91d8f0094ae399d329a24ed528af3acd"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-cascadelake.dll",
+          "bytes": 1383424,
+          "sha256": "274ee315a9dd1785420dc929262e14d700f16094afe92acddb5af6d1c674153c"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-cooperlake.dll",
+          "bytes": 1384448,
+          "sha256": "935f1eec4b5e4b6e0e1e1bdf484632cd9b340ab82df490e59dae358117bc3eb1"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-haswell.dll",
+          "bytes": 1185792,
+          "sha256": "12b990b950f11f59732f80fdc1d52e0049d51d53615b061795c664473462d561"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-icelake.dll",
+          "bytes": 1390080,
+          "sha256": "3483c8a67465ad6c6368343d0d869729060fbfabf6087a2a1ca061d13fe18f41"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-ivybridge.dll",
+          "bytes": 1075200,
+          "sha256": "c4ae93f7f85532ff522989eb3669a98bbad9615a41f253773e8ecb1adbc5fd03"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-piledriver.dll",
+          "bytes": 1079296,
+          "sha256": "70c9234a1b8ea2e18d766231ae6ac00e4165652d5ab4b082c1de1e69f1034acc"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-sandybridge.dll",
+          "bytes": 1055232,
+          "sha256": "ef329149cf746091cd78220e22664d7e657f3ba04dbadb8cd4f7b6a758f1ac27"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-sapphirerapids.dll",
+          "bytes": 1660928,
+          "sha256": "aebc9b6b07db9e36b5d9b7a0800e30b84d089f36da413955387b2b7db71e6610"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-skylakex.dll",
+          "bytes": 1390592,
+          "sha256": "576ec92a4d6be10fedc6a4b3ea780ee2572cab39bf6cc5dee9b257deb13b967e"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-sse42.dll",
+          "bytes": 878080,
+          "sha256": "f1f6e6ea34df0e716ef5c630a726e74d24f9a704a54957f883ba17f4b9dcc0d5"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-x64.dll",
+          "bytes": 870912,
+          "sha256": "40172437de6f32f583984bd7bd5db45886831079a404c22c3f0e0a6b5e4f1ea5"
+        },
+        {
+          "path": "models/llama-cpp/ggml-cpu-zen4.dll",
+          "bytes": 1391104,
+          "sha256": "7c6ce3873ebb8a03ffe680058ee230be4089aac2d539ca9fe04c309e99aa2732"
+        },
+        {
+          "path": "models/llama-cpp/ggml-rpc-server.exe",
+          "bytes": 101376,
+          "sha256": "2076d37e9ae54e1bd9fe5610ecb0010509a080145670be862dcffd72c4320d6a"
+        },
+        {
+          "path": "models/llama-cpp/ggml-rpc.dll",
+          "bytes": 138752,
+          "sha256": "9b1d6b54513c45625f5dba1e7f082bda157812ae729536c382719c97fe57f01c"
+        },
+        {
+          "path": "models/llama-cpp/ggml.dll",
+          "bytes": 86016,
+          "sha256": "16c6426c62fc7d2f673436fcfbd870fe3331ae77352f61008e7f0e881f1d5418"
+        },
+        {
+          "path": "models/llama-cpp/libomp.dll",
+          "bytes": 768000,
+          "sha256": "a12116ba72d1d6820407cf30be23da04ce79d6bb8a71a5ee71759c5a1faa6f1c"
+        },
+        {
+          "path": "models/llama-cpp/LICENSE-LLVM-OpenMP",
+          "bytes": 19741,
+          "sha256": "fdad1758a9e1f9d5a81e18879b3406772115edc92c24bfa36b70c654f325e8e4"
+        },
+        {
+          "path": "models/llama-cpp/llama-b10582.zip",
+          "bytes": 18592859,
+          "sha256": "cbfadf5e806eae4dfc25b802289b23fa10dbd6880fe91dd6455bd8112047ae79"
+        },
+        {
+          "path": "models/llama-cpp/llama-batched-bench-impl.dll",
+          "bytes": 61440,
+          "sha256": "ca0cd7ed01dde186a0c29b12c067427a4c163440625e138ad7729b650a5a71ed"
+        },
+        {
+          "path": "models/llama-cpp/llama-batched-bench.exe",
+          "bytes": 9216,
+          "sha256": "869b28a359b885e5937d23f929895c3942176dbd78eac3b149b05fa2b0ccc566"
+        },
+        {
+          "path": "models/llama-cpp/llama-bench-impl.dll",
+          "bytes": 395264,
+          "sha256": "fa5de5b463788e77db81e83679f02d5dacd634d87bcd7b8f3177b98a60f951a2"
+        },
+        {
+          "path": "models/llama-cpp/llama-bench.exe",
+          "bytes": 9216,
+          "sha256": "fe612edaff1c29fb39cca30f537ceea189851b0c9e8abbbfa7fe3eef86a10a95"
+        },
+        {
+          "path": "models/llama-cpp/llama-cli-impl.dll",
+          "bytes": 3496960,
+          "sha256": "62aa461c84dff70ff9103aaf5ece72b880614266e0594e3ab6ee0a8ef5ed9aa7"
+        },
+        {
+          "path": "models/llama-cpp/llama-cli.exe",
+          "bytes": 9216,
+          "sha256": "2a051c965f6c41b2dcc32748fdbe10f7b26837926ef5284ab33d54551711709c"
+        },
+        {
+          "path": "models/llama-cpp/llama-common.dll",
+          "bytes": 8086016,
+          "sha256": "ca0a7eef1bff5c5747993bd7b40a6b118fe446ba3d06810e3f00d321375c61fb"
+        },
+        {
+          "path": "models/llama-cpp/llama-completion-impl.dll",
+          "bytes": 133120,
+          "sha256": "3075891b177af5698cdc0f0dca7ecd0c39f4ecbefd7136e2569e1499121ea5c0"
+        },
+        {
+          "path": "models/llama-cpp/llama-completion.exe",
+          "bytes": 9216,
+          "sha256": "2fd2be97052146df67c629b864c822d5821f9d9a7720577cff1f0777344bafe1"
+        },
+        {
+          "path": "models/llama-cpp/llama-fit-params-impl.dll",
+          "bytes": 40960,
+          "sha256": "2870927939f5ed863aa2c71a3aa243bbec90919445a4c9229199193855acf1de"
+        },
+        {
+          "path": "models/llama-cpp/llama-fit-params.exe",
+          "bytes": 9216,
+          "sha256": "2d611173a995a8bf90678841d4277f2b74bf5554f6f63f5de26d8b08da7e46bc"
+        },
+        {
+          "path": "models/llama-cpp/llama-gemma3-cli.exe",
+          "bytes": 27136,
+          "sha256": "0c5c4173746095f8bbe51c5b7fc39f3bbae998485d8f2fc89183dcc32c13d3e6"
+        },
+        {
+          "path": "models/llama-cpp/llama-gguf-split.exe",
+          "bytes": 60416,
+          "sha256": "444ca1c777b43fba97b7d89b63951e9cf15d1004716ceedc3c37a0f9ea0b6c38"
+        },
+        {
+          "path": "models/llama-cpp/llama-imatrix.exe",
+          "bytes": 254464,
+          "sha256": "974fcb07a88aed1ef2eae6625f5588d4d1ad3e89fda96f7d0203b54f753cc777"
+        },
+        {
+          "path": "models/llama-cpp/llama-llava-cli.exe",
+          "bytes": 27136,
+          "sha256": "0c5c4173746095f8bbe51c5b7fc39f3bbae998485d8f2fc89183dcc32c13d3e6"
+        },
+        {
+          "path": "models/llama-cpp/llama-minicpmv-cli.exe",
+          "bytes": 27136,
+          "sha256": "0c5c4173746095f8bbe51c5b7fc39f3bbae998485d8f2fc89183dcc32c13d3e6"
+        },
+        {
+          "path": "models/llama-cpp/llama-mtmd-cli.exe",
+          "bytes": 84480,
+          "sha256": "6e285f0c62e7313a615454addbc958eb5d83b09d412d43011a724c89c19b46e2"
+        },
+        {
+          "path": "models/llama-cpp/llama-mtmd-debug.exe",
+          "bytes": 55296,
+          "sha256": "4c3c9caf2379ccc7d427c2c5c1220327e5b029a02e5a1658e73d34f561ffe135"
+        },
+        {
+          "path": "models/llama-cpp/llama-perplexity-impl.dll",
+          "bytes": 194048,
+          "sha256": "35c951046cde7de91ae657cde1fef255a249639861b8bfd076ecc091e93a2329"
+        },
+        {
+          "path": "models/llama-cpp/llama-perplexity.exe",
+          "bytes": 9216,
+          "sha256": "da2d186cda45077d18cd9ad1e1a939f6d3edd4d6694b9417a6738021894797e6"
+        },
+        {
+          "path": "models/llama-cpp/llama-quantize-impl.dll",
+          "bytes": 137216,
+          "sha256": "b8be58ec3049df935459db816b54bd98e7ea12d53c60a057eddea4829ad1a287"
+        },
+        {
+          "path": "models/llama-cpp/llama-quantize.exe",
+          "bytes": 9216,
+          "sha256": "bd0dfbcf5fa533c68d5c8d73717fc4e06c62aff72eb6a1e1ca63ddf377bbe5ab"
+        },
+        {
+          "path": "models/llama-cpp/llama-qwen2vl-cli.exe",
+          "bytes": 27136,
+          "sha256": "0c5c4173746095f8bbe51c5b7fc39f3bbae998485d8f2fc89183dcc32c13d3e6"
+        },
+        {
+          "path": "models/llama-cpp/llama-results.exe",
+          "bytes": 45568,
+          "sha256": "1e77e45feaf1609c33e964f0ad7c2f4b7e6920caefe0ee950fcb77f1bdf83098"
+        },
+        {
+          "path": "models/llama-cpp/llama-server-impl.dll",
+          "bytes": 9989120,
+          "sha256": "0a5d76e5625cdb942705e26aef0bb68a965d6eed53793c0d8fad476a7a4a539d"
+        },
+        {
+          "path": "models/llama-cpp/llama-server.exe",
+          "bytes": 9216,
+          "sha256": "a69b9208ddea0ef0687d43af342425fa624a9cdfcc6187e41dbecc94c14194ad"
+        },
+        {
+          "path": "models/llama-cpp/llama-template-analysis.exe",
+          "bytes": 270848,
+          "sha256": "ffa59b8516f66e89da7d4cb0f6a65d6c16f122b42e4d45a58e0366652e3e6a1a"
+        },
+        {
+          "path": "models/llama-cpp/llama-tokenize.exe",
+          "bytes": 57344,
+          "sha256": "c0929563610d287a1e1ffca5d788ab0065a2d9be34a098c75d42ff5b165edea3"
+        },
+        {
+          "path": "models/llama-cpp/llama-tts.exe",
+          "bytes": 41472,
+          "sha256": "401c86f643166f27440b5100aee1c1d508a25076d53437a7d8e393a0c9226aed"
+        },
+        {
+          "path": "models/llama-cpp/llama.dll",
+          "bytes": 2992128,
+          "sha256": "b919f46758ed82fb2c6ea4f790805a83c8b426227451471d39ec44e0d12e01ce"
+        },
+        {
+          "path": "models/llama-cpp/llama.exe",
+          "bytes": 103936,
+          "sha256": "2b3463efdd55489874820b440a1b6db3a2823273dbdcadc2df056c30c9a306de"
+        },
+        {
+          "path": "models/llama-cpp/mtmd.dll",
+          "bytes": 1744896,
+          "sha256": "7eceff84ec847c5ba95807a4edf5313a09dc9d058d32feb8ac8e8e1105da7a58"
+        }
+      ]
+    },
+    {
+      "name": "simple-lama-source",
+      "role": "legacy-reference-source",
+      "upstream": "https://pypi.org/project/simple-lama-inpainting/0.1.2/",
+      "license_note": "Apache-2.0",
+      "archive": "simple-lama-source.zip",
+      "archive_bytes": 49031,
+      "archive_sha256": "0b1ec5235134760cf065ce096b3a8505ba4d1134fc8b37b88809bbd49faa9498",
+      "restore_prefix": "models/_pkg",
+      "files": [
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/PKG-INFO",
+          "bytes": 1851,
+          "sha256": "88b185b27ecc9f9d5cf9f8159fad215289ce806294dfea4d7e9850ded0da6553"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/pyproject.toml",
+          "bytes": 689,
+          "sha256": "e060185cfd1c22cf5c997f8d2bb54f30c69b00b916bdf2231ddefac533c878e3"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/README.md",
+          "bytes": 1254,
+          "sha256": "b47fc97d4f94c6b87043843ee083fbcf6ae89e53b82a612a490cf6847e68184a"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/simple_lama_inpainting/__init__.py",
+          "bytes": 86,
+          "sha256": "3d5431a3b99081fc250f0e4c8a2e6835999b2ffb1628911a02457aebf36895d8"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/simple_lama_inpainting/cli.py",
+          "bytes": 1260,
+          "sha256": "fd73dfc27134a1650b13b421649d7fad8de78bc5dda5b2e369ea093207f77f72"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/simple_lama_inpainting/models/__init__.py",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/simple_lama_inpainting/models/model.py",
+          "bytes": 1454,
+          "sha256": "6833710d77fb44629260ac38faf2bd722a049d97d2dda457314a998505092d39"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/simple_lama_inpainting/utils/__init__.py",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2/simple_lama_inpainting/utils/util.py",
+          "bytes": 2972,
+          "sha256": "1365dab693409a37bf9408afaf4a0b8976649b63ee50257e5a7abafe04f26c2c"
+        },
+        {
+          "path": "models/_pkg/simple_lama_inpainting-0.1.2.tar.gz",
+          "bytes": 7753,
+          "sha256": "575cb6168b11af548976f737c00a5f31a4de503bd0c5f16ba5642941f98264fc"
+        }
+      ]
+    }
+  ]
+}

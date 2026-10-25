@@ -224,8 +224,34 @@ def page_key(page_idx: int) -> str:
 
 
 def page_idx_from_raw(raw_page: Path) -> int:
-    """N.jpg → 页号 N（1 基，与原图序号一致）。"""
-    return int(raw_page.stem)
+    n = _extract_page_num(raw_page.stem)
+    return n if n is not None else 1
+
+
+def _extract_page_num(stem: str) -> int | None:
+    if stem.isdigit():
+        return int(stem)
+    import re
+    m = re.search(r"(\d+)", stem)
+    return int(m.group(1)) if m else None
+
+
+def discover_pages(src_dir: Path | str) -> dict[int, Path]:
+    page_index: dict[int, Path] = {}
+    no_num: list[Path] = []
+    for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
+        for p in Path(src_dir).glob(ext):
+            n = _extract_page_num(p.stem)
+            if n is not None:
+                page_index.setdefault(n, p)
+            else:
+                no_num.append(p)
+    no_num.sort()
+    next_n = max(page_index, default=0) + 1
+    for p in no_num:
+        page_index.setdefault(next_n, p)
+        next_n += 1
+    return page_index
 
 
 def region_id(page_idx: int, order: int) -> str:
