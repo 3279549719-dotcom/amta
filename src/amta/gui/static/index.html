@@ -1060,38 +1060,44 @@
   });
 
   // PSD 按需异步：先 POST 触发生成，轮询直到 ready，再下载
+  var psdPolls = {};
   function requestAndDownloadPsd(workId, page) {
     var url = '/api/psd/' + workId + '/' + page;
-    function trigger() {
-      return fetch(url, { method: 'POST' }).then(function(r) { return r.json(); });
+    if (psdPolls[url]) return;
+    psdPolls[url] = true;
+    var phases = {queued:'排队', waiting_photoshop:'等待 Photoshop', opening:'打开底图',
+      layers:'创建文字层', saving:'保存 PSD'};
+    function fail(err) {
+      delete psdPolls[url];
+      toast('PSD 导出失败: ' + err + '。请再次点击导出重试。', 'error');
     }
-    function poll() {
-      return trigger().then(function(s) {
-        if (s.status === 'ready') {
-          window.open('/api/export/' + workId + '/' + page + '/psd', '_blank');
-          toast('PSD ready, download started', 'success');
-          return;
-        }
-        if (s.status === 'failed') {
-          toast('PSD 生成失败: ' + (s.error || 'unknown'), 'error');
-          return;
-        }
-        // started / running
-        toast('PSD 生成中…（Photoshop 启动约 1~3 分钟）', 'info');
-        setTimeout(poll, 3000);
+    function read(method) {
+      return fetch(url, {method:method}).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
       });
     }
-    trigger().then(function(s) {
+    function handle(s) {
       if (s.status === 'ready') {
+        delete psdPolls[url];
         window.open('/api/export/' + workId + '/' + page + '/psd', '_blank');
         toast('PSD download started', 'success');
       } else if (s.status === 'failed') {
-        toast('PSD 生成失败: ' + (s.error || 'unknown'), 'error');
+        fail(s.error || 'unknown');
+      } else if (s.status === 'idle') {
+        fail('任务状态已丢失');
       } else {
-        toast('PSD 生成中…（Photoshop 启动约 1~3 分钟）', 'info');
-        setTimeout(poll, 3000);
+        var message = 'PSD：' + (phases[s.stage] || '准备导出');
+        if (s.stage === 'layers' && s.layers_total) message += ' ' + s.layers_done + '/' + s.layers_total;
+        if (s.elapsed_seconds != null) message += ' · ' + Math.floor(s.elapsed_seconds) + ' 秒';
+        toast(message, 'info');
+        setTimeout(poll, 1000);
       }
-    }).catch(function(err) { toast('PSD 请求失败: ' + err.message, 'error'); });
+    }
+    function poll() {
+      read('GET').then(handle).catch(function(err) { fail(err.message); });
+    }
+    read('POST').then(handle).catch(function(err) { fail(err.message); });
   }
   document.addEventListener('click', function() { exportMenu.classList.remove('show'); });
 

@@ -1,7 +1,7 @@
 """pipeline 中间产物自动清理测试。
 
-需求：typeset 跑完后，自动删掉上游中间位图（clean/、crops/），
-保留 final/ 成品图和所有 JSON（增量缓存用）。
+需求：typeset 跑完后清理 crops/，保留 clean/ 供按需 PSD 导出，
+以及 final/ 成品图和所有 JSON（增量缓存用）。
 
 TDD：先写失败测试，再实现。
 """
@@ -127,15 +127,13 @@ def _run_full_pipeline(tmp_path: Path, pages: list[int] = None) -> Path:
 class TestTypesetCleanup:
     """typeset 成功后自动清理中间位图。"""
 
-    def test_typeset_success_removes_clean_image(self, tmp_path):
-        """typeset 成功后，该页的 clean/page_N_clean.png 被删除。"""
+    def test_typeset_success_keeps_clean_image(self, tmp_path):
+        """typeset 成功后，保留该页 clean 图供后续 PSD 导出。"""
         _setup_full_fake_registry()
         artifacts_dir = _run_full_pipeline(tmp_path, pages=[1])
 
         clean_file = artifacts_dir / "clean" / "page_1_clean.png"
-        assert not clean_file.exists(), (
-            f"typeset 成功后 clean 图应被删除，但 {clean_file} 还在"
-        )
+        assert clean_file.exists(), "按需 PSD 导出仍需要 clean 图"
 
     def test_typeset_success_keeps_final_image(self, tmp_path):
         """typeset 成功后，final/page_N_final.png 必须保留。"""
@@ -203,13 +201,13 @@ class TestTypesetCleanup:
         clean_file = artifacts_dir / "clean" / "page_1_clean.png"
         assert clean_file.exists(), "typeset 失败时 clean 图应保留，方便调试"
 
-    def test_multi_page_typeset_cleans_all_clean_images(self, tmp_path):
-        """多页跑时，每页的 clean 图都被清理。"""
+    def test_multi_page_typeset_keeps_all_clean_images(self, tmp_path):
+        """多页跑时，每页的 clean 图都保留。"""
         _setup_full_fake_registry()
         artifacts_dir = _run_full_pipeline(tmp_path, pages=[1, 2, 3])
 
         for page in [1, 2, 3]:
             clean_file = artifacts_dir / "clean" / f"page_{page}_clean.png"
-            assert not clean_file.exists(), f"page_{page} 的 clean 图应被删除"
+            assert clean_file.exists(), f"page_{page} 的 clean 图必须保留供 PSD 导出"
             final_file = artifacts_dir / "final" / f"page_{page}_final.png"
             assert final_file.exists(), f"page_{page} 的 final 图必须保留"

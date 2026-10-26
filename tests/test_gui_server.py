@@ -28,6 +28,57 @@ def isolated_gui(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(server, "run_environment_check", lambda stages: True, raising=False)
     monkeypatch.setattr(server, "audit_run", lambda path, pages: [], raising=False)
     _jobs.clear()
+    server._psd_jobs.clear()
+
+
+def test_psd_status_is_read_only_and_failed_jobs_need_explicit_retry() -> None:
+    assert client.get('/api/psd/safe/1').json()['status'] == 'idle'
+    assert not server._psd_jobs
+    assert client.post('/api/psd/safe/1').json()['status'] == 'started'
+    assert client.post('/api/psd/safe/1').json()['status'] == 'running'
+    job = server._psd_jobs['safe:1']
+    job.update(status='failed', error='test failure', stage='failed')
+    for _ in range(3):
+        response = client.get('/api/psd/safe/1').json()
+        assert response['status'] == 'failed'
+        assert response['error'] == 'test failure'
+    assert server._psd_jobs['safe:1'] is job
+    assert client.post('/api/psd/safe/1').json()['status'] == 'started'
+    assert server._psd_jobs['safe:1']['error'] is None
+
+
+def test_psd_export_reports_progress_and_finishes(tmp_path, monkeypatch) -> None:
+    from amta.typeset import psd_jsx_export
+
+    client.post('/api/psd/safe/1')
+    output = server._page_path('safe', '1', psd=True)
+
+    def export(artifacts_dir, page, target, *, progress_callback):
+        progress_callback({'stage': 'layers', 'layers_done': 2, 'layers_total': 9,
+                           'private_path': 'not exposed'})
+        status = client.get('/api/psd/safe/1').json()
+        assert status['stage'] == 'layers'
+        assert status['layers_done'] == 2
+        assert status['layers_total'] == 9
+        assert status['elapsed_seconds'] >= 0
+        assert 'private_path' not in status
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b'PSD')
+        return True
+
+    monkeypatch.setattr(psd_jsx_export, 'export_page_psd', export)
+    server._run_psd_export('safe', '1', output)
+    assert client.get('/api/psd/safe/1').json()['status'] == 'ready'
+    previous = dict(server._psd_jobs['safe:1'])
+    assert client.post('/api/psd/safe/1').json()['status'] == 'ready'
+    assert server._psd_jobs['safe:1']['finished_at'] == previous['finished_at']
+    output.unlink()
+    assert client.get('/api/psd/safe/1').json()['status'] == 'idle'
+
+
+def test_psd_status_validates_paths() -> None:
+    assert client.get('/api/psd/safe/notnumeric').status_code == 400
+    assert client.get('/api/psd/name:stream/1').status_code == 400
 
 
 @pytest.mark.parametrize("work_id", ["../outside", "..\\outside", "", "absolute", ".", "..", "name:stream"])

@@ -6,19 +6,58 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 import threading
 import time
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Optional
 
 from amta.typeset.psd_jsx import build_script
 
 logger = logging.getLogger(__name__)
 _PHOTOSHOP_LOCK = threading.Lock()
+
+
+def _monitor_quarantine(runtime: Path, lock: Any) -> None:
+    """Retain isolation until JSX reports completion after restoring Photoshop state.
+
+    Never publish late output. With no terminal marker the directory and lock stay
+    quarantined for the lifetime of this process; guessing that PS stopped is unsafe.
+    """
+    while not ((runtime / "complete.txt").exists() or (runtime / "error.txt").exists()):
+        time.sleep(0.5)
+    shutil.rmtree(runtime, ignore_errors=True)
+    lock.release()
+
+
+def _start_quarantine_monitor(runtime: Path, lock: Any) -> None:
+    threading.Thread(target=_monitor_quarantine, args=(runtime, lock),
+                     name="psd-quarantine", daemon=True).start()
+
+
+def _read_progress(path: Path, offset: int, emit: Callable[[dict[str, Any]], None]) -> int:
+    """Only consume complete JSONL records; a writer may be halfway through a line."""
+    try:
+        with path.open("rb") as stream:
+            stream.seek(offset)
+            data = stream.read()
+    except OSError:
+        return offset
+    end = data.rfind(b"\n") + 1
+    for line in data[:end].splitlines():
+        try:
+            event = json.loads(line.decode("utf-8-sig"))
+            if isinstance(event, dict):
+                emit(event)
+        except (ValueError, UnicodeError):
+            logger.debug("Ignoring malformed PSD progress record")
+    return offset + end
 
 
 def find_photoshop_executable() -> Optional[str]:
@@ -106,20 +145,39 @@ def export_psd_with_jsx(
     script_only: bool = False,
     verbose: bool = False,
     timeout: int = 300,
+    *,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> Optional[str]:
     """生成 JSX 脚本并调用 Photoshop 创建分层 PSD。
 
     Returns: 成功返回 PSD 路径；script_only 时返回 JSX 路径；失败返回 None。
     """
+    def emit(event: dict[str, Any]) -> None:
+        if progress_callback:
+            try:
+                progress_callback(event)
+            except Exception:  # noqa: BLE001
+                logger.exception("PSD progress observer failed")
+
     if not os.path.isfile(clean_image_path):
         logger.error("Clean image does not exist: %s", clean_image_path)
+        emit({"stage": "error"})
         return None
 
     output = Path(output_psd_path).resolve()
 
-    def make_script(target: Path, error: Path, completion: Path) -> str:
-        return build_script(clean_image_path, str(target), str(error), str(completion), typeset_data)
+    def make_script(target: Path, error: Path, completion: Path,
+                    progress: Path | None = None, cancel: Path | None = None,
+                    clean_copy: Path | None = None) -> str:
+        return build_script(str(clean_copy) if clean_copy else clean_image_path,
+                            str(target), str(error), str(completion), typeset_data,
+                            progress_path=str(progress) if progress else "",
+                            cancel_path=str(cancel) if cancel else "",
+                            legacy=os.getenv("AMTA_PSD_LEGACY", "") == "1")
 
+    runtime = None
+    lock = _PHOTOSHOP_LOCK
+    acquired = launched = terminal = False
     try:
         output.parent.mkdir(parents=True, exist_ok=True)
         if verbose or script_only:
@@ -131,44 +189,74 @@ def export_psd_with_jsx(
                 return str(saved_script)
 
         if timeout <= 0:
+            emit({"stage": "error"})
             return None
         ps_exe = find_photoshop_executable()
         if not ps_exe:
             logger.error("Photoshop not found; use script_only=True for manual export")
+            emit({"stage": "error"})
             return None
 
-        with _PHOTOSHOP_LOCK, tempfile.TemporaryDirectory(
-            prefix=".amta-psd-", dir=output.parent, ignore_cleanup_errors=True
-        ) as temp_dir:
-            runtime = Path(temp_dir)
-            jsx_file = runtime / "export.jsx"
-            error_file = runtime / "error.txt"
-            completion_file = runtime / "complete.txt"
-            staged_output = runtime / "output.psd"
-            jsx_file.write_text(make_script(staged_output, error_file, completion_file),
-                                encoding="utf-8-sig")
-            subprocess.Popen(
-                [ps_exe, "-r", str(jsx_file)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            deadline = time.monotonic() + timeout
-            while time.monotonic() < deadline:
-                if error_file.exists():
-                    logger.error("Photoshop script error: %s", error_file.read_text(
-                        encoding="utf-8", errors="replace"))
-                    return None
-                if completion_file.exists():
-                    if (completion_file.read_text(encoding="utf-8") != "complete"
-                            or not staged_output.is_file() or staged_output.stat().st_size == 0):
-                        logger.error("Photoshop completed without a valid staged PSD")
-                        return None
-                    os.replace(staged_output, output)
-                    logger.info("PSD generated: %s", output_psd_path)
-                    return output_psd_path
-                time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
-            logger.error("Photoshop execution timed out (%s seconds)", timeout)
+        emit({"stage": "queued"})
+        acquired = lock.acquire(timeout=timeout)
+        if not acquired:
+            logger.error("Photoshop export queue timed out (%s seconds)", timeout)
+            emit({"stage": "error"})
             return None
+        runtime = Path(tempfile.mkdtemp(prefix=".amta-psd-", dir=output.parent))
+        jsx_file = runtime / "export.jsx"
+        error_file = runtime / "error.txt"
+        completion_file = runtime / "complete.txt"
+        progress_file = runtime / "progress.jsonl"
+        staged_output = runtime / "output.psd"
+        # app.open can return an already-open document for the same path. A unique
+        # copy ensures the exporter never modifies/closes the user's clean image.
+        clean_copy = runtime / ("input" + Path(clean_image_path).suffix)
+        shutil.copyfile(clean_image_path, clean_copy)
+        jsx_file.write_text(make_script(staged_output, error_file, completion_file,
+                                       progress_file, runtime / "cancel", clean_copy), encoding="utf-8-sig")
+        emit({"stage": "waiting_photoshop"})
+        subprocess.Popen([ps_exe, "-r", str(jsx_file)], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        launched = True
+        deadline = time.monotonic() + timeout
+        offset = 0
+        while time.monotonic() < deadline:
+            offset = _read_progress(progress_file, offset, emit)
+            if error_file.exists():
+                terminal = True
+                logger.error("Photoshop script error: %s", error_file.read_text(
+                    encoding="utf-8", errors="replace"))
+                emit({"stage": "error"})
+                return None
+            if completion_file.exists():
+                terminal = True
+                if (completion_file.read_text(encoding="utf-8") != "complete"
+                        or not staged_output.is_file() or staged_output.stat().st_size == 0):
+                    logger.error("Photoshop completed without a valid staged PSD")
+                    emit({"stage": "error"})
+                    return None
+                os.replace(staged_output, output)
+                logger.info("PSD generated: %s", output_psd_path)
+                emit({"stage": "done"})
+                return output_psd_path
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+        logger.error("Photoshop execution timed out (%s seconds)", timeout)
+        emit({"stage": "error"})
+        return None
     except OSError:
         logger.exception("PSD export failed: %s", output_psd_path)
+        emit({"stage": "error"})
         return None
+    finally:
+        if acquired:
+            if runtime is not None and launched and not terminal:
+                try:
+                    (runtime / "cancel").touch()
+                except OSError:
+                    logger.exception("Unable to signal PSD cancellation; retaining isolation")
+                _start_quarantine_monitor(runtime, lock)
+            else:
+                if runtime is not None:
+                    shutil.rmtree(runtime, ignore_errors=True)
+                lock.release()

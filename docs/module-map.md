@@ -98,9 +98,10 @@
 
 - **`fonts.py`** — 字体注册表(Stage 5): 4 级字体映射 + 探测 + 降级。（类: FontNotFoundError；函数: _level_for, resolve_font）
 - **`mits_render.py`** — MITS（manga-image-translator-style）普通路径渲染。（函数: render_page）
-- **`psd_export.py`** — Photoshop 进程管理 — 查找可执行文件、调 JSX、轮询完成。（函数: find_photoshop_executable, export_psd_with_jsx）
+- **`psd_export.py`** — Photoshop 进程管理 — 查找可执行文件、调 JSX、轮询完成。（函数: _monitor_quarantine, _start_quarantine_monitor, _read_progress, find_photoshop_executable, export_psd_with_jsx）
 - **`psd_jsx.py`** — JSX 脚本生成 — 纯字符串操作，无 I/O、无 Photoshop 调用。（函数: resolve_font_family, hex_to_rgb, escape_jsx_string, escape_jsx_path, has_conjoined_punct）
 - **`psd_jsx_export.py`** — PSD JSX 导出 — Facade，向后兼容。（函数: export_page_psd）
+- **`psd_text_descriptor.py`** — Batch text-layer creation while retaining Photoshop DOM typography defaults.
 - **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号搜索双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, _cell_rows）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（类: VerticalRow；函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位路由 — 根据 canon 的 ocr_engine 选择渲染路径。（函数: run）
@@ -110,12 +111,14 @@
 ## `scripts/` — CLI 工具入口
 
 - **`artifact.py`** — artifact — 统一产物管理 CLI（深接口版）。
+- **`benchmark_psd.py`** — Controlled Photoshop exports from frozen real-page inputs (local artifacts only).
 - **`context7.py`** — Context7 CLI wrapper — query up-to-date library documentation.
 - **`depguard.py`** — depguard — 依赖膨胀守卫（vibe-check-mcp 的机械落点，ADR-015）。
 - **`detect_rtdetr.py`** — RT-DETR-v2 漫画文本检测器（ONNX，CPU 友好）。
 - **`detectors.py`** — 检测器统一接口 — 所有方案 A/B/C 的检测器都实现 detect(img_bgr) -> blocks。
 - **`fastcheck.py`** — fastcheck — 机械质检（分层：--quick 秒级 / 默认完整）。
 - **`gen_report.py`** — gen_report — amta HTML 报告统一入口（深接口模式）。
+- **`inspect_psd.py`** — Reopen PSDs in Photoshop and save local previews + editable layer metadata.
 - **`memory.py`** — memory.py — 记忆系统统一 CLI（ADR-025/026/027 收敛）。
 - **`peek.py`** — peek — 看一眼这个项目现在长什么样：管线全貌 + 模块地图。
 - **`pre_scan.py`** — CLI: pre-scan a work's canon artifacts to build locked terminology dictionary.

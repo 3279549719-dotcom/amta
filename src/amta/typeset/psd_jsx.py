@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from amta.stores.artifacts import normalize_rendered_item
+from amta.typeset.psd_text_descriptor import TEXT_DEFAULTS, TEXT_LAYER
 
 logger = logging.getLogger(__name__)
 
@@ -91,11 +92,29 @@ def normalize_vertical_punct(text: str) -> str:
 _JSX_TEMPLATE = """
 #target photoshop
 
-app.preferences.rulerUnits = Units.PIXELS;
-app.preferences.typeUnits = TypeUnits.PIXELS;
-
 var ERROR_FILE_PATH = '{error_file}';
 var COMPLETION_FILE_PATH = '{completion_file}';
+var PROGRESS_FILE_PATH = '{progress_file}';
+var CANCEL_FILE_PATH = '{cancel_file}';
+var oldRulerUnits = app.preferences.rulerUnits;
+var oldTypeUnits = app.preferences.typeUnits;
+var oldDialogs = app.displayDialogs;
+var oldDocument = app.documents.length ? app.activeDocument : null;
+var doc = null;
+var exportError = null;
+
+function checkCancelled() {{
+    if (CANCEL_FILE_PATH && new File(CANCEL_FILE_PATH).exists) throw new Error('Export cancelled after timeout');
+}}
+
+function reportProgress(stage, done) {{
+    if (!PROGRESS_FILE_PATH) return;
+    var f = new File(PROGRESS_FILE_PATH);
+    if (f.open('a')) {{
+        f.writeln('{{"stage":"' + stage + '","layers_done":' + done + ',"layers_total":{layer_count}}}');
+        f.close();
+    }}
+}}
 
 function findFontPostScriptName(fontName) {{
     if (!fontName) return null;
@@ -176,9 +195,14 @@ function findTateChuYokoPositions(text) {{
 }}
 
 try {{
+    checkCancelled();
+    app.preferences.rulerUnits = Units.PIXELS;
+    app.preferences.typeUnits = TypeUnits.PIXELS;
+    app.displayDialogs = DialogModes.NO;
     var inputFile = new File('{input_file}');
     if (!inputFile.exists) throw new Error('Input file not found: ' + inputFile.fsName);
-    var doc = app.open(inputFile);
+    reportProgress('opening', 0);
+    doc = app.open(inputFile);
     try {{ if (doc.mode != DocumentMode.RGB) doc.changeMode(ChangeMode.RGB); }} catch(e) {{}}
     var baseLayer = null;
     try {{ if (doc.backgroundLayer) baseLayer = doc.backgroundLayer; }} catch(e) {{}}
@@ -188,6 +212,8 @@ try {{
         baseLayer.allLocked = true;
     }}
     {text_layers_code}
+    checkCancelled();
+    reportProgress('saving', {layer_count});
     var psdFile = new File('{output_file}');
     var psdOptions = new PhotoshopSaveOptions();
     psdOptions.embedColorProfile = true;
@@ -195,7 +221,26 @@ try {{
     psdOptions.layers = true;
     psdOptions.spotColors = true;
     doc.saveAs(psdFile, psdOptions, true);
-    doc.close(SaveOptions.DONOTSAVECHANGES);
+}} catch (e) {{
+    exportError = 'ERROR: ' + e.message + '\\nLine: ' + e.line;
+}} finally {{
+    if (doc) {{ try {{ doc.close(SaveOptions.DONOTSAVECHANGES); }} catch(closeError) {{
+        exportError = exportError || ('Close failed: ' + closeError.message);
+    }} }}
+    try {{ app.preferences.rulerUnits = oldRulerUnits; }} catch (rulerError) {{
+        exportError = exportError || ('Restore units failed: ' + rulerError.message);
+    }}
+    try {{ app.preferences.typeUnits = oldTypeUnits; }} catch (typeError) {{
+        exportError = exportError || ('Restore type units failed: ' + typeError.message);
+    }}
+    try {{ app.displayDialogs = oldDialogs; }} catch (dialogError) {{
+        exportError = exportError || ('Restore dialogs failed: ' + dialogError.message);
+    }}
+    if (oldDocument) {{ try {{ app.activeDocument = oldDocument; }} catch(restoreError) {{}} }}
+}}
+try {{
+    if (exportError) throw new Error(exportError);
+    checkCancelled();
     var doneFile = new File(COMPLETION_FILE_PATH + '.tmp');
     if (!doneFile.open('w')) throw new Error('Cannot write completion marker');
     doneFile.write('complete');
@@ -207,10 +252,11 @@ try {{
     var errorMsg = 'ERROR: ' + e.message + '\\nLine: ' + e.line;
     $.writeln(errorMsg);
     try {{
-        var errFile = new File(ERROR_FILE_PATH);
-        errFile.open('w');
+        var errFile = new File(ERROR_FILE_PATH + '.tmp');
+        if (!errFile.open('w')) throw new Error('Cannot write error marker');
         errFile.write(errorMsg);
         errFile.close();
+        errFile.rename(new File(ERROR_FILE_PATH).name);
     }} catch(we) {{}}
 }}
 """
@@ -249,7 +295,7 @@ _TEXT_LAYER_TEMPLATE = """
 """
 
 
-def generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str], int]:
+def generate_text_layer_jsx(index: int, item: dict[str, Any], *, batched: bool = False) -> tuple[list[str], int]:
     """从 typeset rendered_item 生成文字层 JSX。
 
     Returns: (JSX 片段列表, 本区域消耗的图层数)。
@@ -317,7 +363,8 @@ def generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str]
     else:
         tcy_code = ""
 
-    parts: list[str] = [_TEXT_LAYER_TEMPLATE.format(
+    template = TEXT_LAYER if batched else _TEXT_LAYER_TEMPLATE
+    parts: list[str] = [template.format(
         index=index, name=name,
         font_family=escape_jsx_string(font_family),
         direction=direction, justification=justification,
@@ -331,20 +378,30 @@ def generate_text_layer_jsx(index: int, item: dict[str, Any]) -> tuple[list[str]
 
 def build_script(clean_image_path: str, output_psd_path: str,
                  error_path: str, completion_path: str,
-                 typeset_data: dict[str, Any]) -> str:
+                 typeset_data: dict[str, Any], *, progress_path: str = "", cancel_path: str = "",
+                 legacy: bool = False) -> str:
     """组装完整 JSX 脚本：底图 + 文字层 + 保存。"""
     layer_parts: list[str] = []
     idx = 0
     for item in typeset_data.get("rendered_items", []):
-        parts, consumed = generate_text_layer_jsx(idx, item)
+        parts, consumed = generate_text_layer_jsx(idx, item, batched=not legacy)
+        if consumed:
+            layer_parts.append(f"checkCancelled(); reportProgress('layers', {idx});")
         layer_parts.extend(parts)
         idx += consumed
+        if consumed:
+            layer_parts.append(f"reportProgress('layers', {idx});")
     text_layers_code = "".join(layer_parts)
+    if idx and not legacy:
+        text_layers_code = TEXT_DEFAULTS + text_layers_code
 
     return _JSX_TEMPLATE.format(
         input_file=escape_jsx_path(str(Path(clean_image_path).resolve())),
         output_file=escape_jsx_path(str(Path(output_psd_path).resolve())),
         error_file=escape_jsx_path(error_path),
         completion_file=escape_jsx_path(completion_path),
+        progress_file=escape_jsx_path(progress_path),
+        cancel_file=escape_jsx_path(cancel_path),
+        layer_count=idx,
         text_layers_code=text_layers_code,
     )

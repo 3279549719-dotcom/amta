@@ -184,24 +184,6 @@ def _fail_result(
     return result
 
 
-def _cleanup_intermediate_images(artifacts_dir: Path, page_key: str) -> None:
-    """typeset 成功后清理该页上游中间位图。
-
-    删的是大文件（可从 JSON + 原图重建），留的是小文件（增量缓存基础）：
-    - 删: clean/page_N_clean.png（inpaint 中间图，typeset 已消费）
-    - 留: final/page_N_final.png（成品）
-    - 留: 所有 JSON + .fingerprint（增量缓存）
-    crops/ 由 run_pipeline 末尾统一清空（文件名不区分页码，逐页删不干净）。
-    """
-    clean_file = artifacts_dir / "clean" / f"{page_key}_clean.png"
-    if clean_file.exists():
-        try:
-            clean_file.unlink()
-            print(f"[pipeline] {page_key} cleaned intermediate: {clean_file.name}")
-        except OSError as e:
-            print(f"[pipeline] WARN cleanup clean failed ({clean_file}): {e}")
-
-
 def _clear_crops_dir(artifacts_dir: Path) -> None:
     """全部跑完后清空 crops/ 目录（OCR 裁剪图，typeset 不需要）。"""
     crops_dir = artifacts_dir / "crops"
@@ -274,9 +256,7 @@ def _run_stage(
     print(f"[pipeline] {page_key} {stage_name} running...")
     result = stage.station(ctx)
 
-    # typeset 成功 → 清理该页上游中间位图（clean/），JSON 保留当增量缓存
-    if stage_name == "typeset" and result.status == "ok":
-        _cleanup_intermediate_images(artifacts_dir, page_key)
+    # clean 图是后续按需 PSD 导出的底图，也属于 inpaint 缓存，必须保留。
 
     # 执行成功 → 保存指纹（供下次增量判断用）
     if result.status == "ok" and out_path is not None and out_path.exists():

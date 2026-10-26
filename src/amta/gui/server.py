@@ -16,9 +16,11 @@ import re
 import shutil
 import sys
 import threading
+import time
 import uuid
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -323,33 +325,63 @@ def _psd_job_key(work_id: str, page: str) -> str:
     return f"{work_id}:{page}"
 
 
+@app.get("/api/psd/{work_id}/{page}")
+def psd_status(work_id: str, page: str) -> dict[str, object]:
+    """Read status without starting or retrying an export."""
+    psd_path = _page_path(work_id, page, psd=True)
+    with _psd_jobs_lock:
+        job = dict(_psd_jobs.get(_psd_job_key(work_id, page), {}))
+    status = job.get("status", "idle")
+    if status in ("ready", "done"):
+        status = "idle"
+    if status not in ("running", "failed") and psd_path.is_file() and psd_path.stat().st_size > 0:
+        status = "ready"
+    started = job.get("started_at")
+    finished = job.get("finished_at")
+    elapsed = 0.0
+    if isinstance(started, (int, float)):
+        end = finished if isinstance(finished, (int, float)) else time.monotonic()
+        elapsed = round(max(0.0, end - started), 1)
+    return {
+        "status": status, "stage": job.get("stage", status),
+        "elapsed_seconds": elapsed, "layers_done": job.get("layers_done", 0),
+        "layers_total": job.get("layers_total", 0), "error": job.get("error"),
+    }
+
+
 def _run_psd_export(work_id: str, page: str, psd_path: Path) -> None:
     """后台线程：调 Photoshop 生成分层 PSD，结果写回 _psd_jobs。"""
     key = _psd_job_key(work_id, page)
+
+    def progress(event: dict) -> None:
+        with _psd_jobs_lock:
+            job = _psd_jobs[key]
+            for field in ("stage", "layers_done", "layers_total"):
+                if field in event:
+                    job[field] = event[field]
+
+    def finish(status: str, error: str | None = None) -> None:
+        with _psd_jobs_lock:
+            _psd_jobs[key].update(status=status, stage=status, error=error, finished_at=time.monotonic())
+
     try:
         from amta.typeset.psd_jsx_export import export_page_psd
 
         artifacts_dir = _workspace_path(work_id, "artifacts")
-        exported = export_page_psd(artifacts_dir, f"page_{page}", psd_path)
+        exported = export_page_psd(artifacts_dir, f"page_{page}", psd_path, progress_callback=progress)
         if exported and psd_path.is_file() and psd_path.stat().st_size > 0:
-            with _psd_jobs_lock:
-                _psd_jobs[key] = {"status": "done", "error": None}
+            finish("ready")
         else:
-            with _psd_jobs_lock:
-                _psd_jobs[key] = {
-                    "status": "failed",
-                    "error": "Photoshop 未产出 PSD（可能被卡死，重试一次或手动关闭 Photoshop）",
-                }
+            finish("failed", "Photoshop 未产出 PSD，请查看 Photoshop 状态后点击导出重试")
     except Exception as exc:  # noqa: BLE001
-        with _psd_jobs_lock:
-            _psd_jobs[key] = {"status": "failed", "error": str(exc)[:200]}
+        finish("failed", str(exc)[:200])
 
 
 @app.post("/api/psd/{work_id}/{page}")
 def request_psd(work_id: str, page: str) -> dict:
     """按需触发某页 PSD 生成。幂等：已生成返回 ready，生成中返回 running。
 
-    前端轮询本接口直到 ready，再 window.open 下载。
+    只有显式 POST 会重试失败任务，轮询使用 GET。
     """
     if not re.fullmatch(r"[0-9]+", page):
         raise HTTPException(status_code=400, detail="page must be numeric")
@@ -358,7 +390,7 @@ def request_psd(work_id: str, page: str) -> dict:
     # 已经有成品文件 → 直接 ready（不重复跑）
     if psd_path.is_file() and psd_path.stat().st_size > 0:
         with _psd_jobs_lock:
-            _psd_jobs[_psd_job_key(work_id, page)] = {"status": "done", "error": None}
+            _psd_jobs.setdefault(_psd_job_key(work_id, page), {}).update(status="ready", error=None)
         return {"status": "ready"}
 
     key = _psd_job_key(work_id, page)
@@ -367,7 +399,10 @@ def request_psd(work_id: str, page: str) -> dict:
         if existing and existing.get("status") in ("running", "pending"):
             return {"status": "running"}
         # 标记 running，然后开后台线程
-        _psd_jobs[key] = {"status": "running", "error": None}
+        _psd_jobs[key] = {
+            "status": "running", "stage": "queued", "error": None,
+            "started_at": time.monotonic(), "layers_done": 0, "layers_total": 0,
+        }
 
     threading.Thread(
         target=_run_psd_export, args=(work_id, page, psd_path),
@@ -466,7 +501,7 @@ async def match_book(files: list[UploadFile] = File(...)) -> dict[str, object]:
         }
 
     bid = common.pop()
-    src_dir = next(b["src_dir"] for b in known if b["book_id"] == bid)
+    src_dir = cast(Path, next(b["src_dir"] for b in known if b["book_id"] == bid))
     glossary = load_glossary(bid)
     pages = sorted(artifacts.discover_pages(src_dir))
     return {

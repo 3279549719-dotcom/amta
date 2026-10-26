@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections.abc import Callable
+from typing import Any
 from typing import Optional
 
 from amta.typeset.psd_export import export_psd_with_jsx, find_photoshop_executable
@@ -40,6 +42,8 @@ def export_page_psd(
     output_path: Path,
     script_only: bool = False,
     verbose: bool = False,
+    *,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> Optional[str]:
     """便捷接口：从 artifacts 目录读取 clean 图和 typeset JSON，导出 PSD。"""
     from amta.common.paths import read_json
@@ -72,4 +76,5 @@ def export_page_psd(
         output_psd_path=str(output_path),
         script_only=script_only,
         verbose=verbose,
+        progress_callback=progress_callback,
     )
