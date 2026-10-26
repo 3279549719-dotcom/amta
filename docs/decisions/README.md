@@ -44,4 +44,5 @@
 - [034 — 从 rule_filter 移除几何规则（edge_box / extreme_aspect）](./034-remove-geometric-rules-from-rule-filter.md)
 - [035 — p62 背景保护闭环停止于能力边界](./035-p62-background-protection-loop.md)
 - [036 — 短促发声翻译采用通用可识别性边界](./036-short-vocalization-translation-loop.md)
+- [037 — 气泡擦除从矩形涂白改为 CTD 像素 mask + LaMa](./037-bubble-ctd-mask-lama.md)
 - [2026-09-21 — 管线现状与下一步方向（口述整理）](./2026-09-21-pipeline-shape-and-roadmap.md)
