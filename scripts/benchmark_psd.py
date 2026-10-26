@@ -89,7 +89,7 @@ def run(script: str, folder: Path, transport: str, timeout: int = 300) -> dict:
         wrapper.write_text("param([string]$ScriptPath)\n$ErrorActionPreference='Stop'\n"
                            "$app=New-Object -ComObject Photoshop.Application\n$app.DoJavaScriptFile($ScriptPath)\n",
                            encoding="utf-8-sig")
-        proc = subprocess.Popen(["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(wrapper), str(jsx)],
+        proc = subprocess.Popen(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(wrapper), str(jsx)],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     deadline = time.monotonic() + timeout
     error = None
