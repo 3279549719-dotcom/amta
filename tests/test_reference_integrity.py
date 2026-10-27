@@ -109,7 +109,14 @@ _GUARD_SELF_FILES = {
 
 
 def _exempt(path: Path) -> bool:
-    return any(part in path.parts or part == path.name for part in EXEMPT_PARTS)
+    return any(part in path.relative_to(ROOT).parts for part in EXEMPT_PARTS)
+
+
+def test_worktree_parent_does_not_exempt_live_files(tmp_path, monkeypatch):
+    root = tmp_path / ".worktrees" / "review"
+    monkeypatch.setattr(__import__(__name__, fromlist=["ROOT"]), "ROOT", root)
+    assert not _exempt(root / "src" / "module.py")
+    assert _exempt(root / "output" / "probe.py")
 
 
 def _live_code_files() -> list[Path]:

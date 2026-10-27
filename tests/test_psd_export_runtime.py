@@ -9,6 +9,11 @@ from amta.typeset import psd_jsx_export as exporter
 from amta.typeset import psd_export
 
 
+@pytest.fixture(autouse=True)
+def isolate_desktop_permissions(monkeypatch):
+    monkeypatch.setattr(psd_export, "privilege_problem", lambda: None)
+
+
 @pytest.fixture
 def export_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     clean = tmp_path / "clean.png"

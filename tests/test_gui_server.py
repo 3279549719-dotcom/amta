@@ -76,6 +76,22 @@ def test_psd_export_reports_progress_and_finishes(tmp_path, monkeypatch) -> None
     assert client.get('/api/psd/safe/1').json()['status'] == 'idle'
 
 
+def test_psd_failure_preserves_actionable_permission_reason(monkeypatch) -> None:
+    from amta.typeset import psd_jsx_export
+
+    reason = "请保存并关闭 Photoshop，再以普通权限打开后重试。"
+    def export(*args, progress_callback):
+        progress_callback({"stage": "error", "error": reason})
+        return None
+
+    monkeypatch.setattr(psd_jsx_export, "export_page_psd", export)
+    client.post('/api/psd/safe/1')
+    server._run_psd_export('safe', '1', server._page_path('safe', '1', psd=True))
+    status = client.get('/api/psd/safe/1').json()
+    assert status['status'] == 'failed'
+    assert status['error'] == reason
+
+
 def test_psd_status_validates_paths() -> None:
     assert client.get('/api/psd/safe/notnumeric').status_code == 400
     assert client.get('/api/psd/name:stream/1').status_code == 400

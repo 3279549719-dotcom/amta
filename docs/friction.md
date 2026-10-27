@@ -35,3 +35,4 @@
 - [2026-10-08] DSH `workspace-write` 下单页 typeset 写 `workspace/books/<book-id>/meta.json` 被拒；用户后续实测按路径补 ACE/Low 标签后同一受限操作红→绿，但权限改动不在 Git，换 work-id 或新目录仍可能复发 → 在 DSH 的 `sandbox-windows-acl` 授权处做单路径受限回归，修复根因后再用新目录验证；不要在 AMTA 里递归修全仓 | 未还（AI 代记：本轮仅有会话级路径修复，DSH 源码未改）
 - [2026-10-08] 为一个写入失败路径造“全目录必须有 Low 标签”的假不变量，递归扫描误入 `output/logs` 约 71,503 个 pytest 临时目录，干跑多次耗时且产生 10,515 个误报；`fastcheck` 对其专属 basetemp 的清理是 `ignore_errors=True` → 期望先确认目录所属与运行中的进程，再设计只针对旧 `.pytest-bt-*` 的可预览清理；不能用全仓 ACL 扫描代替 | 未还（AI 代记：历史目录未清理，清理边界未验证）
 - [2026-10-08] 受限写入修复后仍有 `.acl-recovery/` 两套回滚脚本及三个硬编码单机路径的探针未跟踪；目录权限是 Git 外的持久变更，贸然删回滚材料会失去撤销凭据，贸然 `finish` 会夹带机器专属脚本 → 期望先核对修复稳定性和回滚材料归属，再决定留存位置及三个探针是否归档 | 未还（AI 代记：用户尚未决定 `.acl-recovery/` 去处，计划不自动删或提交）
+- [2026-10-27] 实际 GUI PSD 导出等待 300 秒失败：普通权限工作台无法交接管理员权限 Photoshop。已补 Windows token 只读检查和 GUI 错误透传；tests/test_psd_privileges.py 与 test_psd_failure_preserves_actionable_permission_reason 锁住，不自动提权。

@@ -356,7 +356,7 @@ def _run_psd_export(work_id: str, page: str, psd_path: Path) -> None:
     def progress(event: dict) -> None:
         with _psd_jobs_lock:
             job = _psd_jobs[key]
-            for field in ("stage", "layers_done", "layers_total"):
+            for field in ("stage", "layers_done", "layers_total", "error"):
                 if field in event:
                     job[field] = event[field]
 
@@ -372,7 +372,9 @@ def _run_psd_export(work_id: str, page: str, psd_path: Path) -> None:
         if exported and psd_path.is_file() and psd_path.stat().st_size > 0:
             finish("ready")
         else:
-            finish("failed", "Photoshop 未产出 PSD，请查看 Photoshop 状态后点击导出重试")
+            with _psd_jobs_lock:
+                reason = _psd_jobs[key].get("error")
+            finish("failed", str(reason) if reason else "Photoshop 未产出 PSD，请查看 Photoshop 状态后点击导出重试")
     except Exception as exc:  # noqa: BLE001
         finish("failed", str(exc)[:200])
 

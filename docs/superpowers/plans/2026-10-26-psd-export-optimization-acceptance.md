@@ -14,8 +14,8 @@
 
 **已知基线(冻结证据,来自 output\psd-benchmark-20261026\):**
 - Codex paired-final(22:06,真实页 5/3/19×5 轮):wall 中位 5.04→2.54 / 11.54→4.04 / 10.55→3.55;layers 中位 2.77→0.38 / 9.41→1.18 / 8.19→1.24
-- 等价:3/3 页 pixels_identical=true、layer_properties_identical=true(当时候选=batch3 中间版)
-- eirin 边界复测(23:19–23:40,合成 72/300 层×3 轮换序,候选=最终代码):wall 中位 88.2→34.1 / 70.6→28.6;layers 中位 64.5→11.9 / 65.4→10.0;300 层"回归"判定为单次采样被 handoff 污染(56.7s/82.8s 尖峰实测)
+- 等价:3/3 页 pixels_identical=true、layer_properties_identical=true(当时正式生成器（paired-final 命令直接加载 src/amta/typeset/psd_jsx.py）)
+- eirin 边界复测(23:19–23:40,合成 72/300 DPI、各24文字层×3 轮换序,候选=最终代码):wall 中位 88.2→34.1 / 70.6→28.6;layers 中位 64.5→11.9 / 65.4→10.0;300 DPI样本"回归"判定为单次采样被 handoff 污染(56.7s/82.8s 尖峰实测)
 - 真页 paired 用**最终代码**(当前 psd_jsx.py)的验收运行此前缺失 → 本计划 Task 2 补上,这是验收契约的直接证据
 
 ---

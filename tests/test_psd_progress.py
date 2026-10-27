@@ -2,9 +2,15 @@
 import json
 import re
 from pathlib import Path
+import pytest
 
 from amta.typeset import psd_export
 from amta.typeset.psd_jsx import build_script
+
+
+@pytest.fixture(autouse=True)
+def isolate_desktop_permissions(monkeypatch):
+    monkeypatch.setattr(psd_export, "privilege_problem", lambda: None)
 
 
 def test_progress_is_observed_without_changing_export_result(tmp_path, monkeypatch):

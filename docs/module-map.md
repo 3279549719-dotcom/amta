@@ -102,6 +102,7 @@
 - **`psd_jsx.py`** — JSX 脚本生成 — 纯字符串操作，无 I/O、无 Photoshop 调用。（函数: resolve_font_family, hex_to_rgb, escape_jsx_string, escape_jsx_path, has_conjoined_punct）
 - **`psd_jsx_export.py`** — PSD JSX 导出 — Facade，向后兼容。（函数: export_page_psd）
 - **`psd_text_descriptor.py`** — Batch text-layer creation while retaining Photoshop DOM typography defaults.
+- **`psd_windows.py`** — Read-only Windows privilege preflight; never elevates or closes Photoshop.（函数: photoshop_pid, is_elevated, privilege_problem）
 - **`typeset_engine.py`** — 排版引擎核心纯函数(Stage 5, Spec §3): 折行/避头尾/字号搜索双方向选优。（函数: _is_latin_token_char, _inside_latin_token, compute_base_font_size, infer_direction_from_bbox, _cell_rows）
 - **`typeset_render.py`** — 渲染器(Stage 5): 横排居中 / 竖排多列 / 白色描边。就地绘制到 PIL Image。（类: VerticalRow；函数: _decide_color_and_stroke, render_item, _normalize_text_for_render, _font_for_char, _is_horizontal_char）
 - **`typeset_station.py`** — typeset 工位路由 — 根据 canon 的 ocr_engine 选择渲染路径。（函数: run）

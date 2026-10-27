@@ -19,6 +19,7 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 from amta.typeset.psd_jsx import build_script
+from amta.typeset.psd_windows import privilege_problem
 
 logger = logging.getLogger(__name__)
 _PHOTOSHOP_LOCK = threading.Lock()
@@ -195,6 +196,12 @@ def export_psd_with_jsx(
         if not ps_exe:
             logger.error("Photoshop not found; use script_only=True for manual export")
             emit({"stage": "error"})
+            return None
+
+        problem = privilege_problem()
+        if problem:
+            logger.error(problem)
+            emit({"stage": "error", "error": problem})
             return None
 
         emit({"stage": "queued"})
